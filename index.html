@@ -254,13 +254,15 @@
         flex-direction: column;
         gap: 2rem;
         align-items: center;
-        /* Mobile: container manages padding */
-        padding: 0 1rem;
+        /* Mobile: no padding, let children handle spacing */
+        padding: 0;
       }
 
       .hero-text {
         width: 100%; /* Mobile: full width */
         max-width: 520px;
+        padding: 0 1rem; /* Mobile: text has side padding */
+        box-sizing: border-box;
       }
 
       .hero-content {
@@ -619,7 +621,7 @@
       .video-wrapper {
         width: 100%;
         max-width: 320px; /* Mobile size */
-        margin: 0 auto 0 -8px; /* Shifted 8px to the left */
+        margin: 0; /* No margins - parent handles centering */
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -860,6 +862,10 @@
           grid-template-columns: 1fr 1fr; /* Two columns */
           gap: 60px;
           padding: 0; /* Remove container padding */
+        }
+
+        .hero-text {
+          padding: 0; /* Remove text padding on desktop */
         }
 
         .hero-content {
