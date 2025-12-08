@@ -619,7 +619,7 @@
       .video-wrapper {
         width: 100%;
         max-width: 320px; /* Mobile size */
-        margin: 0 auto;
+        margin: 0 auto 0 -8px; /* Shifted 8px to the left */
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -881,6 +881,7 @@
 
         .video-wrapper {
           max-width: 420px; /* Larger on desktop */
+          margin: 0 auto; /* Reset to center on desktop */
           border-radius: 16px; /* Larger radius */
         }
       }
