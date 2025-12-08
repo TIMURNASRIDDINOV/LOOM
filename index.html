@@ -129,19 +129,21 @@
         display: flex;
         align-items: center;
         gap: 1.25rem; /* Base spacing: 20px */
-        margin-right: 3rem; /* Shift further left by adding more right margin */
+        margin-right: 0; /* Avoid overflow on small screens */
       }
 
       /* Responsive spacing using gap (more reliable than margin) */
       @media (min-width: 768px) {
         .nav-links {
           gap: 1.5rem; /* md: 24px */
+          margin-right: 1.5rem; /* Mild offset on tablet/desktop */
         }
       }
 
       @media (min-width: 1024px) {
         .nav-links {
           gap: 2rem; /* lg: 32px */
+          margin-right: 2rem;
         }
       }
 
@@ -254,8 +256,8 @@
         flex-direction: column;
         gap: 2rem;
         align-items: center;
-        /* Mobile: no padding, let children handle spacing */
-        padding: 0;
+        /* Mobile padding for breathing room */
+        padding: 0 1rem;
       }
 
       .hero-text {
@@ -620,8 +622,8 @@
       /* Video wrapper - Mobile first: perfectly centered */
       .video-wrapper {
         width: 100%;
-        max-width: 320px; /* Mobile size */
-        margin: 0; /* No margins - parent handles centering */
+        max-width: 360px; /* Mobile size cap */
+        margin: 0 auto; /* Center horizontally */
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -918,6 +920,10 @@
 
       /* Mobile Responsiveness - Tablets and Below */
       @media (max-width: 768px) {
+        .nav-content {
+          padding: 1rem; /* Smaller padding on mobile to avoid overflow */
+        }
+
         .nav-links {
           display: none;
         }
