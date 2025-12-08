@@ -228,6 +228,7 @@
       /* Gap-based spacing applied directly to .nav-links - no need for utility classes */
       /* Smaller screens: stack links inside a slide-out handled elsewhere (no change here) */
 
+      /* Hero Section - Mobile First */
       .hero-section {
         background: radial-gradient(
           1200px 600px at 50% -10%,
@@ -240,32 +241,36 @@
         align-items: center;
         justify-content: center;
         position: relative;
-        overflow: hidden;
-        /* Further reduced top padding to 80px for higher positioning */
-        padding: 80px 2rem 60px;
+        overflow-x: hidden; /* Prevent horizontal scroll */
+        /* Mobile-first: no side padding */
+        padding: 80px 0 60px;
       }
 
       .hero-container {
         max-width: 1200px;
         width: 100%;
         margin: 0 auto;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 60px;
+        display: flex; /* Mobile-first: flex column */
+        flex-direction: column;
+        gap: 2rem;
         align-items: center;
+        /* Mobile: container manages padding */
+        padding: 0 1rem;
       }
 
       .hero-text {
+        width: 100%; /* Mobile: full width */
         max-width: 520px;
       }
 
       .hero-content {
-        text-align: left;
+        /* Mobile-first: centered */
+        text-align: center;
         position: relative;
         z-index: 2;
         display: flex;
         flex-direction: column;
-        align-items: flex-start; /* Left-aligned on desktop */
+        align-items: center;
       }
 
       .eyebrow {
@@ -301,15 +306,26 @@
 
       .hero-cta {
         display: flex;
-        gap: 1rem;
-        flex-wrap: wrap;
+        flex-direction: column; /* Mobile: stacked buttons */
+        gap: 0.75rem;
+        width: 100%;
         align-items: center;
+        justify-content: center;
+      }
+
+      .hero-cta .btn-primary,
+      .hero-cta .btn-outline {
+        width: 100%;
+        max-width: 320px; /* Limit button width */
+        text-align: center;
       }
 
       .hero-3d-wrapper {
+        width: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 0;
       }
 
       .btn-primary {
@@ -590,14 +606,21 @@
       }
 
       .model-preview-section {
+        width: 100%;
+        max-width: 100%;
         padding: 0;
-        text-align: center;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
       }
 
+      /* Video wrapper - Mobile first: perfectly centered */
       .video-wrapper {
-        max-width: 420px; /* Reduced from 600px for better balance with text */
-        margin: 0 auto; /* Centered on all devices */
-        border-radius: 16px;
+        width: 100%;
+        max-width: 320px; /* Mobile size */
+        margin: 0 auto;
+        border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
         aspect-ratio: 1/1;
@@ -822,16 +845,50 @@
         }
       }
 
-      /* Tablet Devices (Portrait and Landscape) */
-      @media (min-width: 769px) and (max-width: 1024px) {
+      /* ========================================
+         RESPONSIVE BREAKPOINTS (Mobile-First)
+         ======================================== */
+
+      /* Desktop & Tablet (≥768px) */
+      @media (min-width: 768px) {
+        .hero-section {
+          padding: 80px 2rem 60px; /* Add side padding on larger screens */
+        }
+
+        .hero-container {
+          display: grid; /* Switch to grid layout */
+          grid-template-columns: 1fr 1fr; /* Two columns */
+          gap: 60px;
+          padding: 0; /* Remove container padding */
+        }
+
+        .hero-content {
+          text-align: left; /* Left-align on desktop */
+          align-items: flex-start; /* Align to start */
+        }
+
         .hero-cta {
-          justify-content: center;
+          flex-direction: row; /* Horizontal buttons */
           gap: 1rem;
+          width: auto; /* Auto width */
+          justify-content: flex-start; /* Align to start */
         }
 
         .hero-cta .btn-primary,
         .hero-cta .btn-outline {
-          min-width: 180px;
+          width: auto; /* Auto width on desktop */
+        }
+
+        .video-wrapper {
+          max-width: 420px; /* Larger on desktop */
+          border-radius: 16px; /* Larger radius */
+        }
+      }
+
+      /* Large Desktop (≥1024px) */
+      @media (min-width: 1024px) {
+        .hero-container {
+          gap: 80px; /* More spacing on large screens */
         }
       }
 
@@ -854,10 +911,6 @@
 
       /* Mobile Responsiveness - Tablets and Below */
       @media (max-width: 768px) {
-        .hero-section {
-          padding: 80px 0 60px; /* Remove side padding on mobile */
-        }
-
         .nav-links {
           display: none;
         }
@@ -866,58 +919,6 @@
         .product-grid {
           grid-template-columns: 1fr;
           gap: 1.25rem;
-        }
-
-        .hero-container {
-          grid-template-columns: 1fr;
-          gap: 2rem;
-        }
-
-        .hero-text {
-          max-width: 100%;
-        }
-
-        .hero-content {
-          text-align: center;
-          align-items: center; /* Center all flex children including CTA */
-        }
-
-        .hero-cta {
-          justify-content: center;
-          flex-direction: column;
-          gap: 0.75rem;
-          width: 100%; /* Full width to ensure centering */
-        }
-
-        .hero-cta .btn-primary,
-        .hero-cta .btn-outline {
-          width: 100%;
-          max-width: 320px;
-        }
-
-        /* Fix video wrapper on mobile */
-        .video-wrapper {
-          max-width: 320px; /* Consistent size on mobile */
-          margin: 0 auto;
-          padding: 0;
-        }
-
-        .hero-3d-wrapper {
-          width: 100%;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 0;
-        }
-
-        .model-preview-section {
-          width: 100%;
-          max-width: 100%;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 0;
-          margin: 0;
         }
 
         .model-viewer-container {
@@ -937,23 +938,12 @@
       /* Small Mobile Devices */
       @media (max-width: 480px) {
         .hero-section {
-          padding: 60px 0 40px; /* No side padding */
+          padding: 60px 0 40px; /* Reduce vertical padding */
         }
 
         .hero-container {
           gap: 1.5rem;
-          padding: 0 1rem; /* Container handles padding instead */
-        }
-
-        .video-wrapper {
-          max-width: 320px; /* Consistent with ≤768px breakpoint */
-          margin: 0 auto; /* Keep auto for horizontal centering */
-          padding: 0;
-          border-radius: 12px;
-        }
-
-        .preview-video {
-          border-radius: 12px;
+          padding: 0 0.75rem; /* Tighter padding on small screens */
         }
 
         .model-viewer-container {
@@ -973,14 +963,14 @@
         }
       }
 
-      /* Extra Small Devices */
+      /* Extra Small Devices (iPhone SE and smaller) */
       @media (max-width: 375px) {
         .hero-container {
-          padding: 0 0.75rem; /* Tighter padding for small screens */
+          padding: 0 0.5rem; /* Even tighter padding */
         }
 
         .video-wrapper {
-          border-radius: 8px;
+          border-radius: 8px; /* Smaller radius */
         }
 
         .hero-cta {
