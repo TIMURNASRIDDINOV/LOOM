@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LOOM - 3D Модель</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Three.js CDN -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --text: #0a0a0a;
+        --muted: #6b7280;
+        --hairline: rgba(0, 0, 0, 0.08);
+        --panel: #ffffff;
+        --brand: #0a84ff;
+        --brand-ink: #0b66d6;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(18px);
+        z-index: 100;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+      }
+
+      .nav-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0.875rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .nav-brand {
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #111;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 1.25rem;
+      }
+
+      .nav-link {
+        color: #1d1d1f;
+        text-decoration: none;
+        font-weight: 500;
+        padding: 0.5rem 0.875rem;
+        border-radius: 999px;
+        transition: background 0.2s ease;
+      }
+
+      .nav-link:hover {
+        background: #f3f4f6;
+      }
+
+      .hero-section {
+        background: radial-gradient(
+          1200px 600px at 50% -10%,
+          #0b0b0b 0%,
+          #000 60%,
+          #000 100%
+        );
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+        padding: 120px 2rem 80px;
+      }
+
+      .hero-container {
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .model-viewer-container {
+        position: relative;
+        width: 100%;
+        max-width: 550px;
+        height: 600px;
+        border-radius: 24px;
+        background: linear-gradient(135deg, #06080f, #0b0f1a);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #model-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        cursor: grab;
+      }
+
+      #model-canvas:active {
+        cursor: grabbing;
+      }
+
+      .model-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1rem;
+        font-weight: 500;
+        z-index: 1;
+      }
+
+      .model-controls-hint {
+        position: absolute;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(10px);
+        color: rgba(255, 255, 255, 0.9);
+        padding: 0.5rem 1rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        z-index: 2;
+        pointer-events: none;
+        opacity: 0;
+        animation: fadeInHint 0.5s ease 1s forwards;
+      }
+
+      @keyframes fadeInHint {
+        to {
+          opacity: 1;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .model-viewer-container {
+          max-width: 100%;
+          height: 500px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="nav">
+      <div class="nav-content">
+        <div class="nav-brand">LOOM</div>
+        <div class="nav-links">
+          <a href="index.html" class="nav-link">Главная</a>
+          <a href="catalog.html" class="nav-link">Каталог</a>
+          <a href="configurator.html" class="nav-link">Кастомизация</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero Section with 3D Model -->
+    <section class="hero-section">
+      <div class="hero-container">
+        <div class="model-viewer-container">
+          <div class="model-loading" id="model-loading">
+            Загрузка 3D модели...
+          </div>
+          <canvas id="model-canvas"></canvas>
+          <div class="model-controls-hint">
+            🖱️ Перетащите для вращения · Прокрутите для масштабирования
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3D Model Viewer Script -->
+    <script type="module">
+      import * as THREE from "three";
+      import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      // Scene setup
+      const canvas = document.getElementById("model-canvas");
+      const loadingEl = document.getElementById("model-loading");
+      const scene = new THREE.Scene();
+
+      // --- CAMERA SETUP ---
+      const camera = new THREE.PerspectiveCamera(
+        45,
+        canvas.clientWidth / canvas.clientHeight,
+        0.1,
+        1000
+      );
+      camera.position.set(0, 1.0, 2.4);
+      camera.lookAt(0, 0.9, 0);
+
+      // Renderer setup with transparent background
+      const renderer = new THREE.WebGLRenderer({
+        canvas: canvas,
+        antialias: true,
+        alpha: true,
+      });
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setClearColor(0x000000, 0);
+
+      // --- LIGHTING (cinematic gradient feel) ---
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444466, 1.2);
+      hemiLight.position.set(0, 2, 0);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      dirLight.position.set(3, 5, 2);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      // soft rim light for extra depth
+      const rimLight = new THREE.DirectionalLight(0x88aaff, 0.6);
+      rimLight.position.set(-3, 2, -2);
+      scene.add(rimLight);
+
+      // --- ORBIT CONTROLS (super restricted) ---
+      const controls = new OrbitControls(camera, canvas);
+
+      // no zoom or scroll
+      controls.enableZoom = false;
+      controls.enablePan = false;
+
+      // slight manual rotation only
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+
+      // limit vertical rotation (prevents flipping)
+      controls.minPolarAngle = Math.PI * 0.35; // a little above straight-on
+      controls.maxPolarAngle = Math.PI * 0.65; // a little below straight-on
+
+      // limit horizontal rotation if you want (optional)
+      controls.minAzimuthAngle = -Infinity;
+      controls.maxAzimuthAngle = Infinity;
+
+      // lock distance so no zoom possible
+      controls.minDistance = 2.4;
+      controls.maxDistance = 2.4;
+
+      controls.target.set(0, 0.9, 0);
+
+      // --- LOAD MODEL ---
+      const loader = new OBJLoader();
+      let model = null;
+
+      loader.load(
+        "assets/models/oversized-tshirt.obj",
+        function (object) {
+          model = object;
+
+          // Apply material to the model
+          object.traverse(function (child) {
+            if (child instanceof THREE.Mesh) {
+              child.material = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.4,
+                metalness: 0.1,
+                flatShading: false,
+              });
+            }
+          });
+
+          object.scale.set(1.05, 1.05, 1.05);
+          object.position.set(0, -0.25, 0);
+          object.rotation.y = Math.PI; // face the user
+          scene.add(object);
+          loadingEl.style.display = "none";
+
+          function animate() {
+            requestAnimationFrame(animate);
+
+            // auto-spin ONLY left-right
+            object.rotation.y += 0.002;
+
+            controls.update();
+            renderer.render(scene, camera);
+          }
+
+          animate();
+        },
+        function (xhr) {
+          const percentComplete = (xhr.loaded / xhr.total) * 100;
+          loadingEl.textContent = `Загрузка: ${Math.round(percentComplete)}%`;
+        },
+        function (error) {
+          console.error("Error loading model:", error);
+          loadingEl.textContent = "Ошибка загрузки модели";
+          loadingEl.style.color = "rgba(239, 68, 68, 0.9)";
+        }
+      );
+
+      // Handle window resize
+      function onWindowResize() {
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      }
+
+      window.addEventListener("resize", onWindowResize);
+    </script>
+  </body>
+</html>
