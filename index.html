@@ -13,26 +13,6 @@
     <!-- Preload critical font to prevent layout shift -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- React CDN -->
-    <script
-      crossorigin
-      src="https://unpkg.com/react@18/umd/react.production.min.js"
-    ></script>
-    <script
-      crossorigin
-      src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"
-    ></script>
-    <!-- Three.js CDN -->
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-        }
-      }
-    </script>
-    <!-- Product List CSS -->
-    <link rel="stylesheet" href="ProductList.css" />
     <!-- Product Catalog CSS -->
     <link rel="stylesheet" href="products-catalog.css" />
     <!-- Lucide Icons -->
@@ -1069,7 +1049,7 @@
         Выберите основу для вашего уникального дизайна
       </div>
 
-      <!-- React Product List Component -->
+      <!-- Product List (Vanilla JS) -->
       <div id="product-list-root"></div>
     </section>
 
@@ -1299,6 +1279,5 @@
 
     <!-- Product Catalog Vanilla JS -->
     <script src="products-catalog.js"></script>
-    <script src="dist/index.js"></script>
   </body>
 </html>
