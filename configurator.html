@@ -5,971 +5,1289 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LOOM - Конфигуратор футболок</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap"
       rel="stylesheet"
     />
+    <!-- Preload critical font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Product Catalog CSS -->
+    <link rel="stylesheet" href="products-catalog.css" />
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+      /* Base System - Match index.html */
       * {
         font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+      }
+
+      :root {
+        --bg: #ffffff;
+        --text: #0a0a0a;
+        --muted: #6b7280;
+        --hairline: rgba(0, 0, 0, 0.08);
+        --panel: #ffffff;
+        --brand: #0a84ff;
+        --brand-ink: #0b66d6;
       }
 
       body {
-        background: linear-gradient(135deg, #fafafa 0%, #f5f5f7 100%);
+        background: var(--bg);
+        color: var(--text);
         min-height: 100vh;
       }
 
-      .glass-card {
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+      /* ===== Navigation - Reused from index.html ===== */
+      .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        min-height: 72px;
+        background: linear-gradient(
+          180deg,
+          rgba(8, 8, 10, 0.6),
+          rgba(8, 8, 10, 0.5)
+        );
+        backdrop-filter: blur(18px) saturate(140%);
+        -webkit-backdrop-filter: blur(18px) saturate(140%);
+        z-index: 100;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        box-shadow: 0 6px 30px rgba(3, 3, 5, 0.12);
+        will-change: auto;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        contain: layout style paint;
       }
 
-      .floating-element {
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      .nav-content {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 72px;
       }
 
-      .floating-element:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+      .nav-brand {
+        font-size: 1.45rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: #ffffff;
+        text-transform: uppercase;
+        text-decoration: none;
       }
 
-      .apple-button {
-        background: linear-gradient(135deg, #007aff 0%, #0056cc 100%);
-        border: none;
-        border-radius: 12px;
-        color: white;
-        font-weight: 600;
-        font-size: 17px;
-        padding: 14px 24px;
-        transition: all 0.2s ease;
-        cursor: pointer;
-      }
-
-      .apple-button:hover {
-        transform: scale(1.02);
-        box-shadow: 0 8px 24px rgba(0, 122, 255, 0.3);
-      }
-
-      .apple-button-secondary {
-        background: rgba(0, 0, 0, 0.04);
-        border: none;
-        border-radius: 12px;
-        color: #1d1d1f;
-        font-weight: 500;
-        font-size: 17px;
-        padding: 14px 24px;
-        transition: all 0.2s ease;
-        cursor: pointer;
-      }
-
-      .apple-button-secondary:hover {
-        background: rgba(0, 0, 0, 0.08);
-      }
-
-      .nothing-input {
-        background: rgba(255, 255, 255, 0.8);
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 12px;
-        padding: 16px 20px;
-        font-size: 17px;
-        transition: all 0.2s ease;
-        outline: none;
-      }
-
-      .nothing-input:focus {
-        border-color: #007aff;
-        box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
-      }
-
-      .nothing-select {
-        background: rgba(255, 255, 255, 0.8);
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 12px;
-        padding: 16px 20px;
-        font-size: 17px;
-        cursor: pointer;
-        appearance: none;
-        background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDEuNUw2IDYuNUwxMSAxLjUiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8L3N2Zz4K");
-        background-repeat: no-repeat;
-        background-position: right 20px center;
-        padding-right: 50px;
-      }
-
-      .configurator-preview {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(20px);
-        border-radius: 24px;
-        padding: 32px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
-      }
-
-      .canvas-container {
-        background: white;
-        border-radius: 20px;
-        padding: 24px;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+      .nav-links {
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 1.25rem;
+        margin-right: 0;
       }
 
-      .section-title {
-        font-size: 32px;
-        font-weight: 700;
-        color: #1d1d1f;
-        margin-bottom: 8px;
+      @media (min-width: 768px) {
+        .nav-links {
+          gap: 1.5rem;
+          margin-right: 1.5rem;
+        }
+      }
+
+      @media (min-width: 1024px) {
+        .nav-links {
+          gap: 2rem;
+          margin-right: 2rem;
+        }
+      }
+
+      .nav-link {
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.95rem;
+        padding: 0.5rem 0.75rem;
+        margin: 0;
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: color 280ms ease;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .nav-link:hover {
+        color: #2596be;
+      }
+
+      .nav-link.active {
+        color: #ffffff;
+        font-weight: 600;
+      }
+
+      .link-underline-center::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 4px;
+        transform: translateX(-50%) scaleX(0);
+        transform-origin: center;
+        height: 2px;
+        width: 70%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, transparent, #2596be, transparent);
+        transition: transform 380ms cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+      }
+
+      .link-underline-center:hover::after {
+        transform: translateX(-50%) scaleX(1);
+      }
+
+      .link-underline-center.active::after {
+        transform: translateX(-50%) scaleX(1);
+        background: linear-gradient(90deg, transparent, #ffffff, transparent);
+      }
+
+      .nav-icon {
+        width: 16px;
+        height: 16px;
+        opacity: 0.85;
+        transition: opacity 280ms ease;
+      }
+
+      .nav-link:hover .nav-icon,
+      .nav-link.active .nav-icon {
+        opacity: 1;
+      }
+
+      /* ===== Configurator Page Specific Styles ===== */
+      .configurator-page {
+        padding-top: 96px;
+        min-height: 100vh;
+        background: #fafafa;
+      }
+
+      .page-header {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 3rem 2rem 2rem;
+        text-align: center;
+      }
+
+      .page-title {
+        font-size: clamp(2rem, 4.5vw, 2.75rem);
+        font-weight: 800;
+        color: var(--text);
+        margin: 0 0 0.75rem 0;
         letter-spacing: -0.02em;
       }
 
-      .section-subtitle {
-        font-size: 19px;
-        color: #86868b;
-        margin-bottom: 48px;
-        font-weight: 400;
+      .page-subtitle {
+        font-size: 1.05rem;
+        color: var(--muted);
+        margin: 0;
+        max-width: 640px;
+        margin-left: auto;
+        margin-right: auto;
       }
 
-      .control-group {
-        margin-bottom: 32px;
+      /* ===== 2-Column Grid Layout ===== */
+      .configurator-container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0 2rem 4rem;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
       }
-      .control-label {
-        font-size: 17px;
-        font-weight: 600;
-        color: #1d1d1f;
-        margin-bottom: 12px;
+
+      @media (min-width: 1024px) {
+        .configurator-container {
+          grid-template-columns: 60% 40%;
+          gap: 3rem;
+        }
+      }
+
+      /* ===== Preview Area (Left Column) ===== */
+      .preview-section {
+        background: var(--panel);
+        border: 1px solid var(--hairline);
+        border-radius: 20px;
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .preview-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+      }
+
+      .preview-canvas {
+        background: #f9fafb;
+        border-radius: 16px;
+        padding: 3rem 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 500px;
+        position: relative;
+      }
+
+      #designCanvas {
+        border-radius: 12px;
+        background: #f9fafb;
+        cursor: default;
+        max-width: 100%;
+        height: auto;
         display: block;
       }
 
-      .color-picker-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
-        gap: 12px;
-        margin-top: 16px;
+      #designCanvas.dragging {
+        cursor: move;
       }
+
+      /* ===== Controls Panel (Right Column) ===== */
+      .controls-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .control-card {
+        background: var(--panel);
+        border: 1px solid var(--hairline);
+        border-radius: 16px;
+        padding: 1.5rem;
+        transition: box-shadow 0.2s ease;
+      }
+
+      .control-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      }
+
+      .control-label {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0 0 1rem 0;
+        display: block;
+      }
+
+      /* Color Selector */
+      .color-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+        gap: 0.75rem;
+      }
+
       .color-option {
-        width: 60px;
-        height: 60px;
+        width: 56px;
+        height: 56px;
         border-radius: 50%;
         border: 3px solid transparent;
         cursor: pointer;
         transition: all 0.2s ease;
         position: relative;
       }
+
       .color-option:hover {
         transform: scale(1.1);
       }
+
       .color-option.selected {
-        border-color: #007aff;
-        box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.2);
+        border-color: var(--brand);
+        box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.2);
       }
 
-      .file-upload-zone {
-        border: 2px dashed rgba(0, 0, 0, 0.1);
-        border-radius: 16px;
-        padding: 48px 24px;
+      .color-option::after {
+        content: "✓";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 1.25rem;
+        font-weight: 700;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+
+      .color-option.selected::after {
+        opacity: 1;
+      }
+
+      /* Form Controls */
+      .form-input {
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border: 1px solid var(--hairline);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+        outline: none;
+        background: white;
+      }
+
+      .form-input:focus {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
+      }
+
+      .form-select {
+        width: 100%;
+        padding: 0.85rem 2.5rem 0.85rem 1rem;
+        border: 1px solid var(--hairline);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-family: inherit;
+        cursor: pointer;
+        appearance: none;
+        background: white
+          url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDEuNUw2IDYuNUwxMSAxLjUiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8L3N2Zz4K")
+          no-repeat right 1rem center;
+        transition: all 0.2s ease;
+        outline: none;
+      }
+
+      .form-select:focus {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
+      }
+
+      /* File Upload */
+      .upload-zone {
+        border: 2px dashed var(--hairline);
+        border-radius: 12px;
+        padding: 2.5rem 1.5rem;
         text-align: center;
-        background: rgba(255, 255, 255, 0.5);
+        background: #fafafa;
         transition: all 0.3s ease;
         cursor: pointer;
       }
-      .file-upload-zone:hover {
-        border-color: #007aff;
-        background: rgba(0, 122, 255, 0.02);
-      }
-      .file-upload-zone.dragover {
-        border-color: #007aff;
-        background: rgba(0, 122, 255, 0.1);
+
+      .upload-zone:hover {
+        border-color: var(--brand);
+        background: rgba(10, 132, 255, 0.02);
       }
 
       .upload-icon {
-        font-size: 48px;
-        margin-bottom: 16px;
-        opacity: 0.6;
-      }
-      .upload-text {
-        font-size: 19px;
-        color: #1d1d1f;
-        margin-bottom: 8px;
-        font-weight: 500;
-      }
-      .upload-subtext {
-        font-size: 15px;
-        color: #86868b;
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.4;
       }
 
-      .order-summary {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(20px);
-        border-radius: 20px;
-        padding: 32px;
-        margin-top: 32px;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+      .upload-text {
+        font-size: 1rem;
+        font-weight: 500;
+        color: var(--text);
+        margin-bottom: 0.5rem;
       }
-      .summary-title {
-        font-size: 24px;
-        font-weight: 700;
-        color: #1d1d1f;
-        margin-bottom: 24px;
-        letter-spacing: -0.01em;
+
+      .upload-subtext {
+        font-size: 0.9rem;
+        color: var(--muted);
       }
-      .summary-item {
+
+      /* Sliders */
+      .slider-group {
+        margin-bottom: 1.5rem;
+      }
+
+      .slider-label {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 16px 0;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-        font-size: 17px;
-      }
-      .summary-item:last-child {
-        border-bottom: none;
-        font-weight: 600;
-        font-size: 19px;
-        color: #007aff;
-      }
-
-      .toggle-button {
-        background: rgba(0, 0, 0, 0.04);
-        border: none;
-        border-radius: 8px;
-        color: #1d1d1f;
+        margin-bottom: 0.75rem;
+        font-size: 0.95rem;
         font-weight: 500;
-        font-size: 15px;
-        padding: 8px 16px;
-        transition: all 0.2s ease;
-        cursor: pointer;
-      }
-      .toggle-button.active {
-        background: #007aff;
-        color: white;
+        color: var(--text);
       }
 
-      .inline-ctl {
-        display: flex;
-        gap: 8px;
-      }
-      .mini-btn {
-        padding: 10px 12px;
-        border-radius: 10px;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        background: #fff;
+      .slider-value {
+        color: var(--muted);
         font-weight: 600;
-        font-size: 14px;
-        cursor: pointer;
       }
-      .mini-btn:hover {
-        background: #f5f7fb;
-      }
-      .range {
+
+      .slider {
         width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: #e5e7eb;
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+
+      .slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--brand);
+        cursor: pointer;
+        transition: transform 0.2s ease;
+      }
+
+      .slider::-webkit-slider-thumb:hover {
+        transform: scale(1.2);
+      }
+
+      .slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--brand);
+        cursor: pointer;
+        border: none;
+        transition: transform 0.2s ease;
+      }
+
+      .slider::-moz-range-thumb:hover {
+        transform: scale(1.2);
+      }
+
+      /* Buttons - Matching index.html CTAs */
+      .btn-primary {
+        background: #0a0a0a;
+        color: white;
+        padding: 0.9rem 1.6rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 1rem;
+        border: none;
+        cursor: pointer;
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        width: 100%;
+      }
+
+      .btn-primary:hover {
+        background: #1a1a1a;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+      }
+
+      .btn-secondary {
+        background: rgba(0, 0, 0, 0.04);
+        color: var(--text);
+        padding: 0.9rem 1.6rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 1rem;
+        border: none;
+        cursor: pointer;
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        width: 100%;
+      }
+
+      .btn-secondary:hover {
+        background: rgba(0, 0, 0, 0.08);
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+      }
+
+      .btn-group .btn-primary,
+      .btn-group .btn-secondary {
+        flex: 1;
+      }
+
+      /* Canvas Styles */
+      #designCanvas {
+        border-radius: 12px;
+        background: #f9fafb;
+        cursor: default;
+      }
+
+      #designCanvas.dragging {
+        cursor: move;
+      }
+
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .configurator-page {
+          padding-top: 80px;
+        }
+
+        .page-header {
+          padding: 2rem 1rem 1.5rem;
+        }
+
+        .configurator-container {
+          padding: 0 1rem 3rem;
+          gap: 2rem;
+        }
+
+        .preview-section {
+          padding: 1.5rem;
+        }
+
+        .preview-canvas {
+          padding: 2rem 1rem;
+          min-height: 400px;
+        }
+
+        .control-card {
+          padding: 1.25rem;
+        }
+
+        .color-grid {
+          grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+          gap: 0.5rem;
+        }
+
+        .color-option {
+          width: 48px;
+          height: 48px;
+        }
       }
     </style>
   </head>
-  <body class="bg-gray-50">
-    <!-- Navigation -->
-    <nav class="glass-card sticky top-0 z-50 border-b border-gray-100">
-      <div class="max-w-7xl mx-auto px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-8">
-            <h1 class="text-2xl font-bold text-gray-900">LOOM</h1>
-            <a
-              href="index.html"
-              class="text-gray-600 hover:text-gray-900 transition-colors"
-              >← Главная</a
-            >
-          </div>
+  <body>
+    <!-- Navigation - Consistent with index.html -->
+    <nav class="nav">
+      <div class="nav-content">
+        <a href="index.html" class="nav-brand">LOOM</a>
+        <div class="nav-links">
+          <a href="index.html" class="nav-link link-underline-center">
+            <i data-lucide="home" class="nav-icon"></i>
+            Главная
+          </a>
+          <a href="catalog.html" class="nav-link link-underline-center">
+            <i data-lucide="shopping-bag" class="nav-icon"></i>
+            Каталог
+          </a>
+          <a
+            href="configurator.html"
+            class="nav-link link-underline-center active"
+          >
+            <i data-lucide="palette" class="nav-icon"></i>
+            Конфигуратор
+          </a>
         </div>
       </div>
     </nav>
 
     <!-- Main Content -->
-    <div class="max-w-7xl mx-auto px-6 py-16">
-      <!-- Header -->
-      <div class="text-center mb-16">
-        <h1 class="section-title">Создайте свой дизайн</h1>
-        <p class="section-subtitle">
+    <main class="configurator-page">
+      <!-- Page Header -->
+      <header class="page-header">
+        <h1 class="page-title">Создайте свой дизайн</h1>
+        <p class="page-subtitle">
           Персонализируйте футболку с помощью нашего интуитивного редактора
         </p>
-      </div>
+      </header>
 
-      <!-- Configurator Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        <!-- Canvas Area -->
-        <div class="configurator-preview floating-element">
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xl font-semibold text-gray-900">Предпросмотр</h3>
-            <div class="flex space-x-2">
-              <button class="toggle-button active" id="frontView">
-                Спереди
-              </button>
-              <button class="toggle-button" id="backView">Сзади</button>
-            </div>
+      <!-- 2-Column Layout: Preview + Controls -->
+      <div class="configurator-container">
+        <!-- Left Column: Preview Area -->
+        <section class="preview-section" aria-label="Предпросмотр дизайна">
+          <div class="preview-header">
+            <h2 class="preview-title">Предпросмотр</h2>
           </div>
 
-          <div class="canvas-container">
+          <div class="preview-canvas" id="canvas-container">
+            <!-- Canvas for dynamic rendering -->
             <canvas
-              id="tshirtCanvas"
-              width="400"
-              height="500"
-              class="rounded-lg"
+              id="designCanvas"
+              width="600"
+              height="700"
+              style="max-width: 100%; height: auto; display: block"
             ></canvas>
           </div>
+        </section>
 
-          <div class="mt-4 inline-ctl">
-            <button class="mini-btn" id="centerSelected">Центрировать</button>
-            <button class="mini-btn" id="deleteSelected">Удалить</button>
-            <label
-              class="mini-btn"
-              style="display: flex; align-items: center; gap: 8px"
-            >
-              Размер текста
-              <input
-                id="fontSize"
-                type="range"
-                min="12"
-                max="72"
-                value="32"
-                class="range"
-              />
+        <!-- Right Column: Configuration Controls -->
+        <aside class="controls-section" aria-label="Панель настройки">
+          <!-- Color Selector -->
+          <div class="control-card">
+            <label class="control-label" for="color-selector">
+              Цвет футболки
             </label>
-          </div>
-        </div>
-
-        <!-- Controls -->
-        <div class="space-y-8">
-          <!-- Product Selection -->
-          <div class="glass-card rounded-2xl p-8 floating-element">
-            <h3 class="control-label">Выберите товар</h3>
-            <div class="grid grid-cols-1 gap-4">
-              <label
-                class="flex items-center p-4 rounded-xl border border-gray-200 cursor-pointer hover:border-blue-500 transition-colors"
-              >
-                <input
-                  type="radio"
-                  name="product"
-                  value="tshirt"
-                  checked
-                  class="sr-only"
-                />
-                <div class="flex items-center space-x-4 w-full">
-                  <div class="text-2xl">👕</div>
-                  <div class="flex-1">
-                    <h4 class="font-semibold text-gray-900">
-                      Классическая футболка
-                    </h4>
-                    <p class="text-gray-600 text-sm">100% хлопок, унисекс</p>
-                  </div>
-                  <span class="font-semibold text-blue-600">12,990₽</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <!-- Color Selection -->
-          <div class="glass-card rounded-2xl p-8 floating-element">
-            <h3 class="control-label">Цвет футболки</h3>
-            <div class="color-picker-grid">
-              <div
+            <div
+              class="color-grid"
+              id="color-selector"
+              role="radiogroup"
+              aria-label="Выбор цвета футболки"
+            >
+              <button
                 class="color-option selected"
-                style="background: white; border-color: #e5e7eb"
+                style="background: #ffffff; border: 2px solid #e5e7eb"
                 data-color="white"
-              ></div>
-              <div
+                role="radio"
+                aria-checked="true"
+                aria-label="Белый"
+              ></button>
+              <button
                 class="color-option"
                 style="background: #1f2937"
                 data-color="black"
-              ></div>
-              <div
+                role="radio"
+                aria-checked="false"
+                aria-label="Черный"
+              ></button>
+              <button
                 class="color-option"
                 style="background: #1e40af"
                 data-color="navy"
-              ></div>
-              <div
+                role="radio"
+                aria-checked="false"
+                aria-label="Темно-синий"
+              ></button>
+              <button
                 class="color-option"
                 style="background: #6b7280"
                 data-color="gray"
-              ></div>
-              <div
+                role="radio"
+                aria-checked="false"
+                aria-label="Серый"
+              ></button>
+              <button
                 class="color-option"
                 style="background: #dc2626"
                 data-color="red"
-              ></div>
+                role="radio"
+                aria-checked="false"
+                aria-label="Красный"
+              ></button>
             </div>
           </div>
 
-          <!-- Size Selection -->
-          <div class="glass-card rounded-2xl p-8 floating-element">
-            <h3 class="control-label">Размер</h3>
-            <select class="nothing-select w-full" id="size" name="size">
-              <option value="">Выберите размер</option>
-              <option value="xs">XS</option>
-              <option value="s">S</option>
-              <option value="m">M</option>
-              <option value="l">L</option>
-              <option value="xl">XL</option>
-              <option value="xxl">XXL</option>
-            </select>
+          <!-- Text Customization -->
+          <div class="control-card">
+            <label class="control-label" for="text-input">
+              Добавить текст
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 1rem">
+              <input
+                type="text"
+                id="text-input"
+                class="form-input"
+                placeholder="Введите текст на футболке..."
+                aria-label="Текст для печати"
+              />
+              <select
+                id="font-select"
+                class="form-select"
+                aria-label="Выбор шрифта"
+              >
+                <option value="Inter">Inter</option>
+                <option value="Helvetica">Helvetica</option>
+                <option value="Arial">Arial</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Times New Roman">Times New Roman</option>
+              </select>
+            </div>
           </div>
 
-          <!-- Design Upload -->
-          <div class="glass-card rounded-2xl p-8 floating-element">
-            <h3 class="control-label">Загрузите дизайн</h3>
-            <div class="file-upload-zone" id="uploadZone">
+          <!-- Image Upload -->
+          <div class="control-card">
+            <label class="control-label"> Загрузить изображение </label>
+            <div
+              class="upload-zone"
+              id="upload-zone"
+              tabindex="0"
+              role="button"
+              aria-label="Загрузить изображение"
+            >
               <div class="upload-icon">🎨</div>
               <p class="upload-text">Перетащите изображение сюда</p>
               <p class="upload-subtext">или нажмите для выбора файла</p>
               <input
                 type="file"
-                id="designFile"
-                accept="image/*"
-                class="hidden"
+                id="file-input"
+                accept="image/png,image/jpeg,image/svg+xml"
+                style="display: none"
+                aria-label="Выбор файла изображения"
               />
             </div>
           </div>
 
-          <!-- Text Editor -->
-          <div class="glass-card rounded-2xl p-8 floating-element">
-            <h3 class="control-label">Добавить текст</h3>
-            <div class="space-y-4">
-              <input
-                type="text"
-                placeholder="Введите текст..."
-                class="nothing-input w-full"
-                id="textInput"
-              />
-              <div class="grid grid-cols-2 gap-4">
-                <select class="nothing-select" id="fontSelect">
-                  <option value="Inter">Inter</option>
-                  <option value="Helvetica">Helvetica</option>
-                  <option value="Arial">Arial</option>
-                </select>
-                <input
-                  type="color"
-                  value="#000000"
-                  class="nothing-input"
-                  id="textColor"
-                />
+          <!-- Adjustments -->
+          <div class="control-card">
+            <label class="control-label"> Настройки размера и поворота </label>
+
+            <div class="slider-group">
+              <div class="slider-label">
+                <span>Размер дизайна</span>
+                <span class="slider-value" id="size-value">100%</span>
               </div>
-              <button class="apple-button w-full" id="addTextBtn">
-                Добавить текст
-              </button>
+              <input
+                type="range"
+                id="size-slider"
+                class="slider"
+                min="50"
+                max="150"
+                value="100"
+                aria-label="Размер дизайна"
+              />
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-label">
+                <span>Поворот</span>
+                <span class="slider-value" id="rotation-value">0°</span>
+              </div>
+              <input
+                type="range"
+                id="rotation-slider"
+                class="slider"
+                min="-180"
+                max="180"
+                value="0"
+                aria-label="Угол поворота"
+              />
             </div>
           </div>
-        </div>
+
+          <!-- Actions -->
+          <div class="control-card">
+            <label class="control-label"> Действия </label>
+            <button
+              id="reset-btn"
+              class="btn-secondary"
+              aria-label="Сбросить все настройки"
+            >
+              <i
+                data-lucide="rotate-ccw"
+                style="
+                  width: 18px;
+                  height: 18px;
+                  vertical-align: middle;
+                  margin-right: 0.5rem;
+                "
+              ></i>
+              Сбросить всё
+            </button>
+          </div>
+        </aside>
       </div>
+    </main>
 
-      <!-- Order Summary -->
-      <div class="order-summary floating-element mt-16">
-        <h3 class="summary-title">Сводка заказа</h3>
-        <div class="space-y-0">
-          <div class="summary-item">
-            <span class="text-gray-600">Товар</span
-            ><span class="font-medium">Классическая футболка</span>
-          </div>
-          <div class="summary-item">
-            <span class="text-gray-600">Цвет</span
-            ><span class="font-medium" id="selectedColor">Белый</span>
-          </div>
-          <div class="summary-item">
-            <span class="text-gray-600">Размер</span
-            ><span class="font-medium" id="selectedSize">Не выбран</span>
-          </div>
-          <div class="summary-item">
-            <span class="text-gray-600">Печать</span
-            ><span class="font-medium">3,000₽</span>
-          </div>
-          <div class="summary-item"><span>Итого</span><span>15,990₽</span></div>
-        </div>
-
-        <div class="flex space-x-4 mt-8">
-          <button class="apple-button-secondary flex-1" id="clearAll">
-            Очистить
-          </button>
-          <button class="apple-button flex-1" id="downloadMockup">
-            Скачать предпросмотр
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- JavaScript -->
+    <!-- JavaScript - Production Ready -->
     <script>
-      // Debug: Check if fabric is loaded
-      console.log("Fabric.js loaded:", typeof fabric !== "undefined");
+      // Initialize Lucide icons
+      lucide.createIcons();
 
-      // Wait for DOM and fabric to be ready
+      // DOM Ready
       document.addEventListener("DOMContentLoaded", function () {
-        console.log("DOM loaded");
+        // ===== Configuration =====
+        const CANVAS_WIDTH = 600;
+        const CANVAS_HEIGHT = 700;
 
-        if (typeof fabric === "undefined") {
-          console.error(
-            "Fabric.js not loaded! Creating fallback configurator..."
-          );
-          createFallbackConfigurator();
-          return;
-        }
+        // Printable area (bounding box) - center chest area
+        const PRINT_AREA = {
+          x: 175,
+          y: 220,
+          width: 250,
+          height: 280,
+        };
 
-        try {
-          // Canvas init
-          const canvas = new fabric.Canvas("tshirtCanvas", {
-            backgroundColor: "#f5f5f5",
-            selection: true,
-            preserveObjectStacking: true,
-          });
+        // Image paths for different colors
+        const colorImages = {
+          white: "configuratorprodutcs/tshirt_basic2d_white_001.png",
+          black: "configuratorprodutcs/tshirt_basic2d_black_001.png",
+          navy: "configuratorprodutcs/tshirt_basic2d_navy_001.png",
+          gray: "configuratorprodutcs/tshirt_basic2d_gray_001.png",
+          red: "configuratorprodutcs/tshirt_basic2d_red_001.png",
+        };
 
-          console.log("Canvas created:", canvas);
-
-          let tshirtObject = null;
-          let currentSide = "front";
-          const DESIGN_AREA = {
-            left: 0.25,
-            top: 0.35,
-            width: 0.5,
-            height: 0.46,
-          }; // relative
-          let designAreaRect = null;
-
-          // Base shirt
-          fabric.Image.fromURL(
-            "https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=400&q=80",
-            function (img) {
-              console.log("T-shirt image loaded");
-              img.set({
-                left: 50,
-                top: 20,
-                scaleX: 0.8,
-                scaleY: 0.8,
-                selectable: false,
-                evented: false,
-              });
-              tshirtObject = img;
-              canvas.add(img);
-              canvas.sendToBack(img);
-              createOrUpdateDesignArea();
-            },
-            { crossOrigin: "anonymous" }
-          );
-
-          function createOrUpdateDesignArea() {
-            const { width, height } = canvas;
-            const w = width * DESIGN_AREA.width;
-            const h = height * DESIGN_AREA.height;
-            const cx = width * DESIGN_AREA.left + w / 2;
-            const cy = height * DESIGN_AREA.top + h / 2;
-            if (!designAreaRect) {
-              designAreaRect = new fabric.Rect({
-                left: cx,
-                top: cy,
-                width: w,
-                height: h,
-                fill: "transparent",
-                stroke: "#007aff",
-                strokeWidth: 1,
-                strokeDashArray: [6, 6],
-                selectable: false,
-                evented: false,
-                originX: "center",
-                originY: "center",
-              });
-              canvas.add(designAreaRect);
-              canvas.bringToFront(designAreaRect);
-            } else {
-              designAreaRect.set({ left: cx, top: cy, width: w, height: h });
-            }
-            canvas.renderAll();
-          }
-
-          // Helpers
-          function getDesignBounds() {
-            const { width, height } = canvas;
-            const w = width * DESIGN_AREA.width;
-            const h = height * DESIGN_AREA.height;
-            const x = width * DESIGN_AREA.left + w / 2;
-            const y = height * DESIGN_AREA.top + h / 2;
-            return { cx: x, cy: y, w, h };
-          }
-
-          function clampObjectToDesignArea(obj) {
-            const { cx, cy, w, h } = getDesignBounds();
-            const halfW =
-              (obj.getScaledWidth
-                ? obj.getScaledWidth()
-                : obj.width * obj.scaleX) / 2;
-            const halfH =
-              (obj.getScaledHeight
-                ? obj.getScaledHeight()
-                : obj.height * obj.scaleY) / 2;
-            const minX = cx - w / 2 + halfW;
-            const maxX = cx + w / 2 - halfW;
-            const minY = cy - h / 2 + halfH;
-            const maxY = cy + h / 2 - halfH;
-            obj.left = Math.min(Math.max(obj.left, minX), maxX);
-            obj.top = Math.min(Math.max(obj.top, minY), maxY);
-          }
-
-          function isDesignObject(o) {
-            return o && o !== tshirtObject && o !== designAreaRect;
-          }
-
-          function forEachDesignObject(cb) {
-            canvas.getObjects().forEach((o) => {
-              if (isDesignObject(o)) cb(o);
-            });
-          }
-
-          function updateSideVisibility() {
-            forEachDesignObject((o) => {
-              o.visible = (o.side || "front") === currentSide;
-            });
-            canvas.renderAll();
-          }
-
-          // Color selection
-          document.querySelectorAll(".color-option").forEach((option) => {
-            option.addEventListener("click", function () {
-              document
-                .querySelectorAll(".color-option")
-                .forEach((o) => o.classList.remove("selected"));
-              this.classList.add("selected");
-              const color = this.dataset.color;
-              const colorNames = {
-                white: "Белый",
-                black: "Черный",
-                navy: "Темно-синий",
-                gray: "Серый",
-                red: "Красный",
-              };
-              document.getElementById("selectedColor").textContent =
-                colorNames[color];
-              if (tshirtObject) {
-                const colorMap = {
-                  white: "#ffffff",
-                  black: "#1f2937",
-                  navy: "#1e40af",
-                  gray: "#6b7280",
-                  red: "#dc2626",
-                };
-                tshirtObject.filters = [
-                  new fabric.Image.filters.BlendColor({
-                    color: colorMap[color],
-                    mode: "tint",
-                    alpha: 0.45,
-                  }),
-                ];
-                tshirtObject.applyFilters();
-                canvas.renderAll();
-              }
-            });
-          });
-
-          // Size selection -> summary
-          document
-            .getElementById("size")
-            .addEventListener("change", function () {
-              const sizeNames = {
-                xs: "XS",
-                s: "S",
-                m: "M",
-                l: "L",
-                xl: "XL",
-                xxl: "XXL",
-              };
-              document.getElementById("selectedSize").textContent =
-                sizeNames[this.value] || "Не выбран";
-            });
-
-          // Upload
-          const uploadZone = document.getElementById("uploadZone");
-          const fileInput = document.getElementById("designFile");
-          uploadZone.addEventListener("click", () => fileInput.click());
-          uploadZone.addEventListener("dragover", (e) => {
-            e.preventDefault();
-            uploadZone.classList.add("dragover");
-          });
-          uploadZone.addEventListener("dragleave", () =>
-            uploadZone.classList.remove("dragover")
-          );
-          uploadZone.addEventListener("drop", (e) => {
-            e.preventDefault();
-            uploadZone.classList.remove("dragover");
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-              handleFileUpload(files[0]);
-            }
-          });
-          fileInput.addEventListener("change", (e) => {
-            if (e.target.files.length > 0) {
-              handleFileUpload(e.target.files[0]);
-            }
-          });
-
-          function handleFileUpload(file) {
-            const reader = new FileReader();
-            reader.onload = function (f) {
-              fabric.Image.fromURL(
-                f.target.result,
-                function (img) {
-                  const { cx, cy } = getDesignBounds();
-                  img.set({
-                    left: cx,
-                    top: cy,
-                    originX: "center",
-                    originY: "center",
-                    scaleX: 0.3,
-                    scaleY: 0.3,
-                    cornerColor: "#007AFF",
-                    borderColor: "#007AFF",
-                  });
-                  img.side = currentSide;
-                  clampObjectToDesignArea(img);
-                  canvas.add(img);
-                  canvas.setActiveObject(img);
-                },
-                { crossOrigin: "anonymous" }
-              );
-            };
-            reader.readAsDataURL(file);
-          }
-
-          // Text add/edit
-          const textInput = document.getElementById("textInput");
-          const fontSelect = document.getElementById("fontSelect");
-          const textColor = document.getElementById("textColor");
-          const fontSizeRange = document.getElementById("fontSize");
-
-          document
-            .getElementById("addTextBtn")
-            .addEventListener("click", function () {
-              const text = textInput.value;
-              if (!text.trim()) return;
-              const { cx, cy } = getDesignBounds();
-              const textObj = new fabric.Textbox(text, {
-                left: cx,
-                top: cy,
-                originX: "center",
-                originY: "center",
-                fontFamily: fontSelect.value,
-                fill: textColor.value,
-                fontSize: parseInt(fontSizeRange.value, 10) || 32,
-                cornerColor: "#007AFF",
-                borderColor: "#007AFF",
-                fontWeight: "normal",
-              });
-              textObj.side = currentSide;
-              clampObjectToDesignArea(textObj);
-              canvas.add(textObj);
-              canvas.setActiveObject(textObj);
-              textInput.value = "";
-            });
-
-          canvas.on("selection:created", syncTextControls);
-          canvas.on("selection:updated", syncTextControls);
-          function syncTextControls() {
-            const obj = canvas.getActiveObject();
-            if (obj && obj.type === "textbox") {
-              textInput.value = obj.text || "";
-              fontSelect.value = obj.fontFamily || "Inter";
-              textColor.value = obj.fill || "#000000";
-              fontSizeRange.value = Math.round(obj.fontSize || 32);
-            }
-          }
-
-          textInput.addEventListener("input", () => {
-            const o = canvas.getActiveObject();
-            if (o && o.type === "textbox") {
-              o.text = textInput.value;
-              canvas.renderAll();
-            }
-          });
-          fontSelect.addEventListener("change", () => {
-            const o = canvas.getActiveObject();
-            if (o && o.type === "textbox") {
-              o.fontFamily = fontSelect.value;
-              canvas.renderAll();
-            }
-          });
-          textColor.addEventListener("change", () => {
-            const o = canvas.getActiveObject();
-            if (o && (o.type === "textbox" || o.type === "i-text")) {
-              o.set("fill", textColor.value);
-              canvas.renderAll();
-            }
-          });
-          fontSizeRange.addEventListener("input", () => {
-            const o = canvas.getActiveObject();
-            if (o && o.type === "textbox") {
-              o.set("fontSize", parseInt(fontSizeRange.value, 10));
-              canvas.renderAll();
-            }
-          });
-
-          // Side toggle
-          document
-            .getElementById("frontView")
-            .addEventListener("click", function () {
-              document
-                .querySelectorAll(".toggle-button")
-                .forEach((btn) => btn.classList.remove("active"));
-              this.classList.add("active");
-              currentSide = "front";
-              updateSideVisibility();
-            });
-          document
-            .getElementById("backView")
-            .addEventListener("click", function () {
-              document
-                .querySelectorAll(".toggle-button")
-                .forEach((btn) => btn.classList.remove("active"));
-              this.classList.add("active");
-              currentSide = "back";
-              updateSideVisibility();
-            });
-
-          // Constrain to design area while moving/scaling
-          canvas.on("object:moving", (e) => {
-            const o = e.target;
-            if (isDesignObject(o)) {
-              clampObjectToDesignArea(o);
-            }
-          });
-          canvas.on("object:scaling", (e) => {
-            const o = e.target;
-            if (isDesignObject(o)) {
-              clampObjectToDesignArea(o);
-            }
-          });
-
-          // Center and delete
-          document
-            .getElementById("centerSelected")
-            .addEventListener("click", () => {
-              const o = canvas.getActiveObject();
-              if (o && isDesignObject(o)) {
-                const { cx, cy } = getDesignBounds();
-                o.set({
-                  left: cx,
-                  top: cy,
-                  originX: "center",
-                  originY: "center",
-                });
-                canvas.renderAll();
-              }
-            });
-          document
-            .getElementById("deleteSelected")
-            .addEventListener("click", () => {
-              const o = canvas.getActiveObject();
-              if (o && isDesignObject(o)) {
-                canvas.remove(o);
-                canvas.discardActiveObject();
-                canvas.requestRenderAll();
-              }
-            });
-          document.addEventListener("keydown", (e) => {
-            const o = canvas.getActiveObject();
-            if (!o || !isDesignObject(o)) return;
-            const step = e.shiftKey ? 10 : 1;
-            if (e.key === "Delete" || e.key === "Backspace") {
-              canvas.remove(o);
-              canvas.discardActiveObject();
-              canvas.requestRenderAll();
-            }
-            if (e.key === "ArrowLeft") {
-              o.left -= step;
-              clampObjectToDesignArea(o);
-              canvas.requestRenderAll();
-            }
-            if (e.key === "ArrowRight") {
-              o.left += step;
-              clampObjectToDesignArea(o);
-              canvas.requestRenderAll();
-            }
-            if (e.key === "ArrowUp") {
-              o.top -= step;
-              clampObjectToDesignArea(o);
-              canvas.requestRenderAll();
-            }
-            if (e.key === "ArrowDown") {
-              o.top += step;
-              clampObjectToDesignArea(o);
-              canvas.requestRenderAll();
-            }
-          });
-
-          // Clear and download
-          document.getElementById("clearAll").addEventListener("click", () => {
-            const toRemove = canvas.getObjects().filter(isDesignObject);
-            toRemove.forEach((o) => canvas.remove(o));
-            canvas.discardActiveObject();
-            canvas.requestRenderAll();
-          });
-          document
-            .getElementById("downloadMockup")
-            .addEventListener("click", () => {
-              const dataURL = canvas.toDataURL({ format: "png", quality: 1 });
-              const a = document.createElement("a");
-              a.href = dataURL;
-              a.download = `loom-${currentSide}.png`;
-              a.click();
-            });
-
-          // Control visuals
-          fabric.Object.prototype.transparentCorners = false;
-          fabric.Object.prototype.cornerStyle = "circle";
-          fabric.Object.prototype.cornerColor = "#007AFF";
-          fabric.Object.prototype.borderColor = "#007AFF";
-
-          // Resize handling
-          window.addEventListener("resize", () => {
-            createOrUpdateDesignArea();
-            canvas.requestRenderAll();
-          });
-        } catch (error) {
-          console.error("Error initializing fabric.js:", error);
-          createFallbackConfigurator();
-        }
-      });
-
-      // Fallback simple configurator
-      function createFallbackConfigurator() {
-        const canvas = document.getElementById("tshirtCanvas");
+        // ===== Canvas Setup =====
+        const canvas = document.getElementById("designCanvas");
         const ctx = canvas.getContext("2d");
 
-        // Clear canvas
-        ctx.fillStyle = "#f5f5f5";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // State management
+        let state = {
+          tshirtImage: null,
+          currentColor: "white",
+          uploadedImage: null,
+          uploadedImageData: {
+            x: PRINT_AREA.x + PRINT_AREA.width / 2,
+            y: PRINT_AREA.y + PRINT_AREA.height / 2,
+            scale: 1,
+            rotation: 0,
+            originalWidth: 0,
+            originalHeight: 0,
+          },
+          text: "",
+          textFont: "Inter",
+          textColor: "#000000",
+          showBoundingBox: true,
+          isDragging: false,
+          dragStartX: 0,
+          dragStartY: 0,
+          fontsLoaded: false,
+        };
 
-        // Draw simple t-shirt
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(100, 100, 200, 250);
-
-        // Draw neck
-        ctx.fillStyle = "#f5f5f5";
-        ctx.fillRect(150, 80, 100, 40);
-
-        // Add text
-        ctx.fillStyle = "#000000";
-        ctx.font = "16px Inter";
-        ctx.textAlign = "center";
-        ctx.fillText("Простой предпросмотр", 200, 200);
-        ctx.fillText("Fabric.js не загружен", 200, 220);
-
-        // Disable controls
-        document.querySelectorAll("button, input, select").forEach((el) => {
-          el.disabled = true;
+        // ===== Font Loading =====
+        document.fonts.ready.then(() => {
+          state.fontsLoaded = true;
+          redrawCanvas();
         });
 
-        // Show message
-        const msg = document.createElement("div");
-        msg.style.cssText =
-          "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,0,0,0.1); padding: 20px; border-radius: 8px; text-align: center;";
-        msg.innerHTML =
-          "<h3>Ошибка загрузки</h3><p>Fabric.js не загружен. Проверьте интернет-соединение.</p>";
-        canvas.parentElement.style.position = "relative";
-        canvas.parentElement.appendChild(msg);
-      }
+        // Load initial t-shirt image
+        function loadTshirtImage(color) {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = function () {
+            state.tshirtImage = img;
+            state.currentColor = color;
+            redrawCanvas();
+          };
+          img.onerror = function () {
+            console.error("Failed to load t-shirt image:", colorImages[color]);
+          };
+          img.src = colorImages[color];
+        }
+
+        // Initial load
+        loadTshirtImage("white");
+
+        // ===== Core Rendering Function =====
+        function redrawCanvas() {
+          // Clear canvas
+          ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+          // 1. Draw base t-shirt
+          if (state.tshirtImage) {
+            ctx.drawImage(state.tshirtImage, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+          }
+
+          // 2. Draw bounding box guide
+          if (state.showBoundingBox) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(10, 132, 255, 0.6)";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 4]);
+            ctx.strokeRect(
+              PRINT_AREA.x,
+              PRINT_AREA.y,
+              PRINT_AREA.width,
+              PRINT_AREA.height
+            );
+            ctx.fillStyle = "rgba(240, 240, 240, 0.15)";
+            ctx.fillRect(
+              PRINT_AREA.x,
+              PRINT_AREA.y,
+              PRINT_AREA.width,
+              PRINT_AREA.height
+            );
+            ctx.restore();
+          }
+
+          // 3. Draw uploaded design
+          if (state.uploadedImage) {
+            ctx.save();
+            ctx.translate(state.uploadedImageData.x, state.uploadedImageData.y);
+            ctx.rotate((state.uploadedImageData.rotation * Math.PI) / 180);
+            ctx.scale(
+              state.uploadedImageData.scale,
+              state.uploadedImageData.scale
+            );
+
+            const w = state.uploadedImageData.originalWidth;
+            const h = state.uploadedImageData.originalHeight;
+            ctx.drawImage(state.uploadedImage, -w / 2, -h / 2, w, h);
+            ctx.restore();
+          }
+
+          // 4. Draw text
+          if (state.text && state.fontsLoaded) {
+            ctx.save();
+            ctx.font = `600 ${state.textSize || 32}px ${state.textFont}`;
+            ctx.fillStyle = state.textColor;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            // Center text in print area
+            const textX = PRINT_AREA.x + PRINT_AREA.width / 2;
+            const textY = PRINT_AREA.y + PRINT_AREA.height / 2;
+
+            // Draw text with shadow for better visibility
+            ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            ctx.fillText(state.text, textX, textY);
+            ctx.restore();
+          }
+        }
+
+        // ===== Helper Functions =====
+        function constrainToBounds(x, y) {
+          const halfW =
+            (state.uploadedImageData.originalWidth *
+              state.uploadedImageData.scale) /
+            2;
+          const halfH =
+            (state.uploadedImageData.originalHeight *
+              state.uploadedImageData.scale) /
+            2;
+
+          const minX = PRINT_AREA.x + halfW;
+          const maxX = PRINT_AREA.x + PRINT_AREA.width - halfW;
+          const minY = PRINT_AREA.y + halfH;
+          const maxY = PRINT_AREA.y + PRINT_AREA.height - halfH;
+
+          return {
+            x: Math.max(minX, Math.min(maxX, x)),
+            y: Math.max(minY, Math.min(maxY, y)),
+          };
+        }
+
+        function fitImageToBounds(img) {
+          const imgAspect = img.width / img.height;
+          const boxAspect = PRINT_AREA.width / PRINT_AREA.height;
+
+          let scale = 1;
+          if (imgAspect > boxAspect) {
+            // Image is wider
+            scale = (PRINT_AREA.width * 0.8) / img.width;
+          } else {
+            // Image is taller
+            scale = (PRINT_AREA.height * 0.8) / img.height;
+          }
+
+          return Math.min(scale, 1); // Don't upscale
+        }
+
+        // ===== Color Selection Handler =====
+        const colorButtons = document.querySelectorAll(".color-option");
+        colorButtons.forEach((button) => {
+          button.addEventListener("click", function () {
+            // Remove selected class from all buttons
+            colorButtons.forEach((btn) => {
+              btn.classList.remove("selected");
+              btn.setAttribute("aria-checked", "false");
+            });
+
+            // Add selected class to clicked button
+            this.classList.add("selected");
+            this.setAttribute("aria-checked", "true");
+
+            // Load new t-shirt image
+            const color = this.dataset.color;
+            if (colorImages[color]) {
+              loadTshirtImage(color);
+            }
+          });
+        });
+
+        // File Upload Handler
+        const uploadZone = document.getElementById("upload-zone");
+        const fileInput = document.getElementById("file-input");
+
+        uploadZone.addEventListener("click", () => fileInput.click());
+
+        uploadZone.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInput.click();
+          }
+        });
+
+        fileInput.addEventListener("change", function (e) {
+          if (this.files && this.files[0]) {
+            handleFileUpload(this.files[0]);
+          }
+        });
+
+        // Drag and drop
+        uploadZone.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          uploadZone.style.borderColor = "var(--brand)";
+          uploadZone.style.background = "rgba(10, 132, 255, 0.05)";
+        });
+
+        uploadZone.addEventListener("dragleave", () => {
+          uploadZone.style.borderColor = "";
+          uploadZone.style.background = "";
+        });
+
+        uploadZone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          uploadZone.style.borderColor = "";
+          uploadZone.style.background = "";
+
+          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFileUpload(e.dataTransfer.files[0]);
+          }
+        });
+
+        function handleFileUpload(file) {
+          if (!file.type.startsWith("image/")) {
+            alert("Пожалуйста, загрузите файл изображения");
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const img = new Image();
+            img.onload = function () {
+              state.uploadedImage = img;
+              state.uploadedImageData.originalWidth = img.width;
+              state.uploadedImageData.originalHeight = img.height;
+
+              // Fit image to bounds
+              const fitScale = fitImageToBounds(img);
+              state.uploadedImageData.scale = fitScale;
+
+              // Center in print area
+              state.uploadedImageData.x = PRINT_AREA.x + PRINT_AREA.width / 2;
+              state.uploadedImageData.y = PRINT_AREA.y + PRINT_AREA.height / 2;
+              state.uploadedImageData.rotation = 0;
+
+              redrawCanvas();
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+
+        // Slider Value Display
+        const sizeSlider = document.getElementById("size-slider");
+        const sizeValue = document.getElementById("size-value");
+
+        sizeSlider.addEventListener("input", function () {
+          sizeValue.textContent = this.value + "%";
+          if (state.uploadedImage) {
+            const baseFit = fitImageToBounds(state.uploadedImage);
+            state.uploadedImageData.scale = baseFit * (this.value / 100);
+
+            // Re-constrain to bounds
+            const constrained = constrainToBounds(
+              state.uploadedImageData.x,
+              state.uploadedImageData.y
+            );
+            state.uploadedImageData.x = constrained.x;
+            state.uploadedImageData.y = constrained.y;
+
+            redrawCanvas();
+          }
+        });
+
+        const rotationSlider = document.getElementById("rotation-slider");
+        const rotationValue = document.getElementById("rotation-value");
+
+        rotationSlider.addEventListener("input", function () {
+          rotationValue.textContent = this.value + "°";
+          if (state.uploadedImage) {
+            state.uploadedImageData.rotation = parseFloat(this.value);
+            redrawCanvas();
+          }
+        });
+
+        // Reset Button
+        const resetBtn = document.getElementById("reset-btn");
+        resetBtn.addEventListener("click", function () {
+          // Reset all controls to default
+          document.getElementById("text-input").value = "";
+          document.getElementById("font-select").selectedIndex = 0;
+          sizeSlider.value = 100;
+          sizeValue.textContent = "100%";
+          rotationSlider.value = 0;
+          rotationValue.textContent = "0°";
+          fileInput.value = "";
+
+          // Reset state
+          state.uploadedImage = null;
+          state.text = "";
+          state.textFont = "Inter";
+          state.textColor = "#000000";
+          state.uploadedImageData = {
+            x: PRINT_AREA.x + PRINT_AREA.width / 2,
+            y: PRINT_AREA.y + PRINT_AREA.height / 2,
+            scale: 1,
+            rotation: 0,
+            originalWidth: 0,
+            originalHeight: 0,
+          };
+
+          // Reset to white t-shirt
+          colorButtons.forEach((btn) => {
+            btn.classList.remove("selected");
+            btn.setAttribute("aria-checked", "false");
+          });
+          colorButtons[0].classList.add("selected");
+          colorButtons[0].setAttribute("aria-checked", "true");
+          loadTshirtImage("white");
+        });
+
+        // Text Input Handler
+        const textInput = document.getElementById("text-input");
+        const fontSelect = document.getElementById("font-select");
+
+        textInput.addEventListener("input", function () {
+          state.text = this.value;
+          redrawCanvas();
+        });
+
+        fontSelect.addEventListener("change", function () {
+          state.textFont = this.value;
+          // Ensure font is loaded before rendering
+          document.fonts
+            .load(`600 ${state.textSize}px ${this.value}`)
+            .then(() => {
+              redrawCanvas();
+            });
+        });
+
+        // ===== Drag Functionality =====
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        canvas.addEventListener("mousedown", function (e) {
+          if (!state.uploadedImage) return;
+
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          const mouseX = (e.clientX - rect.left) * scaleX;
+          const mouseY = (e.clientY - rect.top) * scaleY;
+
+          // Check if click is on uploaded image
+          const halfW =
+            (state.uploadedImageData.originalWidth *
+              state.uploadedImageData.scale) /
+            2;
+          const halfH =
+            (state.uploadedImageData.originalHeight *
+              state.uploadedImageData.scale) /
+            2;
+
+          if (
+            mouseX >= state.uploadedImageData.x - halfW &&
+            mouseX <= state.uploadedImageData.x + halfW &&
+            mouseY >= state.uploadedImageData.y - halfH &&
+            mouseY <= state.uploadedImageData.y + halfH
+          ) {
+            isDragging = true;
+            dragOffsetX = mouseX - state.uploadedImageData.x;
+            dragOffsetY = mouseY - state.uploadedImageData.y;
+            canvas.style.cursor = "move";
+          }
+        });
+
+        canvas.addEventListener("mousemove", function (e) {
+          if (!isDragging) return;
+
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          const mouseX = (e.clientX - rect.left) * scaleX;
+          const mouseY = (e.clientY - rect.top) * scaleY;
+
+          const newX = mouseX - dragOffsetX;
+          const newY = mouseY - dragOffsetY;
+
+          const constrained = constrainToBounds(newX, newY);
+          state.uploadedImageData.x = constrained.x;
+          state.uploadedImageData.y = constrained.y;
+
+          redrawCanvas();
+        });
+
+        canvas.addEventListener("mouseup", function () {
+          isDragging = false;
+          canvas.style.cursor = "default";
+        });
+
+        canvas.addEventListener("mouseleave", function () {
+          isDragging = false;
+          canvas.style.cursor = "default";
+        });
+
+        // Touch support for mobile
+        canvas.addEventListener("touchstart", function (e) {
+          if (!state.uploadedImage) return;
+          e.preventDefault();
+
+          const touch = e.touches[0];
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          const touchX = (touch.clientX - rect.left) * scaleX;
+          const touchY = (touch.clientY - rect.top) * scaleY;
+
+          const halfW =
+            (state.uploadedImageData.originalWidth *
+              state.uploadedImageData.scale) /
+            2;
+          const halfH =
+            (state.uploadedImageData.originalHeight *
+              state.uploadedImageData.scale) /
+            2;
+
+          if (
+            touchX >= state.uploadedImageData.x - halfW &&
+            touchX <= state.uploadedImageData.x + halfW &&
+            touchY >= state.uploadedImageData.y - halfH &&
+            touchY <= state.uploadedImageData.y + halfH
+          ) {
+            isDragging = true;
+            dragOffsetX = touchX - state.uploadedImageData.x;
+            dragOffsetY = touchY - state.uploadedImageData.y;
+          }
+        });
+
+        canvas.addEventListener("touchmove", function (e) {
+          if (!isDragging) return;
+          e.preventDefault();
+
+          const touch = e.touches[0];
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          const touchX = (touch.clientX - rect.left) * scaleX;
+          const touchY = (touch.clientY - rect.top) * scaleY;
+
+          const newX = touchX - dragOffsetX;
+          const newY = touchY - dragOffsetY;
+
+          const constrained = constrainToBounds(newX, newY);
+          state.uploadedImageData.x = constrained.x;
+          state.uploadedImageData.y = constrained.y;
+
+          redrawCanvas();
+        });
+
+        canvas.addEventListener("touchend", function () {
+          isDragging = false;
+        });
+      });
     </script>
   </body>
 </html>
