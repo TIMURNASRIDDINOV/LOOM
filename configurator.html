@@ -14,8 +14,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Product Catalog CSS -->
     <link rel="stylesheet" href="products-catalog.css" />
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
       /* Base System - Match index.html */
       * {
@@ -579,23 +577,23 @@
     <!-- Navigation - Consistent with index.html -->
     <nav class="nav">
       <div class="nav-content">
-        <a href="index.html" class="nav-brand">LOOM</a>
-        <div class="nav-links">
-          <a href="index.html" class="nav-link link-underline-center">
-            <i data-lucide="home" class="nav-icon"></i>
-            Главная
-          </a>
-          <a href="catalog.html" class="nav-link link-underline-center">
-            <i data-lucide="shopping-bag" class="nav-icon"></i>
-            Каталог
-          </a>
+        <div class="nav-brand">LOOM</div>
+        <div class="nav-links space-md-x-6 space-lg-x-8">
+          <a
+            href="index.html"
+            class="nav-link link-underline-center text-sm lg:text-base"
+            >Главная</a
+          >
+          <a
+            href="catalog.html"
+            class="nav-link link-underline-center text-sm lg:text-base"
+            >Каталог</a
+          >
           <a
             href="configurator.html"
-            class="nav-link link-underline-center active"
+            class="nav-link link-underline-center active text-sm lg:text-base"
+            >Кастомизация</a
           >
-            <i data-lucide="palette" class="nav-icon"></i>
-            Конфигуратор
-          </a>
         </div>
       </div>
     </nav>
@@ -780,15 +778,6 @@
               class="btn-secondary"
               aria-label="Сбросить все настройки"
             >
-              <i
-                data-lucide="rotate-ccw"
-                style="
-                  width: 18px;
-                  height: 18px;
-                  vertical-align: middle;
-                  margin-right: 0.5rem;
-                "
-              ></i>
               Сбросить всё
             </button>
           </div>
@@ -798,9 +787,6 @@
 
     <!-- JavaScript - Production Ready -->
     <script>
-      // Initialize Lucide icons
-      lucide.createIcons();
-
       // DOM Ready
       document.addEventListener("DOMContentLoaded", function () {
         // ===== Configuration =====
