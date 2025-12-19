@@ -6,10 +6,10 @@
   const products = [
     {
       id: 1,
-      name: "Белая футболка",
-      nameEn: "White T-shirt",
-      type: "Oddiy futbolka",
-      image: "products/tshirt_basic-white_front_001.png.webp",
+      name: "Классическая футболка",
+      nameEn: "Regular T-shirt",
+      type: "Обычная футболка",
+      image: "products/tshirt_regular_white_001.jpg",
       price: 150000,
       customizable: true,
     },
@@ -17,9 +17,72 @@
       id: 2,
       name: "Белый свитшот",
       nameEn: "White Sweatshirt",
-      type: "Oddiy svitshot",
-      image: "products/sweatshirt_basic-white_front_001.png",
+      type: "Свитшот",
+      image: "products/sweatshirt_regular_white_001.jpg",
       price: 250000,
+      customizable: true,
+    },
+    {
+      id: 3,
+      name: "Худи на молнии",
+      nameEn: "Zip Hoodie",
+      type: "Худи с застежкой",
+      image: "products/hoodie_ziphoodie_white_001.jpg",
+      price: 280000,
+      customizable: true,
+    },
+    {
+      id: 4,
+      name: "Поло",
+      nameEn: "Polo Shirt",
+      type: "Поло рубашка",
+      image: "products/polo_regular_white_001.jpg",
+      price: 180000,
+      customizable: true,
+    },
+    {
+      id: 5,
+      name: "Кепка",
+      nameEn: "Cap",
+      type: "Бейсболка",
+      image: "products/cap_regular_white_001.jpg",
+      price: 100000,
+      customizable: true,
+    },
+    {
+      id: 6,
+      name: "Спортивные штаны",
+      nameEn: "Sweatpants",
+      type: "Спортивные брюки",
+      image: "products/sweatpants_regular_white_001.jpg",
+      price: 220000,
+      customizable: true,
+    },
+    {
+      id: 7,
+      name: "Худи классическое",
+      nameEn: "Regular Hoodie",
+      type: "Обычное худи",
+      image: "products/hoodie_regular_white_001.jpg",
+      price: 270000,
+      customizable: true,
+    },
+    {
+      id: 8,
+      name: "Футболка с укороченным рукавом",
+      nameEn: "Cropped T-shirt",
+      type: "Кроп-топ",
+      image: "products/tshirt_cropped_white_001.jpg",
+      price: 140000,
+      customizable: true,
+    },
+    {
+      id: 9,
+      name: "Футболка без рукавов",
+      nameEn: "Muscle T-shirt",
+      type: "Майка",
+      image: "products/tshirt_muscle_white_001.jpg",
+      price: 130000,
       customizable: true,
     },
   ];
@@ -52,13 +115,7 @@
         encodeURIComponent(product.name);
     };
 
-    // Product type badge
-    const badge = document.createElement("span");
-    badge.className = "product-type-badge";
-    badge.textContent = "oddiy";
-
     imageContainer.appendChild(img);
-    imageContainer.appendChild(badge);
 
     // Content container
     const content = document.createElement("div");
@@ -137,8 +194,16 @@
     const grid = document.createElement("div");
     grid.className = "product-grid";
 
+    // Check if we're on index.html - only show first 3 products
+    const isIndexPage =
+      window.location.pathname.endsWith("index.html") ||
+      window.location.pathname === "/" ||
+      window.location.pathname.endsWith("/");
+
+    const productsToShow = isIndexPage ? products.slice(0, 3) : products;
+
     // Generate and append product cards
-    products.forEach(function (product) {
+    productsToShow.forEach(function (product) {
       const card = createProductCard(product);
       grid.appendChild(card);
     });
