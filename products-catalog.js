@@ -93,7 +93,8 @@
   }
 
   // Create product card element
-  function createProductCard(product) {
+  function createProductCard(product, options = {}) {
+    const { showPrice = true, showButton = true } = options;
     // Main card container
     const card = document.createElement("div");
     card.className = "product-card";
@@ -131,51 +132,143 @@
     description.className = "product-card__description";
     description.textContent = product.type;
 
-    // Price
-    const priceDiv = document.createElement("div");
-    priceDiv.className = "product-card__price";
-    priceDiv.textContent = formatPrice(product.price);
-
-    // Actions container
-    const actions = document.createElement("div");
-    actions.className = "product-card__actions";
-
-    // Customize button
-    const button = document.createElement("button");
-    button.className = product.customizable
-      ? "customize-btn btn-primary"
-      : "customize-btn btn-disabled";
-    button.textContent = product.customizable
-      ? "Настроить дизайн"
-      : "Недоступно";
-    button.disabled = !product.customizable;
-    button.setAttribute(
-      "aria-label",
-      product.customizable
-        ? `Настроить дизайн ${product.name}`
-        : `Недоступно для ${product.name}`
-    );
-
-    // Add click event listener
-    if (product.customizable) {
-      button.addEventListener("click", function () {
-        window.location.href = "configurator.html";
-      });
-    }
-
-    actions.appendChild(button);
-
-    // Assemble content
     content.appendChild(title);
     content.appendChild(description);
-    content.appendChild(priceDiv);
-    content.appendChild(actions);
+
+    if (showPrice) {
+      const priceDiv = document.createElement("div");
+      priceDiv.className = "product-card__price";
+      priceDiv.textContent = formatPrice(product.price);
+      content.appendChild(priceDiv);
+    }
+
+    if (showButton) {
+      const actions = document.createElement("div");
+      actions.className = "product-card__actions";
+
+      const button = document.createElement("button");
+      button.className = product.customizable
+        ? "customize-btn btn-primary"
+        : "customize-btn btn-disabled";
+      button.textContent = product.customizable
+        ? "Настроить дизайн"
+        : "Недоступно";
+      button.disabled = !product.customizable;
+      button.setAttribute(
+        "aria-label",
+        product.customizable
+          ? `Настроить дизайн ${product.name}`
+          : `Недоступно для ${product.name}`
+      );
+
+      if (product.customizable) {
+        button.addEventListener("click", function () {
+          window.location.href = "configurator.html";
+        });
+      }
+
+      actions.appendChild(button);
+      content.appendChild(actions);
+    }
 
     // Assemble card
     card.appendChild(imageContainer);
     card.appendChild(content);
 
     return card;
+  }
+
+  function renderGrid(container) {
+    const grid = document.createElement("div");
+    grid.className = "product-grid";
+
+    products.forEach(function (product) {
+      const card = createProductCard(product);
+      grid.appendChild(card);
+    });
+
+    container.appendChild(grid);
+  }
+
+  function renderCarousel(container) {
+    const carousel = document.createElement("div");
+    carousel.className = "product-carousel";
+
+    const viewport = document.createElement("div");
+    viewport.className = "product-carousel__viewport";
+
+    const track = document.createElement("div");
+    track.className = "product-carousel__track";
+
+    // Duplicate products 3 times for infinite loop effect
+    const duplicatedProducts = [...products, ...products, ...products];
+
+    duplicatedProducts.forEach(function (product) {
+      const card = createProductCard(product, {
+        showPrice: false,
+        showButton: false,
+      });
+      card.style.pointerEvents = "none"; // Disable clicks
+      track.appendChild(card);
+    });
+
+    viewport.appendChild(track);
+    carousel.appendChild(viewport);
+    container.appendChild(carousel);
+
+    // Auto-scroll animation
+    let scrollPosition = 0;
+    const scrollSpeed = 0.5; // pixels per frame
+
+    function autoScroll() {
+      scrollPosition += scrollSpeed;
+      const maxScroll = track.scrollWidth / 3; // Reset at 1/3 (one full cycle)
+
+      if (scrollPosition >= maxScroll) {
+        scrollPosition = 0;
+        viewport.scrollLeft = 0;
+      } else {
+        viewport.scrollLeft = scrollPosition;
+      }
+
+      requestAnimationFrame(autoScroll);
+    }
+
+    // Start auto-scroll after a brief delay
+    setTimeout(() => {
+      requestAnimationFrame(autoScroll);
+    }, 500);
+
+    // Pause on hover
+    let isPaused = false;
+    viewport.addEventListener("mouseenter", function () {
+      isPaused = true;
+    });
+    viewport.addEventListener("mouseleave", function () {
+      isPaused = false;
+    });
+
+    // Modified auto-scroll with pause support
+    function autoScrollWithPause() {
+      if (!isPaused) {
+        scrollPosition += scrollSpeed;
+        const maxScroll = track.scrollWidth / 3;
+
+        if (scrollPosition >= maxScroll) {
+          scrollPosition = 0;
+          viewport.scrollLeft = 0;
+        } else {
+          viewport.scrollLeft = scrollPosition;
+        }
+      }
+
+      requestAnimationFrame(autoScrollWithPause);
+    }
+
+    // Start auto-scroll
+    setTimeout(() => {
+      requestAnimationFrame(autoScrollWithPause);
+    }, 500);
   }
 
   // Render products to container
@@ -187,28 +280,18 @@
       return;
     }
 
-    // Clear existing content
     container.innerHTML = "";
 
-    // Create grid container
-    const grid = document.createElement("div");
-    grid.className = "product-grid";
-
-    // Check if we're on index.html - only show first 3 products
     const isIndexPage =
       window.location.pathname.endsWith("index.html") ||
       window.location.pathname === "/" ||
       window.location.pathname.endsWith("/");
 
-    const productsToShow = isIndexPage ? products.slice(0, 3) : products;
-
-    // Generate and append product cards
-    productsToShow.forEach(function (product) {
-      const card = createProductCard(product);
-      grid.appendChild(card);
-    });
-
-    container.appendChild(grid);
+    if (isIndexPage) {
+      renderCarousel(container);
+    } else {
+      renderGrid(container);
+    }
   }
 
   // Initialize when DOM is ready
