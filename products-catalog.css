@@ -282,88 +282,84 @@
 }
 
 .product-carousel__viewport {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   position: relative;
-  mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    black 8%,
-    black 92%,
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    black 8%,
-    black 92%,
-    transparent 100%
-  );
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.product-carousel__viewport::-webkit-scrollbar {
+  height: 8px;
+}
+
+.product-carousel__viewport::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+}
+
+.product-carousel__viewport::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .product-carousel__track {
   display: flex;
   gap: 1.5rem;
-  padding: 0.25rem 0.25rem 0.5rem;
-  will-change: transform;
+  padding: 0.25rem 0.25rem 1rem;
 }
 
 .product-carousel .product-card {
-  flex: 0 0 320px;
-  max-width: 320px;
-  min-height: 450px;
-  max-height: 450px;
-  cursor: default;
+  flex: 0 0 380px;
+  max-width: 380px;
+  height: 580px;
+  cursor: pointer;
 }
 
 .product-carousel .product-card:hover {
-  transform: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transform: translateY(-8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
 }
 
 .product-carousel .product-card__image-container {
-  height: 320px;
+  height: 380px;
   flex-shrink: 0;
 }
 
 .product-carousel .product-card__content {
-  min-height: 130px;
-  max-height: 130px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 1.5rem;
+  min-height: 200px;
+}
+
+.product-carousel .product-card__price {
+  margin-top: auto;
+  padding-bottom: 0.5rem;
 }
 
 @media (max-width: 900px) {
   .product-carousel .product-card {
-    flex-basis: 280px;
-    max-width: 280px;
-    min-height: 400px;
-    max-height: 400px;
+    flex-basis: 340px;
+    max-width: 340px;
+    height: 540px;
   }
 
   .product-carousel .product-card__image-container {
-    height: 260px;
-  }
-
-  .product-carousel .product-card__content {
-    min-height: 140px;
-    max-height: 140px;
+    height: 320px;
   }
 }
 
 @media (max-width: 600px) {
   .product-carousel .product-card {
-    flex-basis: 240px;
-    max-width: 240px;
-    min-height: 360px;
-    max-height: 360px;
+    flex-basis: 300px;
+    max-width: 300px;
+    height: 500px;
   }
 
   .product-carousel .product-card__image-container {
-    height: 220px;
-  }
-
-  .product-carousel .product-card__content {
-    min-height: 140px;
-    max-height: 140px;
+    height: 280px;
   }
 }
 /* Loading state (optional) */

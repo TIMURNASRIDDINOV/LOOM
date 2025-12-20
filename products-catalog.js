@@ -200,75 +200,25 @@
     const track = document.createElement("div");
     track.className = "product-carousel__track";
 
-    // Duplicate products 3 times for infinite loop effect
-    const duplicatedProducts = [...products, ...products, ...products];
-
-    duplicatedProducts.forEach(function (product) {
+    // Show all products with prices but no buttons
+    products.forEach(function (product) {
       const card = createProductCard(product, {
-        showPrice: false,
+        showPrice: true,
         showButton: false,
       });
-      card.style.pointerEvents = "none"; // Disable clicks
+
+      // Make entire card clickable
+      card.style.cursor = "pointer";
+      card.addEventListener("click", function (e) {
+        window.location.href = "configurator.html";
+      });
+
       track.appendChild(card);
     });
 
     viewport.appendChild(track);
     carousel.appendChild(viewport);
     container.appendChild(carousel);
-
-    // Auto-scroll animation
-    let scrollPosition = 0;
-    const scrollSpeed = 0.5; // pixels per frame
-
-    function autoScroll() {
-      scrollPosition += scrollSpeed;
-      const maxScroll = track.scrollWidth / 3; // Reset at 1/3 (one full cycle)
-
-      if (scrollPosition >= maxScroll) {
-        scrollPosition = 0;
-        viewport.scrollLeft = 0;
-      } else {
-        viewport.scrollLeft = scrollPosition;
-      }
-
-      requestAnimationFrame(autoScroll);
-    }
-
-    // Start auto-scroll after a brief delay
-    setTimeout(() => {
-      requestAnimationFrame(autoScroll);
-    }, 500);
-
-    // Pause on hover
-    let isPaused = false;
-    viewport.addEventListener("mouseenter", function () {
-      isPaused = true;
-    });
-    viewport.addEventListener("mouseleave", function () {
-      isPaused = false;
-    });
-
-    // Modified auto-scroll with pause support
-    function autoScrollWithPause() {
-      if (!isPaused) {
-        scrollPosition += scrollSpeed;
-        const maxScroll = track.scrollWidth / 3;
-
-        if (scrollPosition >= maxScroll) {
-          scrollPosition = 0;
-          viewport.scrollLeft = 0;
-        } else {
-          viewport.scrollLeft = scrollPosition;
-        }
-      }
-
-      requestAnimationFrame(autoScrollWithPause);
-    }
-
-    // Start auto-scroll
-    setTimeout(() => {
-      requestAnimationFrame(autoScrollWithPause);
-    }, 500);
   }
 
   // Render products to container
