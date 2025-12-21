@@ -1,360 +1,374 @@
 # LOOM - Custom T-Shirt Design Platform
 
-A modern, minimalist e-commerce platform for creating custom-designed t-shirts with real-time 3D preview and product customization.
+> Modern e-commerce platform for custom apparel design with real-time 3D preview, interactive configurator, and seamless user experience.
 
 🌐 **Live Site:** [looom.me](https://looom.me)
+
+---
+
+## 🎯 Project Overview
+
+LOOM is a browser-based custom apparel design platform that enables users to personalize t-shirts, sweatshirts, hoodies, and other clothing items with custom text, images, and colors. The platform features:
+
+- **Interactive Product Catalog** - Browse 9 customizable apparel items with dynamic product cards
+- **Real-Time 3D Previews** - Three.js-powered 3D model viewer with interactive rotation
+- **Design Configurator** - Canvas-based design tool with text, image upload, and color customization
+- **Zero-Build Architecture** - Pure HTML/CSS/JavaScript with CDN dependencies for instant deployment
+- **Mobile-First Design** - Fully responsive layouts with Apple-inspired aesthetics
+
+The platform is built with a focus on performance, accessibility, and modern web standards, delivering a seamless design experience across all devices.
+
+---
+
+## ✨ Key Features
+
+### Product Management
+
+- **9 Product Types** - T-shirts, sweatshirts, hoodies (regular & zip), polo shirts, caps, sweatpants
+- **Dynamic Pricing** - Real-time price display in Uzbek сум (ranging from 100,000 to 280,000 сум)
+- **Smart Image Fallbacks** - Graceful degradation with placeholder images on load failure
+- **Product State Management** - Customizable vs. unavailable product differentiation
+
+### Design Configurator
+
+- **Canvas-Based Editor** - 600x700px HTML5 Canvas with printable area boundaries (250x250px)
+- **Text Customization** - Multi-font support (Inter, Helvetica, Arial, Georgia, Times New Roman)
+- **Image Upload** - PNG/JPEG/SVG support with drag-and-drop functionality
+- **Color Palette** - 5 pre-defined colors (White, Black, Navy, Gray, Red)
+- **Transform Controls** - Size scaling (50%-150%) and rotation (-180° to 180°)
+- **Real-Time Preview** - Instant visual feedback with canvas redraw
+
+### 3D Visualization
+
+- **Three.js Integration** - WebGL-based 3D rendering with OBJLoader
+- **Interactive Controls** - OrbitControls for model rotation and zoom
+- **Responsive Canvas** - Adaptive sizing for various screen resolutions
+
+### User Experience
+
+- **Glassmorphism UI** - Backdrop-blur effects with 18px blur and 140% saturation
+- **Smooth Animations** - Cubic-bezier transitions (0.4, 0, 0.2, 1)
+- **Mobile Optimization** - Breakpoints at 480px, 768px, and 1024px
+- **Accessibility** - ARIA labels, semantic HTML, keyboard navigation
+
+---
+
+## 🛠 Technical Stack
+
+### Core Technologies
+
+| Category      | Technology         | Version      | Purpose                                             |
+| ------------- | ------------------ | ------------ | --------------------------------------------------- |
+| **Markup**    | HTML5              | -            | Semantic structure, meta tags, accessibility        |
+| **Styling**   | CSS3               | -            | Grid/Flexbox layouts, custom properties, animations |
+| **Scripting** | Vanilla JavaScript | ES6+         | DOM manipulation, event handling, canvas rendering  |
+| **Framework** | Tailwind CSS       | Latest (CDN) | Utility-first styling, responsive utilities         |
+
+### External Libraries (CDN)
+
+| Library          | Version | Usage                                 | Load Strategy           |
+| ---------------- | ------- | ------------------------------------- | ----------------------- |
+| **React**        | 18.x    | Legacy component support              | UMD bundle              |
+| **React DOM**    | 18.x    | Legacy rendering                      | UMD bundle              |
+| **Three.js**     | 0.160.0 | 3D graphics, OBJLoader, OrbitControls | ES Module via importmap |
+| **Lucide Icons** | Latest  | Modern icon set                       | Script tag              |
+
+### Typography & Assets
+
+- **Primary Font:** Inter (weights 300-900) via Google Fonts
+- **System Fallbacks:** `-apple-system`, `BlinkMacSystemFont`, `sans-serif`
+- **Font Loading:** Preconnect with preload hints to prevent layout shift
+
+### Design System
+
+```css
+:root {
+  --bg: #ffffff; /* Background */
+  --text: #0a0a0a; /* Primary text */
+  --muted: #6b7280; /* Secondary text */
+  --hairline: rgba(0, 0, 0, 0.08); /* Borders */
+  --panel: #ffffff; /* Card backgrounds */
+  --brand: #0a84ff; /* Apple blue */
+  --brand-ink: #0b66d6; /* Hover state */
+}
+```
+
+---
 
 ## 📁 Project Structure
 
 ```
-TIMURNASRIDDINOV.github.io/
-├── index.html                 # Main landing page
-├── catalog.html               # Product catalog page
-├── configurator.html          # T-shirt design configurator
-├── products-catalog.js        # Vanilla JS product catalog logic
-├── products-catalog.css       # Product card styling
-├── ProductList.css            # Legacy product list styles
-├── CNAME                      # Custom domain configuration (looom.me)
+LOOM/
+├── index.html                   # Landing page with hero, catalog, features
+├── catalog.html                 # Product browse with 3D viewer
+├── configurator.html            # Interactive design tool
+├── tshirt_3d-white_front_001.html  # Standalone 3D model demo
+│
+├── products-catalog.js          # Product data & rendering engine
+├── products-catalog.css         # Product card styles
+├── ProductList.css              # Legacy React styles (unused)
+│
+├── CNAME                        # Custom domain: looom.me
+│
 ├── assets/
 │   └── models/
-│       └── oversized-tshirt.obj   # 3D model for catalog preview
+│       └── oversized-tshirt.obj # 3D OBJ model for Three.js
+│
+├── configuratorprodutcs/
+│   └── tshirt_basic2d_white_001.png  # Configurator base image
+│
 ├── images/
-│   ├── tshirt.png            # Product thumbnail
-│   └── tshirtgif.mp4         # Hero section video
+│   ├── tshirt.png              # Hero thumbnail
+│   └── tshirtgif.mp4           # Hero video (1:1 aspect ratio)
+│
 └── products/
-    ├── tshirt_basic-white_front_001.png.webp
-    ├── sweatshirt_basic-white_front_001.png
-    └── [additional product images]
+    ├── tshirt_regular_white_001.jpg
+    ├── sweatshirt_regular_white_001.jpg
+    ├── hoodie_ziphoodie_white_001.jpg
+    ├── hoodie_regular_white_001.jpg
+    ├── polo_regular_white_001.jpg
+    ├── cap_regular_white_001.jpg
+    ├── sweatpants_regular_white_001.jpg
+    ├── tshirt_cropped_white_001.jpg
+    ├── tshirt_muscle_white_001.jpg
+    └── product_comingsoon.jpg
 ```
 
-## 🛠 Technologies Used
-
-### Frontend
-
-- **HTML5** - Semantic markup and structure
-- **CSS3** - Modern styling with:
-  - CSS Grid & Flexbox for layouts
-  - CSS Custom Properties (variables)
-  - Responsive design with media queries
-  - Glassmorphism effects (backdrop-filter)
-  - Custom animations and transitions
-- **Vanilla JavaScript** - No frameworks, pure DOM manipulation
-- **Tailwind CSS** (via CDN) - Utility-first CSS framework
-
-### Libraries (CDN)
-
-- **React 18** - For legacy product list component
-- **React DOM 18** - React rendering
-- **Three.js** (v0.160.0) - 3D graphics and model rendering
-- **Fabric.js** (v5.3.1) - Canvas manipulation for design configurator
-- **Lucide Icons** - Modern icon library
-
-### Fonts & Assets
-
-- **Google Fonts** - Inter (weights: 300-900)
-- **System Fonts Fallback** - -apple-system, BlinkMacSystemFont
-
-## 📄 File Descriptions
-
-### Core Pages
-
-#### `index.html`
-
-Main landing page featuring:
-
-- **Navigation Bar** - Fixed header with glassmorphism effect, purple hover states (#2596be)
-- **Hero Section** - Gradient background with video preview
-- **Product Catalog** - Grid layout with vanilla JS product cards
-- **Features Section** - 3-column grid highlighting platform benefits
-- **Footer** - Contact info, links, newsletter signup
-
-**Key Features:**
-
-- Responsive navigation with CSS gap-based spacing
-- Hero video with aspect ratio 1:1, max-width 420px
-- Product catalog populated via `products-catalog.js`
-- Mobile-first responsive design
-
-#### `catalog.html`
-
-Full product catalog with advanced features:
-
-- Product filtering and search
-- 3D model preview using Three.js
-- Product grid with hover effects
-- Integration with external product data
-
-#### `configurator.html`
-
-Interactive t-shirt design tool:
-
-- Fabric.js canvas for design manipulation
-- Real-time preview of custom designs
-- Color selection and customization options
-- Design upload and editing capabilities
-
-### JavaScript Files
-
-#### `products-catalog.js`
-
-**Purpose:** Vanilla JavaScript product catalog renderer
-
-**Functionality:**
-
-- Renders 2 products (t-shirt 150k сум, sweatshirt 250k сум)
-- Creates DOM elements dynamically using `createElement`/`appendChild`
-- Formats prices with `toLocaleString('ru-RU')`
-- Handles image loading errors with placeholder fallbacks
-- Click handlers for "Настроить дизайн" buttons → `configurator.html`
-
-**Key Functions:**
-
-```javascript
-formatPrice(price); // Formats to "150,000 сум"
-createProductCard(product); // Builds card DOM structure
-renderProducts(); // Targets #product-list-root
-```
-
-**Products Array:**
-
-```javascript
-[
-  {
-    id: 1,
-    name: "Белая футболка",
-    price: 150000,
-    image: "products/tshirt_basic-white_front_001.png.webp",
-  },
-  {
-    id: 2,
-    name: "Белый свитшот",
-    price: 250000,
-    image: "products/sweatshirt_basic-white_front_001.png",
-  },
-];
-```
-
-### CSS Files
-
-#### `products-catalog.css`
-
-**Purpose:** Modern product card styling
-
-**Key Classes:**
-
-- `.product-grid` - CSS Grid (2 columns, auto-fit minmax(300px, 1fr))
-- `.product-card` - Card container with hover effects
-- `.product-card__image-container` - Image wrapper (280px height)
-- `.product-card__image` - Scaled images (transform: scale(0.85))
-- `.customize-btn` - Primary action button with transitions
-- `.product-type-badge` - Overlay badge with backdrop-filter blur
-
-**Responsive Breakpoints:**
-
-- **Mobile (≤768px):** 1 column grid, 240px image height
-- **Small Mobile (≤480px):** 200px image height, full-width buttons
-- **Tablet (769-1024px):** 2 columns maintained, 260px image height
-
-**Button Specificity:**
-
-```css
-.product-card
-  .customize-btn.btn-primary; /* High specificity to override global .btn-primary */
-```
-
-#### `ProductList.css`
-
-Legacy styling for React product component (currently unused in favor of vanilla JS).
-
-## 🎨 Design System
-
-### Color Palette
-
-- **Primary Text:** `#0a0a0a` (Near black)
-- **Secondary Text:** `#6b7280` (Gray)
-- **Hover Accent:** `#2596be` (Cyan blue)
-- **Background:** `#ffffff` (White)
-- **Borders:** `rgba(0, 0, 0, 0.05-0.08)`
-
-### Typography
-
-- **Font Family:** Inter, -apple-system, BlinkMacSystemFont
-- **Headings:** 700-900 weight, -0.02em letter-spacing
-- **Body:** 400-500 weight, 1.5-1.65 line-height
-
-### Spacing
-
-- **Gap (Nav):** 1.25rem base, 1.5rem md, 2rem lg
-- **Card Padding:** 1.5rem
-- **Section Padding:** 6rem vertical (4rem mobile)
-
-### Effects
-
-- **Glassmorphism:** `backdrop-filter: blur(18px) saturate(140%)`
-- **Shadows:** `0 2px 8px rgba(0,0,0,0.06)` → `0 12px 40px rgba(0,0,0,0.12)` on hover
-- **Transitions:** `cubic-bezier(0.4, 0, 0.2, 1)` for smooth animations
-
-## 🚀 Setup Instructions
-
-### Prerequisites
-
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-- Web server (optional, for local development)
-- No Node.js or build tools required
-
-### Local Development
-
-#### Option 1: Simple HTTP Server (Recommended)
-
-```bash
-# Using Python 3
-cd TIMURNASRIDDINOV.github.io
-python3 -m http.server 8000
-
-# Using PHP
-php -S localhost:8000
-
-# Using Node.js (if installed)
-npx serve
-```
-
-Then open: `http://localhost:8000`
-
-#### Option 2: Direct File Access
-
-Simply open `index.html` in your browser:
-
-```bash
-open index.html  # macOS
-start index.html # Windows
-xdg-open index.html # Linux
-```
-
-**Note:** Some features (like video autoplay) may require a web server.
-
-### Production Deployment
-
-#### GitHub Pages (Current Setup)
-
-1. Repository is already configured for GitHub Pages
-2. Custom domain: `looom.me` (configured via CNAME)
-3. Deploys automatically on push to `main` branch
-
-#### Manual Deployment
-
-Upload these files to any static hosting:
-
-- All `.html` files
-- All `.css` and `.js` files
-- `assets/`, `images/`, `products/` folders
-- `CNAME` (if using custom domain)
-
-**Supported Hosts:**
-
-- Netlify
-- Vercel
-- Cloudflare Pages
-- AWS S3 + CloudFront
-- Any static file server
+### File Responsibilities
+
+#### **index.html** (Main Landing Page)
+
+- Fixed glassmorphism navigation bar with 3 links
+- Gradient hero section with video (max-width 420px, aspect-ratio 1:1)
+- Product grid powered by `products-catalog.js`
+- 3-column features section
+- Footer with contact info and social links
+- **Lines:** 1,284 | **Dependencies:** Tailwind, Lucide, products-catalog.js
+
+#### **catalog.html** (Product Browser)
+
+- Black gradient hero section with 3D model viewer
+- Three.js canvas (550x600px) with OrbitControls
+- Product grid with hover animations
+- Mobile-responsive layout (2 cols → 1 col)
+- **Lines:** 1,068 | **Dependencies:** React 18, Three.js 0.160.0, Tailwind
+
+#### **configurator.html** (Design Tool)
+
+- 2-column layout (60% preview / 40% controls on desktop)
+- Canvas editor (600x700px) with printable area overlay
+- 5-color t-shirt palette
+- Text input with font selection
+- Image upload with drag-and-drop
+- Size/rotation sliders with live preview
+- **Lines:** 1,280 | **Dependencies:** Tailwind, HTML5 Canvas API
+
+#### **products-catalog.js** (Catalog Engine)
+
+- Product data array (9 items with pricing, images, types)
+- Dynamic DOM generation (`createElement`, `appendChild`)
+- Price formatting with `toLocaleString('ru-RU')`
+- Image error handling with placeholder fallbacks
+- Grid and carousel rendering modes
+- **Lines:** 254 | **Pure Vanilla JavaScript**
+
+---
+
+## 🚀 Current Implementation Status
+
+### ✅ Completed Features
+
+- [x] Responsive landing page with hero section
+- [x] Product catalog with 9 items (t-shirts, sweatshirts, hoodies, etc.)
+- [x] Canvas-based design configurator
+- [x] Color selection (5 colors)
+- [x] Text customization with 5 font options
+- [x] Image upload (PNG/JPEG/SVG)
+- [x] Size and rotation controls
+- [x] Three.js 3D model viewer (OBJ format)
+- [x] Mobile-responsive layouts (480px, 768px, 1024px breakpoints)
+- [x] Glassmorphism navigation
+- [x] GitHub Pages deployment with custom domain
+
+### 🚧 In Progress / Partially Implemented
+
+- [ ] **3D Model Integration in Catalog** - Three.js setup exists but model loading needs refinement
+- [ ] **Configurator Canvas State Persistence** - Design changes not saved between sessions
+- [ ] **Mobile Navigation** - Hidden on mobile; needs hamburger menu implementation
+
+### ❌ Not Yet Implemented
+
+- [ ] Shopping cart functionality
+- [ ] User authentication system
+- [ ] Order management backend
+- [ ] Payment gateway integration
+- [ ] Product filtering/sorting
+- [ ] Dark mode toggle
+- [ ] Loading states for images
+- [ ] Design export (PNG/PDF)
+
+---
 
 ## 📦 Dependencies
 
-### No Build Dependencies
+### Runtime Dependencies (CDN)
 
-This project runs entirely in the browser with **zero build steps**.
-
-### CDN Libraries (Loaded at Runtime)
+All dependencies are loaded via CDN at runtime - no `package.json` or build tools required.
 
 ```html
-<!-- Styling -->
+<!-- Styling Framework -->
 <script src="https://cdn.tailwindcss.com"></script>
 
-<!-- React (legacy support) -->
+<!-- React (Legacy Support) -->
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
 <!-- 3D Graphics -->
 <script type="importmap">
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
 </script>
-
-<!-- Canvas Manipulation -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 
 <!-- Icons -->
 <script src="https://unpkg.com/lucide@latest"></script>
+
+<!-- Fonts -->
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap"
+  rel="stylesheet"
+/>
 ```
 
 ### Browser Requirements
 
-- **Modern Browsers:** Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
-- **ES6+ Support Required**
-- **CSS Grid & Flexbox Support**
-- **backdrop-filter Support** (for glassmorphism effects)
+| Feature     | Minimum Version |
+| ----------- | --------------- |
+| **Chrome**  | 90+             |
+| **Firefox** | 88+             |
+| **Safari**  | 14+             |
+| **Edge**    | 90+             |
 
-## 🎯 Key Features
+**Required Browser Features:**
 
-### 1. Product Catalog
+- ES6+ (arrow functions, template literals, destructuring)
+- CSS Grid & Flexbox
+- CSS Custom Properties (variables)
+- `backdrop-filter` (for glassmorphism effects)
+- HTML5 Canvas API
+- WebGL (for Three.js)
+- Import Maps (for ES module imports)
 
-- Vanilla JavaScript implementation (no framework)
-- Dynamic DOM rendering
-- Error-resilient image loading
-- Responsive grid layout (2 cols → 1 col mobile)
-- Smooth hover animations
+### Development Tools
 
-### 2. Navigation
+**Not Required** - Project runs directly in browser without build step.
 
-- Fixed glassmorphism header
-- Responsive gap-based spacing
-- Animated underline on hover (slides from center)
-- Mobile-friendly (collapses on small screens)
+**Optional (for local development):**
 
-### 3. Hero Section
+- Python 3 (for `http.server`)
+- PHP (for `php -S`)
+- Node.js (for `npx serve`)
 
-- Gradient background with radial effects
-- Embedded video preview (aspect-ratio 1:1)
-- CTA buttons with hover states
-- Fully responsive layout
+---
 
-### 4. Mobile Optimization
+## 🐛 Known Issues and Limitations
 
-- Breakpoints: 480px, 768px, 1024px
-- Touch-friendly button sizes
-- Optimized image scaling
-- Flexible layouts with CSS Grid/Flexbox
+### Critical Issues
 
-## 📱 Mobile Responsiveness
+1. **Mobile Navigation Hidden** - Nav links disappear on screens <768px; hamburger menu not implemented
+2. **No Backend Integration** - Designs cannot be saved or ordered (front-end only)
+3. **Canvas State Loss** - Configurator state resets on page reload
 
-### Breakpoints
+### Performance Issues
 
-```css
-/* Small Mobile */
-@media (max-width: 480px) {
-}
+4. **Large Image Loads** - Product images not optimized (no lazy loading)
+5. **No Service Worker** - Offline functionality absent
+6. **Font Flash** - FOIT (Flash of Invisible Text) on slow connections despite preconnect
 
-/* Mobile */
-@media (max-width: 768px) {
-}
+### Browser Compatibility
 
-/* Tablet */
-@media (min-width: 769px) and (max-width: 1024px) {
-}
+7. **Safari `backdrop-filter` Lag** - Glassmorphism causes performance drop on older Macs
+8. **Import Maps Unsupported** - Older browsers cannot load Three.js (needs polyfill)
 
-/* Desktop */
-@media (min-width: 1025px) {
-}
-```
+### UX/UI Issues
 
-### Mobile Fixes
+9. **No Loading States** - Users see blank space while images load
+10. **Missing Error Feedback** - Upload failures have no user-facing messages
+11. **Configurator Reset Lacks Confirmation** - "Сбросить всё" button has no undo
+12. **Mobile Canvas Pinch-Zoom** - Touch gestures conflict with design manipulation
 
-- **Hero Video:** Centered, max-width 100%, maintains aspect ratio
-- **Product Cards:** Single column, full-width buttons
-- **Navigation:** Hidden on mobile (needs hamburger menu implementation)
-- **Images:** Scaled appropriately, no overflow
+### Code Quality
 
-## 🔧 How to Run Locally
+13. **Legacy React Code** - Unused React imports in `catalog.html` increase bundle size
+14. **Hardcoded Product Data** - Products defined in JS file instead of API/database
+15. **No Input Validation** - Text/image inputs lack size/format constraints
 
-### Quick Start
+### Accessibility
+
+16. **Keyboard Navigation Incomplete** - Color picker not fully accessible via keyboard
+17. **Missing Alt Text** - Some product images lack descriptive alt attributes
+18. **Color Contrast** - Some gray text fails WCAG AA standards
+
+---
+
+## 🗺 Future Roadmap
+
+### Phase 1: Core Functionality (Q1 2026)
+
+- [ ] Implement hamburger menu for mobile navigation
+- [ ] Add shopping cart with localStorage persistence
+- [ ] Create design export feature (PNG download)
+- [ ] Implement loading skeletons for product cards
+- [ ] Add form validation for configurator inputs
+
+### Phase 2: Backend Integration (Q2 2026)
+
+- [ ] Build Node.js/Express API server
+- [ ] Implement user authentication (JWT)
+- [ ] Create order management system
+- [ ] Integrate payment gateway (Stripe/PayPal)
+- [ ] Set up PostgreSQL/MongoDB database
+
+### Phase 3: Enhanced Features (Q3 2026)
+
+- [ ] Multi-view 3D preview (front/back/side)
+- [ ] Advanced text effects (shadows, outlines, gradients)
+- [ ] Template library with pre-made designs
+- [ ] Product filtering by type, price, popularity
+- [ ] Wishlist and favorites system
+- [ ] Order history and tracking
+
+### Phase 4: Optimization & Polish (Q4 2026)
+
+- [ ] Dark mode implementation
+- [ ] Progressive Web App (PWA) conversion
+- [ ] Image lazy loading and optimization
+- [ ] Internationalization (i18n) - English, Russian, Uzbek
+- [ ] Analytics integration (Google Analytics/Plausible)
+- [ ] SEO improvements (meta tags, structured data)
+- [ ] Accessibility audit and WCAG 2.1 AAA compliance
+
+### Phase 5: Advanced Features (2027+)
+
+- [ ] AI-powered design suggestions
+- [ ] Augmented Reality (AR) try-on
+- [ ] Bulk ordering for businesses
+- [ ] Social sharing and design collaboration
+- [ ] Mobile native apps (React Native)
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Modern web browser (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
+- Local web server (optional but recommended)
+
+### Installation
 
 ```bash
 # Clone the repository
@@ -362,67 +376,210 @@ git clone https://github.com/TIMURNASRIDDINOV/TIMURNASRIDDINOV.github.io.git
 
 # Navigate to directory
 cd TIMURNASRIDDINOV.github.io
-
-# Start local server (choose one method)
-python3 -m http.server 8000
-# OR
-php -S localhost:8000
-# OR
-npx serve
-
-# Open in browser
-open http://localhost:8000
 ```
 
-### Testing
+### Local Development
 
-1. Open browser DevTools (F12)
-2. Toggle device emulation (Ctrl+Shift+M / Cmd+Shift+M)
-3. Test at breakpoints: 320px, 375px, 425px, 768px, 1024px
-4. Verify:
-   - Navigation responsiveness
-   - Hero video positioning
-   - Product card layouts
-   - Image scaling
-   - Button interactions
+#### Option 1: Python HTTP Server (Recommended)
 
-## 🐛 Known Issues & Future Improvements
+```bash
+python3 -m http.server 8000
+# Open http://localhost:8000
+```
 
-### Current Limitations
+#### Option 2: PHP Built-in Server
 
-- [ ] No mobile hamburger menu (nav hidden on mobile)
-- [ ] Legacy React code not fully removed
-- [ ] Missing loading states for images
-- [ ] No dark mode support
+```bash
+php -S localhost:8000
+# Open http://localhost:8000
+```
 
-### Planned Features
+#### Option 3: Node.js Serve
 
-- [ ] Mobile navigation drawer
-- [ ] Product filtering/sorting
-- [ ] Shopping cart functionality
-- [ ] User authentication
-- [ ] Order management system
-- [ ] Payment integration
+```bash
+npx serve
+# Open http://localhost:3000
+```
+
+#### Option 4: VS Code Live Server
+
+1. Install "Live Server" extension
+2. Right-click `index.html`
+3. Select "Open with Live Server"
+
+### Testing Checklist
+
+- [ ] Navigate all 3 pages (Home, Catalog, Configurator)
+- [ ] Test product catalog rendering
+- [ ] Upload image in configurator
+- [ ] Add custom text with different fonts
+- [ ] Change t-shirt colors
+- [ ] Test size/rotation sliders
+- [ ] Verify mobile responsiveness (320px, 768px, 1024px)
+- [ ] Check 3D model loading in catalog
+
+---
+
+## 📐 Design System Reference
+
+### Color Palette
+
+| Name               | Hex                | Usage                   |
+| ------------------ | ------------------ | ----------------------- |
+| **Primary Text**   | `#0a0a0a`          | Headings, body text     |
+| **Secondary Text** | `#6b7280`          | Descriptions, captions  |
+| **Brand Blue**     | `#0a84ff`          | CTAs, links, selections |
+| **Brand Hover**    | `#0b66d6`          | Button hover states     |
+| **Background**     | `#ffffff`          | Page background         |
+| **Panel**          | `#ffffff`          | Card backgrounds        |
+| **Hairline**       | `rgba(0,0,0,0.08)` | Borders, dividers       |
+
+### Typography Scale
+
+```css
+/* Headings */
+.hero-title {
+  font-size: clamp(2.5rem, 5vw, 3.5rem);
+  font-weight: 900;
+}
+.section-title {
+  font-size: clamp(2rem, 4.5vw, 2.75rem);
+  font-weight: 800;
+}
+.page-title {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 900;
+}
+
+/* Body */
+.hero-subtitle {
+  font-size: clamp(1rem, 1.8vw, 1.15rem);
+  font-weight: 400;
+}
+.body-text {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+```
+
+### Spacing System
+
+```css
+/* Based on 0.25rem (4px) increments */
+--space-xs: 0.5rem; /* 8px */
+--space-sm: 0.75rem; /* 12px */
+--space-md: 1rem; /* 16px */
+--space-lg: 1.5rem; /* 24px */
+--space-xl: 2rem; /* 32px */
+--space-2xl: 3rem; /* 48px */
+--space-3xl: 4rem; /* 64px */
+```
+
+### Border Radius
+
+```css
+--radius-sm: 8px; /* Buttons, inputs */
+--radius-md: 12px; /* Cards */
+--radius-lg: 16px; /* Panels */
+--radius-xl: 20px; /* Sections */
+--radius-2xl: 24px; /* Hero elements */
+--radius-full: 999px; /* Pills */
+```
+
+### Shadow System
+
+```css
+--shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+--shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
+--shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.15);
+```
+
+---
+
+## 🔧 Configuration
+
+### Custom Domain Setup (GitHub Pages)
+
+The `CNAME` file contains:
+
+```
+looom.me
+```
+
+**DNS Configuration:**
+
+```
+Type  | Name | Value
+------|------|------
+A     | @    | 185.199.108.153
+A     | @    | 185.199.109.153
+A     | @    | 185.199.110.153
+A     | @    | 185.199.111.153
+CNAME | www  | timurnasriddinov.github.io
+```
+
+### Canvas Configuration
+
+Located in `configurator.html`:
+
+```javascript
+const CANVAS_WIDTH = 600;
+const CANVAS_HEIGHT = 700;
+
+const PRINT_AREA = {
+  x: 175,
+  y: 220,
+  width: 250,
+  height: 250, // Printable design area
+};
+```
+
+### Product Data
+
+Edit `products-catalog.js` to modify products:
+
+```javascript
+const products = [
+  {
+    id: 1,
+    name: "Классическая футболка",
+    nameEn: "Regular T-shirt",
+    type: "Обычная футболка",
+    image: "products/tshirt_regular_white_001.jpg",
+    price: 150000,
+    customizable: true,
+  },
+  // ... add more products
+];
+```
+
+---
+
+## 📞 Support & Contact
+
+**Author:** Timur Nasriddinov  
+**Website:** [looom.me](https://looom.me)  
+**GitHub:** [@TIMURNASRIDDINOV](https://github.com/TIMURNASRIDDINOV)
+
+---
 
 ## 📄 License
 
 This project is proprietary. All rights reserved.
 
-## 👤 Author
-
-**TIMUR NASRIDDINOV**
-
-- Website: [looom.me](https://looom.me)
-- GitHub: [@TIMURNASRIDDINOV](https://github.com/TIMURNASRIDDINOV)
+---
 
 ## 🙏 Acknowledgments
 
-- **Three.js** - 3D graphics library
-- **Fabric.js** - Canvas manipulation
-- **Tailwind CSS** - Utility-first CSS
-- **Lucide Icons** - Icon library
-- **Google Fonts** - Inter typeface
+- **Three.js** - Ricardo Cabello (mrdoob) for 3D rendering library
+- **Tailwind CSS** - Adam Wathan & Tailwind Labs
+- **Lucide Icons** - Lucide contributors
+- **Google Fonts** - Inter typeface by Rasmus Andersson
+- **React Team** - For React 18 UMD builds
 
 ---
 
-**Last Updated:** December 6, 2025
+**Last Updated:** December 22, 2025  
+**Version:** 1.0.0-alpha  
+**Build:** GitHub Pages Static Deploy
