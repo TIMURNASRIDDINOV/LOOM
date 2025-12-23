@@ -306,7 +306,7 @@
 .product-carousel__track {
   display: flex;
   gap: 1.5rem;
-  padding: 0.25rem 0.25rem 1rem;
+  padding: 0.25rem 0.25rem 1rem 2rem;
 }
 
 .product-carousel .product-card {
