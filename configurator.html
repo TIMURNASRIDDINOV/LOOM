@@ -1711,6 +1711,9 @@
               state.uploadedImageData.originalWidth = img.width;
               state.uploadedImageData.originalHeight = img.height;
 
+              // Set global flag for order submission
+              window.uploadedImage = true;
+
               // Fit image to bounds
               const fitScale = fitImageToBounds(img);
               state.uploadedImageData.scale = fitScale;
@@ -1785,6 +1788,9 @@
             originalWidth: 0,
             originalHeight: 0,
           };
+
+          // Reset global upload flag
+          window.uploadedImage = false;
 
           // Reset to white t-shirt
           colorButtons.forEach((btn) => {
@@ -2329,16 +2335,30 @@
               .filter(Boolean)
               .join(" ");
 
+            // Check if image was uploaded (window.uploadedImage flag)
+            const imageStatus =
+              window.uploadedImage === true ? "Загружено" : "Не загружено";
+
+            // Get map coordinates if user selected location on map (locationType is defined in outer scope)
+            const mapCoords =
+              locationType === "map" && selectedCoords
+                ? `${selectedCoords.lat}, ${selectedCoords.lng}`
+                : "Не указаны";
+
             const orderData = {
-              product: "Custom T-Shirt",
+              product: "Футболка Oversized",
               color: document.getElementById("summaryColor").textContent.trim(),
               text: document.getElementById("summaryText").textContent.trim(),
               font: document.getElementById("summaryFont").textContent.trim(),
-              image: document.getElementById("summaryImage").textContent.trim(),
+              image: imageStatus,
               scale: document.getElementById("summaryScale").textContent.trim(),
               customerName: customerName,
               phone: document.getElementById("phoneInput").value.trim(),
-              address: document.getElementById("addressInput").value.trim(),
+              address:
+                locationType === "address"
+                  ? document.getElementById("addressInput").value.trim()
+                  : "",
+              mapCoordinates: mapCoords,
               timestamp: new Date().toISOString(),
             };
 
