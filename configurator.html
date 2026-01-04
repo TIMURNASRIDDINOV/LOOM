@@ -2327,7 +2327,7 @@
           submitLoader.style.display = "flex";
 
           try {
-            // Gather order data from summary elements (text only, no canvas/images)
+            // Gather order data from DOM elements (text only)
             const customerName = [
               document.getElementById("nameInput").value.trim(),
               document.getElementById("surnameInput").value.trim(),
@@ -2335,31 +2335,28 @@
               .filter(Boolean)
               .join(" ");
 
-            // Check if image was uploaded (window.uploadedImage flag)
+            // Check if image was uploaded
             const imageStatus =
               window.uploadedImage === true ? "Загружено" : "Не загружено";
 
-            // Get map coordinates if user selected location on map (locationType is defined in outer scope)
-            const mapCoords =
-              locationType === "map" && selectedCoords
-                ? `${selectedCoords.lat}, ${selectedCoords.lng}`
-                : "Не указаны";
+            // Get map coordinates
+            const mapCoords = window.selectedMapCoords
+              ? `${window.selectedMapCoords.lat}, ${window.selectedMapCoords.lng}`
+              : locationType === "map" && selectedCoords
+              ? `${selectedCoords.lat}, ${selectedCoords.lng}`
+              : "Не указаны";
 
             const orderData = {
-              product: "Футболка Oversized",
+              item: "Футболка Oversized",
               color: document.getElementById("summaryColor").textContent.trim(),
               text: document.getElementById("summaryText").textContent.trim(),
               font: document.getElementById("summaryFont").textContent.trim(),
-              image: imageStatus,
+              imageUploaded: imageStatus,
               scale: document.getElementById("summaryScale").textContent.trim(),
+              mapCoordinates: mapCoords,
               customerName: customerName,
               phone: document.getElementById("phoneInput").value.trim(),
-              address:
-                locationType === "address"
-                  ? document.getElementById("addressInput").value.trim()
-                  : "",
-              mapCoordinates: mapCoords,
-              timestamp: new Date().toISOString(),
+              address: document.getElementById("addressInput").value.trim(),
             };
 
             // Send to Cloudflare Worker
@@ -2378,22 +2375,20 @@
               throw new Error(`Server error: ${response.status}`);
             }
 
-            const result = await response.json();
-            console.log(
-              "Order submitted successfully:",
-              orderData,
-              "Response:",
-              result
-            );
+            await response.json();
 
             // Show success toast
-            showToast("Заказ успешно отправлен! ✓", "success");
+            showToast("✅ Заказ отправлен!", "success");
+
+            // Reset form
+            document.getElementById("orderForm").reset();
+            document.getElementById("phoneInput").value = "+998";
 
             // Close modal after delay
             setTimeout(closeModal, 2000);
           } catch (error) {
-            console.error("Order submission failed:", error);
-            showToast("Ошибка отправки. Попробуйте снова.", "error");
+            // Show error toast
+            showToast("❌ Ошибка отправки", "error");
           } finally {
             // Reset button state
             submitBtn.disabled = false;
