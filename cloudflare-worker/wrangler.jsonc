@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "loom-telegram-orders",
+  "main": "src/worker.js",
+  "compatibility_date": "2024-01-01",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://loom.uz,https://www.loom.uz,http://localhost:3000,https://timurnasriddinov56.github.io",
+    "ENVIRONMENT": "production"
+  }
+}

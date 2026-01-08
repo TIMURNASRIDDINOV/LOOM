@@ -2372,21 +2372,24 @@
             // Log order data for debugging
             console.log("📦 Sending order to Telegram bot:", orderData);
 
+            // ================================================================
+            // CLOUDFLARE WORKER URL
+            // ================================================================
+            // IMPORTANT: Replace this URL with your deployed Worker URL
+            // After running: cd cloudflare-worker && wrangler deploy
+            // You will get a URL like: https://loom-telegram-orders.YOUR_SUBDOMAIN.workers.dev
+            // ================================================================
+            const WORKER_URL =
+              "https://loom-telegram-orders.timurnasriddinov56.workers.dev";
+
             // Send to Cloudflare Worker (which forwards to Telegram Bot API)
-            // NOTE: Ensure your Cloudflare Worker is configured to:
-            // 1. Receive POST requests with JSON body
-            // 2. Forward data to Telegram Bot API (https://api.telegram.org/bot<TOKEN>/sendMessage)
-            // 3. Return appropriate success/error responses
-            const response = await fetch(
-              "https://d1-template.timurnasriddinov56.workers.dev",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(orderData),
-              }
-            );
+            const response = await fetch(WORKER_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(orderData),
+            });
 
             // Read response body before checking status (in case of error)
             let responseData;
@@ -2447,6 +2450,10 @@
 
         // Test function to verify Telegram bot connection (can be called from console)
         window.testTelegramConnection = async function () {
+          // Use the same Worker URL as the main submission
+          const WORKER_URL =
+            "https://loom-telegram-orders.timurnasriddinov56.workers.dev";
+
           const testData = {
             item: "Тестовый заказ",
             color: "Белый",
@@ -2454,6 +2461,7 @@
             font: "Inter",
             imageUploaded: "Не загружено",
             scale: "100%",
+            size: "M",
             mapCoordinates: "Тестовые координаты",
             customerName: "Тест Тестович",
             phone: "+998 90 123-45-67",
@@ -2463,19 +2471,17 @@
           };
 
           console.log("🧪 Testing Telegram bot connection...");
+          console.log("📤 Worker URL:", WORKER_URL);
           console.log("📤 Sending test data:", testData);
 
           try {
-            const response = await fetch(
-              "https://d1-template.timurnasriddinov56.workers.dev",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(testData),
-              }
-            );
+            const response = await fetch(WORKER_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(testData),
+            });
 
             console.log(
               "📥 Response status:",
