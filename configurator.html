@@ -2344,7 +2344,15 @@
               ? `${window.selectedMapCoords.lat}, ${window.selectedMapCoords.lng}`
               : locationType === "map" && selectedCoords
               ? `${selectedCoords.lat}, ${selectedCoords.lng}`
+              : locationType === "address" && addressInput.value.trim()
+              ? "Не указаны (использован адрес)"
               : "Не указаны";
+
+            // Get clean phone number (digits only for storage, formatted for display)
+            const phoneFormatted = document
+              .getElementById("phoneInput")
+              .value.trim();
+            const phoneClean = phoneFormatted.replace(/\D/g, "");
 
             const orderData = {
               item: "Футболка Oversized",
@@ -2355,11 +2363,20 @@
               scale: document.getElementById("summaryScale").textContent.trim(),
               mapCoordinates: mapCoords,
               customerName: customerName,
-              phone: document.getElementById("phoneInput").value.trim(),
+              phone: phoneFormatted, // Formatted for display in Telegram
+              phoneClean: phoneClean, // Clean number for processing
               address: document.getElementById("addressInput").value.trim(),
+              timestamp: new Date().toISOString(),
             };
 
-            // Send to Cloudflare Worker
+            // Log order data for debugging
+            console.log("📦 Sending order to Telegram bot:", orderData);
+
+            // Send to Cloudflare Worker (which forwards to Telegram Bot API)
+            // NOTE: Ensure your Cloudflare Worker is configured to:
+            // 1. Receive POST requests with JSON body
+            // 2. Forward data to Telegram Bot API (https://api.telegram.org/bot<TOKEN>/sendMessage)
+            // 3. Return appropriate success/error responses
             const response = await fetch(
               "https://d1-template.timurnasriddinov56.workers.dev",
               {
@@ -2371,14 +2388,42 @@
               }
             );
 
-            if (!response.ok) {
-              throw new Error(`Server error: ${response.status}`);
+            // Read response body before checking status (in case of error)
+            let responseData;
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+              try {
+                responseData = await response.json();
+                console.log("✅ Response from server:", responseData);
+              } catch (parseError) {
+                console.error("❌ Failed to parse JSON response:", parseError);
+                const text = await response.text();
+                console.error("Response text:", text);
+                throw new Error(
+                  `Invalid JSON response: ${text.substring(0, 100)}`
+                );
+              }
+            } else {
+              const text = await response.text();
+              console.log("Response (non-JSON):", text);
+              responseData = { message: text };
             }
 
-            await response.json();
+            if (!response.ok) {
+              const errorMsg =
+                responseData?.error ||
+                responseData?.message ||
+                `Server error: ${response.status} ${response.statusText}`;
+              console.error("❌ Server error:", {
+                status: response.status,
+                statusText: response.statusText,
+                body: responseData,
+              });
+              throw new Error(errorMsg);
+            }
 
             // Show success toast
-            showToast("✅ Заказ отправлен!", "success");
+            showToast("✅ Заказ отправлен в Telegram!", "success");
 
             // Reset form
             document.getElementById("orderForm").reset();
@@ -2387,7 +2432,11 @@
             // Close modal after delay
             setTimeout(closeModal, 2000);
           } catch (error) {
-            showToast("❌ Ошибка отправки", "error");
+            console.error("❌ Order submission error:", error);
+            const errorMessage = error.message || "Неизвестная ошибка";
+            showToast(`❌ Ошибка отправки: ${errorMessage}`, "error");
+
+            // Keep modal open on error so user can retry
           } finally {
             // Reset button state
             submitBtn.disabled = false;
@@ -2395,6 +2444,71 @@
             submitLoader.style.display = "none";
           }
         }
+
+        // Test function to verify Telegram bot connection (can be called from console)
+        window.testTelegramConnection = async function () {
+          const testData = {
+            item: "Тестовый заказ",
+            color: "Белый",
+            text: "Тест",
+            font: "Inter",
+            imageUploaded: "Не загружено",
+            scale: "100%",
+            mapCoordinates: "Тестовые координаты",
+            customerName: "Тест Тестович",
+            phone: "+998 90 123-45-67",
+            phoneClean: "998901234567",
+            address: "Тестовый адрес",
+            timestamp: new Date().toISOString(),
+          };
+
+          console.log("🧪 Testing Telegram bot connection...");
+          console.log("📤 Sending test data:", testData);
+
+          try {
+            const response = await fetch(
+              "https://d1-template.timurnasriddinov56.workers.dev",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(testData),
+              }
+            );
+
+            console.log(
+              "📥 Response status:",
+              response.status,
+              response.statusText
+            );
+
+            let responseData;
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+              responseData = await response.json();
+              console.log("✅ Response data:", responseData);
+            } else {
+              const text = await response.text();
+              console.log("📄 Response text:", text);
+              responseData = { message: text };
+            }
+
+            if (response.ok) {
+              console.log("✅ Test successful! Telegram bot connection works.");
+              showToast("✅ Тест успешен! Telegram бот работает.", "success");
+              return { success: true, data: responseData };
+            } else {
+              console.error("❌ Test failed:", responseData);
+              showToast("❌ Тест не пройден. Проверьте консоль.", "error");
+              return { success: false, error: responseData };
+            }
+          } catch (error) {
+            console.error("❌ Test error:", error);
+            showToast(`❌ Ошибка теста: ${error.message}`, "error");
+            return { success: false, error: error.message };
+          }
+        };
 
         // Toast notification system
         function showToast(message, type = "success") {
