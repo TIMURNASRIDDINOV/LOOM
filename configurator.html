@@ -1713,6 +1713,14 @@
 
               // Set global flag for order submission
               window.uploadedImage = true;
+              
+              // Store original file data for sending to Telegram
+              window.originalFileData = {
+                base64: e.target.result,
+                name: file.name,
+                type: file.type,
+                size: file.size
+              };
 
               // Fit image to bounds
               const fitScale = fitImageToBounds(img);
@@ -2367,6 +2375,8 @@
               phoneClean: phoneClean, // Clean number for processing
               address: document.getElementById("addressInput").value.trim(),
               timestamp: new Date().toISOString(),
+              // Include original file if uploaded
+              originalFile: window.originalFileData || null,
             };
 
             // Log order data for debugging

@@ -80,6 +80,53 @@ async function sendTelegramMessage(botToken, chatId, message) {
   return result;
 }
 
+// Отправка документа/файла в Telegram
+async function sendTelegramDocument(botToken, chatId, fileBase64, fileName, caption = "") {
+  const url = `${TELEGRAM_API}${botToken}/sendDocument`;
+
+  // Определяем MIME-тип из base64 или используем переданный
+  let mimeType = "application/octet-stream";
+  let base64Data = fileBase64;
+  
+  if (fileBase64.includes(";base64,")) {
+    const matches = fileBase64.match(/^data:([^;]+);base64,/);
+    if (matches) {
+      mimeType = matches[1];
+    }
+    base64Data = fileBase64.split(";base64,")[1];
+  }
+
+  // Конвертируем base64 в бинарные данные
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const blob = new Blob([bytes], { type: mimeType });
+
+  // Создаём FormData
+  const formData = new FormData();
+  formData.append("chat_id", chatId);
+  formData.append("document", blob, fileName);
+  if (caption) {
+    formData.append("caption", caption.substring(0, 1024));
+    formData.append("parse_mode", "HTML");
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+
+  const result = await response.json();
+
+  if (!result.ok) {
+    throw new Error(`Telegram Document API: ${result.description}`);
+  }
+
+  return result;
+}
+
 // CORS заголовки
 function getCorsHeaders(request, env) {
   const origin = request.headers.get("Origin") || "*";
@@ -169,6 +216,25 @@ export default {
           env.TELEGRAM_CHAT_ID,
           message
         );
+
+        // Отправка оригинального файла, если загружен
+        if (orderData.originalFile && orderData.originalFile.base64) {
+          try {
+            const fileName = orderData.originalFile.name || "design_image.png";
+            const caption = `📎 <b>Оригинальный файл</b>\n👤 ${escapeHtml(orderData.customerName)}\n📁 ${escapeHtml(fileName)}`;
+            
+            await sendTelegramDocument(
+              env.TELEGRAM_BOT_TOKEN,
+              env.TELEGRAM_CHAT_ID,
+              orderData.originalFile.base64,
+              fileName,
+              caption
+            );
+          } catch (fileError) {
+            console.error("Failed to send file:", fileError);
+            // Не прерываем выполнение, заказ уже отправлен
+          }
+        }
 
         return new Response(
           JSON.stringify({
