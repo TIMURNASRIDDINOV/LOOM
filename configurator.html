@@ -14,6 +14,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Product Catalog CSS -->
     <link rel="stylesheet" href="products-catalog.css" />
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
       /* Base System - Match index.html */
       * {
@@ -166,6 +168,175 @@
       .nav-link:hover .nav-icon,
       .nav-link.active .nav-icon {
         opacity: 1;
+      }
+
+      /* ===== Mobile Navigation ===== */
+      .nav-hamburger {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        color: #ffffff;
+        -webkit-tap-highlight-color: transparent;
+        z-index: 110;
+      }
+
+      .nav-hamburger svg {
+        width: 24px;
+        height: 24px;
+        transition: transform 150ms ease;
+      }
+
+      .nav-hamburger:hover svg {
+        transform: scale(1.1);
+      }
+
+      @media (min-width: 768px) {
+        .nav-hamburger {
+          display: none;
+        }
+      }
+
+      @media (max-width: 767px) {
+        .nav-links {
+          display: none;
+        }
+      }
+
+      .mobile-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        z-index: 90;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 200ms ease-in-out, visibility 200ms ease-in-out;
+      }
+
+      .mobile-backdrop.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .mobile-menu {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 280px;
+        max-width: 75vw;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-left: 1px solid var(--hairline);
+        z-index: 100;
+        transform: translateX(100%);
+        transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: -8px 0 30px rgba(0, 0, 0, 0.15);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .mobile-menu.active {
+        transform: translateX(0);
+      }
+
+      .mobile-menu-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--hairline);
+        min-height: 72px;
+      }
+
+      .mobile-menu-brand {
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: var(--text);
+        text-transform: uppercase;
+      }
+
+      .mobile-menu-close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        color: var(--text);
+        border-radius: 8px;
+        transition: background 200ms ease;
+      }
+
+      .mobile-menu-close:hover {
+        background: rgba(0, 0, 0, 0.05);
+      }
+
+      .mobile-menu-close svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      .mobile-menu-links {
+        display: flex;
+        flex-direction: column;
+        padding: 1rem 0;
+        flex: 1;
+      }
+
+      .mobile-menu-link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 1.5rem;
+        color: var(--text);
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 1rem;
+        transition: background 200ms ease, color 200ms ease;
+      }
+
+      .mobile-menu-link:hover {
+        background: rgba(0, 0, 0, 0.03);
+        color: var(--brand);
+      }
+
+      .mobile-menu-link.active {
+        color: var(--brand);
+        font-weight: 600;
+        background: rgba(10, 132, 255, 0.08);
+      }
+
+      .mobile-menu-link svg {
+        width: 20px;
+        height: 20px;
+        opacity: 0.7;
+      }
+
+      body.menu-open {
+        overflow: hidden;
+      }
+
+      @media (min-width: 768px) {
+        .mobile-menu,
+        .mobile-backdrop {
+          display: none !important;
+        }
       }
 
       /* ===== Configurator Page Specific Styles ===== */
@@ -1003,6 +1174,7 @@
     <nav class="nav">
       <div class="nav-content">
         <div class="nav-brand">LOOM</div>
+        <!-- Desktop Navigation Links -->
         <div class="nav-links space-md-x-6 space-lg-x-8">
           <a
             href="index.html"
@@ -1020,8 +1192,48 @@
             >Кастомизация</a
           >
         </div>
+        <!-- Hamburger Button (Mobile) -->
+        <button
+          class="nav-hamburger"
+          id="menuToggle"
+          aria-label="Открыть меню навигации"
+          aria-expanded="false"
+        >
+          <i data-lucide="menu"></i>
+        </button>
       </div>
     </nav>
+
+    <!-- Mobile Menu Backdrop -->
+    <div class="mobile-backdrop" id="mobileBackdrop"></div>
+
+    <!-- Mobile Menu Panel -->
+    <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+      <div class="mobile-menu-header">
+        <span class="mobile-menu-brand">LOOM</span>
+        <button
+          class="mobile-menu-close"
+          id="menuClose"
+          aria-label="Закрыть меню"
+        >
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="mobile-menu-links">
+        <a href="index.html" class="mobile-menu-link">
+          <i data-lucide="home"></i>
+          Главная
+        </a>
+        <a href="catalog.html" class="mobile-menu-link">
+          <i data-lucide="grid-3x3"></i>
+          Каталог
+        </a>
+        <a href="configurator.html" class="mobile-menu-link active">
+          <i data-lucide="palette"></i>
+          Кастомизация
+        </a>
+      </div>
+    </div>
 
     <!-- Main Content -->
     <main class="configurator-page">
@@ -1713,13 +1925,13 @@
 
               // Set global flag for order submission
               window.uploadedImage = true;
-              
+
               // Store original file data for sending to Telegram
               window.originalFileData = {
                 base64: e.target.result,
                 name: file.name,
                 type: file.type,
-                size: file.size
+                size: file.size,
               };
 
               // Fit image to bounds
@@ -2605,6 +2817,66 @@
         // Initialize phone input with +998
         phoneInput.value = "+998";
       });
+    </script>
+
+    <!-- Mobile Navigation Script -->
+    <script>
+      (function () {
+        if (typeof lucide !== "undefined") {
+          lucide.createIcons();
+        }
+
+        const menuToggle = document.getElementById("menuToggle");
+        const menuClose = document.getElementById("menuClose");
+        const mobileMenu = document.getElementById("mobileMenu");
+        const mobileBackdrop = document.getElementById("mobileBackdrop");
+
+        if (!menuToggle || !mobileMenu) return;
+
+        function openMenu() {
+          mobileMenu.classList.add("active");
+          mobileBackdrop.classList.add("active");
+          document.body.classList.add("menu-open");
+          menuToggle.setAttribute("aria-expanded", "true");
+          mobileMenu.setAttribute("aria-hidden", "false");
+          const firstLink = mobileMenu.querySelector(".mobile-menu-link");
+          if (firstLink) firstLink.focus();
+        }
+
+        function closeMenu() {
+          mobileMenu.classList.remove("active");
+          mobileBackdrop.classList.remove("active");
+          document.body.classList.remove("menu-open");
+          menuToggle.setAttribute("aria-expanded", "false");
+          mobileMenu.setAttribute("aria-hidden", "true");
+          menuToggle.focus();
+        }
+
+        menuToggle.addEventListener("click", openMenu);
+        if (menuClose) menuClose.addEventListener("click", closeMenu);
+        if (mobileBackdrop) mobileBackdrop.addEventListener("click", closeMenu);
+
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape" && mobileMenu.classList.contains("active")) {
+            closeMenu();
+          }
+        });
+
+        mobileMenu
+          .querySelectorAll(".mobile-menu-link")
+          .forEach(function (link) {
+            link.addEventListener("click", closeMenu);
+          });
+
+        window.addEventListener("resize", function () {
+          if (
+            window.innerWidth >= 768 &&
+            mobileMenu.classList.contains("active")
+          ) {
+            closeMenu();
+          }
+        });
+      })();
     </script>
   </body>
 </html>
