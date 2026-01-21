@@ -50,7 +50,16 @@ function formatOrderMessage(data) {
 ━━━━━━━━━━━━━━━━━━━━
 ▫️ Адрес: ${escapeHtml(data.address || "Не указан")}
 ▫️ Координаты: ${escapeHtml(data.mapCoordinates || "Не указаны")}
-
+${
+  data.comment
+    ? `
+━━━━━━━━━━━━━━━━━━━━
+💬 <b>КОММЕНТАРИЙ</b>
+━━━━━━━━━━━━━━━━━━━━
+${escapeHtml(data.comment)}
+`
+    : ""
+}
 ━━━━━━━━━━━━━━━━━━━━
 ⏰ ${date}
 `.trim();
@@ -81,13 +90,19 @@ async function sendTelegramMessage(botToken, chatId, message) {
 }
 
 // Отправка документа/файла в Telegram
-async function sendTelegramDocument(botToken, chatId, fileBase64, fileName, caption = "") {
+async function sendTelegramDocument(
+  botToken,
+  chatId,
+  fileBase64,
+  fileName,
+  caption = "",
+) {
   const url = `${TELEGRAM_API}${botToken}/sendDocument`;
 
   // Определяем MIME-тип из base64 или используем переданный
   let mimeType = "application/octet-stream";
   let base64Data = fileBase64;
-  
+
   if (fileBase64.includes(";base64,")) {
     const matches = fileBase64.match(/^data:([^;]+);base64,/);
     if (matches) {
@@ -158,7 +173,7 @@ export default {
         }),
         {
           headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        },
       );
     }
 
@@ -175,7 +190,7 @@ export default {
             {
               status: 500,
               headers: { "Content-Type": "application/json", ...corsHeaders },
-            }
+            },
           );
         }
 
@@ -188,7 +203,7 @@ export default {
             {
               status: 500,
               headers: { "Content-Type": "application/json", ...corsHeaders },
-            }
+            },
           );
         }
 
@@ -205,7 +220,7 @@ export default {
             {
               status: 400,
               headers: { "Content-Type": "application/json", ...corsHeaders },
-            }
+            },
           );
         }
 
@@ -214,7 +229,7 @@ export default {
         const result = await sendTelegramMessage(
           env.TELEGRAM_BOT_TOKEN,
           env.TELEGRAM_CHAT_ID,
-          message
+          message,
         );
 
         // Отправка оригинального файла, если загружен
@@ -222,13 +237,13 @@ export default {
           try {
             const fileName = orderData.originalFile.name || "design_image.png";
             const caption = `📎 <b>Оригинальный файл</b>\n👤 ${escapeHtml(orderData.customerName)}\n📁 ${escapeHtml(fileName)}`;
-            
+
             await sendTelegramDocument(
               env.TELEGRAM_BOT_TOKEN,
               env.TELEGRAM_CHAT_ID,
               orderData.originalFile.base64,
               fileName,
-              caption
+              caption,
             );
           } catch (fileError) {
             console.error("Failed to send file:", fileError);
@@ -244,7 +259,7 @@ export default {
           }),
           {
             headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
+          },
         );
       } catch (error) {
         console.error("Error:", error);
@@ -256,7 +271,7 @@ export default {
           {
             status: 500,
             headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
+          },
         );
       }
     }

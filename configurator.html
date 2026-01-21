@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
@@ -19,7 +19,11 @@
     <style>
       /* Base System - Match index.html */
       * {
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
@@ -220,7 +224,9 @@
         z-index: 90;
         opacity: 0;
         visibility: hidden;
-        transition: opacity 200ms ease-in-out, visibility 200ms ease-in-out;
+        transition:
+          opacity 200ms ease-in-out,
+          visibility 200ms ease-in-out;
       }
 
       .mobile-backdrop.active {
@@ -308,7 +314,9 @@
         text-decoration: none;
         font-weight: 500;
         font-size: 1rem;
-        transition: background 200ms ease, color 200ms ease;
+        transition:
+          background 200ms ease,
+          color 200ms ease;
       }
 
       .mobile-menu-link:hover {
@@ -1546,6 +1554,30 @@
             <span class="field-success" style="display: none">✓</span>
           </div>
 
+          <!-- Comment -->
+          <div class="form-field">
+            <label for="commentInput" class="form-label">
+              Комментарий к заказу
+            </label>
+            <textarea
+              id="commentInput"
+              class="form-input"
+              rows="2"
+              placeholder="Укажите дополнительные пожелания (размер, цвет и т.д.)"
+              maxlength="500"
+            ></textarea>
+            <span
+              class="field-hint"
+              style="
+                font-size: 12px;
+                color: var(--muted);
+                margin-top: 4px;
+                display: block;
+              "
+              >Необязательно, до 500 символов</span
+            >
+          </div>
+
           <!-- Location -->
           <div class="form-field">
             <label class="form-label">
@@ -1758,14 +1790,14 @@
               PRINT_AREA.x,
               PRINT_AREA.y,
               PRINT_AREA.width,
-              PRINT_AREA.height
+              PRINT_AREA.height,
             );
             ctx.fillStyle = "rgba(240, 240, 240, 0.15)";
             ctx.fillRect(
               PRINT_AREA.x,
               PRINT_AREA.y,
               PRINT_AREA.width,
-              PRINT_AREA.height
+              PRINT_AREA.height,
             );
             ctx.restore();
           }
@@ -1777,7 +1809,7 @@
             ctx.rotate((state.uploadedImageData.rotation * Math.PI) / 180);
             ctx.scale(
               state.uploadedImageData.scale,
-              state.uploadedImageData.scale
+              state.uploadedImageData.scale,
             );
 
             const w = state.uploadedImageData.originalWidth;
@@ -1963,7 +1995,7 @@
             // Re-constrain to bounds
             const constrained = constrainToBounds(
               state.uploadedImageData.x,
-              state.uploadedImageData.y
+              state.uploadedImageData.y,
             );
             state.uploadedImageData.x = constrained.x;
             state.uploadedImageData.y = constrained.y;
@@ -2336,11 +2368,8 @@
             const updateCoords = () => {
               const center = map.getCenter();
               selectedCoords = { lat: center[0], lng: center[1] };
-              document.getElementById(
-                "mapCoords"
-              ).textContent = `Координаты: ${center[0].toFixed(
-                4
-              )}, ${center[1].toFixed(4)}`;
+              document.getElementById("mapCoords").textContent =
+                `Координаты: ${center[0].toFixed(4)}, ${center[1].toFixed(4)}`;
 
               // Log to console
               console.log("Selected coordinates:", selectedCoords);
@@ -2348,7 +2377,7 @@
               // Save to localStorage
               localStorage.setItem(
                 "loom_map_coords",
-                JSON.stringify(selectedCoords)
+                JSON.stringify(selectedCoords),
               );
             };
 
@@ -2397,9 +2426,8 @@
           // Update text fields
           document.getElementById("summaryColor").textContent =
             designData.colorName;
-          document.getElementById(
-            "summaryScale"
-          ).textContent = `${designData.scale}%`;
+          document.getElementById("summaryScale").textContent =
+            `${designData.scale}%`;
           document.getElementById("summaryText").textContent = designData.text;
           document.getElementById("summaryFont").textContent = designData.font;
           document.getElementById("summaryImage").textContent =
@@ -2563,10 +2591,10 @@
             const mapCoords = window.selectedMapCoords
               ? `${window.selectedMapCoords.lat}, ${window.selectedMapCoords.lng}`
               : locationType === "map" && selectedCoords
-              ? `${selectedCoords.lat}, ${selectedCoords.lng}`
-              : locationType === "address" && addressInput.value.trim()
-              ? "Не указаны (использован адрес)"
-              : "Не указаны";
+                ? `${selectedCoords.lat}, ${selectedCoords.lng}`
+                : locationType === "address" && addressInput.value.trim()
+                  ? "Не указаны (использован адрес)"
+                  : "Не указаны";
 
             // Get clean phone number (digits only for storage, formatted for display)
             const phoneFormatted = document
@@ -2586,6 +2614,7 @@
               phone: phoneFormatted, // Formatted for display in Telegram
               phoneClean: phoneClean, // Clean number for processing
               address: document.getElementById("addressInput").value.trim(),
+              comment: document.getElementById("commentInput").value.trim(),
               timestamp: new Date().toISOString(),
               // Include original file if uploaded
               originalFile: window.originalFileData || null,
@@ -2625,7 +2654,7 @@
                 const text = await response.text();
                 console.error("Response text:", text);
                 throw new Error(
-                  `Invalid JSON response: ${text.substring(0, 100)}`
+                  `Invalid JSON response: ${text.substring(0, 100)}`,
                 );
               }
             } else {
@@ -2708,7 +2737,7 @@
             console.log(
               "📥 Response status:",
               response.status,
-              response.statusText
+              response.statusText,
             );
 
             let responseData;
