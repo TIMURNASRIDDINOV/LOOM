@@ -191,34 +191,116 @@
   }
 
   function renderCarousel(container) {
-    const carousel = document.createElement("div");
-    carousel.className = "product-carousel";
+    var featuredProducts = products.slice(0, 3);
+    var currentIndex = 0;
 
-    const viewport = document.createElement("div");
+    var wrapper = document.createElement("div");
+    wrapper.className = "product-carousel";
+
+    var prevBtn = document.createElement("button");
+    prevBtn.className = "carousel-arrow carousel-arrow--prev";
+    prevBtn.setAttribute("aria-label", "Предыдущий товар");
+    prevBtn.innerHTML =
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+
+    var nextBtn = document.createElement("button");
+    nextBtn.className = "carousel-arrow carousel-arrow--next";
+    nextBtn.setAttribute("aria-label", "Следующий товар");
+    nextBtn.innerHTML =
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+    var viewport = document.createElement("div");
     viewport.className = "product-carousel__viewport";
 
-    const track = document.createElement("div");
+    var track = document.createElement("div");
     track.className = "product-carousel__track";
 
-    // Show all products with prices but no buttons
-    products.forEach(function (product) {
-      const card = createProductCard(product, {
+    featuredProducts.forEach(function (product) {
+      var card = createProductCard(product, {
         showPrice: true,
         showButton: false,
       });
-
-      // Make entire card clickable
       card.style.cursor = "pointer";
-      card.addEventListener("click", function (e) {
+      card.addEventListener("click", function () {
         window.location.href = "configurator.html";
       });
-
       track.appendChild(card);
     });
 
+    var dotsEl = document.createElement("div");
+    dotsEl.className = "carousel-dots";
+    featuredProducts.forEach(function (_, i) {
+      var dot = document.createElement("button");
+      dot.className = "carousel-dot" + (i === 0 ? " active" : "");
+      dot.setAttribute("aria-label", "Перейти к товару " + (i + 1));
+      dot.addEventListener("click", function () {
+        goTo(i);
+      });
+      dotsEl.appendChild(dot);
+    });
+
+    function cardScrollOffset(index) {
+      var card = track.children[index];
+      // Center the card in the viewport
+      return card.offsetLeft - (viewport.offsetWidth - card.offsetWidth) / 2;
+    }
+
+    function updateState() {
+      prevBtn.disabled = currentIndex === 0;
+      nextBtn.disabled = currentIndex === featuredProducts.length - 1;
+      dotsEl.querySelectorAll(".carousel-dot").forEach(function (d, i) {
+        d.classList.toggle("active", i === currentIndex);
+      });
+    }
+
+    function goTo(index) {
+      currentIndex = Math.max(0, Math.min(index, featuredProducts.length - 1));
+      viewport.scrollTo({
+        left: cardScrollOffset(currentIndex),
+        behavior: "smooth",
+      });
+      updateState();
+    }
+
+    prevBtn.addEventListener("click", function () {
+      goTo(currentIndex - 1);
+    });
+    nextBtn.addEventListener("click", function () {
+      goTo(currentIndex + 1);
+    });
+
+    // Sync dot state when user manually scrolls
+    viewport.addEventListener(
+      "scroll",
+      function () {
+        var center = viewport.scrollLeft + viewport.offsetWidth / 2;
+        var closest = 0;
+        var closestDist = Infinity;
+        for (var i = 0; i < track.children.length; i++) {
+          var card = track.children[i];
+          var cardCenter = card.offsetLeft + card.offsetWidth / 2;
+          var dist = Math.abs(center - cardCenter);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closest = i;
+          }
+        }
+        if (closest !== currentIndex) {
+          currentIndex = closest;
+          updateState();
+        }
+      },
+      { passive: true }
+    );
+
+    updateState();
+
     viewport.appendChild(track);
-    carousel.appendChild(viewport);
-    container.appendChild(carousel);
+    wrapper.appendChild(prevBtn);
+    wrapper.appendChild(viewport);
+    wrapper.appendChild(nextBtn);
+    wrapper.appendChild(dotsEl);
+    container.appendChild(wrapper);
   }
 
   // Render products to container
