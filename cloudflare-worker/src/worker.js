@@ -21,23 +21,36 @@ function formatOrderMessage(data) {
     timeZone: "Asia/Tashkent",
   });
 
+  // Helper: format position coords as "x, y px"
+  const pos = (x, y) => (x || y) ? `(${x || 0}, ${y || 0} px)` : "—";
+
   return `
-🛍 <b>НОВЫЙ ЗАКАЗ</b>
+🛍 <b>НОВЫЙ ЗАКАЗ LOOM</b>
 
 ━━━━━━━━━━━━━━━━━━━━
 📦 <b>ТОВАР</b>
 ━━━━━━━━━━━━━━━━━━━━
 ▫️ Товар: <b>${escapeHtml(data.item || "Футболка")}</b>
-▫️ Цвет: <b>${escapeHtml(data.color || "Не указан")}</b>
-▫️ Размер: <b>${escapeHtml(data.size || "M")}</b>
+▫️ Цвет: <b>${escapeHtml(data.color || "Не указан")}</b> <code>${escapeHtml(data.colorHex || "")}</code>
 
 ━━━━━━━━━━━━━━━━━━━━
-🎨 <b>ДИЗАЙН</b>
+🎨 <b>ПЕРЕДНЯЯ СТОРОНА</b>
 ━━━━━━━━━━━━━━━━━━━━
-▫️ Текст: <code>${escapeHtml(data.text || "Без текста")}</code>
-▫️ Шрифт: ${escapeHtml(data.font || "Inter")}
-▫️ Масштаб: ${escapeHtml(data.scale || "100%")}
-▫️ Изображение: ${escapeHtml(data.imageUploaded || "Нет")}
+✏️ Текст: <code>${escapeHtml(data.frontText || "Не указан")}</code>
+   Шрифт: ${escapeHtml(data.frontFont || "—")} ${data.frontFontSize ? data.frontFontSize + "px" : ""} ${data.frontTextBold ? "<b>Bold</b>" : ""} ${data.frontTextItalic ? "<i>Italic</i>" : ""}
+   Цвет текста: <code>${escapeHtml(data.frontTextColor || "—")}</code>
+   Позиция: ${pos(data.frontTextX, data.frontTextY)}
+🖼 Логотип: ${escapeHtml(data.frontImage || "Не загружено")}
+   Масштаб: ${escapeHtml(data.frontImageScale || "—")} | Позиция: ${pos(data.frontImageX, data.frontImageY)}
+
+━━━━━━━━━━━━━━━━━━━━
+🎨 <b>ЗАДНЯЯ СТОРОНА</b>
+━━━━━━━━━━━━━━━━━━━━
+✏️ Текст: <code>${escapeHtml(data.backText || "Не указан")}</code>
+   Шрифт: ${escapeHtml(data.backFont || "—")} ${data.backFontSize ? data.backFontSize + "px" : ""} ${data.backTextBold ? "<b>Bold</b>" : ""} ${data.backTextItalic ? "<i>Italic</i>" : ""}
+   Позиция: ${pos(data.backTextX, data.backTextY)}
+🖼 Логотип: ${escapeHtml(data.backImage || "Не загружено")}
+   Масштаб: ${escapeHtml(data.backImageScale || "—")} | Позиция: ${pos(data.backImageX, data.backImageY)}
 
 ━━━━━━━━━━━━━━━━━━━━
 👤 <b>ПОКУПАТЕЛЬ</b>
@@ -86,6 +99,36 @@ async function sendTelegramMessage(botToken, chatId, message) {
     throw new Error(`Telegram API: ${result.description}`);
   }
 
+  return result;
+}
+
+// Отправка фото (3D превью дизайна) в Telegram
+async function sendTelegramPhoto(botToken, chatId, base64DataUrl, caption = "") {
+  const url = `${TELEGRAM_API}${botToken}/sendPhoto`;
+
+  let base64Data = base64DataUrl;
+  if (base64DataUrl.includes(";base64,")) {
+    base64Data = base64DataUrl.split(";base64,")[1];
+  }
+
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const blob = new Blob([bytes], { type: "image/png" });
+
+  const formData = new FormData();
+  formData.append("chat_id", chatId);
+  formData.append("photo", blob, "design_preview.png");
+  if (caption) {
+    formData.append("caption", caption.substring(0, 1024));
+    formData.append("parse_mode", "HTML");
+  }
+
+  const response = await fetch(url, { method: "POST", body: formData });
+  const result = await response.json();
+  if (!result.ok) throw new Error(`Telegram Photo API: ${result.description}`);
   return result;
 }
 
@@ -231,6 +274,21 @@ export default {
           env.TELEGRAM_CHAT_ID,
           message,
         );
+
+        // Отправка 3D превью дизайна как фото
+        if (orderData.designPreview) {
+          try {
+            const photoCaption = `🖼 <b>3D превью дизайна</b>\n👤 ${escapeHtml(orderData.customerName)}\n🎨 ${escapeHtml(orderData.color)} | Перед: "${escapeHtml(orderData.frontText)}" | Зад: "${escapeHtml(orderData.backText)}"`;
+            await sendTelegramPhoto(
+              env.TELEGRAM_BOT_TOKEN,
+              env.TELEGRAM_CHAT_ID,
+              orderData.designPreview,
+              photoCaption,
+            );
+          } catch (photoErr) {
+            console.error("Failed to send design preview photo:", photoErr);
+          }
+        }
 
         // Отправка оригинального файла, если загружен
         if (orderData.originalFile && orderData.originalFile.base64) {
