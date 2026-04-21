@@ -9,10 +9,10 @@
 // SECTION 1 — CONSTANTS
 // ================================================================
 
-const TEX_SIZE = 1024; // Offscreen texture canvas dimensions
+const TEX_SIZE = 2048; // Offscreen texture canvas dimensions (2048 for crisp logo quality)
 
-// Print area in texture UV space (center-chest region, 0–1024 coordinates)
-const PRINT_AREA = { x: 280, y: 180, w: 464, h: 560 };
+// Print area in texture UV space (center-chest region, scaled to 2048)
+const PRINT_AREA = { x: 560, y: 360, w: 928, h: 1120 };
 
 // Camera views are finalized by auto-fit after the model loads.
 const CAM_VIEWS = {
@@ -74,7 +74,7 @@ const designState = {
     text: {
       content: "",
       font: "Arial",
-      size: 80,
+      size: 160,
       color: "#000000",
       bold: false,
       italic: false,
@@ -85,7 +85,7 @@ const designState = {
       img: null,
       name: "",
       x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.38,
+      y: TEX_SIZE / 2,
       scalePct: 100,
     },
   },
@@ -94,7 +94,7 @@ const designState = {
     text: {
       content: "",
       font: "Arial",
-      size: 80,
+      size: 160,
       color: "#000000",
       bold: false,
       italic: false,
@@ -105,7 +105,7 @@ const designState = {
       img: null,
       name: "",
       x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.38,
+      y: TEX_SIZE / 2,
       scalePct: 100,
     },
   },
@@ -119,11 +119,12 @@ let uploadedFileData = null;
 // ================================================================
 
 let scene, camera, renderer, controls;
-let shirtObject = null; // The loaded OBJ group
-let shirtMaterials = []; // All MeshStandardMaterial instances on the shirt
-let frontPrintMaterials = []; // Materials that should always show front design map
-let backPrintMaterials = []; // Materials that should always show back design map
-let plainColorMaterials = []; // Materials that should stay plain shirt color (no print map)
+let shirtObject = null;
+let shirtMaterials = [];
+let frontPrintMaterials = [];
+let backPrintMaterials = [];
+let plainColorMaterials = [];
+
 
 // Per-view canvas textures
 let frontTexCanvas, backTexCanvas, plainTexCanvas;
@@ -161,7 +162,7 @@ function initThreeJS() {
 
   // Scene with soft light-gray background
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xd7dce3);
+  scene.background = new THREE.Color(0x000000);
 
   // Perspective camera — FOV 40 for a natural product lens feel
   const w = container.clientWidth || 600;
@@ -178,8 +179,8 @@ function initThreeJS() {
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMapping = THREE.LinearToneMapping;
+  renderer.toneMappingExposure = 0.82;
   container.appendChild(renderer.domElement);
 
   // Neutral studio environment (PMREM) for realistic fabric shading
@@ -215,21 +216,21 @@ function initThreeJS() {
 }
 
 function setupLighting() {
-  // Ambient — soft global fill
-  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  // Very soft ambient — just enough to lift pure shadow off black
+  scene.add(new THREE.AmbientLight(0xffffff, 0.08));
 
-  // Hemisphere — warm sky / neutral ground for fabric depth
-  const hemi = new THREE.HemisphereLight(0xfff5e6, 0xb8b8bc, 0.6);
+  // Hemisphere — subtle top/bottom bias, not a light source itself
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 0.12);
   hemi.position.set(0, 1, 0);
   scene.add(hemi);
 
-  // Key light: front-right, above
-  const key = new THREE.DirectionalLight(0xffffff, 1.2);
+  // Key light: front-right — defines shape without blowing out white
+  const key = new THREE.DirectionalLight(0xffffff, 0.45);
   key.position.set(2.5, 3.5, 3);
   scene.add(key);
 
-  // Fill light: front-left, cooler & dimmer
-  const fill = new THREE.DirectionalLight(0xe4ecff, 0.4);
+  // Fill light: front-left — very subtle rim
+  const fill = new THREE.DirectionalLight(0xffffff, 0.12);
   fill.position.set(-3, 1.5, 2);
   scene.add(fill);
 }
@@ -270,13 +271,25 @@ function initCanvasTextures() {
   frontTexture = new THREE.CanvasTexture(frontTexCanvas);
   backTexture = new THREE.CanvasTexture(backTexCanvas);
   plainTexture = new THREE.CanvasTexture(plainTexCanvas);
+
   // GLTF UV convention expects textures with flipY disabled.
   frontTexture.flipY = false;
   backTexture.flipY = false;
   plainTexture.flipY = false;
+
+  // sRGB so colors match the chosen hex values
   frontTexture.encoding = THREE.sRGBEncoding;
   backTexture.encoding = THREE.sRGBEncoding;
   plainTexture.encoding = THREE.sRGBEncoding;
+
+  // Trilinear + anisotropic filtering — eliminates the blurry/choppy look
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+  [frontTexture, backTexture, plainTexture].forEach((t) => {
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    t.generateMipmaps = true;
+    t.anisotropy = maxAniso;
+  });
 
   // Initial draw
   drawPlainTexture();
@@ -290,13 +303,6 @@ function drawPlainTexture() {
   ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
   ctx.fillStyle = designState.shirtColor;
   ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
-
-  // Subtle seam shadow for textile depth.
-  const grad = ctx.createLinearGradient(0, 0, 0, TEX_SIZE * 0.12);
-  grad.addColorStop(0, "rgba(0,0,0,0.08)");
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE * 0.12);
 
   plainTexture.needsUpdate = true;
 }
@@ -321,11 +327,13 @@ function drawTexture(view) {
   // 3. Uploaded image layer
   if (layer.image.img) {
     ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     const natW = layer.image.img.naturalWidth || layer.image.img.width;
     const natH = layer.image.img.naturalHeight || layer.image.img.height;
-    // scalePct of 100 → the image fills ~35% of texture width
+    // scalePct of 100 → the image fills ~30% of texture width
     const factor =
-      (layer.image.scalePct / 100) * ((TEX_SIZE * 0.35) / Math.max(natW, natH));
+      (layer.image.scalePct / 100) * ((TEX_SIZE * 0.30) / Math.max(natW, natH));
     const dw = natW * factor;
     const dh = natH * factor;
     ctx.drawImage(
@@ -433,11 +441,17 @@ function normalizeModelUVsGlobally(object) {
 
   const rangeU = maxU - minU || 1;
   const rangeV = maxV - minV || 1;
+  // Uniform scale so shapes aren't stretched
+  const uniformRange = Math.max(rangeU, rangeV);
+  // Center offset: shift so the whole model is centered at UV (0.5, 0.5)
+  // which equals texture pixel TEX_SIZE/2 on both axes.
+  const shiftU = (1 - rangeU / uniformRange) / 2;
+  const shiftV = (1 - rangeV / uniformRange) / 2;
 
   uvAttributes.forEach((uv) => {
     for (let i = 0; i < uv.count; i++) {
-      const uNorm = (uv.getX(i) - minU) / rangeU;
-      const vNorm = (uv.getY(i) - minV) / rangeV;
+      const uNorm = (uv.getX(i) - minU) / uniformRange + shiftU;
+      const vNorm = (uv.getY(i) - minV) / uniformRange + shiftV;
       uv.setXY(i, uNorm, vNorm);
     }
     uv.needsUpdate = true;
@@ -522,6 +536,7 @@ function loadShirtModel() {
 
       scene.add(object);
       shirtObject = object;
+
 
       // Ensure maps/colors are coherent right after model load.
       applyActiveTexture();
@@ -1022,6 +1037,95 @@ function refreshDesignCanvas() {
 })();
 
 // ================================================================
+// SECTION 9b — 3D LOGO DRAG (screen-space delta → texture coords)
+// ================================================================
+
+const _rc = new THREE.Raycaster();
+const _rcMouse = new THREE.Vector2();
+let _logoDragging = false;
+let _dragStartClientX = 0, _dragStartClientY = 0;
+let _dragBaseX = 0, _dragBaseY = 0;
+
+/** Returns true if the mouse/touch event hits any part of the shirt. */
+function _hitsShirt(e) {
+  if (!shirtObject || !renderer || !camera) return false;
+  const canvas = renderer.domElement;
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  _rcMouse.x = ((cx - rect.left) / rect.width) * 2 - 1;
+  _rcMouse.y = -((cy - rect.top) / rect.height) * 2 + 1;
+  _rc.setFromCamera(_rcMouse, camera);
+  const meshes = [];
+  shirtObject.traverse((c) => { if (c.isMesh) meshes.push(c); });
+  return _rc.intersectObjects(meshes, false).length > 0;
+}
+
+function bindLogoDrag3D() {
+  const canvas = renderer.domElement;
+
+  function clientXY(e) {
+    return e.touches
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      : { x: e.clientX, y: e.clientY };
+  }
+
+  function texScale() {
+    // Shirt fills ~75% of viewport height; map screen pixels → texture pixels
+    return TEX_SIZE / (canvas.clientHeight * 0.75);
+  }
+
+  function onDown(e) {
+    const layer = designState[designState.activeView];
+    if (!layer.image.img) return;
+    if (!_hitsShirt(e)) return;
+
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    _logoDragging = true;
+
+    const { x, y } = clientXY(e);
+    _dragStartClientX = x;
+    _dragStartClientY = y;
+    _dragBaseX = layer.image.x;
+    _dragBaseY = layer.image.y;
+  }
+
+  function onMove(e) {
+    if (!_logoDragging) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+
+    const { x, y } = clientXY(e);
+    const sc = texScale();
+    const layer = designState[designState.activeView];
+    layer.image.x = _dragBaseX + (x - _dragStartClientX) * sc;
+    layer.image.y = _dragBaseY + (y - _dragStartClientY) * sc;
+    redrawActive();
+  }
+
+  function onUp() {
+    _logoDragging = false;
+  }
+
+  // Capture phase → fires before OrbitControls
+  canvas.addEventListener("mousedown", onDown, true);
+  canvas.addEventListener("mousemove", onMove, true);
+  window.addEventListener("mouseup", onUp);
+  canvas.addEventListener("touchstart", onDown, { capture: true, passive: false });
+  canvas.addEventListener("touchmove", onMove, { capture: true, passive: false });
+  window.addEventListener("touchend", onUp);
+
+  // Cursor feedback
+  canvas.addEventListener("mousemove", (e) => {
+    if (_logoDragging) { canvas.style.cursor = "grabbing"; return; }
+    const layer = designState[designState.activeView];
+    if (!layer.image.img) { canvas.style.cursor = ""; return; }
+    canvas.style.cursor = _hitsShirt(e) ? "grab" : "";
+  });
+}
+
+// ================================================================
 // SECTION 10 — UI INITIALIZATION
 // ================================================================
 
@@ -1034,6 +1138,7 @@ function initUI() {
   bindColorControls();
   bindTextControls();
   bindImageControls();
+  bindLogoDrag3D();
   bindSummaryTab();
   bindSaveDesign();
   bindOrderModal();
@@ -1330,9 +1435,8 @@ function handleImageFile(file) {
       layer.img = img;
       layer.name = file.name;
       layer.scalePct = 100;
-      // Center in print area
-      layer.x = PRINT_AREA.x + PRINT_AREA.w / 2;
-      layer.y = PRINT_AREA.y + PRINT_AREA.h / 2;
+      layer.x = TEX_SIZE / 2;
+      layer.y = TEX_SIZE / 2;
 
       // Store original file data for order submission
       uploadedFileData = {
@@ -1416,7 +1520,7 @@ function resetDesign() {
     designState[v].text = {
       content: "",
       font: "Arial",
-      size: 80,
+      size: 160,
       color: "#000000",
       bold: false,
       italic: false,
@@ -1427,7 +1531,7 @@ function resetDesign() {
       img: null,
       name: "",
       x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.38,
+      y: TEX_SIZE / 2,
       scalePct: 100,
     };
   });
@@ -1445,10 +1549,10 @@ function resetDesign() {
   if (cp) cp.value = "#FFFFFF";
   const fs = document.getElementById("font-size-slider");
   if (fs) {
-    fs.value = 80;
+    fs.value = 160;
   }
   const fl = document.getElementById("font-size-display");
-  if (fl) fl.textContent = "80px";
+  if (fl) fl.textContent = "160px";
   const is = document.getElementById("image-scale-slider");
   if (is) {
     is.value = 100;
