@@ -27,6 +27,8 @@
     </script>
     <!-- Product Catalog CSS -->
     <link rel="stylesheet" href="products-catalog.css" />
+    <!-- Auth styles -->
+    <link rel="stylesheet" href="assets/auth.css" />
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -542,6 +544,7 @@
           <a href="configurator.html" class="nav-link">Кастомизация</a>
         </div>
         <a href="configurator.html" class="nav-cta">Создать дизайн</a>
+        <div class="auth-nav-slot"></div>
         <!-- Hamburger Button (Mobile) -->
         <button
           class="nav-hamburger"
@@ -668,6 +671,11 @@
         }
       })();
     </script>
+
+    <!-- Config + Auth -->
+    <script src="assets/config.js"></script>
+    <script src="assets/auth.js"></script>
+    <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
 
     <!-- Product Catalog Vanilla JS -->
     <script src="products-catalog.js"></script>

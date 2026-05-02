@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Заказ — LOOM Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+    :root { --mono: 'DM Mono', monospace; --hairline: rgba(255,255,255,0.08); --muted: rgba(255,255,255,0.45); }
+
+    /* Page */
+    .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .btn-back { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.9rem; border: 0.5px solid rgba(255,255,255,0.15); border-radius: 3px; background: transparent; color: rgba(255,255,255,0.55); font-family: inherit; font-size: 0.8rem; cursor: pointer; text-decoration: none; transition: all 0.15s; }
+    .btn-back:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0; }
+
+    /* Grid */
+    .detail-grid { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start; }
+    @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
+
+    /* Card */
+    .card { background: #0f0f0f; border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; }
+    .card + .card { margin-top: 1.5rem; }
+    .card-title { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 1.25rem; }
+
+    /* Info rows */
+    .info-row { display: flex; align-items: baseline; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { font-size: 0.78rem; color: rgba(255,255,255,0.4); min-width: 120px; flex-shrink: 0; }
+    .info-value { font-size: 0.875rem; word-break: break-word; }
+    .info-value.mono { font-family: var(--mono); font-size: 0.82rem; }
+
+    .design-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+    .design-row:last-child { border-bottom: none; }
+    .design-label { font-size: 0.78rem; color: rgba(255,255,255,0.4); min-width: 120px; flex-shrink: 0; }
+    .design-value { font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem; }
+
+    .json-pre { background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.07); border-radius: 3px; padding: 1rem; font-family: var(--mono); font-size: 0.78rem; color: rgba(255,255,255,0.65); white-space: pre-wrap; word-break: break-all; max-height: 340px; overflow-y: auto; margin: 0; line-height: 1.6; }
+    .logo-preview { max-width: 160px; max-height: 160px; border-radius: 3px; border: 0.5px solid var(--hairline); object-fit: contain; background: rgba(255,255,255,0.03); display: none; }
+
+    /* Right column */
+    .form-label { display: block; font-size: 0.78rem; color: rgba(255,255,255,0.5); margin-bottom: 0.4rem; }
+    .form-select { width: 100%; padding: 0.6rem 0.9rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.875rem; outline: none; appearance: none; cursor: pointer; margin-bottom: 1rem; }
+    .form-select:focus { border-color: rgba(255,255,255,0.35); }
+    .form-select option { background: #1a1a1a; }
+    .form-textarea { width: 100%; padding: 0.6rem 0.9rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.875rem; outline: none; resize: vertical; min-height: 80px; margin-bottom: 1rem; }
+    .form-textarea::placeholder { color: rgba(255,255,255,0.25); }
+    .form-textarea:focus { border-color: rgba(255,255,255,0.35); }
+    .btn-update { width: 100%; padding: 0.7rem; border-radius: 3px; border: 0.5px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); font-family: inherit; font-size: 0.82rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; }
+    .btn-update:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: #fff; }
+    .btn-update:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .loading-msg { text-align: center; padding: 3rem 1.5rem; color: rgba(255,255,255,0.35); font-size: 0.875rem; }
+    .error-msg { color: #ef4444; font-size: 0.875rem; text-align: center; padding: 2rem; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div id="loading" class="loading-msg">Загрузка…</div>
+    <p id="error-msg" class="error-msg" style="display:none"></p>
+
+    <div id="detail-content" style="display:none">
+      <div class="page-header">
+        <a href="orders.html" class="btn-back">← Назад</a>
+        <h1 class="page-title">
+          Заказ <span id="order-id"></span>
+          <span id="order-status-badge" style="margin-left:0.6rem;vertical-align:middle"></span>
+        </h1>
+        <span style="font-size:0.8rem;color:var(--muted)" id="order-date"></span>
+      </div>
+
+      <div class="detail-grid">
+        <div>
+          <div class="card">
+            <p class="card-title">Клиент</p>
+            <div class="info-row"><span class="info-label">Имя</span><span class="info-value" id="order-customer"></span></div>
+            <div class="info-row"><span class="info-label">Телефон</span><span class="info-value mono" id="order-phone"></span></div>
+            <div class="info-row"><span class="info-label">Адрес</span><span class="info-value" id="order-address"></span></div>
+            <div class="info-row"><span class="info-label">Координаты</span><span class="info-value mono" id="order-coords"></span></div>
+            <div class="info-row"><span class="info-label">Комментарий</span><span class="info-value" id="order-comment"></span></div>
+            <div class="info-row"><span class="info-label">Сумма</span><span class="info-value mono" id="order-price" style="font-size:1rem"></span></div>
+          </div>
+
+          <div class="card">
+            <p class="card-title">Дизайн</p>
+            <div class="design-row"><span class="design-label">Цвет</span><span class="design-value" id="design-color"></span></div>
+            <div class="design-row"><span class="design-label">Размер</span><span class="design-value" id="design-size"></span></div>
+            <div class="design-row"><span class="design-label">Текст (перед)</span><span class="design-value" id="design-front-text"></span></div>
+            <div class="design-row"><span class="design-label">Текст (зад)</span><span class="design-value" id="design-back-text"></span></div>
+            <div class="design-row"><span class="design-label">Шрифт</span><span class="design-value" id="design-font"></span></div>
+            <div class="design-row"><span class="design-label">Логотип</span><span class="design-value" id="design-logo"></span></div>
+            <div style="margin-top:1rem"><img id="logo-preview" class="logo-preview" alt="Логотип" /></div>
+          </div>
+
+          <div class="card">
+            <p class="card-title">design_json</p>
+            <pre id="design-json-raw" class="json-pre"></pre>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <p class="card-title">Статус</p>
+            <label class="form-label" for="status-select">Новый статус</label>
+            <select id="status-select" class="form-select">
+              <option value="new">Новый</option>
+              <option value="confirmed">Подтверждён</option>
+              <option value="producing">Производство</option>
+              <option value="shipped">Отправлен</option>
+              <option value="delivered">Доставлен</option>
+              <option value="cancelled">Отменён</option>
+            </select>
+            <label class="form-label" for="status-note">Заметка (необязательно)</label>
+            <textarea id="status-note" class="form-textarea" placeholder="Например: трек-номер, причина отмены…"></textarea>
+            <button id="btn-update-status" class="btn-update">Обновить статус</button>
+          </div>
+
+          <div class="card">
+            <p class="card-title">История статусов</p>
+            <div id="status-log"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="assets/app.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>LOOM_LAYOUT.init('orders')</script>
+  <script src="assets/order-detail.js"></script>
+</body>
+</html>

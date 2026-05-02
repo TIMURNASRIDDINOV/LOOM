@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>LOOM Admin</title>
+  <style>body{margin:0;background:#0a0a0a;}</style>
+  <script>
+    // Redirect based on auth state
+    ;(async function () {
+      try {
+        const res = await fetch(
+          (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+            ? 'http://localhost:8787'
+            : 'https://api.looom.me') + '/api/admin/me',
+          { credentials: 'include' }
+        )
+        location.href = res.ok ? 'dashboard.html' : 'login.html'
+      } catch {
+        location.href = 'login.html'
+      }
+    })()
+  </script>
+</head>
+<body></body>
+</html>

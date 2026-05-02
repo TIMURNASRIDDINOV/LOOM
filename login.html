@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LOOM — Вход</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/auth.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+  </style>
+</head>
+<body class="auth-page">
+
+  <div class="auth-card">
+    <a href="index.html" class="auth-logo">LOOM</a>
+
+    <h1 class="auth-title">Вход в аккаунт</h1>
+    <p class="auth-subtitle">Войдите, чтобы отслеживать заказы</p>
+
+    <div class="auth-banner" id="authBanner"></div>
+
+    <form id="loginForm" novalidate>
+      <div class="auth-field">
+        <label class="auth-label" for="emailInput">Email</label>
+        <input
+          type="email"
+          id="emailInput"
+          class="auth-input"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+        />
+        <p class="auth-error" id="emailError"></p>
+      </div>
+
+      <div class="auth-field">
+        <label class="auth-label" for="passwordInput">Пароль</label>
+        <input
+          type="password"
+          id="passwordInput"
+          class="auth-input"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          required
+        />
+        <p class="auth-error" id="passwordError"></p>
+      </div>
+
+      <button type="submit" class="auth-btn" id="submitBtn">Войти</button>
+    </form>
+
+    <p class="auth-footer">
+      Нет аккаунта? <a href="register.html">Зарегистрироваться</a>
+    </p>
+  </div>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/auth.js"></script>
+  <script>
+    'use strict';
+    (function () {
+      // Redirect if already logged in
+      window.LOOM_AUTH.getCurrentUser().then(function (user) {
+        if (user) window.location.href = 'account.html';
+      });
+
+      const form       = document.getElementById('loginForm');
+      const emailIn    = document.getElementById('emailInput');
+      const passIn     = document.getElementById('passwordInput');
+      const submitBtn  = document.getElementById('submitBtn');
+      const banner     = document.getElementById('authBanner');
+      const emailErr   = document.getElementById('emailError');
+      const passErr    = document.getElementById('passwordError');
+
+      function showBanner(msg, type) {
+        banner.textContent = msg;
+        banner.className = 'auth-banner ' + type;
+      }
+
+      function clearErrors() {
+        emailErr.textContent = '';
+        passErr.textContent  = '';
+        emailIn.classList.remove('error');
+        passIn.classList.remove('error');
+        banner.className = 'auth-banner';
+      }
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        clearErrors();
+
+        const email    = emailIn.value.trim();
+        const password = passIn.value;
+        let valid = true;
+
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          emailErr.textContent = 'Введите корректный email';
+          emailIn.classList.add('error');
+          valid = false;
+        }
+        if (!password) {
+          passErr.textContent = 'Введите пароль';
+          passIn.classList.add('error');
+          valid = false;
+        }
+        if (!valid) return;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Вход…';
+
+        try {
+          await window.LOOM_AUTH.login(email, password);
+          const redirect = new URLSearchParams(window.location.search).get('redirect') || 'account.html';
+          window.location.href = redirect;
+        } catch (err) {
+          showBanner(err.message || 'Ошибка входа', 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Войти';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

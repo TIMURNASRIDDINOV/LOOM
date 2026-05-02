@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/auth.css" />
 
   <style>
     /* ============================================================
@@ -751,7 +752,8 @@
         <a href="#about" class="nav__link">About</a>
       </nav>
 
-      <div class="nav__cta-wrap">
+      <div class="nav__cta-wrap" style="display:flex;align-items:center;gap:1rem;">
+        <div class="auth-nav-slot"></div>
         <a href="configurator.html" class="btn-outline">Start designing</a>
       </div>
 
@@ -999,6 +1001,10 @@
   <!-- ============================================================
        JS — Mobile nav + Scroll reveal
   ============================================================ -->
+  <script src="assets/config.js"></script>
+  <script src="assets/auth.js"></script>
+  <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
+
   <script>
     // ── Mobile nav ──────────────────────────────────────────────
     (function () {

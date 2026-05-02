@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Заказы — LOOM Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+    :root { --mono: 'DM Mono', monospace; --hairline: rgba(255,255,255,0.08); --muted: rgba(255,255,255,0.45); }
+
+    /* Page */
+    .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0 0 1.5rem; }
+
+    /* Controls */
+    .controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    .form-select, .form-input-sm {
+      padding: 0.55rem 0.9rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.85rem; outline: none;
+    }
+    .form-select { appearance: none; padding-right: 2rem; cursor: pointer; min-width: 160px; }
+    .form-input-sm { min-width: 220px; }
+    .form-input-sm::placeholder { color: rgba(255,255,255,0.3); }
+    .form-select:focus, .form-input-sm:focus { border-color: rgba(255,255,255,0.4); }
+    .form-select option { background: #1a1a1a; }
+    .btn-sm { padding: 0.55rem 1rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+    .btn-sm:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Table */
+    .table-wrap { border: 0.5px solid var(--hairline); border-radius: 4px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { padding: 0.75rem 1rem; text-align: left; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: #0a0a0a; border-bottom: 0.5px solid var(--hairline); white-space: nowrap; }
+    tbody td { padding: 0.8rem 1rem; font-size: 0.875rem; border-bottom: 0.5px solid rgba(255,255,255,0.04); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr { background: #0f0f0f; transition: background 0.1s; }
+
+    /* Pagination */
+    .pagination { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; justify-content: flex-end; }
+    .page-info { font-size: 0.8rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1 class="page-title">Заказы</h1>
+
+    <div class="controls">
+      <select id="filter-status" class="form-select">
+        <option value="">Все статусы</option>
+        <option value="new">Новый</option>
+        <option value="confirmed">Подтверждён</option>
+        <option value="producing">Производство</option>
+        <option value="shipped">Отправлен</option>
+        <option value="delivered">Доставлен</option>
+        <option value="cancelled">Отменён</option>
+      </select>
+      <input id="filter-q" type="text" class="form-input-sm" placeholder="Поиск по имени или телефону…" />
+      <button id="btn-refresh" class="btn-sm">↻ Обновить</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Клиент</th>
+            <th>Телефон</th>
+            <th>Продукт</th>
+            <th>Цена</th>
+            <th>Статус</th>
+            <th>Дата</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="orders-tbody">
+          <tr><td colspan="8" style="text-align:center;padding:2rem;color:rgba(255,255,255,0.35)">Загрузка…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <button id="btn-prev" class="btn-sm" disabled>← Назад</button>
+      <span class="page-info" id="page-info"></span>
+      <button id="btn-next" class="btn-sm">Вперёд →</button>
+    </div>
+  </main>
+
+  <script src="assets/app.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>LOOM_LAYOUT.init('orders')</script>
+  <script src="assets/orders.js"></script>
+</body>
+</html>

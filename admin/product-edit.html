@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Продукт — LOOM Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+    :root { --mono: 'DM Mono', monospace; --hairline: rgba(255,255,255,0.08); --muted: rgba(255,255,255,0.45); }
+
+    .page { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+    .btn-back { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.9rem; border: 0.5px solid rgba(255,255,255,0.15); border-radius: 3px; background: transparent; color: rgba(255,255,255,0.55); font-family: inherit; font-size: 0.8rem; cursor: pointer; text-decoration: none; transition: all 0.15s; }
+    .btn-back:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0; }
+
+    /* Card */
+    .card { background: #0f0f0f; border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; margin-bottom: 1.25rem; }
+    .card-title { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 1.25rem; }
+
+    /* Form */
+    .field { margin-bottom: 1.1rem; }
+    .field:last-child { margin-bottom: 0; }
+    .field-label { display: block; font-size: 0.8rem; color: rgba(255,255,255,0.55); margin-bottom: 0.4rem; }
+    .field-label .req { color: rgba(239,68,68,0.8); margin-left: 2px; }
+    .field-hint { font-size: 0.72rem; color: rgba(255,255,255,0.3); margin-top: 0.3rem; }
+    .form-input, .form-textarea {
+      width: 100%; padding: 0.65rem 0.9rem; border-radius: 4px;
+      border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05);
+      color: #fff; font-family: inherit; font-size: 0.875rem; outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-input::placeholder, .form-textarea::placeholder { color: rgba(255,255,255,0.25); }
+    .form-input:focus, .form-textarea:focus { border-color: rgba(255,255,255,0.4); }
+    .form-textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+    /* Toggle */
+    .toggle-row { display: flex; align-items: center; gap: 0.75rem; }
+    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: rgba(255,255,255,0.1); border-radius: 22px; cursor: pointer; transition: background 0.2s; border: 0.5px solid rgba(255,255,255,0.15); }
+    .toggle-slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 2px; top: 2px; background: rgba(255,255,255,0.45); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
+    .toggle input:checked + .toggle-slider { background: rgba(34,197,94,0.25); border-color: rgba(34,197,94,0.5); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: #22c55e; }
+    .toggle-label { font-size: 0.85rem; color: rgba(255,255,255,0.65); }
+
+    /* Colors */
+    .colors-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.65rem; min-height: 32px; align-items: center; }
+    .color-chip { display: flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.5rem 0.25rem 0.35rem; border: 0.5px solid rgba(255,255,255,0.15); border-radius: 3px; font-size: 0.78rem; font-family: var(--mono); color: rgba(255,255,255,0.65); background: rgba(255,255,255,0.04); }
+    .color-swatch { width: 16px; height: 16px; border-radius: 3px; border: 0.5px solid rgba(255,255,255,0.15); flex-shrink: 0; }
+    .color-remove { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; padding: 0; line-height: 1; font-size: 0.85rem; }
+    .color-remove:hover { color: #ef4444; }
+    .color-add-row { display: flex; align-items: center; gap: 0.5rem; }
+    .color-picker { width: 36px; height: 36px; padding: 0; border: 0.5px solid rgba(255,255,255,0.15); border-radius: 4px; background: none; cursor: pointer; }
+    .btn-add-color { padding: 0.4rem 0.75rem; border: 0.5px solid rgba(255,255,255,0.2); border-radius: 3px; background: transparent; color: rgba(255,255,255,0.6); font-family: inherit; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
+    .btn-add-color:hover { color: #fff; }
+
+    /* Upload zones */
+    .upload-zone { border: 1px dashed rgba(255,255,255,0.15); border-radius: 4px; padding: 1.5rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; position: relative; }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.03); }
+    .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .upload-zone-text { font-size: 0.82rem; color: rgba(255,255,255,0.4); pointer-events: none; }
+    .upload-zone-text strong { color: rgba(255,255,255,0.7); }
+    .upload-filename { font-size: 0.82rem; color: rgba(255,255,255,0.7); font-family: var(--mono); margin-top: 0.4rem; word-break: break-all; }
+    .upload-current { font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-bottom: 0.5rem; font-family: var(--mono); }
+    .progress-bar-wrap { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 0.5rem; overflow: hidden; display: none; }
+    .progress-bar { height: 100%; background: rgba(255,255,255,0.6); width: 0%; transition: width 0.1s; border-radius: 2px; }
+    .progress-text { font-size: 0.72rem; color: rgba(255,255,255,0.4); margin-top: 0.25rem; display: none; }
+
+    /* Thumbnail preview */
+    .thumb-preview { max-width: 120px; max-height: 120px; border-radius: 3px; object-fit: cover; border: 0.5px solid var(--hairline); margin-top: 0.5rem; display: none; }
+
+    /* Submit */
+    .submit-row { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn-submit { padding: 0.75rem 1.75rem; border-radius: 3px; border: 1px solid #fff; background: #fff; color: #111; font-family: inherit; font-size: 0.82rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+    .btn-submit:hover:not(:disabled) { background: transparent; color: #fff; }
+    .btn-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+    .form-error { color: #ef4444; font-size: 0.82rem; }
+    .form-success { color: #22c55e; font-size: 0.82rem; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="page-header">
+      <a href="products.html" class="btn-back">← Продукты</a>
+      <h1 class="page-title" id="page-title">Новый продукт</h1>
+    </div>
+
+    <form id="product-form" autocomplete="off">
+      <!-- Basic info -->
+      <div class="card">
+        <p class="card-title">Основное</p>
+
+        <div class="form-row">
+          <div class="field">
+            <label class="field-label" for="f-slug">Slug <span class="req">*</span></label>
+            <input id="f-slug" class="form-input" placeholder="my-product" required pattern="[a-z0-9]+(-[a-z0-9]+)*" />
+            <p class="field-hint">Уникальный, только строчные буквы, цифры и дефис</p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-price">Цена (сум) <span class="req">*</span></label>
+            <input id="f-price" class="form-input" type="number" min="0" step="1000" placeholder="299000" required />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label class="field-label" for="f-name-ru">Название (RU) <span class="req">*</span></label>
+            <input id="f-name-ru" class="form-input" placeholder="Базовая футболка" required />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-name-en">Название (EN)</label>
+            <input id="f-name-en" class="form-input" placeholder="Basic T-shirt" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="f-desc">Описание</label>
+          <textarea id="f-desc" class="form-textarea" placeholder="Описание продукта…"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label class="field-label" for="f-order">Порядок отображения</label>
+            <input id="f-order" class="form-input" type="number" min="0" value="0" />
+          </div>
+          <div class="field" style="display:flex;align-items:flex-end;padding-bottom:0.1rem">
+            <div class="toggle-row">
+              <label class="toggle">
+                <input type="checkbox" id="f-active" checked />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">Активен (виден в каталоге)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colors -->
+      <div class="card">
+        <p class="card-title">Базовые цвета</p>
+        <div class="colors-list" id="colors-list"></div>
+        <div class="color-add-row">
+          <input type="color" id="color-picker" class="color-picker" value="#ffffff" />
+          <button type="button" id="btn-add-color" class="btn-add-color">+ Добавить цвет</button>
+        </div>
+        <p class="field-hint" style="margin-top:0.5rem">Цвета по умолчанию для конфигуратора</p>
+      </div>
+
+      <!-- GLB upload -->
+      <div class="card">
+        <p class="card-title">3D модель (GLB)</p>
+        <p class="upload-current" id="glb-current" style="display:none"></p>
+        <div class="upload-zone" id="glb-zone">
+          <input type="file" id="f-glb" accept=".glb,.gltf" />
+          <div class="upload-zone-text">
+            <strong>Выберите .glb файл</strong> или перетащите сюда<br>
+            <span style="font-size:0.75rem">max 20 MB</span>
+          </div>
+          <p class="upload-filename" id="glb-filename"></p>
+        </div>
+        <div class="progress-bar-wrap" id="glb-progress-wrap">
+          <div class="progress-bar" id="glb-progress-bar"></div>
+        </div>
+        <p class="progress-text" id="glb-progress-text"></p>
+      </div>
+
+      <!-- Thumbnail -->
+      <div class="card">
+        <p class="card-title">Превью изображение</p>
+        <p class="upload-current" id="thumb-current" style="display:none"></p>
+        <div class="upload-zone" id="thumb-zone">
+          <input type="file" id="f-thumbnail" accept="image/png,image/jpeg,image/webp" />
+          <div class="upload-zone-text">
+            <strong>Выберите изображение</strong> или перетащите<br>
+            <span style="font-size:0.75rem">PNG / JPG / WebP, max 2 MB</span>
+          </div>
+        </div>
+        <img id="thumb-preview" class="thumb-preview" alt="" />
+      </div>
+
+      <div class="submit-row">
+        <button type="submit" class="btn-submit" id="btn-submit">Сохранить</button>
+        <span class="form-error" id="form-error"></span>
+        <span class="form-success" id="form-success"></span>
+      </div>
+    </form>
+  </main>
+
+  <script src="assets/app.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>LOOM_LAYOUT.init('products')</script>
+  <script src="assets/product-edit.js"></script>
+</body>
+</html>

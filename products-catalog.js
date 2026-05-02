@@ -1,335 +1,261 @@
-// Vanilla JavaScript Product Catalog
+// Vanilla JavaScript Product Catalog — dynamic from API
 (function () {
-  "use strict";
+  'use strict'
 
-  // Products data
-  const products = [
-    {
-      id: 1,
-      name: "Классическая футболка",
-      nameEn: "Regular T-shirt",
-      type: "Обычная футболка",
-      image: "products/tshirt_regular_white_001.jpg",
-      price: 150000,
-      customizable: true,
-    },
-    {
-      id: 2,
-      name: "Белый свитшот",
-      nameEn: "White Sweatshirt",
-      type: "Свитшот",
-      image: "products/sweatshirt_regular_white_001.jpg",
-      price: 250000,
-      customizable: true,
-    },
-    {
-      id: 3,
-      name: "Худи на молнии",
-      nameEn: "Zip Hoodie",
-      type: "Худи с застежкой",
-      image: "products/hoodie_ziphoodie_white_001.jpg",
-      price: 280000,
-      customizable: true,
-    },
-    {
-      id: 4,
-      name: "Поло",
-      nameEn: "Polo Shirt",
-      type: "Поло рубашка",
-      image: "products/polo_regular_white_001.jpg",
-      price: 180000,
-      customizable: true,
-    },
-    {
-      id: 5,
-      name: "Кепка",
-      nameEn: "Cap",
-      type: "Бейсболка",
-      image: "products/cap_regular_white_001.jpg",
-      price: 100000,
-      customizable: true,
-    },
-    {
-      id: 6,
-      name: "Спортивные штаны",
-      nameEn: "Sweatpants",
-      type: "Спортивные брюки",
-      image: "products/sweatpants_regular_white_001.jpg",
-      price: 220000,
-      customizable: true,
-    },
-    {
-      id: 7,
-      name: "Худи классическое",
-      nameEn: "Regular Hoodie",
-      type: "Обычное худи",
-      image: "products/hoodie_regular_white_001.jpg",
-      price: 270000,
-      customizable: true,
-    },
-    {
-      id: 8,
-      name: "Футболка с укороченным рукавом",
-      nameEn: "Cropped T-shirt",
-      type: "Кроп-топ",
-      image: "products/tshirt_cropped_white_001.jpg",
-      price: 140000,
-      customizable: true,
-    },
-    {
-      id: 9,
-      name: "Футболка без рукавов",
-      nameEn: "Muscle T-shirt",
-      type: "Майка",
-      image: "products/tshirt_muscle_white_001.jpg",
-      price: 130000,
-      customizable: true,
-    },
-  ];
-
-  // Format price in сум
+  // ── Helpers ──────────────────────────────────────────────────────────────
   function formatPrice(price) {
-    return price.toLocaleString("ru-RU") + " сум";
+    return Number(price).toLocaleString('ru-RU') + ' сум'
   }
 
-  // Create product card element
-  function createProductCard(product, options = {}) {
-    const { showPrice = true, showButton = true } = options;
-    // Main card container
-    const card = document.createElement("div");
-    card.className = "product-card";
-    card.setAttribute("data-product-id", product.id);
+  function esc(s) {
+    if (!s) return ''
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
 
-    // Image container
-    const imageContainer = document.createElement("div");
-    imageContainer.className = "product-card__image-container";
+  function getApiBase() {
+    if (window.LOOM_CONFIG) return window.LOOM_CONFIG.API_BASE
+    const h = window.location.hostname
+    return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:8787' : 'https://api.looom.me'
+  }
 
-    const img = document.createElement("img");
-    img.src = product.image;
-    img.alt = `${product.name} - ${product.type}`;
-    img.className = "product-card__image";
+  // ── Skeleton placeholders ─────────────────────────────────────────────────
+  function renderSkeletons(container, count) {
+    const grid = document.createElement('div')
+    grid.className = 'product-grid'
+    grid.id = 'catalog-skeleton'
 
-    // Image error handling
-    img.onerror = function () {
-      this.src =
-        "https://via.placeholder.com/400x400/f5f5f5/666666?text=" +
-        encodeURIComponent(product.name);
-    };
-
-    imageContainer.appendChild(img);
-
-    // Content container
-    const content = document.createElement("div");
-    content.className = "product-card__content";
-
-    // Product name
-    const title = document.createElement("h3");
-    title.className = "product-card__title";
-    title.textContent = product.name;
-
-    // Product description
-    const description = document.createElement("p");
-    description.className = "product-card__description";
-    description.textContent = product.type;
-
-    content.appendChild(title);
-    content.appendChild(description);
-
-    if (showPrice) {
-      const priceDiv = document.createElement("div");
-      priceDiv.className = "product-card__price";
-      priceDiv.textContent = formatPrice(product.price);
-      content.appendChild(priceDiv);
+    for (let i = 0; i < count; i++) {
+      const card = document.createElement('div')
+      card.className = 'product-card product-card--skeleton'
+      card.innerHTML = `
+        <div class="product-card__image-container" style="background:rgba(255,255,255,0.04)">
+          <div style="width:100%;height:100%;background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite"></div>
+        </div>
+        <div class="product-card__content">
+          <div style="height:18px;background:rgba(255,255,255,0.07);border-radius:2px;margin-bottom:0.5rem;animation:shimmer 1.4s infinite"></div>
+          <div style="height:14px;width:60%;background:rgba(255,255,255,0.05);border-radius:2px;animation:shimmer 1.4s infinite"></div>
+        </div>
+      `
+      grid.appendChild(card)
     }
 
-    if (showButton) {
-      const actions = document.createElement("div");
-      actions.className = "product-card__actions";
+    if (!document.getElementById('shimmer-style')) {
+      const s = document.createElement('style')
+      s.id = 'shimmer-style'
+      s.textContent = '@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}'
+      document.head.appendChild(s)
+    }
 
-      const button = document.createElement("button");
-      button.className = product.customizable
-        ? "customize-btn btn-primary"
-        : "customize-btn btn-disabled";
-      button.textContent = product.customizable
-        ? "Настроить дизайн"
-        : "Недоступно";
-      button.disabled = !product.customizable;
-      button.setAttribute(
-        "aria-label",
-        product.customizable
-          ? `Настроить дизайн ${product.name}`
-          : `Недоступно для ${product.name}`
-      );
+    container.appendChild(grid)
+  }
 
-      if (product.customizable) {
-        button.addEventListener("click", function () {
-          window.location.href = "configurator.html";
-        });
+  // ── Error state ───────────────────────────────────────────────────────────
+  function renderError(container, onRetry) {
+    const wrap = document.createElement('div')
+    wrap.style.cssText = 'text-align:center;padding:4rem 1.5rem;color:rgba(255,255,255,0.45)'
+    wrap.innerHTML = `
+      <p style="margin-bottom:1rem">Не удалось загрузить каталог.</p>
+      <button id="catalog-retry" style="
+        padding:0.65rem 1.4rem;border:1px solid rgba(255,255,255,0.4);
+        background:transparent;color:#fff;border-radius:2px;font-family:inherit;
+        font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;
+        transition:background 0.2s">Повторить</button>
+    `
+    container.appendChild(wrap)
+    container.querySelector('#catalog-retry').addEventListener('click', onRetry)
+  }
+
+  // ── Card factory ──────────────────────────────────────────────────────────
+  function createProductCard(product) {
+    const card = document.createElement('div')
+    card.className = 'product-card'
+    card.setAttribute('data-product-id', product.id)
+    card.setAttribute('data-slug', product.slug || '')
+
+    const imageContainer = document.createElement('div')
+    imageContainer.className = 'product-card__image-container'
+
+    if (product.thumbnail_url) {
+      const img = document.createElement('img')
+      img.src = product.thumbnail_url
+      img.alt = product.name_ru
+      img.className = 'product-card__image'
+      img.onerror = function () {
+        this.style.display = 'none'
+        imageContainer.style.background = 'rgba(255,255,255,0.04)'
       }
-
-      actions.appendChild(button);
-      content.appendChild(actions);
+      imageContainer.appendChild(img)
+    } else {
+      imageContainer.style.background = 'rgba(255,255,255,0.04)'
     }
 
-    // Assemble card
-    card.appendChild(imageContainer);
-    card.appendChild(content);
+    const content = document.createElement('div')
+    content.className = 'product-card__content'
 
-    return card;
+    const title = document.createElement('h3')
+    title.className = 'product-card__title'
+    title.textContent = product.name_ru
+
+    const desc = document.createElement('p')
+    desc.className = 'product-card__description'
+    desc.textContent = product.description_ru || ''
+
+    const priceDiv = document.createElement('div')
+    priceDiv.className = 'product-card__price'
+    priceDiv.textContent = formatPrice(product.price)
+
+    const actions = document.createElement('div')
+    actions.className = 'product-card__actions'
+
+    const btn = document.createElement('button')
+    btn.className = 'customize-btn btn-primary'
+    btn.textContent = 'Настроить дизайн'
+    btn.setAttribute('aria-label', `Настроить дизайн ${esc(product.name_ru)}`)
+    btn.addEventListener('click', () => {
+      window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
+    })
+
+    actions.appendChild(btn)
+    content.appendChild(title)
+    content.appendChild(desc)
+    content.appendChild(priceDiv)
+    content.appendChild(actions)
+    card.appendChild(imageContainer)
+    card.appendChild(content)
+
+    return card
   }
 
-  function renderGrid(container) {
-    const grid = document.createElement("div");
-    grid.className = "product-grid";
-
-    products.forEach(function (product) {
-      const card = createProductCard(product);
-      grid.appendChild(card);
-    });
-
-    container.appendChild(grid);
+  // ── Grid render ───────────────────────────────────────────────────────────
+  function renderGrid(container, products) {
+    const grid = document.createElement('div')
+    grid.className = 'product-grid'
+    products.forEach(p => grid.appendChild(createProductCard(p)))
+    container.appendChild(grid)
   }
 
-  function renderCarousel(container) {
-    var featuredProducts = products.slice(0, 3);
-    var currentIndex = 0;
+  // ── Carousel render (index.html, first 3 products) ────────────────────────
+  function renderCarousel(container, products) {
+    const featured = products.slice(0, 3)
+    let currentIndex = 0
 
-    var wrapper = document.createElement("div");
-    wrapper.className = "product-carousel";
+    const wrapper = document.createElement('div')
+    wrapper.className = 'product-carousel'
 
-    var prevBtn = document.createElement("button");
-    prevBtn.className = "carousel-arrow carousel-arrow--prev";
-    prevBtn.setAttribute("aria-label", "Предыдущий товар");
-    prevBtn.innerHTML =
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+    const prevBtn = document.createElement('button')
+    prevBtn.className = 'carousel-arrow carousel-arrow--prev'
+    prevBtn.setAttribute('aria-label', 'Предыдущий товар')
+    prevBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>'
 
-    var nextBtn = document.createElement("button");
-    nextBtn.className = "carousel-arrow carousel-arrow--next";
-    nextBtn.setAttribute("aria-label", "Следующий товар");
-    nextBtn.innerHTML =
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+    const nextBtn = document.createElement('button')
+    nextBtn.className = 'carousel-arrow carousel-arrow--next'
+    nextBtn.setAttribute('aria-label', 'Следующий товар')
+    nextBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
 
-    var viewport = document.createElement("div");
-    viewport.className = "product-carousel__viewport";
+    const viewport = document.createElement('div')
+    viewport.className = 'product-carousel__viewport'
+    const track = document.createElement('div')
+    track.className = 'product-carousel__track'
 
-    var track = document.createElement("div");
-    track.className = "product-carousel__track";
+    featured.forEach(product => {
+      const card = createProductCard(product)
+      card.style.cursor = 'pointer'
+      track.appendChild(card)
+    })
 
-    featuredProducts.forEach(function (product) {
-      var card = createProductCard(product, {
-        showPrice: true,
-        showButton: false,
-      });
-      card.style.cursor = "pointer";
-      card.addEventListener("click", function () {
-        window.location.href = "configurator.html";
-      });
-      track.appendChild(card);
-    });
-
-    var dotsEl = document.createElement("div");
-    dotsEl.className = "carousel-dots";
-    featuredProducts.forEach(function (_, i) {
-      var dot = document.createElement("button");
-      dot.className = "carousel-dot" + (i === 0 ? " active" : "");
-      dot.setAttribute("aria-label", "Перейти к товару " + (i + 1));
-      dot.addEventListener("click", function () {
-        goTo(i);
-      });
-      dotsEl.appendChild(dot);
-    });
-
-    function cardScrollOffset(index) {
-      var card = track.children[index];
-      // Center the card in the viewport
-      return card.offsetLeft - (viewport.offsetWidth - card.offsetWidth) / 2;
-    }
+    const dotsEl = document.createElement('div')
+    dotsEl.className = 'carousel-dots'
+    featured.forEach((_, i) => {
+      const dot = document.createElement('button')
+      dot.className = 'carousel-dot' + (i === 0 ? ' active' : '')
+      dot.setAttribute('aria-label', 'Перейти к товару ' + (i + 1))
+      dot.addEventListener('click', () => goTo(i))
+      dotsEl.appendChild(dot)
+    })
 
     function updateState() {
-      prevBtn.disabled = currentIndex === 0;
-      nextBtn.disabled = currentIndex === featuredProducts.length - 1;
-      dotsEl.querySelectorAll(".carousel-dot").forEach(function (d, i) {
-        d.classList.toggle("active", i === currentIndex);
-      });
+      prevBtn.disabled = currentIndex === 0
+      nextBtn.disabled = currentIndex === featured.length - 1
+      dotsEl.querySelectorAll('.carousel-dot').forEach((d, i) => d.classList.toggle('active', i === currentIndex))
     }
 
     function goTo(index) {
-      currentIndex = Math.max(0, Math.min(index, featuredProducts.length - 1));
-      viewport.scrollTo({
-        left: cardScrollOffset(currentIndex),
-        behavior: "smooth",
-      });
-      updateState();
+      currentIndex = Math.max(0, Math.min(index, featured.length - 1))
+      const card = track.children[currentIndex]
+      viewport.scrollTo({ left: card.offsetLeft - (viewport.offsetWidth - card.offsetWidth) / 2, behavior: 'smooth' })
+      updateState()
     }
 
-    prevBtn.addEventListener("click", function () {
-      goTo(currentIndex - 1);
-    });
-    nextBtn.addEventListener("click", function () {
-      goTo(currentIndex + 1);
-    });
+    prevBtn.addEventListener('click', () => goTo(currentIndex - 1))
+    nextBtn.addEventListener('click', () => goTo(currentIndex + 1))
+    viewport.addEventListener('scroll', function () {
+      const center = viewport.scrollLeft + viewport.offsetWidth / 2
+      let closest = 0, closestDist = Infinity
+      for (let i = 0; i < track.children.length; i++) {
+        const c = track.children[i]
+        const dist = Math.abs(c.offsetLeft + c.offsetWidth / 2 - center)
+        if (dist < closestDist) { closestDist = dist; closest = i }
+      }
+      if (closest !== currentIndex) { currentIndex = closest; updateState() }
+    }, { passive: true })
 
-    // Sync dot state when user manually scrolls
-    viewport.addEventListener(
-      "scroll",
-      function () {
-        var center = viewport.scrollLeft + viewport.offsetWidth / 2;
-        var closest = 0;
-        var closestDist = Infinity;
-        for (var i = 0; i < track.children.length; i++) {
-          var card = track.children[i];
-          var cardCenter = card.offsetLeft + card.offsetWidth / 2;
-          var dist = Math.abs(center - cardCenter);
-          if (dist < closestDist) {
-            closestDist = dist;
-            closest = i;
-          }
-        }
-        if (closest !== currentIndex) {
-          currentIndex = closest;
-          updateState();
-        }
-      },
-      { passive: true }
-    );
-
-    updateState();
-
-    viewport.appendChild(track);
-    wrapper.appendChild(prevBtn);
-    wrapper.appendChild(viewport);
-    wrapper.appendChild(nextBtn);
-    wrapper.appendChild(dotsEl);
-    container.appendChild(wrapper);
+    updateState()
+    viewport.appendChild(track)
+    wrapper.appendChild(prevBtn)
+    wrapper.appendChild(viewport)
+    wrapper.appendChild(nextBtn)
+    wrapper.appendChild(dotsEl)
+    container.appendChild(wrapper)
   }
 
-  // Render products to container
-  function renderProducts() {
-    const container = document.getElementById("product-list-root");
+  // ── Main fetch & render ───────────────────────────────────────────────────
+  async function renderProducts() {
+    const container = document.getElementById('product-list-root')
+    if (!container) return
 
-    if (!container) {
-      console.error("Product container #product-list-root not found");
-      return;
-    }
-
-    container.innerHTML = "";
+    container.innerHTML = ''
 
     const isIndexPage =
-      window.location.pathname.endsWith("index.html") ||
-      window.location.pathname === "/" ||
-      window.location.pathname.endsWith("/");
+      window.location.pathname.endsWith('index.html') ||
+      window.location.pathname === '/' ||
+      window.location.pathname.endsWith('/')
 
-    if (isIndexPage) {
-      renderCarousel(container);
-    } else {
-      renderGrid(container);
+    // Show skeletons while loading
+    renderSkeletons(container, isIndexPage ? 3 : 6)
+
+    try {
+      const res = await fetch(getApiBase() + '/api/products')
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const data = await res.json()
+      const products = data.products || []
+
+      container.innerHTML = ''
+
+      if (!products.length) {
+        container.innerHTML = '<p style="text-align:center;color:rgba(255,255,255,0.4);padding:3rem">Каталог пуст.</p>'
+        return
+      }
+
+      if (isIndexPage) {
+        renderCarousel(container, products)
+      } else {
+        renderGrid(container, products)
+      }
+
+      // Trigger reveal animations on newly rendered cards
+      if (window._initReveal) window._initReveal()
+
+    } catch (err) {
+      console.error('Catalog fetch failed:', err)
+      container.innerHTML = ''
+      renderError(container, () => { container.innerHTML = ''; renderProducts() })
     }
   }
 
   // Initialize when DOM is ready
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", renderProducts);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderProducts)
   } else {
-    renderProducts();
+    renderProducts()
   }
-})();
+})()

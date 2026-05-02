@@ -1,0 +1,242 @@
+/* ============================================================
+   LOOM — Shared auth styles
+   Used by: login.html, register.html, account.html
+   And nav auth slot on all pages.
+============================================================ */
+
+/* ── Nav auth slot ─────────────────────────────────────────── */
+.auth-nav-slot { display: flex; align-items: center; }
+@media (max-width: 767px) { .auth-nav-slot { display: none !important; } }
+
+.auth-nav-link {
+  color: rgba(255,255,255,0.55);
+  text-decoration: none;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  transition: color 200ms;
+  white-space: nowrap;
+}
+.auth-nav-link:hover { color: #fff; }
+
+/* ── Dropdown ─────────────────────────────────────────────── */
+.auth-dropdown { position: relative; }
+
+.auth-dropdown-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: transparent; border: none; cursor: pointer;
+  color: rgba(255,255,255,0.7); font-family: inherit;
+  font-size: 0.78rem; letter-spacing: 0.04em;
+  padding: 0.3rem 0; transition: color 150ms;
+}
+.auth-dropdown-btn:hover { color: #fff; }
+.auth-dropdown-caret { flex-shrink: 0; transition: transform 200ms; opacity: 0.6; }
+.auth-dropdown-btn[aria-expanded=true] .auth-dropdown-caret { transform: rotate(180deg); }
+
+.auth-dropdown-menu {
+  display: none;
+  position: absolute; right: 0; top: calc(100% + 8px);
+  background: #111; border: 0.5px solid rgba(255,255,255,0.12);
+  border-radius: 4px; padding: 0.35rem 0;
+  min-width: 160px; z-index: 300;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+.auth-dropdown-menu.open { display: block; }
+
+.auth-dropdown-item {
+  display: block; width: 100%;
+  padding: 0.55rem 1rem;
+  color: rgba(255,255,255,0.65); text-decoration: none;
+  font-size: 0.82rem; font-family: inherit;
+  background: transparent; border: none; cursor: pointer;
+  text-align: left; transition: background 150ms, color 150ms;
+  white-space: nowrap;
+}
+.auth-dropdown-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+
+/* ── Auth page layout ─────────────────────────────────────── */
+.auth-page {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 2rem 1.25rem;
+  background: #0a0a0a;
+}
+
+.auth-card {
+  width: 100%; max-width: 420px;
+  background: #0f0f0f;
+  border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 2.5rem 2rem;
+}
+
+.auth-logo {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem; letter-spacing: 0.22em;
+  text-transform: uppercase; color: #fff;
+  text-decoration: none; text-align: center;
+  margin-bottom: 2rem;
+}
+
+.auth-title {
+  font-size: 1.3rem; font-weight: 300;
+  letter-spacing: -0.02em;
+  color: #fff; margin: 0 0 0.4rem;
+  text-align: center;
+}
+
+.auth-subtitle {
+  font-size: 0.82rem; color: rgba(255,255,255,0.4);
+  text-align: center; margin: 0 0 1.75rem; font-weight: 300;
+}
+
+/* ── Form fields ──────────────────────────────────────────── */
+.auth-field { margin-bottom: 1rem; }
+.auth-label {
+  display: block; font-size: 0.78rem;
+  color: rgba(255,255,255,0.55); margin-bottom: 0.4rem;
+}
+
+.auth-input {
+  width: 100%; padding: 0.75rem 1rem;
+  border-radius: 4px;
+  border: 0.5px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: #fff; font-family: inherit; font-size: 0.9rem;
+  outline: none; transition: border-color 200ms, box-shadow 200ms;
+}
+.auth-input::placeholder { color: rgba(255,255,255,0.25); }
+.auth-input:focus {
+  border-color: rgba(255,255,255,0.4);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.05);
+}
+.auth-input.error { border-color: rgba(239,68,68,0.6); }
+
+.auth-error {
+  color: #ef4444; font-size: 0.78rem;
+  margin-top: 0.35rem; min-height: 1em;
+}
+
+/* ── Submit button ─────────────────────────────────────────── */
+.auth-btn {
+  width: 100%; padding: 0.85rem;
+  border-radius: 2px;
+  border: 1px solid #fff;
+  background: #fff; color: #111;
+  font-family: inherit; font-size: 0.8rem;
+  font-weight: 500; letter-spacing: 0.1em;
+  text-transform: uppercase; cursor: pointer;
+  margin-top: 0.5rem;
+  transition: background 0.2s, color 0.2s;
+}
+.auth-btn:hover:not(:disabled) { background: transparent; color: #fff; }
+.auth-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Footer links ──────────────────────────────────────────── */
+.auth-footer {
+  margin-top: 1.25rem; text-align: center;
+  font-size: 0.8rem; color: rgba(255,255,255,0.35);
+}
+.auth-footer a {
+  color: rgba(255,255,255,0.65); text-decoration: none;
+  transition: color 150ms;
+}
+.auth-footer a:hover { color: #fff; }
+
+/* ── Global error banner ───────────────────────────────────── */
+.auth-banner {
+  padding: 0.65rem 0.9rem;
+  border-radius: 3px; margin-bottom: 1rem;
+  font-size: 0.82rem; text-align: center;
+  display: none;
+}
+.auth-banner.error { background: rgba(239,68,68,0.12); color: #f87171; border: 0.5px solid rgba(239,68,68,0.3); display: block; }
+.auth-banner.success { background: rgba(34,197,94,0.12); color: #4ade80; border: 0.5px solid rgba(34,197,94,0.3); display: block; }
+
+/* ── Account page ─────────────────────────────────────────── */
+.account-page {
+  min-height: 100vh;
+  background: #0a0a0a; color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  padding-top: 4rem;
+}
+
+.account-inner {
+  max-width: 860px; margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.account-title {
+  font-size: 1.5rem; font-weight: 300;
+  letter-spacing: -0.02em; margin: 0 0 2rem;
+}
+
+.account-card {
+  background: #0f0f0f;
+  border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 4px; padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.account-card-title {
+  font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.45); margin: 0 0 1.1rem;
+}
+
+.profile-row {
+  display: flex; gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 0.5px solid rgba(255,255,255,0.04);
+}
+.profile-row:last-child { border-bottom: none; }
+.profile-label {
+  font-size: 0.78rem; color: rgba(255,255,255,0.4);
+  min-width: 100px; flex-shrink: 0;
+}
+.profile-value { font-size: 0.875rem; word-break: break-all; }
+
+/* ── Orders mini-table ─────────────────────────────────────── */
+.orders-table { width: 100%; border-collapse: collapse; }
+.orders-table th {
+  padding: 0.6rem 0.75rem;
+  text-align: left; font-size: 0.68rem; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  border-bottom: 0.5px solid rgba(255,255,255,0.06);
+}
+.orders-table td {
+  padding: 0.7rem 0.75rem;
+  font-size: 0.83rem;
+  border-bottom: 0.5px solid rgba(255,255,255,0.04);
+  vertical-align: middle;
+}
+.orders-table tr:last-child td { border-bottom: none; }
+.orders-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+
+.account-nav {
+  display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+  margin-bottom: 2rem;
+}
+.account-nav-logo {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem; letter-spacing: 0.2em;
+  text-transform: uppercase; color: #fff;
+  text-decoration: none;
+}
+.account-logout {
+  padding: 0.4rem 0.9rem;
+  border: 0.5px solid rgba(255,255,255,0.2);
+  border-radius: 3px; background: transparent;
+  color: rgba(255,255,255,0.55); font-family: inherit;
+  font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
+}
+.account-logout:hover { color: #fff; border-color: rgba(255,255,255,0.45); }
+
+/* ── Order status badge (reuse in account page) ───────────── */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px; border-radius: 9999px;
+  font-size: 0.7rem; font-weight: 500;
+  letter-spacing: 0.04em;
+}

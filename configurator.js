@@ -26,20 +26,10 @@ const INITIAL_VIEW = {
   target: null, // THREE.Vector3
 };
 
-// 12 preset shirt colors
+// Available shirt colors
 const SHIRT_COLORS = [
   { name: "Белый", hex: "#FFFFFF" },
   { name: "Чёрный", hex: "#1F2937" },
-  { name: "Тёмно-синий", hex: "#1E3A5F" },
-  { name: "Красный", hex: "#C0392B" },
-  { name: "Синий", hex: "#2980B9" },
-  { name: "Зелёный", hex: "#27AE60" },
-  { name: "Серый", hex: "#6B7280" },
-  { name: "Жёлтый", hex: "#F1C40F" },
-  { name: "Розовый", hex: "#E91E8C" },
-  { name: "Фиолетовый", hex: "#8E44AD" },
-  { name: "Оранжевый", hex: "#E67E22" },
-  { name: "Бордовый", hex: "#800020" },
 ];
 
 // Font options (system + Google)
@@ -54,6 +44,18 @@ const FONT_OPTIONS = [
 // Cloudflare Worker endpoint for Telegram order notifications
 const WORKER_URL =
   "https://loom-telegram-orders.timurnasriddinov56.workers.dev";
+
+// API base — resolved via config.js if available
+function getApiBase() {
+  if (window.LOOM_CONFIG) return window.LOOM_CONFIG.API_BASE;
+  const h = window.location.hostname;
+  return (h === "localhost" || h === "127.0.0.1")
+    ? "http://localhost:8787"
+    : "https://api.looom.me";
+}
+
+// Product loaded from API (null = using local fallback)
+let currentProduct = null;
 
 // Color name lookup for UI display
 const COLOR_NAMES = {};
@@ -79,13 +81,13 @@ const designState = {
       bold: false,
       italic: false,
       x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.38,
+      y: TEX_SIZE * 0.35,
     },
     image: {
       img: null,
       name: "",
       x: TEX_SIZE / 2,
-      y: TEX_SIZE / 2,
+      y: TEX_SIZE * 0.30,
       scalePct: 100,
     },
   },
@@ -99,20 +101,23 @@ const designState = {
       bold: false,
       italic: false,
       x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.38,
+      y: TEX_SIZE * 0.35,
     },
     image: {
       img: null,
       name: "",
       x: TEX_SIZE / 2,
-      y: TEX_SIZE / 2,
+      y: TEX_SIZE * 0.30,
       scalePct: 100,
     },
   },
 };
 
-// Uploaded file metadata (for order submission)
-let uploadedFileData = null;
+// Uploaded file metadata per view (for order submission)
+const uploadedFileData = { front: null, back: null };
+
+// Selected shirt size
+let selectedSize = "L";
 
 // ================================================================
 // SECTION 3 — THREE.JS GLOBALS
@@ -145,12 +150,18 @@ const camAnim = {
 // SECTION 4 — ENTRY POINT
 // ================================================================
 
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
   initThreeJS();
   initCanvasTextures();
-  loadShirtModel();
+
+  // Load product from ?slug= param, then load its GLB (or fallback)
+  await loadProductFromSlug();
+
   initUI();
   animate();
+
+  // Auth nav
+  if (window.LOOM_AUTH) window.LOOM_AUTH.renderAuthNav();
 });
 
 // ================================================================
@@ -462,11 +473,35 @@ function normalizeModelUVsGlobally(object) {
 // SECTION 7 — MODEL LOADING
 // ================================================================
 
-function loadShirtModel() {
+async function loadProductFromSlug() {
+  const slug = new URLSearchParams(window.location.search).get("slug");
+  let glbUrl = "assets/models/t_shirt.glb";
+
+  if (slug) {
+    try {
+      const res = await fetch(getApiBase() + "/api/products/" + encodeURIComponent(slug));
+      if (res.ok) {
+        const product = await res.json();
+        currentProduct = product;
+        if (product.glb_url) glbUrl = product.glb_url;
+        // Update price display
+        const priceEls = document.querySelectorAll(".summary-price .summary-val, .summary-price .summary-value, .configurator-price");
+        const fmt = new Intl.NumberFormat("ru-RU").format(product.price) + " сум";
+        priceEls.forEach(el => { el.textContent = fmt; });
+      }
+    } catch (e) {
+      console.warn("Product fetch failed, using default model:", e);
+    }
+  }
+
+  loadShirtModel(glbUrl);
+}
+
+function loadShirtModel(glbUrl) {
   const loader = new THREE.GLTFLoader();
 
   loader.load(
-    "assets/models/t_shirt.glb",
+    glbUrl || "assets/models/t_shirt.glb",
 
     // onLoad
     function (gltf) {
@@ -788,17 +823,15 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-/** Smoothly move camera to front or back position. */
+/** Instantly snap camera to front or back position (no lerp). */
 function setCameraView(view) {
   const pos = CAM_VIEWS[view];
   const target = INITIAL_VIEW.target || new THREE.Vector3(0, 0, 0);
-  camAnim.targetX = pos.x;
-  camAnim.targetY = pos.y;
-  camAnim.targetZ = pos.z;
-  camAnim.targetLookX = target.x;
-  camAnim.targetLookY = target.y;
-  camAnim.targetLookZ = target.z;
-  camAnim.active = true;
+  camera.position.set(pos.x, pos.y, pos.z);
+  controls.target.set(target.x, target.y, target.z);
+  controls.update();
+  camAnim.active = false;
+  if (renderer && camera && scene) renderer.render(scene, camera);
 }
 
 function bindResetViewButton() {
@@ -1143,6 +1176,8 @@ function initUI() {
   bindSaveDesign();
   bindOrderModal();
   bindMobileNav();
+  bindSizeSelector();
+  bindCenterButtons();
 }
 
 // ----------------------------------------------------------------
@@ -1164,6 +1199,45 @@ function buildColorSwatches() {
     btn.addEventListener("click", () => selectShirtColor(hex, btn));
     container.appendChild(btn);
   });
+}
+
+// ----------------------------------------------------------------
+// Size selector
+// ----------------------------------------------------------------
+function bindSizeSelector() {
+  document.querySelectorAll(".size-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectedSize = btn.dataset.size;
+      document.querySelectorAll(".size-btn").forEach((b) => {
+        b.classList.toggle("active", b.dataset.size === selectedSize);
+      });
+    });
+  });
+}
+
+// ----------------------------------------------------------------
+// Center buttons for text and logo
+// ----------------------------------------------------------------
+function bindCenterButtons() {
+  const btnCenterText = document.getElementById("btn-center-text");
+  if (btnCenterText) {
+    btnCenterText.addEventListener("click", () => {
+      const txt = designState[designState.activeView].text;
+      txt.x = TEX_SIZE / 2;
+      txt.y = TEX_SIZE * 0.35;
+      redrawActive();
+    });
+  }
+
+  const btnCenterLogo = document.getElementById("btn-center-logo");
+  if (btnCenterLogo) {
+    btnCenterLogo.addEventListener("click", () => {
+      const img = designState[designState.activeView].image;
+      img.x = TEX_SIZE / 2;
+      img.y = TEX_SIZE * 0.30;
+      redrawActive();
+    });
+  }
 }
 
 // ----------------------------------------------------------------
@@ -1412,7 +1486,7 @@ function bindImageControls() {
     designState[designState.activeView].image.img = null;
     designState[designState.activeView].image.name = "";
     fileInput.value = "";
-    uploadedFileData = null;
+    uploadedFileData[designState.activeView] = null;
     if (imgControls) imgControls.style.display = "none";
     redrawActive();
   });
@@ -1436,10 +1510,10 @@ function handleImageFile(file) {
       layer.name = file.name;
       layer.scalePct = 100;
       layer.x = TEX_SIZE / 2;
-      layer.y = TEX_SIZE / 2;
+      layer.y = TEX_SIZE * 0.30;
 
-      // Store original file data for order submission
-      uploadedFileData = {
+      // Store original file data per view for order submission
+      uploadedFileData[designState.activeView] = {
         base64: e.target.result,
         name: file.name,
         type: file.type,
@@ -1505,6 +1579,7 @@ function updateSummaryTab() {
   const colorName =
     COLOR_NAMES[designState.shirtColor] || designState.shirtColor;
   setEl("sum-color", colorName);
+  setEl("sum-size", selectedSize);
   setEl("sum-text", designState.front.text.content || "—");
   setEl(
     "sum-font",
@@ -1515,6 +1590,7 @@ function updateSummaryTab() {
 
 function resetDesign() {
   designState.shirtColor = "#FFFFFF";
+  selectedSize = "L";
 
   ["front", "back"].forEach((v) => {
     designState[v].text = {
@@ -1525,18 +1601,24 @@ function resetDesign() {
       bold: false,
       italic: false,
       x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.38,
+      y: TEX_SIZE * 0.35,
     };
     designState[v].image = {
       img: null,
       name: "",
       x: TEX_SIZE / 2,
-      y: TEX_SIZE / 2,
+      y: TEX_SIZE * 0.30,
       scalePct: 100,
     };
   });
 
-  uploadedFileData = null;
+  // Reset size buttons
+  document.querySelectorAll(".size-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.size === "L");
+  });
+
+  uploadedFileData.front = null;
+  uploadedFileData.back = null;
 
   // Reset UI controls to defaults
   const ids = ["text-content-input", "custom-color-hex"];
@@ -1626,6 +1708,7 @@ function openOrderModal() {
   };
 
   setTxt("summaryColor", getColorName(designState.shirtColor));
+  setTxt("summarySize", selectedSize);
   setTxt("summaryScale", front.image.scalePct + "%");
   setTxt("summaryText", front.text.content || "Не указан");
   setTxt("summaryFont", front.text.font);
@@ -1662,6 +1745,22 @@ function openOrderModal() {
   if (modal) {
     modal.style.display = "flex";
     document.body.classList.add("modal-open");
+
+    // Auth prefill — hide badge first, then check
+    const badge = document.getElementById("auth-order-badge");
+    if (badge) badge.style.display = "none";
+
+    if (window.LOOM_AUTH) {
+      window.LOOM_AUTH.getCurrentUser().then((user) => {
+        if (!user) return;
+        const nameIn = document.getElementById("nameInput");
+        const phoneIn = document.getElementById("phoneInput");
+        if (nameIn && !nameIn.value && user.name) nameIn.value = user.name;
+        if (phoneIn && !phoneIn.value && user.phone) phoneIn.value = user.phone;
+        if (badge) badge.style.display = "block";
+      });
+    }
+
     setTimeout(() => {
       const ni = document.getElementById("nameInput");
       if (ni) ni.focus();
@@ -1672,6 +1771,7 @@ function openOrderModal() {
   const config = {
     color: designState.shirtColor,
     colorName: getColorName(designState.shirtColor),
+    size: selectedSize,
     text: front.text.content,
     font: front.text.font,
     imageName: front.image.name || "Не загружено",
@@ -1875,6 +1975,30 @@ function validateLocation() {
   return true;
 }
 
+async function captureGLB() {
+  return new Promise((resolve) => {
+    if (!scene || typeof THREE.GLTFExporter === "undefined") {
+      resolve(null);
+      return;
+    }
+    drawTexture("front");
+    drawTexture("back");
+    if (renderer) renderer.render(scene, camera);
+
+    const exporter = new THREE.GLTFExporter();
+    exporter.parse(
+      scene,
+      (glb) => {
+        const bytes = new Uint8Array(glb);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        resolve("data:model/gltf-binary;base64," + btoa(binary));
+      },
+      { binary: true, embedImages: true },
+    );
+  });
+}
+
 async function handleOrderSubmit(event) {
   event.preventDefault();
 
@@ -1889,51 +2013,150 @@ async function handleOrderSubmit(event) {
   if (loader) loader.style.display = "flex";
 
   try {
-    const locType = window._getLocationType
-      ? window._getLocationType()
-      : "address";
+    const locType = window._getLocationType ? window._getLocationType() : "address";
     const addrVal = document.getElementById("addressInput")?.value.trim() || "";
-    const coords =
-      locType === "map"
-        ? `${selectedCoords.lat}, ${selectedCoords.lng}`
-        : "Не указаны";
+    const coords = locType === "map"
+      ? `${selectedCoords.lat}, ${selectedCoords.lng}`
+      : "Не указаны";
     const nameVal = [
       document.getElementById("nameInput")?.value.trim(),
       document.getElementById("surnameInput")?.value.trim(),
-    ]
-      .filter(Boolean)
-      .join(" ");
+    ].filter(Boolean).join(" ");
     const phoneFmt = document.getElementById("phoneInput")?.value.trim() || "";
     const comment = document.getElementById("commentInput")?.value.trim() || "";
-    const front = designState.front;
 
-    const orderData = {
-      item: "Футболка Oversized",
+    // ── 1. Upload logo to R2 if present ───────────────────────────────────
+    let logoKey = null;
+    const logoFile = uploadedFileData.front || uploadedFileData.back;
+    if (logoFile && logoFile.base64) {
+      try {
+        // Convert base64 data URL to Blob
+        const [header, b64] = logoFile.base64.split(",");
+        const mime = header.match(/:(.*?);/)?.[1] || "image/png";
+        const byteChars = atob(b64);
+        const bytes = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([bytes], { type: mime });
+
+        const fd = new FormData();
+        fd.append("file", new File([blob], logoFile.name || "logo.png", { type: mime }));
+
+        const uploadRes = await fetch(getApiBase() + "/api/uploads", {
+          method: "POST",
+          body: fd,
+        });
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          logoKey = uploadData.key || null;
+        }
+      } catch (uploadErr) {
+        console.warn("Logo upload failed, continuing without logo key:", uploadErr);
+      }
+    }
+
+    // ── 2. Capture screenshots for Telegram (kept for worker notification) ─
+    let frontScreenshot = null;
+    let backScreenshot = null;
+    if (renderer) {
+      const savedView = designState.activeView;
+      drawTexture("front");
+      drawTexture("back");
+      applyActiveTexture();
+
+      camera.position.set(CAM_VIEWS.front.x, CAM_VIEWS.front.y, CAM_VIEWS.front.z);
+      controls.update();
+      renderer.render(scene, camera);
+      frontScreenshot = renderer.domElement.toDataURL("image/jpeg", 0.85);
+
+      camera.position.set(CAM_VIEWS.back.x, CAM_VIEWS.back.y, CAM_VIEWS.back.z);
+      controls.update();
+      renderer.render(scene, camera);
+      backScreenshot = renderer.domElement.toDataURL("image/jpeg", 0.85);
+
+      camera.position.set(CAM_VIEWS[savedView].x, CAM_VIEWS[savedView].y, CAM_VIEWS[savedView].z);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // ── 3. Build design JSON ───────────────────────────────────────────────
+    const front = designState.front;
+    const designJson = JSON.stringify({
+      shirtColor: designState.shirtColor,
+      size: selectedSize,
+      front: {
+        text: { content: front.text.content, font: front.text.font, size: front.text.size, color: front.text.color, bold: front.text.bold, italic: front.text.italic },
+        image: { name: front.image.name, scalePct: front.image.scalePct },
+      },
+      back: {
+        text: { content: designState.back.text.content, font: designState.back.text.font },
+        image: { name: designState.back.image.name, scalePct: designState.back.image.scalePct },
+      },
+    });
+
+    // ── 4. POST /api/orders ────────────────────────────────────────────────
+    const totalPrice = currentProduct ? currentProduct.price : 150000;
+    const apiHeaders = { "Content-Type": "application/json" };
+    if (window.LOOM_AUTH) {
+      const token = window.LOOM_AUTH.getToken();
+      if (token) apiHeaders["Authorization"] = "Bearer " + token;
+    }
+
+    const apiBody = {
+      customerName: nameVal,
+      customerPhone: phoneFmt,
+      address: addrVal || null,
+      coordinates: locType === "map" ? coords : null,
+      comment: comment || null,
+      designJson,
+      logoKey,
+      totalPrice,
+      productId: currentProduct ? currentProduct.id : null,
+    };
+
+    const apiRes = await fetch(getApiBase() + "/api/orders", {
+      method: "POST",
+      headers: apiHeaders,
+      body: JSON.stringify(apiBody),
+    });
+
+    let orderId = null;
+    if (apiRes.ok) {
+      const apiData = await apiRes.json();
+      orderId = apiData.id;
+    } else {
+      const errData = await apiRes.json().catch(() => ({}));
+      console.warn("API order failed:", errData.error);
+    }
+
+    // ── 5. Also notify Telegram worker (non-blocking, best effort) ─────────
+    const workerPayload = {
+      item: currentProduct ? currentProduct.name_ru : "Футболка",
       color: getColorName(designState.shirtColor),
-      text: front.text.content || "Не указан",
-      font: front.text.font,
-      imageUploaded: front.image.name || "Не загружено",
-      scale: front.image.scalePct + "%",
+      size: selectedSize,
+      frontText: designState.front.text.content || "",
+      backText: designState.back.text.content || "",
+      frontImage: designState.front.image.name || "Не загружено",
+      backImage: designState.back.image.name || "Не загружено",
       mapCoordinates: coords,
       customerName: nameVal,
       phone: phoneFmt,
-      phoneClean: phoneFmt.replace(/\D/g, ""),
       address: addrVal,
-      comment: comment,
+      comment,
       timestamp: new Date().toISOString(),
-      originalFile: uploadedFileData || null,
+      orderId: orderId || "?",
+      frontScreenshot,
+      backScreenshot,
     };
-
-    const res = await fetch(WORKER_URL, {
+    fetch(WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(orderData),
-    });
+      body: JSON.stringify(workerPayload),
+    }).catch(() => {});
 
-    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    const idLabel = orderId ? ` #${orderId}` : "";
+    showToast("✅ Заказ" + idLabel + " принят!", "success");
+    setTimeout(closeOrderModal, 2500);
 
-    showToast("✅ Заказ отправлен!", "success");
-    setTimeout(closeOrderModal, 2000);
   } catch (err) {
     console.error("Order error:", err);
     showToast("❌ Ошибка отправки: " + err.message, "error");

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LOOM — Личный кабинет</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/auth.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+</head>
+<body class="account-page">
+
+  <div class="account-inner">
+
+    <!-- Top nav bar -->
+    <nav class="account-nav">
+      <a href="index.html" class="account-nav-logo">LOOM</a>
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <span id="account-email" style="font-size:0.8rem;color:rgba(255,255,255,0.4);font-family:'DM Mono',monospace;"></span>
+        <button class="account-logout" id="logoutBtn">Выйти</button>
+      </div>
+    </nav>
+
+    <h1 class="account-title">Личный кабинет</h1>
+
+    <!-- Profile card -->
+    <div class="account-card">
+      <p class="account-card-title">Профиль</p>
+      <div id="profile-rows">
+        <div class="profile-row">
+          <span class="profile-label">Загрузка…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders card -->
+    <div class="account-card">
+      <p class="account-card-title">История заказов</p>
+      <div id="orders-container">
+        <p style="color:rgba(255,255,255,0.35);font-size:0.82rem">Загрузка…</p>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.5rem;">
+      <a href="catalog.html" style="
+        padding:0.55rem 1.1rem;
+        border:0.5px solid rgba(255,255,255,0.2);
+        border-radius:3px;
+        color:rgba(255,255,255,0.6);
+        text-decoration:none;
+        font-size:0.78rem;
+        transition:color 150ms,border-color 150ms;
+      " onmouseover="this.style.color='#fff';this.style.borderColor='rgba(255,255,255,0.45)'"
+         onmouseout="this.style.color='rgba(255,255,255,0.6)';this.style.borderColor='rgba(255,255,255,0.2)'">
+        Каталог →
+      </a>
+      <a href="configurator.html" style="
+        padding:0.55rem 1.1rem;
+        border:0.5px solid rgba(255,255,255,0.2);
+        border-radius:3px;
+        color:rgba(255,255,255,0.6);
+        text-decoration:none;
+        font-size:0.78rem;
+        transition:color 150ms,border-color 150ms;
+      " onmouseover="this.style.color='#fff';this.style.borderColor='rgba(255,255,255,0.45)'"
+         onmouseout="this.style.color='rgba(255,255,255,0.6)';this.style.borderColor='rgba(255,255,255,0.2)'">
+        Создать дизайн →
+      </a>
+    </div>
+
+  </div>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/auth.js"></script>
+  <script src="assets/account.js"></script>
+</body>
+</html>

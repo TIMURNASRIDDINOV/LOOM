@@ -15,6 +15,8 @@
 
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Auth styles -->
+    <link rel="stylesheet" href="assets/auth.css" />
 
     <style>
       /* ============================================================
@@ -586,6 +588,30 @@
       }
       body.modal-open { overflow: hidden; }
 
+      /* ── Size selector ──────────────────────────────────────── */
+      .size-selector { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+      .size-btn {
+        padding: 0.45rem 0.7rem; border-radius: 4px;
+        border: 0.5px solid rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.05);
+        font-family: inherit; font-size: 0.82rem; font-weight: 500;
+        cursor: pointer; color: rgba(255,255,255,0.7);
+        transition: all 0.15s ease; min-width: 38px; text-align: center;
+      }
+      .size-btn.active { background: #fff; color: #111; border-color: #fff; }
+      .size-btn:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.1); }
+
+      /* ── Center button ───────────────────────────────────────── */
+      .btn-center-pos {
+        padding: 0.35rem 0.75rem; border-radius: 4px;
+        border: 0.5px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.05);
+        font-family: inherit; font-size: 0.75rem; font-weight: 400;
+        cursor: pointer; color: rgba(255,255,255,0.6);
+        transition: all 0.15s ease; white-space: nowrap;
+      }
+      .btn-center-pos:hover { color: #fff; background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); }
+
       /* ── Mobile responsive ───────────────────────────────────── */
       @media (max-width: 768px) {
         .page-header { padding: 1.5rem 1rem 1rem; }
@@ -613,6 +639,7 @@
           <a href="configurator.html" class="nav-link active">Кастомизация</a>
         </div>
         <a href="catalog.html" class="nav-cta">Смотреть каталог</a>
+        <div class="auth-nav-slot"></div>
         <button
           class="nav-hamburger"
           id="menuToggle"
@@ -787,26 +814,21 @@
               aria-label="Выбор цвета"
             ></div>
 
+            <!-- Custom color picker hidden — only white/black offered -->
+            <input type="color" id="custom-color-picker" value="#FFFFFF" style="display:none" aria-hidden="true" />
+            <input type="text" id="custom-color-hex" value="#FFFFFF" style="display:none" aria-hidden="true" />
+
             <div class="divider"></div>
 
-            <p class="tab-section-label">Свой цвет</p>
-            <div class="custom-color-row">
-              <input
-                type="color"
-                id="custom-color-picker"
-                value="#FFFFFF"
-                class="color-picker-input"
-                aria-label="Выбор цвета"
-              />
-              <input
-                type="text"
-                id="custom-color-hex"
-                value="#FFFFFF"
-                class="form-input hex-input"
-                placeholder="#FFFFFF"
-                maxlength="7"
-                aria-label="HEX цвет"
-              />
+            <p class="tab-section-label">Размер футболки</p>
+            <div class="size-selector" id="size-selector" role="radiogroup" aria-label="Выбор размера">
+              <button class="size-btn" data-size="XS">XS</button>
+              <button class="size-btn" data-size="S">S</button>
+              <button class="size-btn" data-size="M">M</button>
+              <button class="size-btn active" data-size="L">L</button>
+              <button class="size-btn" data-size="XL">XL</button>
+              <button class="size-btn" data-size="XXL">XXL</button>
+              <button class="size-btn" data-size="XXXL">XXXL</button>
             </div>
           </div>
 
@@ -886,7 +908,10 @@
             </div>
 
             <div class="design-canvas-section">
-              <label class="field-label">Позиция (перетащите текст)</label>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.2rem;">
+                <label class="field-label" style="margin:0;">Позиция (перетащите текст)</label>
+                <button id="btn-center-text" class="btn-center-pos" type="button">По центру</button>
+              </div>
               <div class="design-canvas-wrapper">
                 <canvas id="design-canvas" width="256" height="256"></canvas>
               </div>
@@ -963,7 +988,10 @@
               </div>
 
               <div class="design-canvas-section">
-                <label class="field-label">Позиция (перетащите логотип)</label>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.2rem;">
+                  <label class="field-label" style="margin:0;">Позиция (перетащите логотип)</label>
+                  <button id="btn-center-logo" class="btn-center-pos" type="button">По центру</button>
+                </div>
                 <div class="design-canvas-wrapper">
                   <canvas id="design-canvas-img" width="256" height="256"></canvas>
                 </div>
@@ -992,6 +1020,10 @@
               <div class="summary-row">
                 <span class="summary-label">Цвет:</span>
                 <span class="summary-val" id="sum-color">Белый</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-label">Размер:</span>
+                <span class="summary-val" id="sum-size">L</span>
               </div>
               <div class="summary-row">
                 <span class="summary-label">Текст:</span>
@@ -1062,6 +1094,10 @@
                 <span class="summary-value" id="summaryColor">Белый</span>
               </div>
               <div class="summary-row">
+                <span class="summary-label">Размер:</span>
+                <span class="summary-value" id="summarySize">L</span>
+              </div>
+              <div class="summary-row">
                 <span class="summary-label">Масштаб:</span>
                 <span class="summary-value" id="summaryScale">100%</span>
               </div>
@@ -1085,6 +1121,10 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <div id="auth-order-badge" style="display:none;background:rgba(16,185,129,0.1);border:0.5px solid rgba(16,185,129,0.3);border-radius:4px;padding:0.6rem 0.9rem;margin-bottom:1rem;font-size:0.82rem;color:#4ade80;">
+          ✓ Заказ будет привязан к вашему аккаунту
         </div>
 
         <form id="orderForm" class="order-form">
@@ -1272,6 +1312,12 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <!-- RoomEnvironment — adds THREE.RoomEnvironment for subtle studio reflections -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+    <!-- GLTFExporter — adds THREE.GLTFExporter for 3D model export -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+
+    <!-- Config + Auth -->
+    <script src="assets/config.js"></script>
+    <script src="assets/auth.js"></script>
 
     <!-- Main configurator logic -->
     <script src="configurator.js"></script>
