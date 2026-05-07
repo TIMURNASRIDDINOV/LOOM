@@ -45,6 +45,19 @@ app.route('/api/admin', setupRouter)      // POST /api/admin/setup (no auth requ
 app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/admin/stats
 app.route('/api/files', filesRoutes)      // GET /api/files/models/:key
 
+// ─── Admin subdomain redirect ─────────────────────────────────────────────────
+// admin.looom.me/* → https://www.looom.me/admin/*
+
+app.all('*', (c, next) => {
+  const host = new URL(c.req.url).hostname
+  if (host === 'admin.looom.me') {
+    const url = new URL(c.req.url)
+    const path = url.pathname === '/' ? '/admin/' : `/admin${url.pathname}`
+    return c.redirect(`https://www.looom.me${path}${url.search}`, 301)
+  }
+  return next()
+})
+
 // ─── Health check ────────────────────────────────────────────────────────────
 
 app.get('/', (c) =>

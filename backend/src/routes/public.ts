@@ -6,22 +6,19 @@ import { requireAuth } from '../middleware/requireAuth'
 import { sendOrderNotification } from '../lib/telegram'
 import type { BaseEnv, UserEnv } from '../types'
 
-// ─── In-memory rate limiter ───────────────────────────────────────────────────
-// Uses a module-level Map that persists for the lifetime of this Worker isolate.
-// For multi-isolate deployments, combine with Cloudflare KV for global limits.
+// ─── Global KV-based rate limiter ────────────────────────────────────────────
+// Uses Cloudflare KV so limits are enforced across all Worker isolates globally.
 
-interface RateLimitEntry { count: number; resetAt: number }
-const rateLimitStore = new Map<string, RateLimitEntry>()
-
-function isRateLimited(key: string, maxRequests: number, windowMs: number): boolean {
-  const now = Date.now()
-  const entry = rateLimitStore.get(key)
-  if (!entry || now > entry.resetAt) {
-    rateLimitStore.set(key, { count: 1, resetAt: now + windowMs })
-    return false
-  }
-  if (entry.count >= maxRequests) return true
-  entry.count++
+async function isRateLimited(
+  kv: KVNamespace,
+  key: string,
+  limit: number,
+  windowSec: number,
+): Promise<boolean> {
+  const current = await kv.get(key)
+  const count = current ? parseInt(current, 10) : 0
+  if (count >= limit) return true
+  await kv.put(key, String(count + 1), { expirationTtl: windowSec })
   return false
 }
 
@@ -61,7 +58,7 @@ pub.get('/products/:slug', async (c) => {
 
 pub.post('/orders', async (c) => {
   const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
-  if (isRateLimited(`${ip}:orders`, 5, 60_000)) {
+  if (await isRateLimited(c.env.RATE_LIMIT, `orders:${ip}`, 5, 60)) {
     return c.json({ error: 'Too many requests. Please wait a minute before placing another order.' }, 429)
   }
 
@@ -143,7 +140,7 @@ pub.post('/orders', async (c) => {
 
 pub.post('/uploads', async (c) => {
   const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
-  if (isRateLimited(`${ip}:uploads`, 10, 60_000)) {
+  if (await isRateLimited(c.env.RATE_LIMIT, `uploads:${ip}`, 10, 60)) {
     return c.json({ error: 'Too many uploads. Please wait a minute before trying again.' }, 429)
   }
 

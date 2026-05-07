@@ -4,6 +4,7 @@ export type Bindings = {
   DB: D1Database
   LOOM_MODELS: R2Bucket
   LOOM_UPLOADS: R2Bucket
+  RATE_LIMIT: KVNamespace
   JWT_SECRET: string
   TELEGRAM_BOT_TOKEN: string
   TELEGRAM_CHAT_ID: string

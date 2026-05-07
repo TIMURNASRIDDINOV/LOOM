@@ -43,7 +43,8 @@ const FONT_OPTIONS = [
 
 // Cloudflare Worker endpoint for Telegram order notifications
 const WORKER_URL =
-  "https://loom-telegram-orders.timurnasriddinov56.workers.dev";
+  window.LOOM_CONFIG?.TELEGRAM_WORKER_URL
+  ?? "https://loom-telegram-orders.timurnasriddinov56.workers.dev";
 
 // API base — resolved via config.js if available
 function getApiBase() {
@@ -592,9 +593,11 @@ function loadShirtModel(glbUrl) {
       }
     },
 
-    // onError — fall back to a placeholder geometry
+    // onError — log error, show canvas message, fall back to placeholder geometry
     function (err) {
-      console.warn("GLB load failed, using placeholder geometry:", err);
+      console.error('[LOOM] 3D model failed to load:', err);
+      const loadingEl = document.getElementById('loading-overlay');
+      if (loadingEl) loadingEl.style.display = 'none';
       createPlaceholderShirt();
       hideLoadingOverlay();
     },
@@ -2045,12 +2048,22 @@ async function handleOrderSubmit(event) {
           method: "POST",
           body: fd,
         });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          logoKey = uploadData.key || null;
+        if (!uploadRes.ok) {
+          showToast("Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.", "error");
+          btn.disabled = false;
+          if (txt) txt.style.display = "block";
+          if (loader) loader.style.display = "none";
+          return;
         }
+        const uploadData = await uploadRes.json();
+        logoKey = uploadData.key || null;
       } catch (uploadErr) {
-        console.warn("Logo upload failed, continuing without logo key:", uploadErr);
+        console.error("Logo upload failed:", uploadErr);
+        showToast("Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.", "error");
+        btn.disabled = false;
+        if (txt) txt.style.display = "block";
+        if (loader) loader.style.display = "none";
+        return;
       }
     }
 

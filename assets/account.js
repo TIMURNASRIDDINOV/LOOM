@@ -67,9 +67,7 @@
   }
 
   async function init() {
-    const API = window.LOOM_CONFIG ? window.LOOM_CONFIG.API_BASE
-      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:8787' : 'https://api.looom.me');
+    const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me';
 
     // Guard: redirect if not logged in
     const user = await window.LOOM_AUTH.getCurrentUser();
