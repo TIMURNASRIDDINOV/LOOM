@@ -34,7 +34,13 @@ export async function verifyToken(
     const { payload } = await jwtVerify(token, encodeSecret(secret))
     if (!payload.sub || typeof payload.role !== 'string') return null
     return payload as unknown as AppJwtPayload
-  } catch {
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code
+    if (code === 'ERR_JWT_EXPIRED') {
+      console.warn('[JWT] Token expired')
+    } else {
+      console.error('[JWT] Invalid or tampered token — code:', code ?? 'unknown')
+    }
     return null
   }
 }

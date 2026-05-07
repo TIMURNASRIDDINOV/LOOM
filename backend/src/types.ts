@@ -7,6 +7,7 @@ export type Bindings = {
   JWT_SECRET: string
   TELEGRAM_BOT_TOKEN: string
   TELEGRAM_CHAT_ID: string
+  ENVIRONMENT: string
 }
 
 // Used by user-auth middleware and routes

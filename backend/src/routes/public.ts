@@ -6,8 +6,24 @@ import { requireAuth } from '../middleware/requireAuth'
 import { sendOrderNotification } from '../lib/telegram'
 import type { BaseEnv, UserEnv } from '../types'
 
-// TODO: add rate limiting on /api/orders and /api/uploads
-// Recommended: use Cloudflare KV for per-IP counters with TTL
+// ─── In-memory rate limiter ───────────────────────────────────────────────────
+// Uses a module-level Map that persists for the lifetime of this Worker isolate.
+// For multi-isolate deployments, combine with Cloudflare KV for global limits.
+
+interface RateLimitEntry { count: number; resetAt: number }
+const rateLimitStore = new Map<string, RateLimitEntry>()
+
+function isRateLimited(key: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now()
+  const entry = rateLimitStore.get(key)
+  if (!entry || now > entry.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + windowMs })
+    return false
+  }
+  if (entry.count >= maxRequests) return true
+  entry.count++
+  return false
+}
 
 const pub = new Hono<BaseEnv>()
 
@@ -44,6 +60,11 @@ pub.get('/products/:slug', async (c) => {
 // ─── POST /api/orders ─────────────────────────────────────────────────────────
 
 pub.post('/orders', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
+  if (isRateLimited(`${ip}:orders`, 5, 60_000)) {
+    return c.json({ error: 'Too many requests. Please wait a minute before placing another order.' }, 429)
+  }
+
   let body: unknown
   try {
     body = await c.req.json()
@@ -121,6 +142,11 @@ pub.post('/orders', async (c) => {
 // Direct multipart upload; Worker writes blob to R2 loom-uploads.
 
 pub.post('/uploads', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
+  if (isRateLimited(`${ip}:uploads`, 10, 60_000)) {
+    return c.json({ error: 'Too many uploads. Please wait a minute before trying again.' }, 429)
+  }
+
   let formData: FormData
   try {
     formData = await c.req.formData()
@@ -152,8 +178,10 @@ pub.post('/uploads', async (c) => {
 const meRouter = new Hono<UserEnv>()
 
 meRouter.get('/orders', requireAuth, async (c) => {
-  const orders = await getOrdersByUserId(c.env.DB, c.get('userId'))
-  return c.json({ orders })
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const limit = 20
+  const { orders, total } = await getOrdersByUserId(c.env.DB, c.get('userId'), page, limit)
+  return c.json({ orders, page, limit, total })
 })
 
 pub.route('/me', meRouter)

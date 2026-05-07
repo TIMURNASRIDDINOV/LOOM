@@ -7,30 +7,34 @@ import adminProductsRoutes from './routes/admin-products'
 import filesRoutes from './routes/files'
 import type { BaseEnv } from './types'
 
-const ALLOWED_ORIGINS = [
+const PROD_ORIGINS = [
   'https://looom.me',
   'https://www.looom.me',
   'https://admin.looom.me',
+]
+
+const DEV_ORIGINS = [
   'http://localhost:8787',
   'http://localhost:3000',
-  // Allow file:// and local admin panel during development
-  'null',
 ]
 
 const app = new Hono<BaseEnv>()
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
+// Dev origins (localhost) are only included when ENVIRONMENT !== "production".
+// The 'null' origin (file:// protocol) is intentionally excluded from all envs.
 
-app.use(
-  '*',
-  cors({
-    origin: (origin) => (ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]),
+app.use('*', (c, next) => {
+  const allowed =
+    c.env.ENVIRONMENT === 'production' ? PROD_ORIGINS : [...PROD_ORIGINS, ...DEV_ORIGINS]
+  return cors({
+    origin: (origin) => (allowed.includes(origin) ? origin : PROD_ORIGINS[0]),
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
     maxAge: 86400,
-  }),
-)
+  })(c, next)
+})
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
