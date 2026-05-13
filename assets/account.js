@@ -1,13 +1,17 @@
 'use strict';
 (function () {
+  // These must match ORDER_STATUSES in backend/src/db/schema.ts
   const STATUS_LABELS = {
-    pending:    { label: 'Ожидает',    bg: 'rgba(234,179,8,0.15)',   color: '#facc15' },
-    confirmed:  { label: 'Подтверждён', bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa' },
-    processing: { label: 'В работе',   bg: 'rgba(139,92,246,0.15)',  color: '#a78bfa' },
-    shipped:    { label: 'Отправлен',  bg: 'rgba(16,185,129,0.15)', color: '#4ade80' },
-    delivered:  { label: 'Доставлен',  bg: 'rgba(16,185,129,0.2)',  color: '#22c55e' },
-    cancelled:  { label: 'Отменён',    bg: 'rgba(239,68,68,0.12)',   color: '#f87171' },
+    new:        { label: 'Новый',         bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa' },
+    confirmed:  { label: 'Подтверждён',   bg: 'rgba(234,179,8,0.15)',   color: '#facc15' },
+    producing:  { label: 'В производстве', bg: 'rgba(249,115,22,0.15)', color: '#fb923c' },
+    shipped:    { label: 'Отправлен',     bg: 'rgba(168,85,247,0.15)',  color: '#c084fc' },
+    delivered:  { label: 'Доставлен',     bg: 'rgba(16,185,129,0.2)',   color: '#22c55e' },
+    cancelled:  { label: 'Отменён',       bg: 'rgba(239,68,68,0.12)',   color: '#f87171' },
   };
+
+  // Orders in these statuses may still change — poll for updates
+  const ACTIVE_STATUSES = new Set(['new', 'confirmed', 'producing', 'shipped']);
 
   function formatPrice(p) {
     return Number(p).toLocaleString('ru-RU') + ' сум';
@@ -25,9 +29,9 @@
 
   function renderProfile(user, container) {
     const rows = [
-      ['Email',   user.email || '—'],
-      ['Имя',     user.name  || '—'],
       ['Телефон', user.phone || '—'],
+      ['Имя',     user.first_name || user.name || '—'],
+      ['Email',   (!user.email || user.email.includes('@telegram.loom')) ? '—' : user.email],
     ];
     container.innerHTML = rows.map(([label, val]) => `
       <div class="profile-row">
@@ -66,6 +70,17 @@
     `;
   }
 
+  async function fetchOrders(API, token) {
+    const headers = token ? { Authorization: 'Bearer ' + token } : {}
+    const res = await fetch(API + '/api/me/orders', {
+      headers,
+      credentials: 'include',  // needed for cookie-based (Telegram) auth
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    return data.orders || [];
+  }
+
   async function init() {
     const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me';
 
@@ -78,29 +93,60 @@
 
     // Populate email in sidebar
     const emailEl = document.getElementById('account-email');
-    if (emailEl) emailEl.textContent = user.email || '';
+    if (emailEl) emailEl.textContent = user.phone || user.email || '';
 
     // Render profile section
     const profileEl = document.getElementById('profile-rows');
     if (profileEl) renderProfile(user, profileEl);
 
-    // Fetch orders
+    const token = window.LOOM_AUTH.getToken();
+    const ordersContainer = document.getElementById('orders-container');
+
+    // Initial load
+    let currentOrders = [];
     const ordersEl = document.getElementById('orders-body');
     if (ordersEl) {
       ordersEl.innerHTML = '<tr><td colspan="4" style="color:rgba(255,255,255,0.35);font-size:0.82rem;padding:0.75rem">Загрузка…</td></tr>';
+    }
+
+    try {
+      currentOrders = await fetchOrders(API, token);
+      if (ordersContainer) renderOrders(currentOrders, ordersContainer);
+    } catch (err) {
+      if (ordersContainer) ordersContainer.innerHTML = '<p style="color:#f87171;font-size:0.82rem">Не удалось загрузить заказы.</p>';
+      return;
+    }
+
+    // Poll every 30 s if any order is in a non-terminal state
+    let pollInterval = null;
+
+    function hasActiveOrders(orders) {
+      return orders.some(o => ACTIVE_STATUSES.has(o.status));
+    }
+
+    async function refresh() {
       try {
-        const token = window.LOOM_AUTH.getToken();
-        const res = await fetch(API + '/api/me/orders', {
-          headers: { Authorization: 'Bearer ' + token },
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        renderOrders(data.orders || [], document.getElementById('orders-container'));
-      } catch (err) {
-        const c = document.getElementById('orders-container');
-        if (c) c.innerHTML = '<p style="color:#f87171;font-size:0.82rem">Не удалось загрузить заказы.</p>';
+        const fresh = await fetchOrders(API, token);
+        currentOrders = fresh;
+        if (ordersContainer) renderOrders(currentOrders, ordersContainer);
+        // Stop polling once all orders reach terminal state
+        if (!hasActiveOrders(currentOrders) && pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      } catch {
+        // ignore transient errors during background poll
       }
     }
+
+    if (hasActiveOrders(currentOrders)) {
+      pollInterval = setInterval(refresh, 30_000);
+    }
+
+    // Refetch when the tab becomes visible again
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refresh();
+    });
 
     // Logout button
     const logoutBtn = document.getElementById('logoutBtn');

@@ -11,6 +11,8 @@ routes = [
 
 [vars]
 ENVIRONMENT = "production"
+# The bot username WITHOUT the @ prefix (e.g. "LoomAuthBot")
+BOT_USERNAME = ""
 
 # D1 Database — fill in database_id after running: wrangler d1 list
 [[d1_databases]]
@@ -33,9 +35,10 @@ binding = "RATE_LIMIT"
 id = "6dd51851f3ef4e20bc3fe5a7d5bbe23d"
 
 # Secrets (set via: wrangler secret put <NAME>):
-#   JWT_SECRET
-#   TELEGRAM_BOT_TOKEN
-#   TELEGRAM_CHAT_ID
+#   JWT_SECRET               — 64+ char random string for signing JWTs
+#   TELEGRAM_BOT_TOKEN       — from BotFather
+#   TELEGRAM_CHAT_ID         — admin chat ID for order notifications
+#   TELEGRAM_WEBHOOK_SECRET  — 32+ char random string, set via set-telegram-webhook.ts
 
 [dev]
 port = 8787

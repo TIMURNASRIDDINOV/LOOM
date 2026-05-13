@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Пользователь — LOOM Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+    :root { --mono: 'DM Mono', monospace; --hairline: rgba(255,255,255,0.08); --muted: rgba(255,255,255,0.45); }
+    body { background: #0a0a0a; color: #fff; margin: 0; }
+
+    .page { padding: 2rem 1.75rem; max-width: 900px; }
+    .page-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+    .btn-back { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.9rem; border: 0.5px solid rgba(255,255,255,0.15); border-radius: 3px; background: transparent; color: rgba(255,255,255,0.55); font-family: inherit; font-size: 0.8rem; cursor: pointer; text-decoration: none; transition: all 0.15s; }
+    .btn-back:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0; }
+
+    .card { background: #0f0f0f; border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; margin-bottom: 1.25rem; }
+    .card-title { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 1rem; }
+
+    .info-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1.5rem; font-size: 0.85rem; }
+    .info-label { color: rgba(255,255,255,0.4); white-space: nowrap; }
+    .info-value { font-family: var(--mono); }
+
+    .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem; }
+    .btn-action { padding: 0.55rem 1.1rem; border-radius: 3px; border: 0.5px solid rgba(255,255,255,0.2); background: transparent; color: rgba(255,255,255,0.65); font-family: inherit; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
+    .btn-action:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+    .btn-action.danger { border-color: rgba(239,68,68,0.3); color: #f87171; }
+    .btn-action.danger:hover { border-color: #f87171; }
+    .btn-action.primary { border-color: rgba(255,255,255,0.5); color: #fff; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.35); padding: 0.4rem 0.75rem; text-align: left; border-bottom: 0.5px solid rgba(255,255,255,0.08); }
+    td { padding: 0.6rem 0.75rem; border-bottom: 0.5px solid rgba(255,255,255,0.04); vertical-align: middle; }
+    .mono { font-family: var(--mono); }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.72rem; }
+    .badge-active { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .badge-banned  { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+    /* Notification form */
+    .notif-form textarea { width: 100%; padding: 0.65rem 0.9rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.85rem; outline: none; resize: vertical; min-height: 80px; margin-bottom: 0.75rem; }
+    .notif-form textarea:focus { border-color: rgba(255,255,255,0.35); }
+    .notif-form .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .notif-form input { width: 100%; padding: 0.55rem 0.8rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.82rem; outline: none; }
+    .notif-form input::placeholder { color: rgba(255,255,255,0.25); }
+    .notif-form input:focus { border-color: rgba(255,255,255,0.35); }
+    .form-result { font-size: 0.82rem; margin-top: 0.5rem; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="page-header">
+      <a href="users.html" class="btn-back">← Пользователи</a>
+      <h1 class="page-title" id="page-title">Пользователь</h1>
+    </div>
+
+    <div id="user-info-card" class="card">
+      <p class="card-title">Профиль</p>
+      <div id="user-info" class="info-grid" style="color:rgba(255,255,255,0.3)">Загрузка…</div>
+      <div class="actions" id="user-actions" style="display:none">
+        <button class="btn-action primary" id="btn-notify">📤 Уведомить</button>
+        <button class="btn-action" id="btn-toggle-status">Заблокировать</button>
+        <button class="btn-action" id="btn-toggle-role">Назначить администратором</button>
+      </div>
+    </div>
+
+    <!-- Notification panel -->
+    <div class="card notif-form" id="notif-form" style="display:none">
+      <p class="card-title">Отправить уведомление</p>
+      <textarea id="notif-msg" placeholder="Текст сообщения (HTML поддерживается)…"></textarea>
+      <div class="row-2">
+        <input id="notif-btn-label" type="text" placeholder="Текст кнопки (необязательно)" />
+        <input id="notif-btn-url" type="url" placeholder="URL кнопки" />
+      </div>
+      <button class="btn-action primary" id="btn-send-notif">Отправить</button>
+      <p class="form-result" id="notif-result"></p>
+    </div>
+
+    <!-- Orders -->
+    <div class="card">
+      <p class="card-title">Заказы</p>
+      <table>
+        <thead>
+          <tr><th>№</th><th>Дата</th><th>Статус</th><th style="text-align:right">Сумма</th></tr>
+        </thead>
+        <tbody id="orders-tbody">
+          <tr><td colspan="4" style="color:rgba(255,255,255,0.3)">Загрузка…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Activity log -->
+    <div class="card">
+      <p class="card-title">Активность</p>
+      <table>
+        <thead>
+          <tr><th>Действие</th><th>Дата</th><th>Детали</th></tr>
+        </thead>
+        <tbody id="activity-tbody">
+          <tr><td colspan="3" style="color:rgba(255,255,255,0.3)">Загрузка…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="assets/app.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>LOOM_LAYOUT.init('users')</script>
+  <script src="assets/user-detail.js"></script>
+</body>
+</html>

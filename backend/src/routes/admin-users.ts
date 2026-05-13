@@ -1,0 +1,242 @@
+import { Hono } from 'hono'
+import {
+  getAdminUsers,
+  getAdminUserById,
+  updateUserRoleAndStatus,
+  getOrdersByUserId,
+  getUserActivity,
+  insertUserActivity,
+  insertNotification,
+  getNotifications,
+  getAdminStatsExtended,
+} from '../db/queries'
+import { requireAdmin } from '../middleware/requireAdmin'
+import type { AdminEnv } from '../types'
+
+const router = new Hono<AdminEnv>()
+
+const ALLOWED_ROLES = new Set(['customer', 'admin'])
+const ALLOWED_STATUSES = new Set(['active', 'banned'])
+
+// ─── GET /api/admin/stats (extended) ─────────────────────────────────────────
+
+router.get('/stats', requireAdmin, async (c) => {
+  const stats = await getAdminStatsExtended(c.env.DB)
+  return c.json(stats)
+})
+
+// ─── GET /api/admin/users ─────────────────────────────────────────────────────
+
+router.get('/users', requireAdmin, async (c) => {
+  const q = c.req.query('q') || undefined
+  const role = c.req.query('role') || undefined
+  const status = c.req.query('status') || undefined
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '25', 10)))
+
+  const { users, total } = await getAdminUsers(c.env.DB, { q, role, status, page, limit })
+  return c.json({ users, total, page, limit })
+})
+
+// ─── GET /api/admin/users/:id ─────────────────────────────────────────────────
+
+router.get('/users/:id', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  const user = await getAdminUserById(c.env.DB, id)
+  if (!user) return c.json({ error: 'Not found' }, 404)
+
+  return c.json(user)
+})
+
+// ─── PATCH /api/admin/users/:id ───────────────────────────────────────────────
+
+router.patch('/users/:id', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  let body: unknown
+  try { body = await c.req.json() } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const { role, status } = body as Record<string, unknown>
+
+  const updates: { role?: string; status?: string } = {}
+
+  if (role !== undefined) {
+    if (typeof role !== 'string' || !ALLOWED_ROLES.has(role)) {
+      return c.json({ error: `role must be one of: ${[...ALLOWED_ROLES].join(', ')}` }, 400)
+    }
+    updates.role = role
+  }
+  if (status !== undefined) {
+    if (typeof status !== 'string' || !ALLOWED_STATUSES.has(status)) {
+      return c.json({ error: `status must be one of: ${[...ALLOWED_STATUSES].join(', ')}` }, 400)
+    }
+    updates.status = status
+  }
+
+  if (!Object.keys(updates).length) {
+    return c.json({ error: 'No valid fields to update' }, 400)
+  }
+
+  const existing = await getAdminUserById(c.env.DB, id)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  await updateUserRoleAndStatus(c.env.DB, id, updates)
+
+  // Log the admin action
+  const adminId = c.get('adminId')
+  if (updates.status && updates.status !== existing.status) {
+    const action = updates.status === 'banned' ? 'banned' : 'unbanned'
+    await insertUserActivity(c.env.DB, {
+      user_id: id,
+      action,
+      metadata: { by_admin_id: adminId, previous_status: existing.status },
+    })
+  }
+  if (updates.role && updates.role !== existing.role) {
+    await insertUserActivity(c.env.DB, {
+      user_id: id,
+      action: 'role_changed',
+      metadata: { by_admin_id: adminId, from_role: existing.role, to_role: updates.role },
+    })
+  }
+
+  const updated = await getAdminUserById(c.env.DB, id)
+  return c.json(updated)
+})
+
+// ─── GET /api/admin/users/:id/orders ─────────────────────────────────────────
+
+router.get('/users/:id/orders', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const { orders, total } = await getOrdersByUserId(c.env.DB, id, page, 25)
+  return c.json({ orders, total, page, limit: 25 })
+})
+
+// ─── GET /api/admin/users/:id/activity ───────────────────────────────────────
+
+router.get('/users/:id/activity', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const { items, total } = await getUserActivity(c.env.DB, id, page, 25)
+  return c.json({ items, total, page, limit: 25 })
+})
+
+// ─── POST /api/admin/notifications ───────────────────────────────────────────
+
+router.post('/notifications', requireAdmin, async (c) => {
+  let body: unknown
+  try { body = await c.req.json() } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const { user_id, message, button_label, button_url } = body as Record<string, unknown>
+
+  if (typeof user_id !== 'number' && typeof user_id !== 'string') {
+    return c.json({ error: 'user_id is required' }, 400)
+  }
+  if (typeof message !== 'string' || !message.trim()) {
+    return c.json({ error: 'message is required' }, 400)
+  }
+  if (message.length > 4096) {
+    return c.json({ error: 'message must be ≤ 4096 characters' }, 400)
+  }
+  if (button_label !== undefined && typeof button_label !== 'string') {
+    return c.json({ error: 'button_label must be a string' }, 400)
+  }
+  if (button_url !== undefined && typeof button_url !== 'string') {
+    return c.json({ error: 'button_url must be a string' }, 400)
+  }
+
+  const userId = parseInt(String(user_id), 10)
+  if (Number.isNaN(userId)) return c.json({ error: 'Invalid user_id' }, 400)
+
+  const user = await getAdminUserById(c.env.DB, userId)
+  if (!user) return c.json({ error: 'User not found' }, 404)
+
+  if (!user.telegram_user_id) {
+    return c.json({ error: 'User has no Telegram account linked' }, 422)
+  }
+
+  const botToken = c.env.TELEGRAM_BOT_TOKEN
+  if (!botToken) return c.json({ error: 'Bot not configured' }, 503)
+
+  const adminId = c.get('adminId')
+  let telegramMessageId: number | null = null
+  let status = 'sent'
+  let errorDetail: string | null = null
+
+  try {
+    const payload: Record<string, unknown> = {
+      chat_id: user.telegram_user_id,
+      text: message,
+      parse_mode: 'HTML',
+    }
+    if (button_label && button_url) {
+      payload.reply_markup = {
+        inline_keyboard: [[{ text: button_label, url: button_url }]],
+      }
+    }
+
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json() as { ok: boolean; result?: { message_id: number }; description?: string }
+
+    if (data.ok) {
+      telegramMessageId = data.result?.message_id ?? null
+    } else {
+      status = 'failed'
+      errorDetail = data.description ?? 'Telegram API error'
+    }
+  } catch (err) {
+    status = 'failed'
+    errorDetail = err instanceof Error ? err.message : String(err)
+  }
+
+  const notifId = await insertNotification(c.env.DB, {
+    user_id: userId,
+    message: (message as string).trim(),
+    button_label: typeof button_label === 'string' ? button_label.trim() : null,
+    button_url: typeof button_url === 'string' ? button_url.trim() : null,
+    telegram_message_id: telegramMessageId,
+    sent_by_admin_id: adminId,
+    status,
+    error_detail: errorDetail,
+  })
+
+  // Log to user activity
+  await insertUserActivity(c.env.DB, {
+    user_id: userId,
+    action: 'notified',
+    metadata: { by_admin_id: adminId, status, notification_id: notifId },
+  })
+
+  if (status === 'failed') {
+    return c.json({ ok: false, error: errorDetail, id: notifId }, 422)
+  }
+
+  return c.json({ ok: true, id: notifId, telegram_message_id: telegramMessageId })
+})
+
+// ─── GET /api/admin/notifications ────────────────────────────────────────────
+
+router.get('/notifications', requireAdmin, async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '25', 10)))
+  const { items, total } = await getNotifications(c.env.DB, page, limit)
+  return c.json({ items, total, page, limit })
+})
+
+export default router

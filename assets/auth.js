@@ -14,17 +14,34 @@
     if (cached) { try { return JSON.parse(cached) } catch {} }
 
     const token = getToken()
-    if (!token) return null
+    const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me'
 
+    // Try Bearer token (email auth)
+    if (token) {
+      try {
+        const res = await fetch(API + '/api/auth/me', {
+          headers: { Authorization: 'Bearer ' + token },
+        })
+        if (res.ok) {
+          const user = await res.json()
+          sessionStorage.setItem(USER_KEY, JSON.stringify(user))
+          return user
+        }
+        clearToken()
+      } catch { /* fall through to cookie auth */ }
+    }
+
+    // Try cookie-based auth (phone/Telegram auth)
     try {
-      const res = await fetch(window.LOOM_CONFIG.API_BASE + '/api/auth/me', {
-        headers: { Authorization: 'Bearer ' + token },
-      })
-      if (!res.ok) { clearToken(); return null }
-      const user = await res.json()
-      sessionStorage.setItem(USER_KEY, JSON.stringify(user))
-      return user
-    } catch { return null }
+      const res = await fetch(API + '/api/auth/me', { credentials: 'include' })
+      if (res.ok) {
+        const user = await res.json()
+        sessionStorage.setItem(USER_KEY, JSON.stringify(user))
+        return user
+      }
+    } catch {}
+
+    return null
   }
 
   // ── Auth API calls ─────────────────────────────────────────────────────────
@@ -57,8 +74,15 @@
     return data
   }
 
-  function logout() {
+  async function logout() {
     clearToken()
+    // Clear phone-auth cookie too
+    try {
+      await fetch((window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me') + '/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch {}
     window.location.href = 'index.html'
   }
 
@@ -80,7 +104,7 @@
         return
       }
 
-      const displayName = user.name ? user.name.split(' ')[0] : user.email.split('@')[0]
+      const displayName = user.first_name || (user.name ? user.name.split(' ')[0] : null) || (user.phone ? user.phone : null) || (user.email && !user.email.includes('@telegram.loom') ? user.email.split('@')[0] : null) || 'Аккаунт'
       slot.innerHTML = `
         <div class="auth-dropdown">
           <button class="auth-dropdown-btn" aria-haspopup="true" aria-expanded="false">

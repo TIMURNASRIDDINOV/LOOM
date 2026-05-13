@@ -5,7 +5,6 @@ import {
   createProduct,
   updateProduct,
   softDeleteProduct,
-  getAdminStats,
   AdminProductsFilter,
 } from '../db/queries'
 import { requireAdmin } from '../middleware/requireAdmin'
@@ -75,13 +74,6 @@ function parseColors(val: unknown): string | null | { error: string } {
 
 const router = new Hono<AdminEnv>()
 
-// ─── GET /api/admin/stats ─────────────────────────────────────────────────────
-
-router.get('/stats', requireAdmin, async (c) => {
-  const stats = await getAdminStats(c.env.DB)
-  return c.json(stats)
-})
-
 // ─── GET /api/admin/products ──────────────────────────────────────────────────
 
 router.get('/products', requireAdmin, async (c) => {
@@ -121,7 +113,7 @@ router.post('/products', requireAdmin, async (c) => {
   try {
     formData = await c.req.formData()
   } catch {
-    return c.json({ error: 'Expected multipart/form-data' }, 400)
+    return c.json({ ok: false, error: { code: 'INVALID_CONTENT_TYPE', message: 'Expected multipart/form-data' } }, 400)
   }
 
   // Required text fields
@@ -130,55 +122,73 @@ router.post('/products', requireAdmin, async (c) => {
   const name_en = (formData.get('name_en') as string | null)?.trim() || null
   const description_ru = (formData.get('description_ru') as string | null)?.trim() || null
 
-  if (!slug) return c.json({ error: 'slug is required' }, 400)
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return c.json({ error: 'slug must be kebab-case (a-z, 0-9, hyphens)' }, 400)
-  if (!name_ru) return c.json({ error: 'name_ru is required' }, 400)
+  if (!slug) return c.json({ ok: false, error: { code: 'REQUIRED', message: 'slug is required', field: 'slug' } }, 400)
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    return c.json({ ok: false, error: { code: 'INVALID', message: 'slug must be kebab-case (a-z, 0-9, hyphens)', field: 'slug' } }, 400)
+  }
+  if (!name_ru) return c.json({ ok: false, error: { code: 'REQUIRED', message: 'name_ru is required', field: 'name_ru' } }, 400)
 
   const priceRaw = formData.get('price')
   const price = parseInt(String(priceRaw ?? ''), 10)
-  if (Number.isNaN(price) || price < 0) return c.json({ error: 'price must be a non-negative integer' }, 400)
+  if (Number.isNaN(price) || price < 0) {
+    return c.json({ ok: false, error: { code: 'INVALID', message: 'price must be a non-negative integer', field: 'price' } }, 400)
+  }
 
   const display_order = parseInt(String(formData.get('display_order') ?? '0'), 10) || 0
   const active = formData.get('active') === '0' ? 0 : 1
 
   const colorsResult = parseColors(formData.get('base_colors'))
   if (colorsResult !== null && typeof colorsResult === 'object' && 'error' in colorsResult) {
-    return c.json({ error: colorsResult.error }, 400)
+    return c.json({ ok: false, error: { code: 'INVALID', message: colorsResult.error, field: 'base_colors' } }, 400)
   }
   const base_colors = colorsResult as string | null
 
   // GLB (required)
   const glbFile = getFileField(formData, 'glb')
-  if (!glbFile) return c.json({ error: 'glb file is required' }, 400)
+  if (!glbFile) return c.json({ ok: false, error: { code: 'REQUIRED', message: 'glb file is required', field: 'glb' } }, 400)
   const glbError = validateGlb(glbFile)
-  if (glbError) return c.json({ error: glbError }, 400)
+  if (glbError) return c.json({ ok: false, error: { code: 'INVALID', message: glbError, field: 'glb' } }, 400)
 
-  // Thumbnail (optional)
-  const thumbFile = getFileField(formData, 'thumbnail')
-  let thumbnail_key: string | null = null
-  if (thumbFile) {
-    const thumbResult = validateThumbnail(thumbFile)
-    if ('error' in thumbResult) return c.json({ error: thumbResult.error }, 400)
-    thumbnail_key = `thumbnails/${slug}.${thumbResult.ext}`
-    await c.env.LOOM_MODELS.put(thumbnail_key, thumbFile.stream(), {
-      httpMetadata: { contentType: thumbFile.type },
+  try {
+    // Thumbnail (optional)
+    const thumbFile = getFileField(formData, 'thumbnail')
+    let thumbnail_key: string | null = null
+    if (thumbFile) {
+      const thumbResult = validateThumbnail(thumbFile)
+      if ('error' in thumbResult) {
+        return c.json({ ok: false, error: { code: 'INVALID', message: thumbResult.error, field: 'thumbnail' } }, 400)
+      }
+      thumbnail_key = `thumbnails/${slug}.${thumbResult.ext}`
+      await c.env.LOOM_MODELS.put(thumbnail_key, thumbFile.stream(), {
+        httpMetadata: { contentType: thumbFile.type },
+      })
+    }
+
+    // Upload GLB
+    const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
+    const glb_key = `glb/${slug}.${glbExt}`
+    await c.env.LOOM_MODELS.put(glb_key, glbFile.stream(), {
+      httpMetadata: { contentType: glbFile.type || 'model/gltf-binary' },
     })
+
+    const id = await createProduct(c.env.DB, {
+      slug, name_ru, name_en, description_ru, price,
+      glb_key, thumbnail_key, base_colors, active, display_order,
+    })
+
+    const product = await getProductById(c.env.DB, id)
+    return c.json({ ok: true, product: withUrls(c.req.url, product as unknown as Record<string, unknown>) }, 201)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[admin-products] POST /products failed:', msg)
+
+    // Detect duplicate slug
+    if (msg.includes('UNIQUE constraint failed') || msg.includes('unique')) {
+      return c.json({ ok: false, error: { code: 'SLUG_EXISTS', message: `A product with slug "${slug}" already exists`, field: 'slug' } }, 409)
+    }
+
+    return c.json({ ok: false, error: { code: 'INTERNAL', message: 'Failed to create product. Check server logs.' } }, 500)
   }
-
-  // Upload GLB
-  const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
-  const glb_key = `glb/${slug}.${glbExt}`
-  await c.env.LOOM_MODELS.put(glb_key, glbFile.stream(), {
-    httpMetadata: { contentType: glbFile.type || 'model/gltf-binary' },
-  })
-
-  const id = await createProduct(c.env.DB, {
-    slug, name_ru, name_en, description_ru, price,
-    glb_key, thumbnail_key, base_colors, active, display_order,
-  })
-
-  const product = await getProductById(c.env.DB, id)
-  return c.json(withUrls(c.req.url, product as unknown as Record<string, unknown>), 201)
 })
 
 // ─── PATCH /api/admin/products/:id ───────────────────────────────────────────

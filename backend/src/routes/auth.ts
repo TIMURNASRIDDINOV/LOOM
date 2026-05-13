@@ -67,12 +67,22 @@ auth.post('/login', async (c) => {
   return c.json({ token, user: { id: user.id, email: user.email, name: user.name } })
 })
 
-// ─── GET /api/auth/me  (requires Bearer token) ────────────────────────────────
+// ─── GET /api/auth/me  (requires Bearer token or user_token cookie) ──────────
 
 auth.get('/me', requireAuth, async (c) => {
   const user = await getUserById(c.env.DB, c.get('userId'))
   if (!user) return c.json({ error: 'Not found' }, 404)
-  return c.json({ id: user.id, email: user.email, name: user.name, phone: user.phone })
+  return c.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    first_name: user.first_name ?? null,
+    last_name: user.last_name ?? null,
+    telegram_username: user.telegram_username ?? null,
+    role: user.role ?? 'customer',
+    status: user.status ?? 'active',
+  })
 })
 
 // ─── GET /api/me/orders  (requires Bearer token) ─────────────────────────────

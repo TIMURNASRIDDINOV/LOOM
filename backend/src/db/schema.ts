@@ -34,6 +34,46 @@ export interface User {
   name: string | null
   phone: string | null
   created_at: number
+  // Added in migration 0003
+  telegram_user_id: number | null
+  telegram_username: string | null
+  first_name: string | null
+  last_name: string | null
+  role: string
+  status: string
+  last_login_at: number | null
+}
+
+export interface AuthSession {
+  id: string
+  phone: string
+  status: string   // pending|verified|failed|expired
+  jwt: string | null
+  user_id: number | null
+  telegram_user_id: number | null
+  created_at: number
+  expires_at: number
+}
+
+export interface UserActivity {
+  id: number
+  user_id: number
+  action: string
+  metadata: string | null
+  created_at: number
+}
+
+export interface NotificationSent {
+  id: number
+  user_id: number
+  message: string
+  button_label: string | null
+  button_url: string | null
+  telegram_message_id: number | null
+  sent_at: number
+  sent_by_admin_id: number | null
+  status: string
+  error_detail: string | null
 }
 
 export interface Admin {

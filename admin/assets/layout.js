@@ -2,9 +2,11 @@
 
 ;(function () {
   const NAV_ITEMS = [
-    { id: 'dashboard', label: 'Dashboard', href: 'dashboard.html', icon: '⊞' },
-    { id: 'orders',    label: 'Заказы',     href: 'orders.html',   icon: '◫' },
-    { id: 'products',  label: 'Продукты',   href: 'products.html', icon: '◻' },
+    { id: 'dashboard',     label: 'Dashboard',    href: 'dashboard.html',     icon: '⊞' },
+    { id: 'orders',        label: 'Заказы',        href: 'orders.html',        icon: '◫' },
+    { id: 'products',      label: 'Продукты',      href: 'products.html',      icon: '◻' },
+    { id: 'users',         label: 'Пользователи',  href: 'users.html',         icon: '○' },
+    { id: 'notifications', label: 'Уведомления',   href: 'notifications.html', icon: '▷' },
   ]
 
   const CSS = `

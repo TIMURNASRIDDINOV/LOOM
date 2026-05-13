@@ -1,16 +1,21 @@
 import { createMiddleware } from 'hono/factory'
+import { getCookie } from 'hono/cookie'
 import { verifyToken } from '../lib/jwt'
 import type { UserEnv } from '../types'
 
 export const requireAuth = createMiddleware<UserEnv>(async (c, next) => {
+  // Accept Bearer token (email auth) or user_token cookie (phone/Telegram auth)
+  let token: string | undefined
   const auth = c.req.header('Authorization')
-  if (!auth?.startsWith('Bearer ')) {
-    return c.json({ error: 'Unauthorized' }, 401)
+  if (auth?.startsWith('Bearer ')) {
+    token = auth.slice(7)
+  } else {
+    token = getCookie(c, 'user_token') ?? undefined
   }
 
-  const token = auth.slice(7)
-  const payload = await verifyToken(token, c.env.JWT_SECRET)
+  if (!token) return c.json({ error: 'Unauthorized' }, 401)
 
+  const payload = await verifyToken(token, c.env.JWT_SECRET)
   if (!payload || payload.role !== 'user') {
     return c.json({ error: 'Unauthorized' }, 401)
   }

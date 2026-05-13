@@ -2,8 +2,10 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import publicRoutes from './routes/public'
 import authRoutes from './routes/auth'
+import telegramAuthRoutes, { webhookRouter } from './routes/telegram-auth'
 import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
+import adminUsersRoutes from './routes/admin-users'
 import filesRoutes from './routes/files'
 import type { BaseEnv } from './types'
 
@@ -21,8 +23,6 @@ const DEV_ORIGINS = [
 const app = new Hono<BaseEnv>()
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-// Dev origins (localhost) are only included when ENVIRONMENT !== "production".
-// The 'null' origin (file:// protocol) is intentionally excluded from all envs.
 
 app.use('*', (c, next) => {
   const allowed =
@@ -38,15 +38,17 @@ app.use('*', (c, next) => {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-app.route('/api', publicRoutes)           // GET /api/products, GET /api/products/:slug, POST /api/orders, POST /api/uploads, GET /api/me/orders
-app.route('/api/auth', authRoutes)        // POST /api/auth/register, /login, GET /api/auth/me
-app.route('/api/admin', adminRoutes)      // /api/admin/* (orders, auth, media)
-app.route('/api/admin', setupRouter)      // POST /api/admin/setup (no auth required)
-app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/admin/stats
-app.route('/api/files', filesRoutes)      // GET /api/files/models/:key
+app.route('/api', publicRoutes)                  // GET /api/products, POST /api/orders, …
+app.route('/api/auth', authRoutes)               // POST /api/auth/register, /login, GET /api/auth/me
+app.route('/api/auth', telegramAuthRoutes)       // POST /api/auth/telegram/start, GET /api/auth/telegram/status, POST /api/auth/logout
+app.route('/api/telegram', webhookRouter)        // POST /api/telegram/webhook
+app.route('/api/admin', adminRoutes)             // /api/admin/* (orders, login, logout, me, refresh, media)
+app.route('/api/admin', setupRouter)             // POST /api/admin/setup (no auth required)
+app.route('/api/admin', adminUsersRoutes)        // GET/PATCH /api/admin/users, /api/admin/notifications, /api/admin/stats
+app.route('/api/admin', adminProductsRoutes)     // /api/admin/products/*
+app.route('/api/files', filesRoutes)             // GET /api/files/models/:key
 
 // ─── Admin subdomain redirect ─────────────────────────────────────────────────
-// admin.looom.me/* → https://www.looom.me/admin/*
 
 app.all('*', (c, next) => {
   const host = new URL(c.req.url).hostname
@@ -58,13 +60,13 @@ app.all('*', (c, next) => {
   return next()
 })
 
-// ─── Health check ────────────────────────────────────────────────────────────
+// ─── Health check ─────────────────────────────────────────────────────────────
 
 app.get('/', (c) =>
-  c.json({ service: 'LOOM Backend', version: '0.2.0', status: 'ok' }),
+  c.json({ service: 'LOOM Backend', version: '0.3.0', status: 'ok' }),
 )
 
-// ─── 404 / Error ─────────────────────────────────────────────────────────────
+// ─── 404 / Error ──────────────────────────────────────────────────────────────
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 
