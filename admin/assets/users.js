@@ -13,8 +13,14 @@
   }
 
   function roleBadge(role) {
-    if (role === 'admin') return '<span class="badge badge-admin">admin</span>'
-    return '<span class="badge badge-customer">customer</span>'
+    const map = {
+      owner:       ['OWNER',       '#fbbf24', 'rgba(251,191,36,0.15)'],
+      super_admin: ['SUPER ADMIN', '#a78bfa', 'rgba(167,139,250,0.15)'],
+      admin:       ['ADMIN',       '#60a5fa', 'rgba(96,165,250,0.15)'],
+      user:        ['USER',        'rgba(255,255,255,0.5)', 'rgba(255,255,255,0.06)'],
+    }
+    const [label, color, bg] = map[role] || ['?', 'rgba(255,255,255,0.3)', 'transparent']
+    return `<span class="badge" style="color:${color};background:${bg};border:1px solid ${color}30">${label}</span>`
   }
 
   function statusBadge(status) {

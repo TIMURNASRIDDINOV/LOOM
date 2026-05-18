@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
-import { getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId } from '../db/queries'
+import { getCookie } from 'hono/cookie'
+import { getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId, getUserById } from '../db/queries'
 import { validateUpload, generateLogoKey } from '../lib/r2'
 import { verifyToken } from '../lib/jwt'
 import { requireAuth } from '../middleware/requireAuth'
@@ -85,12 +86,31 @@ pub.post('/orders', async (c) => {
     return c.json({ error: 'totalPrice must be a non-negative number' }, 400)
   }
 
-  // Optional: resolve user_id from Bearer token if present
+  // Required auth: Bearer token or user_token cookie
   let userId: number | null = null
+  let token: string | undefined
   const authHeader = c.req.header('Authorization')
   if (authHeader?.startsWith('Bearer ')) {
-    const payload = await verifyToken(authHeader.slice(7), c.env.JWT_SECRET)
-    if (payload?.role === 'user') userId = parseInt(payload.sub, 10)
+    token = authHeader.slice(7)
+  } else {
+    token = getCookie(c, 'user_token') ?? undefined
+  }
+
+  if (!token) {
+    return c.json({ error: 'Authentication required to place an order' }, 401)
+  }
+
+  const payload = await verifyToken(token, c.env.JWT_SECRET)
+  if (!payload || payload.role !== 'user') {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  userId = parseInt(payload.sub, 10)
+
+  // Check if user is banned
+  const userRecord = await getUserById(c.env.DB, userId)
+  if (userRecord?.status === 'banned') {
+    return c.json({ error: 'Your account has been blocked' }, 403)
   }
 
   // Optional: validate productId

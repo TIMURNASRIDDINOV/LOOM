@@ -1701,6 +1701,21 @@ function getColorName(hex) {
 }
 
 function openOrderModal() {
+  // Strict auth gate — must be logged in to place an order
+  if (window.LOOM_AUTH) {
+    window.LOOM_AUTH.getCurrentUser().then((user) => {
+      if (!user) {
+        window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search)
+        return
+      }
+      _openOrderModalInner()
+    })
+    return
+  }
+  _openOrderModalInner()
+}
+
+function _openOrderModalInner() {
   updateSummaryTab(); // ensures snapshot + summary info are fresh
 
   // Populate the existing order modal's summary section

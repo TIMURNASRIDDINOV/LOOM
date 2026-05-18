@@ -622,7 +622,7 @@ export async function upsertPhoneUser(
       .prepare(
         `INSERT INTO users (email, password_hash, phone, telegram_user_id, telegram_username,
          first_name, last_name, role, status, created_at, last_login_at)
-         VALUES (?, 'telegram_auth', ?, ?, ?, ?, ?, 'customer', 'active', ?, ?)`,
+         VALUES (?, 'telegram_auth', ?, ?, ?, ?, ?, 'user', 'active', ?, ?)`,
       )
       .bind(
         syntheticEmail,
@@ -896,6 +896,55 @@ export async function getAdminStatsExtended(db: D1Database): Promise<AdminStatsE
       newUsersLast7Days: week7Row?.c ?? 0,
       newUsersLast30Days: month30Row?.c ?? 0,
     }
+  })
+}
+
+// ─── Role management ──────────────────────────────────────────────────────────
+
+export async function getUserRole(db: D1Database, id: number): Promise<string | null> {
+  return safeQuery('getUserRole', async () => {
+    const row = await db
+      .prepare('SELECT role FROM users WHERE id = ?')
+      .bind(id)
+      .first<{ role: string }>()
+    return row?.role ?? null
+  })
+}
+
+export async function setUserRole(db: D1Database, id: number, role: string): Promise<void> {
+  return safeQuery('setUserRole', async () => {
+    await db
+      .prepare('UPDATE users SET role = ? WHERE id = ?')
+      .bind(role, id)
+      .run()
+  })
+}
+
+export async function getUsersWithRole(db: D1Database, role: string): Promise<User[]> {
+  return safeQuery('getUsersWithRole', async () => {
+    const { results } = await db
+      .prepare('SELECT * FROM users WHERE role = ?')
+      .bind(role)
+      .all<User>()
+    return results
+  })
+}
+
+export async function updateUserAvatar(db: D1Database, id: number, avatarKey: string): Promise<void> {
+  return safeQuery('updateUserAvatar', async () => {
+    await db
+      .prepare('UPDATE users SET avatar_key = ? WHERE id = ?')
+      .bind(avatarKey, id)
+      .run()
+  })
+}
+
+export async function updateUserDisplayName(db: D1Database, id: number, firstName: string): Promise<void> {
+  return safeQuery('updateUserDisplayName', async () => {
+    await db
+      .prepare('UPDATE users SET first_name = ? WHERE id = ?')
+      .bind(firstName, id)
+      .run()
   })
 }
 

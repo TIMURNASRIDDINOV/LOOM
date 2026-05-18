@@ -9,13 +9,15 @@ import {
   insertNotification,
   getNotifications,
   getAdminStatsExtended,
+  getUsersWithRole,
+  setUserRole,
 } from '../db/queries'
 import { requireAdmin } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
 
 const router = new Hono<AdminEnv>()
 
-const ALLOWED_ROLES = new Set(['customer', 'admin'])
+const ALLOWED_ROLES = new Set(['user', 'admin', 'super_admin', 'owner'])
 const ALLOWED_STATUSES = new Set(['active', 'banned'])
 
 // ─── GET /api/admin/stats (extended) ─────────────────────────────────────────
@@ -107,6 +109,90 @@ router.patch('/users/:id', requireAdmin, async (c) => {
 
   const updated = await getAdminUserById(c.env.DB, id)
   return c.json(updated)
+})
+
+// ─── PATCH /api/admin/users/:id/role ─────────────────────────────────────────
+
+router.patch('/users/:id/role', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  let body: unknown
+  try { body = await c.req.json() } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const { role } = body as Record<string, unknown>
+  if (typeof role !== 'string' || !ALLOWED_ROLES.has(role)) {
+    return c.json({ error: `role must be one of: ${[...ALLOWED_ROLES].join(', ')}` }, 400)
+  }
+
+  const existing = await getAdminUserById(c.env.DB, id)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  if (role === 'owner') {
+    // Find existing owner and demote to 'user' first
+    const owners = await getUsersWithRole(c.env.DB, 'owner')
+    for (const owner of owners) {
+      if (owner.id !== id) {
+        await setUserRole(c.env.DB, owner.id, 'user')
+        const adminId = c.get('adminId')
+        await insertUserActivity(c.env.DB, {
+          user_id: owner.id,
+          action: 'role_changed',
+          metadata: { by_admin_id: adminId, from_role: 'owner', to_role: 'user', reason: 'owner_transfer' },
+        })
+      }
+    }
+  }
+
+  await setUserRole(c.env.DB, id, role)
+
+  const adminId = c.get('adminId')
+  if (role !== existing.role) {
+    await insertUserActivity(c.env.DB, {
+      user_id: id,
+      action: 'role_changed',
+      metadata: { by_admin_id: adminId, from_role: existing.role, to_role: role },
+    })
+  }
+
+  return c.json({ ok: true, role })
+})
+
+// ─── PATCH /api/admin/users/:id/status ────────────────────────────────────────
+// Explicit status-only endpoint (convenience wrapper over PATCH /users/:id)
+
+router.patch('/users/:id/status', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  let body: unknown
+  try { body = await c.req.json() } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const { status } = body as Record<string, unknown>
+  if (typeof status !== 'string' || !ALLOWED_STATUSES.has(status)) {
+    return c.json({ error: `status must be one of: ${[...ALLOWED_STATUSES].join(', ')}` }, 400)
+  }
+
+  const existing = await getAdminUserById(c.env.DB, id)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  await updateUserRoleAndStatus(c.env.DB, id, { status })
+
+  const adminId = c.get('adminId')
+  if (status !== existing.status) {
+    const action = status === 'banned' ? 'banned' : 'unbanned'
+    await insertUserActivity(c.env.DB, {
+      user_id: id,
+      action,
+      metadata: { by_admin_id: adminId, previous_status: existing.status },
+    })
+  }
+
+  return c.json({ ok: true, status })
 })
 
 // ─── GET /api/admin/users/:id/orders ─────────────────────────────────────────

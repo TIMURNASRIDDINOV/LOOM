@@ -11,6 +11,17 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
 
+  function roleBadge(role) {
+    const map = {
+      owner:       ['OWNER',       '#fbbf24', 'rgba(251,191,36,0.15)'],
+      super_admin: ['SUPER ADMIN', '#a78bfa', 'rgba(167,139,250,0.15)'],
+      admin:       ['ADMIN',       '#60a5fa', 'rgba(96,165,250,0.15)'],
+      user:        ['USER',        'rgba(255,255,255,0.5)', 'rgba(255,255,255,0.06)'],
+    }
+    const [label, color, bg] = map[role] || ['?', 'rgba(255,255,255,0.3)', 'transparent']
+    return `<span class="badge" style="color:${color};background:${bg};border:1px solid ${color}30">${label}</span>`
+  }
+
   function renderUserInfo(u) {
     currentUser = u
     document.getElementById('page-title').textContent = u.phone || `Пользователь #${u.id}`
@@ -21,7 +32,6 @@
       ['Имя', [u.first_name, u.last_name].filter(Boolean).join(' ') || '—'],
       ['Telegram', u.telegram_username ? '@' + u.telegram_username : '—'],
       ['Telegram ID', u.telegram_user_id ? String(u.telegram_user_id) : '—'],
-      ['Роль', u.role],
       ['Статус', u.status],
       ['Заказов', String(u.orders_count ?? 0)],
       ['Потрачено', formatPrice(u.total_spent ?? 0)],
@@ -29,10 +39,13 @@
       ['Последний вход', u.last_login_at ? formatDate(u.last_login_at) : '—'],
     ]
 
-    document.getElementById('user-info').innerHTML = rows.map(([label, val]) => `
-      <span class="info-label">${escHtml(label)}</span>
-      <span class="info-value">${escHtml(val)}</span>
-    `).join('')
+    document.getElementById('user-info').innerHTML =
+      // Role row with badge
+      `<span class="info-label">Роль</span><span class="info-value">${roleBadge(u.role)}</span>` +
+      rows.map(([label, val]) => `
+        <span class="info-label">${escHtml(label)}</span>
+        <span class="info-value">${escHtml(val)}</span>
+      `).join('')
 
     // Show action buttons
     const actions = document.getElementById('user-actions')
@@ -44,10 +57,40 @@
       ? 'btn-action'
       : 'btn-action danger'
 
-    const toggleRoleBtn = document.getElementById('btn-toggle-role')
-    toggleRoleBtn.textContent = u.role === 'admin'
-      ? 'Снять роль администратора'
-      : 'Назначить администратором'
+    // Role selector dropdown
+    const roleContainer = document.getElementById('role-select-container')
+    if (roleContainer) {
+      roleContainer.innerHTML = `
+        <select id="role-select" style="
+          padding:0.45rem 0.75rem;border-radius:3px;
+          border:0.5px solid rgba(255,255,255,0.2);
+          background:rgba(255,255,255,0.05);color:#fff;
+          font-family:inherit;font-size:0.8rem;cursor:pointer;outline:none;
+        ">
+          <option value="user"${u.role === 'user' ? ' selected' : ''}>user</option>
+          <option value="admin"${u.role === 'admin' ? ' selected' : ''}>admin</option>
+          <option value="super_admin"${u.role === 'super_admin' ? ' selected' : ''}>super_admin</option>
+          <option value="owner"${u.role === 'owner' ? ' selected' : ''}>owner</option>
+        </select>
+        <button class="btn-action" id="btn-apply-role" style="margin-left:0.4rem">Сохранить роль</button>
+      `
+      document.getElementById('btn-apply-role').addEventListener('click', async () => {
+        const newRole = document.getElementById('role-select').value
+        if (newRole === currentUser.role) return
+        const label = newRole === 'owner' ? 'передать права владельца' : `назначить роль "${newRole}"`
+        if (!confirm(`Вы уверены, что хотите ${label}?`)) return
+        try {
+          await apiJSON(`/api/admin/users/${userId}/role`, {
+            method: 'PATCH',
+            body: JSON.stringify({ role: newRole }),
+            headers: { 'Content-Type': 'application/json' },
+          })
+          location.reload()
+        } catch (err) {
+          alert('Ошибка: ' + err.message)
+        }
+      })
+    }
 
     // Notify button only if has Telegram
     document.getElementById('btn-notify').style.display = u.telegram_user_id ? '' : 'none'
@@ -120,18 +163,7 @@
     }
   })
 
-  document.getElementById('btn-toggle-role').addEventListener('click', async () => {
-    if (!currentUser) return
-    const newRole = currentUser.role === 'admin' ? 'customer' : 'admin'
-    const label = newRole === 'admin' ? 'назначить администратором' : 'снять роль администратора'
-    if (!confirm(`Вы уверены, что хотите ${label}?`)) return
-    try {
-      await apiJSON(`/api/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ role: newRole }), headers: { 'Content-Type': 'application/json' } })
-      location.reload()
-    } catch (err) {
-      alert('Ошибка: ' + err.message)
-    }
-  })
+  // Role change is now handled by the role-select dropdown rendered inside renderUserInfo
 
   document.getElementById('btn-notify').addEventListener('click', () => {
     const form = document.getElementById('notif-form')

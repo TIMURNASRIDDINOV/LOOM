@@ -7,6 +7,7 @@ import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
 import filesRoutes from './routes/files'
+import userProfileRoutes from './routes/user-profile'
 import type { BaseEnv } from './types'
 
 const PROD_ORIGINS = [
@@ -46,7 +47,8 @@ app.route('/api/admin', adminRoutes)             // /api/admin/* (orders, login,
 app.route('/api/admin', setupRouter)             // POST /api/admin/setup (no auth required)
 app.route('/api/admin', adminUsersRoutes)        // GET/PATCH /api/admin/users, /api/admin/notifications, /api/admin/stats
 app.route('/api/admin', adminProductsRoutes)     // /api/admin/products/*
-app.route('/api/files', filesRoutes)             // GET /api/files/models/:key
+app.route('/api/files', filesRoutes)             // GET /api/files/models/:key, /api/files/uploads/:key
+app.route('/api', userProfileRoutes)             // GET/PATCH /api/me, POST /api/me/avatar
 
 // ─── Admin subdomain redirect ─────────────────────────────────────────────────
 

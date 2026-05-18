@@ -30,8 +30,8 @@
   function renderProfile(user, container) {
     const rows = [
       ['Телефон', user.phone || '—'],
-      ['Имя',     user.first_name || user.name || '—'],
       ['Email',   (!user.email || user.email.includes('@telegram.loom')) ? '—' : user.email],
+      ['Роль',    user.role || '—'],
     ];
     container.innerHTML = rows.map(([label, val]) => `
       <div class="profile-row">
@@ -39,6 +39,23 @@
         <span class="profile-value">${val}</span>
       </div>
     `).join('');
+  }
+
+  function renderAvatar(user) {
+    const initials = (user.first_name || user.name || user.phone || '?')[0].toUpperCase();
+    const initialsEl = document.getElementById('avatar-initials');
+    const imgEl = document.getElementById('avatar-img');
+    const nameEl = document.getElementById('display-name');
+
+    if (nameEl) nameEl.textContent = user.first_name || user.name || user.phone || '';
+
+    if (user.avatar_url) {
+      if (imgEl) { imgEl.src = user.avatar_url; imgEl.style.display = ''; }
+      if (initialsEl) initialsEl.style.display = 'none';
+    } else {
+      if (imgEl) imgEl.style.display = 'none';
+      if (initialsEl) { initialsEl.style.display = ''; initialsEl.textContent = initials; }
+    }
   }
 
   function renderOrders(orders, container) {
@@ -81,6 +98,13 @@
     return data.orders || [];
   }
 
+  async function fetchProfile(API, token) {
+    const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    const res = await fetch(API + '/api/me', { headers, credentials: 'include' });
+    if (!res.ok) return null;
+    return res.json();
+  }
+
   async function init() {
     const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me';
 
@@ -91,23 +115,132 @@
       return;
     }
 
+    const token = window.LOOM_AUTH.getToken();
+
     // Populate email in sidebar
     const emailEl = document.getElementById('account-email');
     if (emailEl) emailEl.textContent = user.phone || user.email || '';
 
-    // Render profile section
-    const profileEl = document.getElementById('profile-rows');
-    if (profileEl) renderProfile(user, profileEl);
+    // Fetch full profile from /api/me (has avatar_url, role, etc.)
+    let profile = user;
+    try {
+      const fetched = await fetchProfile(API, token);
+      if (fetched) profile = fetched;
+    } catch { /* use local user object */ }
 
-    const token = window.LOOM_AUTH.getToken();
+    // Render avatar and profile
+    renderAvatar(profile);
+    const profileEl = document.getElementById('profile-rows');
+    if (profileEl) renderProfile(profile, profileEl);
+
+    // ── Avatar upload ────────────────────────────────────────────────────────
+    const avatarWrap = document.getElementById('avatar-wrap');
+    const avatarInput = document.getElementById('avatar-input');
+    const avatarStatus = document.getElementById('avatar-status');
+
+    if (avatarWrap && avatarInput) {
+      avatarWrap.addEventListener('click', () => avatarInput.click());
+      avatarInput.addEventListener('change', async () => {
+        const file = avatarInput.files && avatarInput.files[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+          if (avatarStatus) avatarStatus.textContent = 'Файл слишком большой (макс. 2 МБ)';
+          return;
+        }
+        if (avatarStatus) avatarStatus.textContent = 'Загрузка…';
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const headers = token ? { Authorization: 'Bearer ' + token } : {};
+          const res = await fetch(API + '/api/me/avatar', {
+            method: 'POST',
+            headers,
+            body: fd,
+            credentials: 'include',
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Ошибка загрузки');
+          }
+          const { avatar_url } = await res.json();
+          profile.avatar_url = avatar_url;
+          renderAvatar(profile);
+          if (avatarStatus) avatarStatus.textContent = 'Фото обновлено';
+          setTimeout(() => { if (avatarStatus) avatarStatus.textContent = ''; }, 3000);
+        } catch (err) {
+          if (avatarStatus) avatarStatus.textContent = err.message || 'Ошибка';
+        }
+        avatarInput.value = '';
+      });
+    }
+
+    // ── Name edit ────────────────────────────────────────────────────────────
+    const nameEditBtn = document.getElementById('name-edit-btn');
+    const nameEditForm = document.getElementById('name-edit-form');
+    const nameInput = document.getElementById('name-input');
+    const nameSaveBtn = document.getElementById('name-save-btn');
+    const nameCancelBtn = document.getElementById('name-cancel-btn');
+    const nameSaveStatus = document.getElementById('name-save-status');
+
+    if (nameEditBtn && nameEditForm) {
+      nameEditBtn.addEventListener('click', () => {
+        nameEditForm.style.display = '';
+        nameEditBtn.closest('#name-display').querySelector('#display-name').style.display = 'none';
+        nameEditBtn.style.display = 'none';
+        if (nameInput) nameInput.value = profile.first_name || '';
+        nameInput && nameInput.focus();
+      });
+
+      const cancelEdit = () => {
+        nameEditForm.style.display = 'none';
+        const nameDisplay = document.getElementById('display-name');
+        if (nameDisplay) nameDisplay.style.display = '';
+        if (nameEditBtn) nameEditBtn.style.display = '';
+        if (nameSaveStatus) nameSaveStatus.textContent = '';
+      };
+
+      if (nameCancelBtn) nameCancelBtn.addEventListener('click', cancelEdit);
+
+      if (nameSaveBtn) {
+        nameSaveBtn.addEventListener('click', async () => {
+          const newName = (nameInput && nameInput.value.trim()) || '';
+          if (!newName) { if (nameSaveStatus) { nameSaveStatus.style.color = '#f87171'; nameSaveStatus.textContent = 'Введите имя'; } return; }
+          if (nameSaveStatus) { nameSaveStatus.style.color = 'rgba(255,255,255,0.4)'; nameSaveStatus.textContent = 'Сохранение…'; }
+          try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            const res = await fetch(API + '/api/me', {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({ first_name: newName }),
+              credentials: 'include',
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || 'Ошибка');
+            }
+            const updated = await res.json();
+            profile.first_name = updated.first_name;
+            renderAvatar(profile);
+            cancelEdit();
+          } catch (err) {
+            if (nameSaveStatus) { nameSaveStatus.style.color = '#f87171'; nameSaveStatus.textContent = err.message || 'Ошибка'; }
+          }
+        });
+      }
+
+      if (nameInput) {
+        nameInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') nameSaveBtn && nameSaveBtn.click();
+          if (e.key === 'Escape') cancelEdit();
+        });
+      }
+    }
+
     const ordersContainer = document.getElementById('orders-container');
 
     // Initial load
     let currentOrders = [];
-    const ordersEl = document.getElementById('orders-body');
-    if (ordersEl) {
-      ordersEl.innerHTML = '<tr><td colspan="4" style="color:rgba(255,255,255,0.35);font-size:0.82rem;padding:0.75rem">Загрузка…</td></tr>';
-    }
 
     try {
       currentOrders = await fetchOrders(API, token);
