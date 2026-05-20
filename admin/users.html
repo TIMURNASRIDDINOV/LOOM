@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Пользователи — LOOM Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+    :root { --mono: 'DM Mono', monospace; --hairline: rgba(255,255,255,0.08); --muted: rgba(255,255,255,0.45); }
+
+    .page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem; }
+    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0; }
+
+    /* Search */
+    .search-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .search-input {
+      padding: 0.55rem 0.9rem; border-radius: 3px;
+      border: 0.5px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05); color: #fff;
+      font-family: inherit; font-size: 0.85rem; outline: none;
+      width: 260px; transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: rgba(255,255,255,0.3); }
+    .search-input::placeholder { color: rgba(255,255,255,0.25); }
+    .btn-sm { padding: 0.5rem 0.9rem; border-radius: 3px; border: 0.5px solid rgba(255,255,255,0.15); background: transparent; color: rgba(255,255,255,0.6); font-family: inherit; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
+    .btn-sm:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+
+    /* Table */
+    .card { background: #0f0f0f; border: 0.5px solid var(--hairline); border-radius: 4px; overflow: hidden; }
+    .users-table { width: 100%; border-collapse: collapse; }
+    .users-table th { padding: 0.7rem 1rem; text-align: left; font-size: 0.68rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-bottom: 0.5px solid var(--hairline); white-space: nowrap; }
+    .users-table td { padding: 0.7rem 1rem; font-size: 0.83rem; border-bottom: 0.5px solid rgba(255,255,255,0.04); vertical-align: middle; }
+    .users-table tr:last-child td { border-bottom: none; }
+    .users-table tbody tr:hover td { background: rgba(255,255,255,0.025); }
+    .mono { font-family: var(--mono); font-size: 0.78rem; }
+    .muted { color: var(--muted); }
+    .avatar-sm { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,0.1); }
+    .initials-sm { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 600; color: rgba(255,255,255,0.6); flex-shrink: 0; }
+
+    /* Pagination */
+    .pagination { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; padding: 0 1rem; }
+    .page-info { font-size: 0.78rem; color: var(--muted); flex: 1; }
+
+    .loading-ph { color: rgba(255,255,255,0.3); font-size: 0.875rem; padding: 1rem; display: block; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="page-header">
+      <h1 class="page-title">Пользователи</h1>
+      <div class="search-row">
+        <input id="search-input" class="search-input" placeholder="Email, имя или телефон…" />
+        <button class="btn-sm" id="search-btn">Найти</button>
+        <button class="btn-sm" id="refresh-btn">↺ Обновить</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th style="width:2.5rem">—</th>
+            <th>Email</th>
+            <th>Имя</th>
+            <th>Телефон</th>
+            <th>Заказов</th>
+            <th>Потрачено</th>
+            <th>Дата регистрации</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody">
+          <tr><td colspan="7"><span class="loading-ph">Загрузка…</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <span class="page-info" id="page-info"></span>
+      <button class="btn-sm" id="prev-btn">← Назад</button>
+      <button class="btn-sm" id="next-btn">Вперёд →</button>
+    </div>
+  </main>
+
+  <script src="assets/app.js"></script>
+  <script src="assets/layout.js"></script>
+  <script>LOOM_LAYOUT.init('users')</script>
+  <script src="assets/users.js"></script>
+</body>
+</html>

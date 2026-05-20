@@ -37,9 +37,9 @@ function getFileField(formData: FormData, key: string): FileField | null {
 function validateGlb(f: FileField): string | null {
   const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
   const allowedExts = new Set(['glb', 'gltf'])
-  const allowedTypes = new Set(['model/gltf-binary', 'application/octet-stream', 'model/gltf+json'])
+  // Accept any content-type when the extension is valid — browsers often send
+  // application/octet-stream or empty string for .glb files.
   if (!allowedExts.has(ext)) return 'GLB file must have .glb or .gltf extension'
-  if (!allowedTypes.has(f.type)) return 'GLB content-type must be model/gltf-binary, model/gltf+json, or application/octet-stream'
   if (f.size > 20 * 1024 * 1024) return 'GLB file must be ≤ 20 MB'
   if (f.size <= 0) return 'Invalid GLB file size'
   return null

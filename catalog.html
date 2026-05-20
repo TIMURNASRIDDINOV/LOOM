@@ -69,7 +69,7 @@
         -webkit-backdrop-filter: blur(12px) saturate(140%);
         z-index: 200;
         border-bottom: 0.5px solid rgba(255,255,255,0.08);
-        contain: layout style paint;
+        overflow: visible;
       }
       .nav-content {
         max-width: 1280px;
@@ -675,6 +675,7 @@
     <!-- Config + Auth -->
     <script src="assets/config.js"></script>
     <script src="assets/auth.js"></script>
+    <script src="assets/track.js"></script>
     <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
 
     <!-- Product Catalog Vanilla JS -->

@@ -13,7 +13,7 @@ ENVIRONMENT = "production"
 [[d1_databases]]
 binding = "DB"
 database_name = "loom-db"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "37d489b5-dd14-431c-93b0-0bb37ab45ff4"
 
 # R2 Buckets
 [[r2_buckets]]

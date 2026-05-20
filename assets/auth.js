@@ -9,9 +9,11 @@
   function clearToken()  { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(USER_KEY) }
 
   // ── User profile (cached in sessionStorage for the tab lifetime) ───────────
-  async function getCurrentUser() {
-    const cached = sessionStorage.getItem(USER_KEY)
-    if (cached) { try { return JSON.parse(cached) } catch {} }
+  async function getCurrentUser(forceRefresh) {
+    if (!forceRefresh) {
+      const cached = sessionStorage.getItem(USER_KEY)
+      if (cached) { try { return JSON.parse(cached) } catch {} }
+    }
 
     const token = getToken()
     if (!token) return null
@@ -81,9 +83,15 @@
       }
 
       const displayName = user.name ? user.name.split(' ')[0] : user.email.split('@')[0]
+      const initials = displayName.slice(0, 2).toUpperCase()
+      const avatarHtml = user.avatar_url
+        ? `<img class="auth-nav-avatar" src="${esc(user.avatar_url)}" alt="${esc(displayName)}" />`
+        : `<span class="auth-nav-initials" aria-hidden="true">${esc(initials)}</span>`
+
       slot.innerHTML = `
         <div class="auth-dropdown">
           <button class="auth-dropdown-btn" aria-haspopup="true" aria-expanded="false">
+            ${avatarHtml}
             <span class="auth-dropdown-name">${esc(displayName)}</span>
             <svg class="auth-dropdown-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
               <path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -91,6 +99,7 @@
           </button>
           <div class="auth-dropdown-menu" role="menu">
             <a href="account.html" class="auth-dropdown-item" role="menuitem">Личный кабинет</a>
+            <a href="account.html#settings" class="auth-dropdown-item" role="menuitem">Настройки</a>
             <button class="auth-dropdown-item auth-dropdown-logout" role="menuitem">Выйти</button>
           </div>
         </div>

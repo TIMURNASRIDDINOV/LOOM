@@ -1,35 +1,139 @@
 'use strict'
 
 const STATUS_COLORS_HEX = {
-  new: '#3b82f6',
-  confirmed: '#eab308',
-  producing: '#f97316',
-  shipped: '#a855f7',
-  delivered: '#22c55e',
-  cancelled: '#6b7280',
+  new: '#3b82f6', confirmed: '#eab308', producing: '#f97316',
+  shipped: '#a855f7', delivered: '#22c55e', cancelled: '#6b7280',
 }
+
+const DEVICE_COLORS  = { desktop: '#60a5fa', mobile: '#4ade80', tablet: '#f97316', unknown: '#6b7280' }
+const BROWSER_COLORS = { chrome: '#facc15', safari: '#60a5fa', firefox: '#f97316', edge: '#a78bfa', samsung: '#4ade80', opera: '#ef4444', other: '#6b7280' }
+const OS_COLORS      = { android: '#4ade80', ios: '#60a5fa', windows: '#a78bfa', mac: '#facc15', linux: '#f97316', other: '#6b7280' }
 
 function escHtml(s) {
   if (!s) return ''
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+function renderBreakdown(containerId, rows, colorMap) {
+  const container = document.getElementById(containerId)
+  if (!rows || !rows.length) { container.innerHTML = '<span style="font-size:0.8rem;color:rgba(255,255,255,0.3)">Нет данных</span>'; return }
+  const total = rows.reduce((s, r) => s + (r.count || 0), 0)
+  const key = Object.keys(rows[0]).find(k => k !== 'count')
+  container.innerHTML = `<div class="breakdown-list">` + rows.map(r => {
+    const val = r[key] || 'other'
+    const pct = total ? Math.round((r.count / total) * 100) : 0
+    const color = colorMap[val] || colorMap['other'] || '#6b7280'
+    return `
+      <div class="breakdown-row">
+        <span class="breakdown-label">${escHtml(val)}</span>
+        <div class="breakdown-bar-wrap">
+          <div class="breakdown-bar" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <span class="breakdown-count">${r.count}</span>
+      </div>
+    `
+  }).join('') + `</div>`
+}
+
+function makeLineChart(canvasId, labels, data, color = 'rgba(99,202,183,0.7)') {
+  const ctx = document.getElementById(canvasId).getContext('2d')
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: color,
+        backgroundColor: color.replace('0.7', '0.08'),
+        borderWidth: 1.5,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+      },
+    },
+  })
+}
+
+function makeBarChart(canvasId, labels, data) {
+  const ctx = document.getElementById(canvasId).getContext('2d')
+  return new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        borderColor: 'rgba(255,255,255,0.3)',
+        borderWidth: 1, borderRadius: 2,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+      },
+    },
+  })
+}
+
+// Fill missing days in last-N-days series
+function fillDays(rows, n, dateKey = 'day', countKey = 'count') {
+  const map = {}
+  for (const row of rows) map[row[dateKey]] = row[countKey]
+  const labels = [], counts = []
+  const now = new Date()
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now)
+    d.setDate(d.getDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    labels.push(key.slice(5))
+    counts.push(map[key] ?? 0)
+  }
+  return { labels, counts }
+}
+
 async function loadDashboard() {
   const { apiJSON, formatPrice, formatDate, statusBadge, STATUS_LABELS } = window.LOOM
 
-  let stats
-  try {
-    stats = await apiJSON('/api/admin/stats')
-  } catch (e) {
-    console.error('Failed to load stats:', e)
-    return
-  }
+  // ── Load in parallel ────────────────────────────────────────────────────────
+  const [stats, visitors] = await Promise.all([
+    apiJSON('/api/admin/stats').catch(() => null),
+    apiJSON('/api/admin/analytics/visitors').catch(() => null),
+  ])
 
-  // ── Stat cards ──────────────────────────────────────────────────────────────
+  if (!stats) return
+
+  // ── Order stat cards ────────────────────────────────────────────────────────
   document.getElementById('stat-week').textContent = stats.ordersLast7Days
   document.getElementById('stat-revenue').textContent = formatPrice(stats.revenueLast30Days)
   document.getElementById('stat-new').textContent = stats.ordersByStatus['new'] ?? 0
   document.getElementById('stat-producing').textContent = stats.ordersByStatus['producing'] ?? 0
+
+  // ── Visitor stat cards ──────────────────────────────────────────────────────
+  if (visitors) {
+    document.getElementById('vis-today').textContent = visitors.today
+    document.getElementById('vis-week').textContent  = visitors.week
+    document.getElementById('vis-month').textContent = visitors.month
+    document.getElementById('vis-year').textContent  = visitors.year
+    document.getElementById('vis-all').textContent   = visitors.allTime
+
+    renderBreakdown('device-breakdown',  visitors.byDevice,  DEVICE_COLORS)
+    renderBreakdown('browser-breakdown', visitors.byBrowser, BROWSER_COLORS)
+    renderBreakdown('os-breakdown',      visitors.byOs,      OS_COLORS)
+
+    const vd = fillDays(visitors.dailyLast30, 30)
+    makeLineChart('visitors-chart', vd.labels, vd.counts)
+  }
 
   // ── Status bar ──────────────────────────────────────────────────────────────
   const statusOrder = ['new', 'confirmed', 'producing', 'shipped', 'delivered', 'cancelled']
@@ -46,54 +150,11 @@ async function loadDashboard() {
     `
   }).join('')
 
-  // ── Orders per day chart ─────────────────────────────────────────────────────
-  // Fill in any missing days in the last 30 days with 0
-  const days = []
-  const counts = []
-  const now = new Date()
-  const dayMap = {}
-  for (const row of stats.ordersPerDay) dayMap[row.day] = row.count
+  // ── Orders per day chart ────────────────────────────────────────────────────
+  const od = fillDays(stats.ordersPerDay, 30)
+  makeBarChart('orders-chart', od.labels, od.counts)
 
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    const key = d.toISOString().slice(0, 10)
-    days.push(key.slice(5))  // MM-DD
-    counts.push(dayMap[key] ?? 0)
-  }
-
-  const ctx = document.getElementById('orders-chart').getContext('2d')
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: days,
-      datasets: [{
-        data: counts,
-        backgroundColor: 'rgba(255,255,255,0.12)',
-        borderColor: 'rgba(255,255,255,0.3)',
-        borderWidth: 1,
-        borderRadius: 2,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: {
-          ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, maxTicksLimit: 10 },
-          grid: { color: 'rgba(255,255,255,0.04)' },
-        },
-        y: {
-          ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, stepSize: 1 },
-          grid: { color: 'rgba(255,255,255,0.04)' },
-          beginAtZero: true,
-        },
-      },
-    },
-  })
-
-  // ── Recent orders ────────────────────────────────────────────────────────────
+  // ── Recent orders ───────────────────────────────────────────────────────────
   const tbody = document.getElementById('recent-orders').querySelector('tbody')
   if (!stats.recentOrders?.length) {
     tbody.innerHTML = '<tr><td colspan="3" style="color:rgba(255,255,255,0.3);font-size:0.82rem">Нет заказов</td></tr>'
@@ -110,7 +171,7 @@ async function loadDashboard() {
     `).join('')
   }
 
-  // ── Top products ─────────────────────────────────────────────────────────────
+  // ── Top products ────────────────────────────────────────────────────────────
   const topEl = document.getElementById('top-products')
   if (!stats.topProducts?.length) {
     topEl.innerHTML = '<span style="color:rgba(255,255,255,0.3);font-size:0.82rem">Нет данных</span>'

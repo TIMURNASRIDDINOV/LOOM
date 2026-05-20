@@ -33,7 +33,20 @@ export interface User {
   password_hash: string
   name: string | null
   phone: string | null
+  avatar_key: string | null
+  location_preset: string | null  // JSON: {address, lat, lng}
   created_at: number
+}
+
+export interface PageVisit {
+  id: number
+  session_id: string
+  page: string
+  device_type: string | null
+  os: string | null
+  browser: string | null
+  referrer: string | null
+  visited_at: number
 }
 
 export interface Admin {

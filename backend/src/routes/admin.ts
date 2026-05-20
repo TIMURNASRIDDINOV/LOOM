@@ -11,6 +11,8 @@ import {
   getOrderStatusLog,
   updateOrderStatus,
   insertOrderStatusLog,
+  getAdminUsers,
+  getVisitorStats,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { signToken, verifyToken } from '../lib/jwt'
@@ -228,6 +230,24 @@ admin.post('/refresh', async (c) => {
   })
 
   return c.json({ ok: true })
+})
+
+// ─── GET /api/admin/users ─────────────────────────────────────────────────────
+
+admin.get('/users', requireAdmin, async (c) => {
+  const q = c.req.query('q') || undefined
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10)))
+
+  const { users, total } = await getAdminUsers(c.env.DB, { q, page, limit })
+  return c.json({ users, total, page, limit })
+})
+
+// ─── GET /api/admin/analytics/visitors ───────────────────────────────────────
+
+admin.get('/analytics/visitors', requireAdmin, async (c) => {
+  const stats = await getVisitorStats(c.env.DB)
+  return c.json(stats)
 })
 
 export { setupRouter }

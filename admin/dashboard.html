@@ -11,8 +11,9 @@
     *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
     :root { --mono: 'DM Mono', monospace; --hairline: rgba(255,255,255,0.08); --muted: rgba(255,255,255,0.45); }
 
-    .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page { max-width: 1240px; margin: 0 auto; padding: 2rem 1.5rem; }
     .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0 0 1.75rem; }
+    .section-label { font-size: 0.68rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 1rem; }
 
     /* Stat cards */
     .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
@@ -23,9 +24,21 @@
     .stat-value { font-family: var(--mono); font-size: 1.5rem; font-weight: 400; color: #fff; margin: 0; }
     .stat-sub { font-size: 0.75rem; color: var(--muted); margin: 0.25rem 0 0; }
 
+    /* Visitor stat cards */
+    .visitor-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
+    @media (max-width: 1100px) { .visitor-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 600px)  { .visitor-grid { grid-template-columns: repeat(2, 1fr); } }
+    .visitor-card { background: #0d0d0d; border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.1rem 1.25rem; }
+    .visitor-card .stat-value { font-size: 1.3rem; }
+    .visitor-card .stat-sub { color: rgba(99,202,183,0.7); }
+
     /* Two-col grid */
     .two-col { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start; }
     @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* Three-col for device charts */
+    .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
+    @media (max-width: 800px) { .three-col { grid-template-columns: 1fr; } }
 
     /* Card */
     .card { background: #0f0f0f; border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; }
@@ -34,17 +47,17 @@
 
     /* Chart */
     .chart-wrap { position: relative; height: 200px; }
+    .chart-wrap-sm { position: relative; height: 150px; }
 
     /* Orders table */
     .mini-table { width: 100%; border-collapse: collapse; }
     .mini-table td { padding: 0.6rem 0; font-size: 0.85rem; border-bottom: 0.5px solid rgba(255,255,255,0.04); vertical-align: middle; }
     .mini-table tr:last-child td { border-bottom: none; }
     .mini-table .id-col { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); width: 3rem; }
-    .mini-table .name-col { flex: 1; }
-    .mini-table .arrow-col { width: 1.5rem; text-align: right; color: rgba(255,255,255,0.25); cursor: pointer; }
-    .mini-table tr:hover .arrow-col { color: #fff; }
     .mini-table tr { cursor: pointer; transition: background 0.1s; }
     .mini-table tr:hover { background: rgba(255,255,255,0.02); }
+    .mini-table tr:hover .arrow-col { color: #fff; }
+    .arrow-col { width: 1.5rem; text-align: right; color: rgba(255,255,255,0.25); }
 
     /* Status bar */
     .status-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -52,25 +65,37 @@
     .status-count { font-family: var(--mono); font-size: 1.1rem; }
     .status-lbl { font-size: 0.68rem; color: var(--muted); text-align: center; }
 
+    /* Device breakdown list */
+    .breakdown-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .breakdown-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+    .breakdown-bar-wrap { flex: 1; height: 4px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; }
+    .breakdown-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+    .breakdown-label { width: 72px; color: var(--muted); font-size: 0.78rem; text-transform: capitalize; }
+    .breakdown-count { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); width: 3rem; text-align: right; }
+
     .loading-ph { color: rgba(255,255,255,0.3); font-size: 0.875rem; }
+
+    .section-divider { margin: 2rem 0 1rem; border-top: 0.5px solid var(--hairline); padding-top: 1.75rem; }
   </style>
 </head>
 <body>
   <main class="page">
     <h1 class="page-title">Dashboard</h1>
 
+    <!-- ── Orders overview ─────────────────────────────── -->
+    <p class="section-label">Заказы</p>
     <div class="stat-grid">
       <div class="stat-card">
-        <p class="stat-label">Заказы за 7 дней</p>
+        <p class="stat-label">За 7 дней</p>
         <p class="stat-value" id="stat-week">—</p>
       </div>
       <div class="stat-card">
-        <p class="stat-label">Выручка за 30 дней</p>
+        <p class="stat-label">Выручка 30д</p>
         <p class="stat-value" id="stat-revenue">—</p>
         <p class="stat-sub">без отменённых</p>
       </div>
       <div class="stat-card">
-        <p class="stat-label">Новых заказов</p>
+        <p class="stat-label">Новых</p>
         <p class="stat-value" id="stat-new">—</p>
       </div>
       <div class="stat-card">
@@ -79,6 +104,59 @@
       </div>
     </div>
 
+    <!-- ── Visitor analytics ───────────────────────────── -->
+    <div class="section-divider">
+      <p class="section-label">Посетители</p>
+      <div class="visitor-grid">
+        <div class="visitor-card">
+          <p class="stat-label">Сегодня</p>
+          <p class="stat-value" id="vis-today">—</p>
+        </div>
+        <div class="visitor-card">
+          <p class="stat-label">За 7 дней</p>
+          <p class="stat-value" id="vis-week">—</p>
+        </div>
+        <div class="visitor-card">
+          <p class="stat-label">За 30 дней</p>
+          <p class="stat-value" id="vis-month">—</p>
+        </div>
+        <div class="visitor-card">
+          <p class="stat-label">За год</p>
+          <p class="stat-value" id="vis-year">—</p>
+        </div>
+        <div class="visitor-card">
+          <p class="stat-label">Всего</p>
+          <p class="stat-value" id="vis-all">—</p>
+        </div>
+      </div>
+
+      <!-- Device / browser / OS breakdown -->
+      <div class="three-col">
+        <div class="card">
+          <p class="card-title">Тип устройства</p>
+          <div id="device-breakdown"><span class="loading-ph">Загрузка…</span></div>
+        </div>
+        <div class="card">
+          <p class="card-title">Браузер</p>
+          <div id="browser-breakdown"><span class="loading-ph">Загрузка…</span></div>
+        </div>
+        <div class="card">
+          <p class="card-title">ОС</p>
+          <div id="os-breakdown"><span class="loading-ph">Загрузка…</span></div>
+        </div>
+      </div>
+
+      <!-- Visitor chart -->
+      <div class="card" style="margin-bottom:1.75rem">
+        <p class="card-title">Посетители за 30 дней</p>
+        <div class="chart-wrap">
+          <canvas id="visitors-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Orders chart + right panel ─────────────────── -->
+    <p class="section-label">Аналитика заказов</p>
     <div class="two-col">
       <div>
         <div class="card">

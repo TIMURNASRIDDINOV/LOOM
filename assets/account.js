@@ -1,117 +1,363 @@
-'use strict';
-(function () {
+'use strict'
+;(function () {
   const STATUS_LABELS = {
-    pending:    { label: 'Ожидает',    bg: 'rgba(234,179,8,0.15)',   color: '#facc15' },
-    confirmed:  { label: 'Подтверждён', bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa' },
-    processing: { label: 'В работе',   bg: 'rgba(139,92,246,0.15)',  color: '#a78bfa' },
-    shipped:    { label: 'Отправлен',  bg: 'rgba(16,185,129,0.15)', color: '#4ade80' },
-    delivered:  { label: 'Доставлен',  bg: 'rgba(16,185,129,0.2)',  color: '#22c55e' },
-    cancelled:  { label: 'Отменён',    bg: 'rgba(239,68,68,0.12)',   color: '#f87171' },
-  };
-
-  function formatPrice(p) {
-    return Number(p).toLocaleString('ru-RU') + ' сум';
+    new: 'Новый', confirmed: 'Подтверждён', producing: 'Производство',
+    shipped: 'Отправлен', delivered: 'Доставлен', cancelled: 'Отменён',
+    pending: 'Ожидает', processing: 'В работе',
+  }
+  const STATUS_COLORS = {
+    new: '#3b82f6', confirmed: '#eab308', producing: '#f97316',
+    shipped: '#a855f7', delivered: '#22c55e', cancelled: '#6b7280',
+    pending: '#facc15', processing: '#a78bfa',
   }
 
-  function formatDate(ts) {
-    if (!ts) return '—';
-    return new Date(Number(ts)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+  function esc(s) {
+    if (!s) return ''
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
-
+  function fmt(n) { return Number(n || 0).toLocaleString('ru-RU') + ' сум' }
+  function fmtDate(ts) {
+    if (!ts) return '—'
+    return new Date(Number(ts)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  function fmtYear(ts) {
+    if (!ts) return '—'
+    return new Date(Number(ts)).getFullYear().toString()
+  }
   function statusBadge(status) {
-    const s = STATUS_LABELS[status] || { label: status, bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' };
-    return `<span class="status-badge" style="background:${s.bg};color:${s.color}">${s.label}</span>`;
+    const label = STATUS_LABELS[status] || status
+    const color = STATUS_COLORS[status] || '#6b7280'
+    return `<span class="status-badge" style="background:${color}22;color:${color};border:1px solid ${color}55">${esc(label)}</span>`
   }
 
-  function renderProfile(user, container) {
-    const rows = [
-      ['Email',   user.email || '—'],
-      ['Имя',     user.name  || '—'],
-      ['Телефон', user.phone || '—'],
-    ];
-    container.innerHTML = rows.map(([label, val]) => `
-      <div class="profile-row">
-        <span class="profile-label">${label}</span>
-        <span class="profile-value">${val}</span>
-      </div>
-    `).join('');
+  let user = null
+  let API = ''
+
+  // ── Tabs ─────────────────────────────────────────────────────────────────────
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
+      btn.classList.add('active')
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active')
+    })
+  })
+
+  // Check for hash-based navigation to settings tab
+  if (window.location.hash === '#settings') {
+    setTimeout(() => document.querySelector('[data-tab="settings"]')?.click(), 50)
   }
 
-  function renderOrders(orders, container) {
-    if (!orders || !orders.length) {
-      container.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:0.85rem;padding:0.5rem 0">Заказов пока нет.</p>';
-      return;
+  // ── Avatar ───────────────────────────────────────────────────────────────────
+
+  function renderAvatar(u) {
+    const placeholder = document.getElementById('avatar-placeholder')
+    const img = document.getElementById('avatar-img')
+    const initials = (u.name || u.email || '').slice(0, 2).toUpperCase() || '?'
+    if (u.avatar_url) {
+      img.src = u.avatar_url
+      img.style.display = 'block'
+      placeholder.style.display = 'none'
+    } else {
+      placeholder.textContent = initials
+      placeholder.style.display = 'flex'
+      img.style.display = 'none'
     }
-    container.innerHTML = `
-      <table class="orders-table">
-        <thead>
-          <tr>
-            <th>№</th>
-            <th>Дата</th>
-            <th>Статус</th>
-            <th style="text-align:right">Сумма</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${orders.map(o => `
-            <tr>
-              <td>#${o.id}</td>
-              <td>${formatDate(o.created_at)}</td>
-              <td>${statusBadge(o.status)}</td>
-              <td style="text-align:right">${formatPrice(o.total_price)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
   }
+
+  document.getElementById('avatar-btn').addEventListener('click', () => {
+    document.getElementById('avatar-input').click()
+  })
+
+  document.getElementById('avatar-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const btn = document.getElementById('avatar-btn')
+    btn.disabled = true
+    try {
+      const fd = new FormData()
+      fd.append('avatar', file)
+      const token = window.LOOM_AUTH.getToken()
+      const res = await fetch(API + '/api/auth/avatar', {
+        method: 'POST', body: fd,
+        headers: { Authorization: 'Bearer ' + token },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      user.avatar_url = data.avatar_url
+      renderAvatar(user)
+    } catch (err) {
+      alert('Ошибка загрузки: ' + err.message)
+    } finally {
+      btn.disabled = false
+      e.target.value = ''
+    }
+  })
+
+  // ── Profile data ──────────────────────────────────────────────────────────────
+
+  function populateProfile(u) {
+    // Top nav
+    const navEmail = document.getElementById('nav-email')
+    if (navEmail) navEmail.textContent = u.email || ''
+
+    // Avatar section
+    renderAvatar(u)
+    document.getElementById('profile-name').textContent = u.name || u.email.split('@')[0]
+    document.getElementById('profile-email').textContent = u.email
+    document.getElementById('profile-since').textContent = 'С нами с ' + fmtDate(u.created_at)
+
+    // Stats
+    document.getElementById('stat-orders').textContent = u.order_count ?? '0'
+    document.getElementById('stat-spent').textContent = u.total_spent
+      ? new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 0 }).format(u.total_spent)
+      : '0'
+    document.getElementById('stat-since').textContent = fmtYear(u.created_at)
+
+    // Location
+    populateLocation(u.location_preset)
+
+    // Settings form
+    const nameInput = document.getElementById('edit-name')
+    const phoneInput = document.getElementById('edit-phone')
+    if (nameInput) nameInput.value = u.name || ''
+    if (phoneInput) phoneInput.value = u.phone || ''
+  }
+
+  function populateLocation(locationJson) {
+    let loc = null
+    try { loc = locationJson ? JSON.parse(locationJson) : null } catch {}
+    const preview = document.getElementById('location-preview')
+    const addrEl = document.getElementById('location-address')
+    const coordsEl = document.getElementById('location-coords')
+    if (loc && loc.address) {
+      preview.style.display = 'flex'
+      addrEl.textContent = loc.address
+      coordsEl.textContent = loc.lat && loc.lng ? `${loc.lat}, ${loc.lng}` : ''
+      document.getElementById('loc-address').value = loc.address || ''
+      document.getElementById('loc-lat').value = loc.lat || ''
+      document.getElementById('loc-lng').value = loc.lng || ''
+    } else {
+      preview.style.display = 'none'
+    }
+  }
+
+  // ── Save profile ──────────────────────────────────────────────────────────────
+
+  document.getElementById('save-profile-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-profile-btn')
+    const msgOk = document.getElementById('profile-msg')
+    const msgErr = document.getElementById('profile-err')
+    msgOk.textContent = ''; msgErr.textContent = ''
+    btn.disabled = true
+    try {
+      const token = window.LOOM_AUTH.getToken()
+      const res = await fetch(API + '/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          name: document.getElementById('edit-name').value.trim() || null,
+          phone: document.getElementById('edit-phone').value.trim() || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Ошибка')
+      user.name = data.name; user.phone = data.phone
+      document.getElementById('profile-name').textContent = data.name || data.email?.split('@')[0] || user.email.split('@')[0]
+      msgOk.textContent = 'Сохранено!'
+      sessionStorage.removeItem('loom_user')
+    } catch (err) {
+      msgErr.textContent = err.message
+    } finally {
+      btn.disabled = false
+    }
+  })
+
+  // ── Save location ─────────────────────────────────────────────────────────────
+
+  document.getElementById('save-location-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-location-btn')
+    const msg = document.getElementById('location-msg')
+    msg.textContent = ''; btn.disabled = true
+    try {
+      const address = document.getElementById('loc-address').value.trim()
+      const lat = parseFloat(document.getElementById('loc-lat').value) || null
+      const lng = parseFloat(document.getElementById('loc-lng').value) || null
+      const loc = address ? { address, lat, lng } : null
+      const token = window.LOOM_AUTH.getToken()
+      const res = await fetch(API + '/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ location_preset: loc }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Ошибка') }
+      user.location_preset = loc ? JSON.stringify(loc) : null
+      populateLocation(user.location_preset)
+      msg.textContent = 'Адрес сохранён!'
+      sessionStorage.removeItem('loom_user')
+    } catch (err) {
+      msg.textContent = '⚠ ' + err.message
+    } finally {
+      btn.disabled = false
+    }
+  })
+
+  document.getElementById('clear-location-btn').addEventListener('click', async () => {
+    document.getElementById('loc-address').value = ''
+    document.getElementById('loc-lat').value = ''
+    document.getElementById('loc-lng').value = ''
+    document.getElementById('location-preview').style.display = 'none'
+    const token = window.LOOM_AUTH.getToken()
+    await fetch(API + '/api/auth/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ location_preset: null }),
+    }).catch(() => {})
+    sessionStorage.removeItem('loom_user')
+  })
+
+  // ── Change password ───────────────────────────────────────────────────────────
+
+  document.getElementById('save-pw-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-pw-btn')
+    const msgOk = document.getElementById('pw-msg')
+    const msgErr = document.getElementById('pw-err')
+    msgOk.textContent = ''; msgErr.textContent = ''
+    const current = document.getElementById('pw-current').value
+    const newPw = document.getElementById('pw-new').value
+    const confirm = document.getElementById('pw-confirm').value
+    if (!current || !newPw || !confirm) { msgErr.textContent = 'Заполните все поля'; return }
+    if (newPw !== confirm) { msgErr.textContent = 'Пароли не совпадают'; return }
+    if (newPw.length < 8) { msgErr.textContent = 'Новый пароль — минимум 8 символов'; return }
+    btn.disabled = true
+    try {
+      const token = window.LOOM_AUTH.getToken()
+      const res = await fetch(API + '/api/auth/password', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ current_password: current, new_password: newPw }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Ошибка')
+      msgOk.textContent = 'Пароль обновлён!'
+      document.getElementById('pw-current').value = ''
+      document.getElementById('pw-new').value = ''
+      document.getElementById('pw-confirm').value = ''
+    } catch (err) {
+      msgErr.textContent = err.message
+    } finally {
+      btn.disabled = false
+    }
+  })
+
+  // ── Notification prefs (stored in localStorage) ───────────────────────────────
+
+  document.getElementById('save-notif-btn').addEventListener('click', () => {
+    const prefs = {
+      orders: document.getElementById('notif-orders').checked,
+      promo: document.getElementById('notif-promo').checked,
+    }
+    localStorage.setItem('loom_notif_prefs', JSON.stringify(prefs))
+    document.getElementById('notif-msg').textContent = 'Сохранено!'
+    setTimeout(() => { document.getElementById('notif-msg').textContent = '' }, 2000)
+  })
+
+  function loadNotifPrefs() {
+    try {
+      const prefs = JSON.parse(localStorage.getItem('loom_notif_prefs') || '{}')
+      if (prefs.orders !== undefined) document.getElementById('notif-orders').checked = prefs.orders
+      if (prefs.promo  !== undefined) document.getElementById('notif-promo').checked = prefs.promo
+    } catch {}
+  }
+
+  // ── Geo permission ────────────────────────────────────────────────────────────
+
+  function updateGeoBadge(state) {
+    const badge = document.getElementById('geo-perm-badge')
+    if (!badge) return
+    badge.className = 'perm-badge ' + (state === 'granted' ? 'granted' : state === 'denied' ? 'denied' : 'prompt')
+    badge.textContent = state === 'granted' ? 'Разрешён' : state === 'denied' ? 'Отказано' : 'Не определено'
+  }
+
+  if (navigator.permissions) {
+    navigator.permissions.query({ name: 'geolocation' }).then(result => {
+      updateGeoBadge(result.state)
+      result.onchange = () => updateGeoBadge(result.state)
+    }).catch(() => {})
+  }
+
+  document.getElementById('req-geo-btn').addEventListener('click', () => {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        updateGeoBadge('granted')
+        const lat = pos.coords.latitude.toFixed(6)
+        const lng = pos.coords.longitude.toFixed(6)
+        document.getElementById('loc-lat').value = lat
+        document.getElementById('loc-lng').value = lng
+      },
+      () => updateGeoBadge('denied'),
+    )
+  })
+
+  // ── Orders ────────────────────────────────────────────────────────────────────
+
+  async function loadOrders() {
+    const container = document.getElementById('orders-container')
+    try {
+      const token = window.LOOM_AUTH.getToken()
+      const res = await fetch(API + '/api/me/orders', {
+        headers: { Authorization: 'Bearer ' + token },
+      })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const data = await res.json()
+      const orders = data.orders || []
+      if (!orders.length) {
+        container.innerHTML = '<p class="empty-state">Заказов пока нет.</p>'
+        return
+      }
+      container.innerHTML = `
+        <table class="orders-table">
+          <thead><tr>
+            <th>№</th><th>Дата</th><th>Статус</th><th style="text-align:right">Сумма</th>
+          </tr></thead>
+          <tbody>
+            ${orders.map(o => `
+              <tr>
+                <td>#${o.id}</td>
+                <td>${fmtDate(o.created_at)}</td>
+                <td>${statusBadge(o.status)}</td>
+                <td style="text-align:right;font-family:var(--mono);font-size:0.8rem">${fmt(o.total_price)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `
+    } catch {
+      container.innerHTML = '<p class="msg-err">Не удалось загрузить заказы.</p>'
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────────
 
   async function init() {
-    const API = window.LOOM_CONFIG ? window.LOOM_CONFIG.API_BASE
+    API = window.LOOM_CONFIG ? window.LOOM_CONFIG.API_BASE
       : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:8787' : 'https://api.looom.me');
+          ? 'http://localhost:8787' : 'https://api.looom.me')
 
-    // Guard: redirect if not logged in
-    const user = await window.LOOM_AUTH.getCurrentUser();
-    if (!user) {
-      window.location.href = 'login.html?redirect=account.html';
-      return;
-    }
+    user = await window.LOOM_AUTH.getCurrentUser()
+    if (!user) { window.location.href = 'login.html?redirect=account.html'; return }
 
-    // Populate email in sidebar
-    const emailEl = document.getElementById('account-email');
-    if (emailEl) emailEl.textContent = user.email || '';
+    populateProfile(user)
+    loadOrders()
+    loadNotifPrefs()
 
-    // Render profile section
-    const profileEl = document.getElementById('profile-rows');
-    if (profileEl) renderProfile(user, profileEl);
-
-    // Fetch orders
-    const ordersEl = document.getElementById('orders-body');
-    if (ordersEl) {
-      ordersEl.innerHTML = '<tr><td colspan="4" style="color:rgba(255,255,255,0.35);font-size:0.82rem;padding:0.75rem">Загрузка…</td></tr>';
-      try {
-        const token = window.LOOM_AUTH.getToken();
-        const res = await fetch(API + '/api/me/orders', {
-          headers: { Authorization: 'Bearer ' + token },
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        renderOrders(data.orders || [], document.getElementById('orders-container'));
-      } catch (err) {
-        const c = document.getElementById('orders-container');
-        if (c) c.innerHTML = '<p style="color:#f87171;font-size:0.82rem">Не удалось загрузить заказы.</p>';
-      }
-    }
-
-    // Logout button
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) logoutBtn.addEventListener('click', () => window.LOOM_AUTH.logout());
+    document.getElementById('logout-btn').addEventListener('click', () => window.LOOM_AUTH.logout())
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', init)
   } else {
-    init();
+    init()
   }
-})();
+})()

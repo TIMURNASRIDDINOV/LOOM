@@ -64,6 +64,98 @@ export async function createAdmin(
   return Number(result.meta.last_row_id)
 }
 
+export async function updateUserProfile(
+  db: D1Database,
+  id: number,
+  params: { name?: string | null; phone?: string | null; location_preset?: string | null },
+): Promise<void> {
+  const sets: string[] = []
+  const vals: (string | number | null)[] = []
+  if ('name' in params) { sets.push('name = ?'); vals.push(params.name ?? null) }
+  if ('phone' in params) { sets.push('phone = ?'); vals.push(params.phone ?? null) }
+  if ('location_preset' in params) { sets.push('location_preset = ?'); vals.push(params.location_preset ?? null) }
+  if (!sets.length) return
+  vals.push(id)
+  await db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run()
+}
+
+export async function updateUserPassword(
+  db: D1Database,
+  id: number,
+  passwordHash: string,
+): Promise<void> {
+  await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(passwordHash, id).run()
+}
+
+export async function updateUserAvatar(
+  db: D1Database,
+  id: number,
+  avatarKey: string | null,
+): Promise<void> {
+  await db.prepare('UPDATE users SET avatar_key = ? WHERE id = ?').bind(avatarKey, id).run()
+}
+
+export async function getUserOrderStats(
+  db: D1Database,
+  userId: number,
+): Promise<{ order_count: number; total_spent: number }> {
+  const row = await db
+    .prepare(
+      "SELECT COUNT(*) as order_count, COALESCE(SUM(total_price),0) as total_spent FROM orders WHERE user_id = ? AND status != 'cancelled'",
+    )
+    .bind(userId)
+    .first<{ order_count: number; total_spent: number }>()
+  return row ?? { order_count: 0, total_spent: 0 }
+}
+
+// ─── Admin: Users ────────────────────────────────────────────────────────────
+
+export interface AdminUserRow {
+  id: number
+  email: string
+  name: string | null
+  phone: string | null
+  avatar_key: string | null
+  location_preset: string | null
+  created_at: number
+  order_count: number
+  total_spent: number
+}
+
+export async function getAdminUsers(
+  db: D1Database,
+  filter: { q?: string; page: number; limit: number },
+): Promise<{ users: AdminUserRow[]; total: number }> {
+  const offset = (filter.page - 1) * filter.limit
+  const params: (string | number | null)[] = []
+  let where = ''
+  if (filter.q) {
+    where = 'WHERE u.email LIKE ? OR u.name LIKE ? OR u.phone LIKE ?'
+    params.push(`%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`)
+  }
+  const countRow = await db
+    .prepare(`SELECT COUNT(*) as c FROM users u ${where}`)
+    .bind(...params)
+    .first<{ c: number }>()
+  const total = countRow?.c ?? 0
+
+  const { results } = await db
+    .prepare(
+      `SELECT u.id, u.email, u.name, u.phone, u.avatar_key, u.location_preset, u.created_at,
+              COUNT(o.id) as order_count,
+              COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.total_price ELSE 0 END), 0) as total_spent
+       FROM users u LEFT JOIN orders o ON o.user_id = u.id
+       ${where}
+       GROUP BY u.id
+       ORDER BY u.created_at DESC
+       LIMIT ? OFFSET ?`,
+    )
+    .bind(...params, filter.limit, offset)
+    .all<AdminUserRow>()
+
+  return { users: results, total }
+}
+
 export async function updateAdminPassword(
   db: D1Database,
   email: string,
@@ -417,4 +509,83 @@ export async function insertOrderStatusLog(
       params.note,
     )
     .run()
+}
+
+// ─── Visitor Analytics ───────────────────────────────────────────────────────
+
+export async function trackPageVisit(
+  db: D1Database,
+  params: {
+    session_id: string
+    page: string
+    device_type: string | null
+    os: string | null
+    browser: string | null
+    referrer: string | null
+  },
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO page_visits (session_id, page, device_type, os, browser, referrer, visited_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      params.session_id,
+      params.page,
+      params.device_type,
+      params.os,
+      params.browser,
+      params.referrer,
+      Date.now(),
+    )
+    .run()
+}
+
+export interface VisitorStats {
+  today: number
+  week: number
+  month: number
+  year: number
+  allTime: number
+  byDevice: Array<{ device_type: string; count: number }>
+  byBrowser: Array<{ browser: string; count: number }>
+  byOs: Array<{ os: string; count: number }>
+  dailyLast30: Array<{ day: string; count: number }>
+}
+
+export async function getVisitorStats(db: D1Database): Promise<VisitorStats> {
+  const now = Date.now()
+  const dayStart = now - (now % 86400000)
+  const weekAgo  = now - 7 * 86400000
+  const monthAgo = now - 30 * 86400000
+  const yearAgo  = now - 365 * 86400000
+
+  const [todayRow, weekRow, monthRow, yearRow, allRow, deviceRows, browserRows, osRows, dailyRows] =
+    await Promise.all([
+      db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM page_visits WHERE visited_at >= ?').bind(dayStart).first<{ c: number }>(),
+      db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM page_visits WHERE visited_at >= ?').bind(weekAgo).first<{ c: number }>(),
+      db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM page_visits WHERE visited_at >= ?').bind(monthAgo).first<{ c: number }>(),
+      db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM page_visits WHERE visited_at >= ?').bind(yearAgo).first<{ c: number }>(),
+      db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM page_visits').first<{ c: number }>(),
+      db.prepare("SELECT COALESCE(device_type,'unknown') as device_type, COUNT(*) as count FROM page_visits GROUP BY device_type ORDER BY count DESC").all<{ device_type: string; count: number }>(),
+      db.prepare("SELECT COALESCE(browser,'other') as browser, COUNT(*) as count FROM page_visits GROUP BY browser ORDER BY count DESC").all<{ browser: string; count: number }>(),
+      db.prepare("SELECT COALESCE(os,'other') as os, COUNT(*) as count FROM page_visits GROUP BY os ORDER BY count DESC").all<{ os: string; count: number }>(),
+      db.prepare(
+        `SELECT strftime('%Y-%m-%d', visited_at / 1000, 'unixepoch') as day, COUNT(DISTINCT session_id) as count
+         FROM page_visits WHERE visited_at >= ?
+         GROUP BY day ORDER BY day ASC`,
+      ).bind(monthAgo).all<{ day: string; count: number }>(),
+    ])
+
+  return {
+    today: todayRow?.c ?? 0,
+    week: weekRow?.c ?? 0,
+    month: monthRow?.c ?? 0,
+    year: yearRow?.c ?? 0,
+    allTime: allRow?.c ?? 0,
+    byDevice: deviceRows.results,
+    byBrowser: browserRows.results,
+    byOs: osRows.results,
+    dailyLast30: dailyRows.results,
+  }
 }

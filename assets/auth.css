@@ -22,9 +22,9 @@
 .auth-dropdown { position: relative; }
 
 .auth-dropdown-btn {
-  display: inline-flex; align-items: center; gap: 0.35rem;
+  display: inline-flex; align-items: center; gap: 0.5rem;
   background: transparent; border: none; cursor: pointer;
-  color: rgba(255,255,255,0.7); font-family: inherit;
+  color: rgba(255,255,255,0.8); font-family: inherit;
   font-size: 0.78rem; letter-spacing: 0.04em;
   padding: 0.3rem 0; transition: color 150ms;
 }
@@ -32,13 +32,29 @@
 .auth-dropdown-caret { flex-shrink: 0; transition: transform 200ms; opacity: 0.6; }
 .auth-dropdown-btn[aria-expanded=true] .auth-dropdown-caret { transform: rotate(180deg); }
 
+/* Avatar in nav */
+.auth-nav-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  display: block; flex-shrink: 0;
+}
+.auth-nav-initials {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 600; letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.8); flex-shrink: 0; user-select: none;
+}
+
 .auth-dropdown-menu {
   display: none;
-  position: absolute; right: 0; top: calc(100% + 8px);
+  position: fixed; right: 1.75rem; top: 64px;
   background: #111; border: 0.5px solid rgba(255,255,255,0.12);
-  border-radius: 4px; padding: 0.35rem 0;
-  min-width: 160px; z-index: 300;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  border-radius: 6px; padding: 0.35rem 0;
+  min-width: 180px; z-index: 9999;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.7);
 }
 .auth-dropdown-menu.open { display: block; }
 
