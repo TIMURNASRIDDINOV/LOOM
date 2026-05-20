@@ -189,7 +189,22 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
       : `${API_BASE}/api/admin/products`
     const method = editId ? 'PATCH' : 'POST'
 
-    const product = await submitWithXHR(url, method, fd)
+    const resp = await submitWithXHR(url, method, fd)
+
+    // Handle both old shape (direct product object) and new shape ({ ok, product })
+    const product = resp.ok === true ? resp.product : (resp.id ? resp : null)
+
+    if (!product) {
+      // ok: false from new API shape
+      const err = resp.error
+      if (err && err.field) {
+        errEl.textContent = `${err.field}: ${err.message}`
+      } else {
+        errEl.textContent = (err && err.message) || resp.error || 'Ошибка сохранения'
+      }
+      return
+    }
+
     okEl.textContent = editId ? 'Сохранено!' : `Продукт создан (id: ${product.id})`
 
     if (!editId) {

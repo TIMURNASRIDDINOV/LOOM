@@ -45,26 +45,25 @@ setupRouter.post('/setup', async (c) => {
     return c.json({ error: 'Password must be at least 8 characters' }, 400)
   }
 
-  const existing = await getAdminByEmail(c.env.DB, email.toLowerCase())
-  if (!existing) {
-    // Also allow creating the first admin if none exist yet
-    const total = await countAdmins(c.env.DB)
-    if (total > 0) {
-      // Admins exist but this email isn't one of them — refuse
-      return c.json({ error: 'Setup already complete or email not found' }, 403)
-    }
-    // No admins at all — create one
+  const normalizedEmail = email.toLowerCase()
+  const total = await countAdmins(c.env.DB)
+
+  if (total === 0) {
+    // No admins at all — allow creating the first one
     const hash = await hashPassword(password)
-    await createAdmin(c.env.DB, { email: email.toLowerCase(), password_hash: hash })
+    await createAdmin(c.env.DB, { email: normalizedEmail, password_hash: hash })
     return c.json({ ok: true, created: true })
   }
 
-  if (existing.password_hash !== 'PLACEHOLDER_USE_SETUP_ENDPOINT') {
-    return c.json({ error: 'Password already set. Use login instead.' }, 403)
+  // Admins exist — only allow setup if this specific email has a placeholder password.
+  // If any admin already has a real password, the endpoint is permanently locked.
+  const existing = await getAdminByEmail(c.env.DB, normalizedEmail)
+  if (!existing || existing.password_hash !== 'PLACEHOLDER_USE_SETUP_ENDPOINT') {
+    return c.json({ error: 'Setup already completed' }, 403)
   }
 
   const hash = await hashPassword(password)
-  await updateAdminPassword(c.env.DB, email.toLowerCase(), hash)
+  await updateAdminPassword(c.env.DB, normalizedEmail, hash)
   return c.json({ ok: true })
 })
 

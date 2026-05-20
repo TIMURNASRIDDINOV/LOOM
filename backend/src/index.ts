@@ -2,35 +2,40 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import publicRoutes from './routes/public'
 import authRoutes from './routes/auth'
+import telegramAuthRoutes, { webhookRouter } from './routes/telegram-auth'
 import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
+import adminUsersRoutes from './routes/admin-users'
 import filesRoutes from './routes/files'
+import userProfileRoutes from './routes/user-profile'
 import type { BaseEnv } from './types'
 
-const ALLOWED_ORIGINS = [
+const PROD_ORIGINS = [
   'https://looom.me',
   'https://www.looom.me',
   'https://admin.looom.me',
+]
+
+const DEV_ORIGINS = [
   'http://localhost:8787',
   'http://localhost:3000',
-  // Allow file:// and local admin panel during development
-  'null',
 ]
 
 const app = new Hono<BaseEnv>()
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 
-app.use(
-  '*',
-  cors({
-    origin: (origin) => (ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]),
+app.use('*', (c, next) => {
+  const allowed =
+    c.env.ENVIRONMENT === 'production' ? PROD_ORIGINS : [...PROD_ORIGINS, ...DEV_ORIGINS]
+  return cors({
+    origin: (origin) => (allowed.includes(origin) ? origin : PROD_ORIGINS[0]),
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
     maxAge: 86400,
-  }),
-)
+  })(c, next)
+})
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
@@ -41,13 +46,25 @@ app.route('/api/admin', setupRouter)          // POST /api/admin/setup (no auth 
 app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/admin/stats
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 
-// ─── Health check ────────────────────────────────────────────────────────────
+// ─── Admin subdomain redirect ─────────────────────────────────────────────────
+
+app.all('*', (c, next) => {
+  const host = new URL(c.req.url).hostname
+  if (host === 'admin.looom.me') {
+    const url = new URL(c.req.url)
+    const path = url.pathname === '/' ? '/admin/' : `/admin${url.pathname}`
+    return c.redirect(`https://www.looom.me${path}${url.search}`, 301)
+  }
+  return next()
+})
+
+// ─── Health check ─────────────────────────────────────────────────────────────
 
 app.get('/', (c) =>
-  c.json({ service: 'LOOM Backend', version: '0.2.0', status: 'ok' }),
+  c.json({ service: 'LOOM Backend', version: '0.3.0', status: 'ok' }),
 )
 
-// ─── 404 / Error ─────────────────────────────────────────────────────────────
+// ─── 404 / Error ──────────────────────────────────────────────────────────────
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 

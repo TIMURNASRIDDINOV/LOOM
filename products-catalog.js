@@ -13,9 +13,7 @@
   }
 
   function getApiBase() {
-    if (window.LOOM_CONFIG) return window.LOOM_CONFIG.API_BASE
-    const h = window.location.hostname
-    return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:8787' : 'https://api.looom.me'
+    return window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me'
   }
 
   // ── Skeleton placeholders ─────────────────────────────────────────────────

@@ -1,13 +1,27 @@
 import { Hono } from 'hono'
-import { getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId } from '../db/queries'
+import { getCookie } from 'hono/cookie'
+import { getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId, getUserById } from '../db/queries'
 import { validateUpload, generateLogoKey } from '../lib/r2'
 import { verifyToken } from '../lib/jwt'
 import { requireAuth } from '../middleware/requireAuth'
 import { sendOrderNotification } from '../lib/telegram'
 import type { BaseEnv, UserEnv } from '../types'
 
-// TODO: add rate limiting on /api/orders and /api/uploads
-// Recommended: use Cloudflare KV for per-IP counters with TTL
+// ─── Global KV-based rate limiter ────────────────────────────────────────────
+// Uses Cloudflare KV so limits are enforced across all Worker isolates globally.
+
+async function isRateLimited(
+  kv: KVNamespace,
+  key: string,
+  limit: number,
+  windowSec: number,
+): Promise<boolean> {
+  const current = await kv.get(key)
+  const count = current ? parseInt(current, 10) : 0
+  if (count >= limit) return true
+  await kv.put(key, String(count + 1), { expirationTtl: windowSec })
+  return false
+}
 
 const pub = new Hono<BaseEnv>()
 
@@ -44,6 +58,11 @@ pub.get('/products/:slug', async (c) => {
 // ─── POST /api/orders ─────────────────────────────────────────────────────────
 
 pub.post('/orders', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
+  if (await isRateLimited(c.env.RATE_LIMIT, `orders:${ip}`, 5, 60)) {
+    return c.json({ error: 'Too many requests. Please wait a minute before placing another order.' }, 429)
+  }
+
   let body: unknown
   try {
     body = await c.req.json()
@@ -67,12 +86,31 @@ pub.post('/orders', async (c) => {
     return c.json({ error: 'totalPrice must be a non-negative number' }, 400)
   }
 
-  // Optional: resolve user_id from Bearer token if present
+  // Required auth: Bearer token or user_token cookie
   let userId: number | null = null
+  let token: string | undefined
   const authHeader = c.req.header('Authorization')
   if (authHeader?.startsWith('Bearer ')) {
-    const payload = await verifyToken(authHeader.slice(7), c.env.JWT_SECRET)
-    if (payload?.role === 'user') userId = parseInt(payload.sub, 10)
+    token = authHeader.slice(7)
+  } else {
+    token = getCookie(c, 'user_token') ?? undefined
+  }
+
+  if (!token) {
+    return c.json({ error: 'Authentication required to place an order' }, 401)
+  }
+
+  const payload = await verifyToken(token, c.env.JWT_SECRET)
+  if (!payload || payload.role !== 'user') {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  userId = parseInt(payload.sub, 10)
+
+  // Check if user is banned
+  const userRecord = await getUserById(c.env.DB, userId)
+  if (userRecord?.status === 'banned') {
+    return c.json({ error: 'Your account has been blocked' }, 403)
   }
 
   // Optional: validate productId
@@ -121,6 +159,11 @@ pub.post('/orders', async (c) => {
 // Direct multipart upload; Worker writes blob to R2 loom-uploads.
 
 pub.post('/uploads', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
+  if (await isRateLimited(c.env.RATE_LIMIT, `uploads:${ip}`, 10, 60)) {
+    return c.json({ error: 'Too many uploads. Please wait a minute before trying again.' }, 429)
+  }
+
   let formData: FormData
   try {
     formData = await c.req.formData()
@@ -152,8 +195,10 @@ pub.post('/uploads', async (c) => {
 const meRouter = new Hono<UserEnv>()
 
 meRouter.get('/orders', requireAuth, async (c) => {
-  const orders = await getOrdersByUserId(c.env.DB, c.get('userId'))
-  return c.json({ orders })
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const limit = 20
+  const { orders, total } = await getOrdersByUserId(c.env.DB, c.get('userId'), page, limit)
+  return c.json({ orders, page, limit, total })
 })
 
 pub.route('/me', meRouter)

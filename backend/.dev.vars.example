@@ -1,0 +1,9 @@
+# Copy this file to .dev.vars for local development:
+#   cp .dev.vars.example .dev.vars
+#
+# These values are only used by `wrangler dev`.
+# Production secrets are set via: wrangler secret put <NAME>
+
+JWT_SECRET=your-secret-here-min-32-chars-long-random-string
+TELEGRAM_BOT_TOKEN=123456789:ABCDEFghijklmnopqrstuvwxyz0123456
+TELEGRAM_CHAT_ID=-100123456789

@@ -16,17 +16,34 @@
     }
 
     const token = getToken()
-    if (!token) return null
+    const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me'
 
+    // Try Bearer token (email auth)
+    if (token) {
+      try {
+        const res = await fetch(API + '/api/auth/me', {
+          headers: { Authorization: 'Bearer ' + token },
+        })
+        if (res.ok) {
+          const user = await res.json()
+          sessionStorage.setItem(USER_KEY, JSON.stringify(user))
+          return user
+        }
+        clearToken()
+      } catch { /* fall through to cookie auth */ }
+    }
+
+    // Try cookie-based auth (phone/Telegram auth)
     try {
-      const res = await fetch(window.LOOM_CONFIG.API_BASE + '/api/auth/me', {
-        headers: { Authorization: 'Bearer ' + token },
-      })
-      if (!res.ok) { clearToken(); return null }
-      const user = await res.json()
-      sessionStorage.setItem(USER_KEY, JSON.stringify(user))
-      return user
-    } catch { return null }
+      const res = await fetch(API + '/api/auth/me', { credentials: 'include' })
+      if (res.ok) {
+        const user = await res.json()
+        sessionStorage.setItem(USER_KEY, JSON.stringify(user))
+        return user
+      }
+    } catch {}
+
+    return null
   }
 
   // ── Auth API calls ─────────────────────────────────────────────────────────
@@ -59,8 +76,15 @@
     return data
   }
 
-  function logout() {
+  async function logout() {
     clearToken()
+    // Clear phone-auth cookie too
+    try {
+      await fetch((window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me') + '/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch {}
     window.location.href = 'index.html'
   }
 

@@ -118,6 +118,10 @@ async function loadDashboard() {
   document.getElementById('stat-revenue').textContent = formatPrice(stats.revenueLast30Days)
   document.getElementById('stat-new').textContent = stats.ordersByStatus['new'] ?? 0
   document.getElementById('stat-producing').textContent = stats.ordersByStatus['producing'] ?? 0
+  const usersEl = document.getElementById('stat-users')
+  if (usersEl) usersEl.textContent = stats.totalUsers ?? 0
+  const newUsersEl = document.getElementById('stat-new-users')
+  if (newUsersEl) newUsersEl.textContent = stats.newUsersLast7Days ?? 0
 
   // ── Visitor stat cards ──────────────────────────────────────────────────────
   if (visitors) {

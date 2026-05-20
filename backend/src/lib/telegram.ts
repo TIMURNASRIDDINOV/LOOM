@@ -97,6 +97,10 @@ export async function sendOrderNotification(
   })
   if (!res.ok) {
     const body = await res.text()
-    console.error('Telegram notification failed:', body)
+    console.error(
+      `[Telegram] Notification failed for order #${order.id} — HTTP ${res.status}:`,
+      body,
+    )
+    // TODO: store in failed_notifications table for retry
   }
 }
