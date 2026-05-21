@@ -370,8 +370,16 @@ router.patch('/users/:id/location', requireAdmin, async (c) => {
   }
 
   const { location_preset } = body as Record<string, unknown>
-  const preset = location_preset === null ? null : (typeof location_preset === 'string' ? location_preset.trim() || null : undefined)
-  if (preset === undefined) return c.json({ error: 'location_preset required (string or null)' }, 400)
+  let preset: string | null
+  if (location_preset === null || location_preset === undefined) {
+    preset = null
+  } else if (typeof location_preset === 'object') {
+    preset = JSON.stringify(location_preset)
+  } else if (typeof location_preset === 'string') {
+    preset = location_preset.trim() || null
+  } else {
+    return c.json({ error: 'location_preset must be an object, string, or null' }, 400)
+  }
 
   const existing = await getAdminUserById(c.env.DB, id)
   if (!existing) return c.json({ error: 'Not found' }, 404)

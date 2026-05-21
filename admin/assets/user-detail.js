@@ -101,8 +101,36 @@
     document.getElementById('edit-email').value = u.email || ''
     document.getElementById('edit-phone').value = u.phone || ''
 
-    // Pre-fill location form
-    document.getElementById('edit-location').value = u.location_preset || ''
+    // Pre-fill location form from JSON
+    try {
+      const loc = u.location_preset ? JSON.parse(u.location_preset) : null
+      const curEl = document.getElementById('admin-loc-current')
+      if (loc && loc.address) {
+        curEl.textContent = `Текущий: ${loc.address}${loc.lat ? ` (${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)})` : ''}`
+        curEl.style.display = ''
+        document.getElementById('edit-location-addr').value = loc.address || ''
+        showAdminLocResult(loc.address, loc.lat, loc.lng)
+      } else {
+        curEl.style.display = 'none'
+      }
+    } catch {}
+  }
+
+  let _adminLocLat = null
+  let _adminLocLng = null
+  let _adminLocAddr = null
+
+  function showAdminLocResult(address, lat, lng) {
+    _adminLocAddr = address; _adminLocLat = lat; _adminLocLng = lng
+    document.getElementById('admin-loc-found-addr').textContent = address
+    document.getElementById('admin-loc-coords').textContent = lat && lng ? `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}` : ''
+    if (lat && lng) {
+      document.getElementById('admin-loc-map-link').href = `https://yandex.ru/maps/?ll=${lng},${lat}&z=15&pt=${lng},${lat}`
+      document.getElementById('admin-loc-map-link').style.display = ''
+    } else {
+      document.getElementById('admin-loc-map-link').style.display = 'none'
+    }
+    document.getElementById('admin-loc-result').style.display = ''
   }
 
   async function loadOrders() {
@@ -238,15 +266,40 @@
 
   // ── Edit Location ─────────────────────────────────────────────────────────
 
+  document.getElementById('btn-geocode-location').addEventListener('click', async () => {
+    const q = document.getElementById('edit-location-addr').value.trim()
+    const result = document.getElementById('location-result')
+    const btn = document.getElementById('btn-geocode-location')
+    if (!q) return
+    btn.disabled = true; btn.textContent = '…'; result.textContent = ''
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=ru`
+      const res = await fetch(url)
+      const data = await res.json()
+      if (!data.length) { result.style.color = '#f87171'; result.textContent = 'Адрес не найден'; return }
+      const { lat, lon, display_name } = data[0]
+      document.getElementById('edit-location-addr').value = display_name
+      showAdminLocResult(display_name, parseFloat(lat), parseFloat(lon))
+    } catch (err) {
+      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+    } finally {
+      btn.disabled = false; btn.textContent = 'Найти'
+    }
+  })
+
+  document.getElementById('edit-location-addr').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-geocode-location').click()
+  })
+
   document.getElementById('btn-save-location').addEventListener('click', async () => {
     const result = document.getElementById('location-result')
-    const preset = document.getElementById('edit-location').value.trim() || null
     result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Сохранение…'
+    const loc = _adminLocAddr ? { address: _adminLocAddr, lat: _adminLocLat, lng: _adminLocLng } : null
     try {
       await apiJSON(`/api/admin/users/${userId}/location`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location_preset: preset }),
+        body: JSON.stringify({ location_preset: loc }),
       })
       result.style.color = '#4ade80'; result.textContent = '✅ Сохранено'
     } catch (err) {
@@ -256,7 +309,10 @@
 
   document.getElementById('btn-clear-location').addEventListener('click', async () => {
     const result = document.getElementById('location-result')
-    document.getElementById('edit-location').value = ''
+    document.getElementById('edit-location-addr').value = ''
+    document.getElementById('admin-loc-result').style.display = 'none'
+    document.getElementById('admin-loc-current').style.display = 'none'
+    _adminLocAddr = null; _adminLocLat = null; _adminLocLng = null
     result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Очистка…'
     try {
       await apiJSON(`/api/admin/users/${userId}/location`, {

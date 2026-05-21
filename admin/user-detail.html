@@ -118,14 +118,23 @@
 
     <!-- Location -->
     <div class="card" id="edit-location-card" style="display:none">
-      <p class="card-title">Локация (preset)</p>
+      <p class="card-title">Адрес доставки</p>
+      <div id="admin-loc-current" style="font-size:0.8rem;color:rgba(255,255,255,0.45);margin-bottom:0.75rem;display:none"></div>
       <div class="form-row single">
         <div class="form-group">
-          <label class="form-label">Preset строка (lat,lng или пусто)</label>
-          <input id="edit-location" type="text" class="form-input" placeholder="41.2995,69.2401" />
+          <label class="form-label">Адрес</label>
+          <div style="display:flex;gap:0.5rem">
+            <input id="edit-location-addr" type="text" class="form-input" placeholder="Ташкент, ул. Амира Темура 1" style="flex:1" />
+            <button class="btn-action" id="btn-geocode-location" style="white-space:nowrap;flex-shrink:0">Найти</button>
+          </div>
         </div>
       </div>
-      <div style="display:flex;gap:0.5rem">
+      <div id="admin-loc-result" style="display:none;margin:0.5rem 0;padding:0.6rem 0.85rem;background:rgba(255,255,255,0.04);border:0.5px solid rgba(255,255,255,0.1);border-radius:3px;font-size:0.8rem">
+        <div id="admin-loc-found-addr" style="color:rgba(255,255,255,0.8);margin-bottom:0.3rem"></div>
+        <div id="admin-loc-coords" style="color:rgba(255,255,255,0.4);font-family:var(--mono);font-size:0.75rem;margin-bottom:0.35rem"></div>
+        <a id="admin-loc-map-link" href="#" target="_blank" rel="noopener" style="font-size:0.73rem;color:rgba(255,255,255,0.4);text-decoration:none;border-bottom:0.5px solid rgba(255,255,255,0.2)">Открыть в Яндекс Картах →</a>
+      </div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.5rem">
         <button class="btn-action primary" id="btn-save-location">Сохранить</button>
         <button class="btn-action" id="btn-clear-location">Очистить</button>
       </div>

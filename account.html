@@ -152,13 +152,21 @@
     .quick-link { padding: 0.5rem 1rem; border: 0.5px solid rgba(255,255,255,0.15); border-radius: 3px; color: rgba(255,255,255,0.55); font-size: 0.78rem; transition: all 0.15s; }
     .quick-link:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
 
-    /* ── Yandex map picker ───────────────────────────── */
-    #ymap-container {
-      width: 100%; height: 300px; border-radius: 4px;
-      border: 0.5px solid rgba(255,255,255,0.12);
-      overflow: hidden; margin-bottom: 0.75rem;
+    /* ── Location geocode result ─────────────────────── */
+    .geocode-result {
+      margin: 0.5rem 0 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      border: 0.5px solid rgba(255,255,255,0.1);
       background: rgba(255,255,255,0.04);
+      display: none;
     }
+    .geocode-result.visible { display: block; }
+    .geocode-found-addr { font-size: 0.83rem; color: rgba(255,255,255,0.85); margin-bottom: 0.35rem; }
+    .geocode-coords { font-size: 0.73rem; color: var(--muted); font-family: var(--mono); margin-bottom: 0.45rem; }
+    .geocode-map-link { font-size: 0.75rem; color: rgba(255,255,255,0.5); text-decoration: none; border-bottom: 0.5px solid rgba(255,255,255,0.2); transition: color 0.15s, border-color 0.15s; }
+    .geocode-map-link:hover { color: #fff; border-bottom-color: rgba(255,255,255,0.6); }
+    .geocode-error { font-size: 0.8rem; color: #f87171; }
 
     /* ── Notifications list ──────────────────────────── */
     .notif-item {
@@ -250,16 +258,19 @@
 
         <!-- Address search input -->
         <div class="field">
-          <label class="field-label" for="loc-address">Адрес</label>
+          <label class="field-label" for="loc-address">Введите адрес</label>
           <div style="display:flex;gap:0.5rem">
             <input id="loc-address" class="field-input" placeholder="Ташкент, Юнусабадский р-н, ул. Амира Темура 1" style="flex:1" />
             <button type="button" class="btn-ghost" id="loc-search-btn" style="white-space:nowrap;flex-shrink:0">Найти</button>
           </div>
         </div>
 
-        <!-- Yandex Map -->
-        <div id="ymap-container"></div>
-        <p class="field-hint" style="margin-bottom:0.75rem">Кликните на карту, чтобы выбрать точку, или воспользуйтесь поиском. Координаты определяются автоматически.</p>
+        <!-- Geocode result + Yandex Maps link -->
+        <div class="geocode-result" id="geocode-result">
+          <div class="geocode-found-addr" id="geocode-addr"></div>
+          <div class="geocode-coords" id="geocode-coords-text"></div>
+          <a class="geocode-map-link" id="geocode-map-link" target="_blank" rel="noopener">Открыть в Яндекс Картах →</a>
+        </div>
 
         <!-- Hidden lat/lng for form submission -->
         <input id="loc-lat" type="hidden" />
@@ -378,7 +389,6 @@
 
   <script src="assets/config.js"></script>
   <script src="assets/auth.js"></script>
-  <script src="https://api-maps.yandex.ru/2.1/?apikey=b025f473-9a94-4c4e-b3ca-a16339e3b8c5&lang=ru_RU" type="text/javascript"></script>
-  <script src="assets/account.js"></script>
+  <script src="assets/account.js?v=2"></script>
 </body>
 </html>

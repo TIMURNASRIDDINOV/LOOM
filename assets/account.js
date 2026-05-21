@@ -127,6 +127,27 @@
     if (phoneInput) phoneInput.value = u.phone || ''
   }
 
+  function yandexMapsUrl(lat, lng) {
+    return `https://yandex.ru/maps/?ll=${lng},${lat}&z=15&pt=${lng},${lat}`
+  }
+
+  function showGeocodeResult(address, lat, lng) {
+    const box = document.getElementById('geocode-result')
+    document.getElementById('geocode-addr').textContent = address
+    document.getElementById('geocode-coords-text').textContent = lat && lng ? `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}` : ''
+    if (lat && lng) {
+      document.getElementById('geocode-map-link').href = yandexMapsUrl(lat, lng)
+      document.getElementById('geocode-map-link').style.display = ''
+    } else {
+      document.getElementById('geocode-map-link').style.display = 'none'
+    }
+    box.classList.add('visible')
+  }
+
+  function hideGeocodeResult() {
+    document.getElementById('geocode-result').classList.remove('visible')
+  }
+
   function populateLocation(locationJson) {
     let loc = null
     try { loc = locationJson ? JSON.parse(locationJson) : null } catch {}
@@ -136,20 +157,31 @@
     if (loc && loc.address) {
       preview.style.display = 'flex'
       addrEl.textContent = loc.address
-      coordsEl.textContent = loc.lat && loc.lng ? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}` : ''
+      coordsEl.textContent = loc.lat && loc.lng ? `${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}` : ''
       document.getElementById('loc-address').value = loc.address || ''
       document.getElementById('loc-lat').value = loc.lat || ''
       document.getElementById('loc-lng').value = loc.lng || ''
-      if (window._ymap && loc.lat && loc.lng) {
-        window._ymap.geoObjects.removeAll()
-        const coords = [loc.lat, loc.lng]
-        window._ymap.setCenter(coords, 15)
-        window._ymapPlacemark.geometry.setCoordinates(coords)
-        window._ymap.geoObjects.add(window._ymapPlacemark)
-      }
+      showGeocodeResult(loc.address, loc.lat, loc.lng)
     } else {
       preview.style.display = 'none'
+      hideGeocodeResult()
     }
+  }
+
+  async function geocodeAddress(query) {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&accept-language=ru`
+    const res = await fetch(url, { headers: { 'Accept-Language': 'ru' } })
+    const data = await res.json()
+    if (!data.length) throw new Error('Адрес не найден')
+    const { lat, lon, display_name } = data[0]
+    return { lat: parseFloat(lat), lng: parseFloat(lon), address: display_name }
+  }
+
+  async function reverseGeocode(lat, lng) {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=ru`
+    const res = await fetch(url, { headers: { 'Accept-Language': 'ru' } })
+    const data = await res.json()
+    return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`
   }
 
   // ── Save profile ──────────────────────────────────────────────────────────────
@@ -217,7 +249,7 @@
     document.getElementById('loc-lat').value = ''
     document.getElementById('loc-lng').value = ''
     document.getElementById('location-preview').style.display = 'none'
-    if (window._ymap) window._ymap.geoObjects.removeAll()
+    hideGeocodeResult()
     const token = window.LOOM_AUTH.getToken()
     await fetch(API + '/api/auth/profile', {
       method: 'PATCH',
@@ -281,92 +313,53 @@
     } catch {}
   }
 
-  // ── Yandex Map for location picker ───────────────────────────────────────────
+  // ── Address search (Nominatim) ────────────────────────────────────────────────
 
-  function initYandexMap() {
-    if (!window.ymaps || !document.getElementById('ymap-container')) return
+  document.getElementById('loc-search-btn').addEventListener('click', async () => {
+    const q = document.getElementById('loc-address').value.trim()
+    if (!q) return
+    const btn = document.getElementById('loc-search-btn')
+    const msg = document.getElementById('location-msg')
+    btn.disabled = true; btn.textContent = '…'; msg.textContent = ''
+    try {
+      const { lat, lng, address } = await geocodeAddress(q)
+      document.getElementById('loc-lat').value = lat
+      document.getElementById('loc-lng').value = lng
+      document.getElementById('loc-address').value = address
+      showGeocodeResult(address, lat, lng)
+    } catch (err) {
+      msg.textContent = '⚠ ' + err.message
+      hideGeocodeResult()
+    } finally {
+      btn.disabled = false; btn.textContent = 'Найти'
+    }
+  })
 
-    ymaps.ready(() => {
-      const defaultCenter = [41.2995, 69.2401]
-      const savedLat = parseFloat(document.getElementById('loc-lat').value) || null
-      const savedLng = parseFloat(document.getElementById('loc-lng').value) || null
-      const center = savedLat && savedLng ? [savedLat, savedLng] : defaultCenter
+  document.getElementById('loc-address').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('loc-search-btn').click()
+  })
 
-      const map = new ymaps.Map('ymap-container', {
-        center,
-        zoom: savedLat ? 15 : 12,
-        controls: ['zoomControl', 'geolocationControl'],
-      }, {
-        suppressMapOpenBlock: true,
-      })
+  // ── Geolocation button ────────────────────────────────────────────────────────
 
-      const placemark = new ymaps.Placemark(center, {}, {
-        draggable: true,
-        preset: 'islands#redCircleDotIcon',
-      })
-
-      if (savedLat && savedLng) map.geoObjects.add(placemark)
-
-      window._ymap = map
-      window._ymapPlacemark = placemark
-
-      function setLocation(coords) {
-        document.getElementById('loc-lat').value = coords[0].toFixed(6)
-        document.getElementById('loc-lng').value = coords[1].toFixed(6)
-        map.geoObjects.removeAll()
-        placemark.geometry.setCoordinates(coords)
-        map.geoObjects.add(placemark)
-        // Reverse geocode to get address
-        ymaps.geocode(coords, { results: 1 }).then(res => {
-          const first = res.geoObjects.get(0)
-          if (first) {
-            document.getElementById('loc-address').value = first.getAddressLine()
-          }
-        }).catch(() => {})
-      }
-
-      map.events.add('click', e => setLocation(e.get('coords')))
-      placemark.events.add('dragend', () => setLocation(placemark.geometry.getCoordinates()))
-
-      // Address search
-      document.getElementById('loc-search-btn').addEventListener('click', () => {
-        const q = document.getElementById('loc-address').value.trim()
-        if (!q) return
-        ymaps.geocode(q, { results: 1 }).then(res => {
-          const first = res.geoObjects.get(0)
-          if (first) {
-            const coords = first.geometry.getCoordinates()
-            map.setCenter(coords, 15)
-            setLocation(coords)
-            document.getElementById('loc-address').value = first.getAddressLine()
-          }
-        }).catch(() => {})
-      })
-
-      document.getElementById('loc-address').addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('loc-search-btn').click()
-      })
-    })
-  }
-
-  // Geolocation button
   document.getElementById('req-geo-btn').addEventListener('click', () => {
-    navigator.geolocation.getCurrentPosition(pos => {
-      const coords = [pos.coords.latitude, pos.coords.longitude]
-      if (window._ymap) {
-        window._ymap.setCenter(coords, 15)
-        window._ymap.geoObjects.removeAll()
-        window._ymapPlacemark.geometry.setCoordinates(coords)
-        window._ymap.geoObjects.add(window._ymapPlacemark)
-        ymaps.geocode(coords, { results: 1 }).then(res => {
-          const first = res.geoObjects.get(0)
-          if (first) document.getElementById('loc-address').value = first.getAddressLine()
-        }).catch(() => {})
+    const msg = document.getElementById('location-msg')
+    msg.textContent = 'Определение…'
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude: lat, longitude: lng } = pos.coords
+      document.getElementById('loc-lat').value = lat.toFixed(6)
+      document.getElementById('loc-lng').value = lng.toFixed(6)
+      msg.textContent = ''
+      try {
+        const address = await reverseGeocode(lat, lng)
+        document.getElementById('loc-address').value = address
+        showGeocodeResult(address, lat, lng)
+      } catch {
+        const address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+        document.getElementById('loc-address').value = address
+        showGeocodeResult(address, lat, lng)
       }
-      document.getElementById('loc-lat').value = coords[0].toFixed(6)
-      document.getElementById('loc-lng').value = coords[1].toFixed(6)
     }, () => {
-      document.getElementById('location-msg').textContent = '⚠ Геолокация недоступна'
+      msg.textContent = '⚠ Геолокация недоступна'
     })
   })
 
@@ -477,7 +470,6 @@
     loadOrders()
     loadNotifPrefs()
     loadNotifications(notifPage)
-    initYandexMap()
 
     document.getElementById('logout-btn').addEventListener('click', () => window.LOOM_AUTH.logout())
   }
