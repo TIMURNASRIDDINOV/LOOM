@@ -456,6 +456,12 @@
     }
   }
 
+  // ── Map picker callback ───────────────────────────────────────────────────────
+
+  window._mapPickerCallback = function (address, lat, lng) {
+    showGeocodeResult(address, lat, lng)
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   async function init() {

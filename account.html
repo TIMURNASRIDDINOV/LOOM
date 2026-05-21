@@ -168,6 +168,21 @@
     .geocode-map-link:hover { color: #fff; border-bottom-color: rgba(255,255,255,0.6); }
     .geocode-error { font-size: 0.8rem; color: #f87171; }
 
+    /* ── Map picker modal ────────────────────────────── */
+    #map-picker-modal {
+      display: none; position: fixed; inset: 0; z-index: 2000;
+      background: rgba(0,0,0,0.92); flex-direction: column;
+    }
+    #map-picker-modal.open { display: flex; }
+    #map-picker-bar {
+      padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem;
+      background: #0f0f0f; border-bottom: 0.5px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    #map-picker-hint { font-size: 0.8rem; color: rgba(255,255,255,0.45); flex: 1; }
+    #map-picker-selected { font-size: 0.78rem; color: rgba(255,255,255,0.7); flex: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #map-el { flex: 1; }
+
     /* ── Notifications list ──────────────────────────── */
     .notif-item {
       padding: 1rem; border-bottom: 0.5px solid var(--hairline);
@@ -265,11 +280,14 @@
           </div>
         </div>
 
-        <!-- Geocode result + Yandex Maps link -->
+        <!-- Geocode result + map controls -->
         <div class="geocode-result" id="geocode-result">
           <div class="geocode-found-addr" id="geocode-addr"></div>
           <div class="geocode-coords" id="geocode-coords-text"></div>
-          <a class="geocode-map-link" id="geocode-map-link" target="_blank" rel="noopener">Открыть в Яндекс Картах →</a>
+          <a class="geocode-map-link" id="geocode-map-link" target="_blank" rel="noopener" style="margin-right:1rem">Яндекс Карты →</a>
+        </div>
+        <div style="margin-bottom:0.5rem">
+          <button type="button" class="btn-ghost" id="open-map-btn" style="font-size:0.78rem">📍 Выбрать на карте</button>
         </div>
 
         <!-- Hidden lat/lng for form submission -->
@@ -387,8 +405,22 @@
 
   </div>
 
+  <!-- Map picker modal -->
+  <div id="map-picker-modal">
+    <div id="map-picker-bar">
+      <button type="button" class="btn-ghost" id="map-cancel-btn" style="font-size:0.78rem;flex-shrink:0">← Назад</button>
+      <span id="map-picker-hint">Нажмите на карту, чтобы выбрать место</span>
+      <span id="map-picker-selected"></span>
+      <button type="button" class="btn-primary" id="map-confirm-btn" style="font-size:0.78rem;padding:0.45rem 1rem;flex-shrink:0" disabled>Выбрать это место</button>
+    </div>
+    <div id="map-el"></div>
+  </div>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="assets/config.js"></script>
   <script src="assets/auth.js"></script>
-  <script src="assets/account.js?v=2"></script>
+  <script src="assets/account.js?v=3"></script>
+  <script src="assets/map-picker.js?v=1"></script>
 </body>
 </html>

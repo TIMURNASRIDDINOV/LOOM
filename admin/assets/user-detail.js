@@ -92,8 +92,11 @@
       })
     }
 
-    // Notify button only if has Telegram
-    document.getElementById('btn-notify').style.display = u.telegram_user_id ? '' : 'none'
+    // Notify button — always visible; hint differs when no Telegram
+    const notifyBtn = document.getElementById('btn-notify')
+    notifyBtn.style.display = ''
+    const noTgNote = document.getElementById('notif-no-tg-note')
+    if (noTgNote) noTgNote.style.display = u.telegram_user_id ? 'none' : ''
 
     // Pre-fill edit profile form
     document.getElementById('edit-first-name').value = u.first_name || ''
@@ -119,6 +122,13 @@
   let _adminLocLat = null
   let _adminLocLng = null
   let _adminLocAddr = null
+
+  // Expose state and callback for the map picker
+  window._adminLocState = () => ({ lat: _adminLocLat, lng: _adminLocLng, addr: _adminLocAddr })
+  window._adminMapPickerCallback = (address, lat, lng) => {
+    document.getElementById('edit-location-addr').value = address
+    showAdminLocResult(address, lat, lng)
+  }
 
   function showAdminLocResult(address, lat, lng) {
     _adminLocAddr = address; _adminLocLat = lat; _adminLocLng = lng
