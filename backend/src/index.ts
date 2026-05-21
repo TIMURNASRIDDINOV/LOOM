@@ -7,7 +7,6 @@ import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
 import filesRoutes from './routes/files'
-import userProfileRoutes from './routes/user-profile'
 import type { BaseEnv } from './types'
 
 const PROD_ORIGINS = [
@@ -46,6 +45,8 @@ app.route('/api/admin', setupRouter)          // POST /api/admin/setup (no auth 
 app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/admin/stats
 app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
+app.route('/api/telegram', telegramAuthRoutes) // POST /api/telegram/auth/*, webhook
+app.route('/api/telegram', webhookRouter)      // POST /api/telegram/webhook
 
 // ─── Admin subdomain redirect ─────────────────────────────────────────────────
 

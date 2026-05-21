@@ -49,7 +49,7 @@
         const name = displayName(u)
         const contact = u.email || u.phone || (u.telegram_username ? '@' + u.telegram_username : '')
         return `
-        <tr>
+        <tr style="cursor:pointer" onclick="location.href='user-detail.html?id=${u.id}'">
           <td>${avatarHtml(u)}</td>
           <td class="mono" style="font-size:0.8rem">${esc(contact)}</td>
           <td>${name ? esc(name) : '<span class="muted">—</span>'}</td>

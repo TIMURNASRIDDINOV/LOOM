@@ -39,14 +39,22 @@
     .badge-active { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
     .badge-banned  { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
 
-    /* Notification form */
-    .notif-form textarea { width: 100%; padding: 0.65rem 0.9rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.85rem; outline: none; resize: vertical; min-height: 80px; margin-bottom: 0.75rem; }
-    .notif-form textarea:focus { border-color: rgba(255,255,255,0.35); }
+    /* Forms */
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .form-row.single { grid-template-columns: 1fr; }
+    .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .form-label { font-size: 0.72rem; color: rgba(255,255,255,0.4); letter-spacing: 0.05em; }
+    .form-input { padding: 0.55rem 0.8rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.82rem; outline: none; width: 100%; }
+    .form-input::placeholder { color: rgba(255,255,255,0.25); }
+    .form-input:focus { border-color: rgba(255,255,255,0.35); }
+    textarea.form-input { resize: vertical; min-height: 80px; }
+    .form-result { font-size: 0.82rem; margin-top: 0.5rem; min-height: 1.2em; }
     .notif-form .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
     .notif-form input { width: 100%; padding: 0.55rem 0.8rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.82rem; outline: none; }
     .notif-form input::placeholder { color: rgba(255,255,255,0.25); }
     .notif-form input:focus { border-color: rgba(255,255,255,0.35); }
-    .form-result { font-size: 0.82rem; margin-top: 0.5rem; min-height: 1.2em; }
+    .notif-form textarea { width: 100%; padding: 0.65rem 0.9rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.85rem; outline: none; resize: vertical; min-height: 80px; margin-bottom: 0.75rem; }
+    .notif-form textarea:focus { border-color: rgba(255,255,255,0.35); }
   </style>
 </head>
 <body>
@@ -61,6 +69,9 @@
       <div id="user-info" class="info-grid" style="color:rgba(255,255,255,0.3)">Загрузка…</div>
       <div class="actions" id="user-actions" style="display:none">
         <button class="btn-action primary" id="btn-notify">📤 Уведомить</button>
+        <button class="btn-action" id="btn-edit-profile">✏️ Профиль</button>
+        <button class="btn-action" id="btn-edit-location">📍 Локация</button>
+        <button class="btn-action" id="btn-reset-password">🔑 Пароль</button>
         <button class="btn-action" id="btn-toggle-status">Заблокировать</button>
         <div id="role-select-container" style="display:inline-flex;align-items:center;"></div>
       </div>
@@ -76,6 +87,62 @@
       </div>
       <button class="btn-action primary" id="btn-send-notif">Отправить</button>
       <p class="form-result" id="notif-result"></p>
+    </div>
+
+    <!-- Edit Profile -->
+    <div class="card" id="edit-profile-card" style="display:none">
+      <p class="card-title">Редактировать профиль</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Имя</label>
+          <input id="edit-first-name" type="text" class="form-input" placeholder="Имя" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Фамилия</label>
+          <input id="edit-last-name" type="text" class="form-input" placeholder="Фамилия" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input id="edit-email" type="email" class="form-input" placeholder="email@example.com" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Телефон</label>
+          <input id="edit-phone" type="tel" class="form-input" placeholder="+998..." />
+        </div>
+      </div>
+      <button class="btn-action primary" id="btn-save-profile">Сохранить</button>
+      <p class="form-result" id="profile-result"></p>
+    </div>
+
+    <!-- Location -->
+    <div class="card" id="edit-location-card" style="display:none">
+      <p class="card-title">Локация (preset)</p>
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Preset строка (lat,lng или пусто)</label>
+          <input id="edit-location" type="text" class="form-input" placeholder="41.2995,69.2401" />
+        </div>
+      </div>
+      <div style="display:flex;gap:0.5rem">
+        <button class="btn-action primary" id="btn-save-location">Сохранить</button>
+        <button class="btn-action" id="btn-clear-location">Очистить</button>
+      </div>
+      <p class="form-result" id="location-result"></p>
+    </div>
+
+    <!-- Password Reset -->
+    <div class="card" id="reset-password-card" style="display:none">
+      <p class="card-title">Сбросить пароль</p>
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Новый пароль (минимум 6 символов)</label>
+          <input id="edit-password" type="text" class="form-input" placeholder="Новый пароль" autocomplete="off" />
+        </div>
+      </div>
+      <button class="btn-action danger" id="btn-save-password">Установить пароль</button>
+      <p class="form-result" id="password-result"></p>
     </div>
 
     <!-- Orders -->
@@ -108,6 +175,6 @@
   <script src="assets/app.js"></script>
   <script src="assets/layout.js"></script>
   <script>LOOM_LAYOUT.init('users')</script>
-  <script src="assets/user-detail.js"></script>
+  <script src="assets/user-detail.js?v=2"></script>
 </body>
 </html>

@@ -94,6 +94,15 @@
 
     // Notify button only if has Telegram
     document.getElementById('btn-notify').style.display = u.telegram_user_id ? '' : 'none'
+
+    // Pre-fill edit profile form
+    document.getElementById('edit-first-name').value = u.first_name || ''
+    document.getElementById('edit-last-name').value = u.last_name || ''
+    document.getElementById('edit-email').value = u.email || ''
+    document.getElementById('edit-phone').value = u.phone || ''
+
+    // Pre-fill location form
+    document.getElementById('edit-location').value = u.location_preset || ''
   }
 
   async function loadOrders() {
@@ -165,10 +174,17 @@
 
   // Role change is now handled by the role-select dropdown rendered inside renderUserInfo
 
-  document.getElementById('btn-notify').addEventListener('click', () => {
-    const form = document.getElementById('notif-form')
-    form.style.display = form.style.display === 'none' ? '' : 'none'
-  })
+  function toggleCard(btnId, cardId) {
+    document.getElementById(btnId).addEventListener('click', () => {
+      const card = document.getElementById(cardId)
+      card.style.display = card.style.display === 'none' ? '' : 'none'
+    })
+  }
+
+  toggleCard('btn-notify', 'notif-form')
+  toggleCard('btn-edit-profile', 'edit-profile-card')
+  toggleCard('btn-edit-location', 'edit-location-card')
+  toggleCard('btn-reset-password', 'reset-password-card')
 
   document.getElementById('btn-send-notif').addEventListener('click', async () => {
     const msg = document.getElementById('notif-msg').value.trim()
@@ -191,6 +207,88 @@
       })
       result.style.color = '#4ade80'; result.textContent = '✅ Уведомление отправлено'
       document.getElementById('notif-msg').value = ''
+    } catch (err) {
+      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+    }
+  })
+
+  // ── Edit Profile ──────────────────────────────────────────────────────────
+
+  document.getElementById('btn-save-profile').addEventListener('click', async () => {
+    const result = document.getElementById('profile-result')
+    const body = {
+      first_name: document.getElementById('edit-first-name').value.trim() || null,
+      last_name: document.getElementById('edit-last-name').value.trim() || null,
+      email: document.getElementById('edit-email').value.trim() || null,
+      phone: document.getElementById('edit-phone').value.trim() || null,
+    }
+    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Сохранение…'
+    try {
+      const updated = await apiJSON(`/api/admin/users/${userId}/profile`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      result.style.color = '#4ade80'; result.textContent = '✅ Сохранено'
+      renderUserInfo(updated)
+    } catch (err) {
+      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+    }
+  })
+
+  // ── Edit Location ─────────────────────────────────────────────────────────
+
+  document.getElementById('btn-save-location').addEventListener('click', async () => {
+    const result = document.getElementById('location-result')
+    const preset = document.getElementById('edit-location').value.trim() || null
+    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Сохранение…'
+    try {
+      await apiJSON(`/api/admin/users/${userId}/location`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_preset: preset }),
+      })
+      result.style.color = '#4ade80'; result.textContent = '✅ Сохранено'
+    } catch (err) {
+      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+    }
+  })
+
+  document.getElementById('btn-clear-location').addEventListener('click', async () => {
+    const result = document.getElementById('location-result')
+    document.getElementById('edit-location').value = ''
+    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Очистка…'
+    try {
+      await apiJSON(`/api/admin/users/${userId}/location`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_preset: null }),
+      })
+      result.style.color = '#4ade80'; result.textContent = '✅ Локация очищена'
+    } catch (err) {
+      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+    }
+  })
+
+  // ── Reset Password ────────────────────────────────────────────────────────
+
+  document.getElementById('btn-save-password').addEventListener('click', async () => {
+    const result = document.getElementById('password-result')
+    const password = document.getElementById('edit-password').value
+    if (password.length < 6) {
+      result.style.color = '#f87171'; result.textContent = 'Минимум 6 символов'
+      return
+    }
+    if (!confirm('Установить новый пароль для этого пользователя?')) return
+    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Сохранение…'
+    try {
+      await apiJSON(`/api/admin/users/${userId}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      result.style.color = '#4ade80'; result.textContent = '✅ Пароль установлен'
+      document.getElementById('edit-password').value = ''
     } catch (err) {
       result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
     }

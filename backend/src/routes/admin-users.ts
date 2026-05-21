@@ -3,6 +3,8 @@ import {
   getAdminUsers,
   getAdminUserById,
   updateUserRoleAndStatus,
+  updateUserProfile,
+  updateUserPassword,
   getOrdersByUserId,
   getUserActivity,
   insertUserActivity,
@@ -12,6 +14,7 @@ import {
   getUsersWithRole,
   setUserRole,
 } from '../db/queries'
+import { hashPassword } from '../lib/password'
 import { requireAdmin } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
 
@@ -314,6 +317,107 @@ router.post('/notifications', requireAdmin, async (c) => {
   }
 
   return c.json({ ok: true, id: notifId, telegram_message_id: telegramMessageId })
+})
+
+// ─── PATCH /api/admin/users/:id/profile ──────────────────────────────────────
+
+router.patch('/users/:id/profile', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  let body: unknown
+  try { body = await c.req.json() } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const { name, email, phone, first_name, last_name } = body as Record<string, unknown>
+
+  const params: { name?: string | null; email?: string | null; phone?: string | null; first_name?: string | null; last_name?: string | null } = {}
+
+  if ('name' in (body as object)) params.name = typeof name === 'string' ? name.trim() || null : null
+  if ('email' in (body as object)) params.email = typeof email === 'string' ? email.trim() || null : null
+  if ('phone' in (body as object)) params.phone = typeof phone === 'string' ? phone.trim() || null : null
+  if ('first_name' in (body as object)) params.first_name = typeof first_name === 'string' ? first_name.trim() || null : null
+  if ('last_name' in (body as object)) params.last_name = typeof last_name === 'string' ? last_name.trim() || null : null
+
+  if (!Object.keys(params).length) return c.json({ error: 'No valid fields' }, 400)
+
+  const existing = await getAdminUserById(c.env.DB, id)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  await updateUserProfile(c.env.DB, id, params)
+
+  const adminId = c.get('adminId')
+  await insertUserActivity(c.env.DB, {
+    user_id: id,
+    action: 'profile_updated',
+    metadata: { by_admin_id: adminId, fields: Object.keys(params) },
+  })
+
+  const updated = await getAdminUserById(c.env.DB, id)
+  return c.json(updated)
+})
+
+// ─── PATCH /api/admin/users/:id/location ─────────────────────────────────────
+
+router.patch('/users/:id/location', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  let body: unknown
+  try { body = await c.req.json() } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const { location_preset } = body as Record<string, unknown>
+  const preset = location_preset === null ? null : (typeof location_preset === 'string' ? location_preset.trim() || null : undefined)
+  if (preset === undefined) return c.json({ error: 'location_preset required (string or null)' }, 400)
+
+  const existing = await getAdminUserById(c.env.DB, id)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  await updateUserProfile(c.env.DB, id, { location_preset: preset })
+
+  const adminId = c.get('adminId')
+  await insertUserActivity(c.env.DB, {
+    user_id: id,
+    action: 'location_updated',
+    metadata: { by_admin_id: adminId, location_preset: preset },
+  })
+
+  return c.json({ ok: true, location_preset: preset })
+})
+
+// ─── PATCH /api/admin/users/:id/password ─────────────────────────────────────
+
+router.patch('/users/:id/password', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  let body: unknown
+  try { body = await c.req.json() } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const { password } = body as Record<string, unknown>
+  if (typeof password !== 'string' || password.length < 6) {
+    return c.json({ error: 'password must be at least 6 characters' }, 400)
+  }
+
+  const existing = await getAdminUserById(c.env.DB, id)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  const hashed = await hashPassword(password)
+  await updateUserPassword(c.env.DB, id, hashed)
+
+  const adminId = c.get('adminId')
+  await insertUserActivity(c.env.DB, {
+    user_id: id,
+    action: 'password_reset',
+    metadata: { by_admin_id: adminId },
+  })
+
+  return c.json({ ok: true })
 })
 
 // ─── GET /api/admin/notifications ────────────────────────────────────────────

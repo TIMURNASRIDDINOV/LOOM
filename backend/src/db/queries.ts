@@ -98,16 +98,21 @@ export async function createAdmin(
 export async function updateUserProfile(
   db: D1Database,
   id: number,
-  params: { name?: string | null; phone?: string | null; location_preset?: string | null },
+  params: { name?: string | null; phone?: string | null; email?: string | null; first_name?: string | null; last_name?: string | null; location_preset?: string | null },
 ): Promise<void> {
-  const sets: string[] = []
-  const vals: (string | number | null)[] = []
-  if ('name' in params) { sets.push('name = ?'); vals.push(params.name ?? null) }
-  if ('phone' in params) { sets.push('phone = ?'); vals.push(params.phone ?? null) }
-  if ('location_preset' in params) { sets.push('location_preset = ?'); vals.push(params.location_preset ?? null) }
-  if (!sets.length) return
-  vals.push(id)
-  await db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run()
+  return safeQuery('updateUserProfile', async () => {
+    const sets: string[] = []
+    const vals: (string | number | null)[] = []
+    if ('name' in params) { sets.push('name = ?'); vals.push(params.name ?? null) }
+    if ('email' in params) { sets.push('email = ?'); vals.push(params.email ?? null) }
+    if ('phone' in params) { sets.push('phone = ?'); vals.push(params.phone ?? null) }
+    if ('first_name' in params) { sets.push('first_name = ?'); vals.push(params.first_name ?? null) }
+    if ('last_name' in params) { sets.push('last_name = ?'); vals.push(params.last_name ?? null) }
+    if ('location_preset' in params) { sets.push('location_preset = ?'); vals.push(params.location_preset ?? null) }
+    if (!sets.length) return
+    vals.push(id)
+    await db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run()
+  })
 }
 
 export async function updateUserPassword(
@@ -115,7 +120,9 @@ export async function updateUserPassword(
   id: number,
   passwordHash: string,
 ): Promise<void> {
-  await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(passwordHash, id).run()
+  return safeQuery('updateUserPassword', async () => {
+    await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(passwordHash, id).run()
+  })
 }
 
 
@@ -751,6 +758,7 @@ export interface AdminUserRow {
   telegram_user_id: number | null
   role: string
   status: string
+  location_preset: string | null
   created_at: number
   last_login_at: number | null
   orders_count: number
@@ -814,7 +822,7 @@ export async function getAdminUserById(db: D1Database, id: number): Promise<Admi
       .prepare(
         `SELECT u.id, u.phone, u.email, u.name, u.first_name, u.last_name, u.avatar_key,
                 u.telegram_username, u.telegram_user_id, u.role, u.status,
-                u.created_at, u.last_login_at,
+                u.location_preset, u.created_at, u.last_login_at,
                 COUNT(o.id) as orders_count,
                 COALESCE(SUM(o.total_price), 0) as total_spent
          FROM users u

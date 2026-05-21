@@ -44,7 +44,6 @@ export interface User {
   role: string
   status: string
   last_login_at: number | null
-  avatar_key: string | null
 }
 
 export interface AuthSession {
