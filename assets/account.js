@@ -44,9 +44,11 @@
     })
   })
 
-  // Check for hash-based navigation to settings tab
+  // Hash-based tab navigation
   if (window.location.hash === '#settings') {
     setTimeout(() => document.querySelector('[data-tab="settings"]')?.click(), 50)
+  } else if (window.location.hash === '#notifications') {
+    setTimeout(() => document.querySelector('[data-tab="notifications"]')?.click(), 50)
   }
 
   // ── Avatar ───────────────────────────────────────────────────────────────────
@@ -134,10 +136,17 @@
     if (loc && loc.address) {
       preview.style.display = 'flex'
       addrEl.textContent = loc.address
-      coordsEl.textContent = loc.lat && loc.lng ? `${loc.lat}, ${loc.lng}` : ''
+      coordsEl.textContent = loc.lat && loc.lng ? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}` : ''
       document.getElementById('loc-address').value = loc.address || ''
       document.getElementById('loc-lat').value = loc.lat || ''
       document.getElementById('loc-lng').value = loc.lng || ''
+      if (window._ymap && loc.lat && loc.lng) {
+        window._ymap.geoObjects.removeAll()
+        const coords = [loc.lat, loc.lng]
+        window._ymap.setCenter(coords, 15)
+        window._ymapPlacemark.geometry.setCoordinates(coords)
+        window._ymap.geoObjects.add(window._ymapPlacemark)
+      }
     } else {
       preview.style.display = 'none'
     }
@@ -208,6 +217,7 @@
     document.getElementById('loc-lat').value = ''
     document.getElementById('loc-lng').value = ''
     document.getElementById('location-preview').style.display = 'none'
+    if (window._ymap) window._ymap.geoObjects.removeAll()
     const token = window.LOOM_AUTH.getToken()
     await fetch(API + '/api/auth/profile', {
       method: 'PATCH',
@@ -271,33 +281,148 @@
     } catch {}
   }
 
-  // ── Geo permission ────────────────────────────────────────────────────────────
+  // ── Yandex Map for location picker ───────────────────────────────────────────
 
-  function updateGeoBadge(state) {
-    const badge = document.getElementById('geo-perm-badge')
-    if (!badge) return
-    badge.className = 'perm-badge ' + (state === 'granted' ? 'granted' : state === 'denied' ? 'denied' : 'prompt')
-    badge.textContent = state === 'granted' ? 'Разрешён' : state === 'denied' ? 'Отказано' : 'Не определено'
+  function initYandexMap() {
+    if (!window.ymaps || !document.getElementById('ymap-container')) return
+
+    ymaps.ready(() => {
+      const defaultCenter = [41.2995, 69.2401]
+      const savedLat = parseFloat(document.getElementById('loc-lat').value) || null
+      const savedLng = parseFloat(document.getElementById('loc-lng').value) || null
+      const center = savedLat && savedLng ? [savedLat, savedLng] : defaultCenter
+
+      const map = new ymaps.Map('ymap-container', {
+        center,
+        zoom: savedLat ? 15 : 12,
+        controls: ['zoomControl', 'geolocationControl'],
+      }, {
+        suppressMapOpenBlock: true,
+      })
+
+      const placemark = new ymaps.Placemark(center, {}, {
+        draggable: true,
+        preset: 'islands#redCircleDotIcon',
+      })
+
+      if (savedLat && savedLng) map.geoObjects.add(placemark)
+
+      window._ymap = map
+      window._ymapPlacemark = placemark
+
+      function setLocation(coords) {
+        document.getElementById('loc-lat').value = coords[0].toFixed(6)
+        document.getElementById('loc-lng').value = coords[1].toFixed(6)
+        map.geoObjects.removeAll()
+        placemark.geometry.setCoordinates(coords)
+        map.geoObjects.add(placemark)
+        // Reverse geocode to get address
+        ymaps.geocode(coords, { results: 1 }).then(res => {
+          const first = res.geoObjects.get(0)
+          if (first) {
+            document.getElementById('loc-address').value = first.getAddressLine()
+          }
+        }).catch(() => {})
+      }
+
+      map.events.add('click', e => setLocation(e.get('coords')))
+      placemark.events.add('dragend', () => setLocation(placemark.geometry.getCoordinates()))
+
+      // Address search
+      document.getElementById('loc-search-btn').addEventListener('click', () => {
+        const q = document.getElementById('loc-address').value.trim()
+        if (!q) return
+        ymaps.geocode(q, { results: 1 }).then(res => {
+          const first = res.geoObjects.get(0)
+          if (first) {
+            const coords = first.geometry.getCoordinates()
+            map.setCenter(coords, 15)
+            setLocation(coords)
+            document.getElementById('loc-address').value = first.getAddressLine()
+          }
+        }).catch(() => {})
+      })
+
+      document.getElementById('loc-address').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('loc-search-btn').click()
+      })
+    })
   }
 
-  if (navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' }).then(result => {
-      updateGeoBadge(result.state)
-      result.onchange = () => updateGeoBadge(result.state)
-    }).catch(() => {})
-  }
-
+  // Geolocation button
   document.getElementById('req-geo-btn').addEventListener('click', () => {
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        updateGeoBadge('granted')
-        const lat = pos.coords.latitude.toFixed(6)
-        const lng = pos.coords.longitude.toFixed(6)
-        document.getElementById('loc-lat').value = lat
-        document.getElementById('loc-lng').value = lng
-      },
-      () => updateGeoBadge('denied'),
-    )
+    navigator.geolocation.getCurrentPosition(pos => {
+      const coords = [pos.coords.latitude, pos.coords.longitude]
+      if (window._ymap) {
+        window._ymap.setCenter(coords, 15)
+        window._ymap.geoObjects.removeAll()
+        window._ymapPlacemark.geometry.setCoordinates(coords)
+        window._ymap.geoObjects.add(window._ymapPlacemark)
+        ymaps.geocode(coords, { results: 1 }).then(res => {
+          const first = res.geoObjects.get(0)
+          if (first) document.getElementById('loc-address').value = first.getAddressLine()
+        }).catch(() => {})
+      }
+      document.getElementById('loc-lat').value = coords[0].toFixed(6)
+      document.getElementById('loc-lng').value = coords[1].toFixed(6)
+    }, () => {
+      document.getElementById('location-msg').textContent = '⚠ Геолокация недоступна'
+    })
+  })
+
+  // ── Notifications ─────────────────────────────────────────────────────────────
+
+  let notifPage = 1
+  const NOTIF_LIMIT = 25
+
+  function fmtNotifDate(ts) {
+    if (!ts) return ''
+    return new Date(Number(ts)).toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent', dateStyle: 'short', timeStyle: 'short' })
+  }
+
+  async function loadNotifications(page) {
+    const listEl = document.getElementById('notif-list')
+    listEl.innerHTML = '<p class="notif-empty">Загрузка…</p>'
+    try {
+      const token = window.LOOM_AUTH.getToken()
+      const headers = {}
+      if (token) headers['Authorization'] = 'Bearer ' + token
+      const res = await fetch(API + '/api/me/notifications?page=' + page + '&limit=' + NOTIF_LIMIT, {
+        headers,
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const data = await res.json()
+      const items = data.items || []
+      if (!items.length) {
+        listEl.innerHTML = '<p class="notif-empty">Уведомлений пока нет.</p>'
+        document.getElementById('notif-pagination').style.display = 'none'
+        return
+      }
+      listEl.innerHTML = items.map(n => `
+        <div class="notif-item">
+          <div style="font-size:0.88rem;line-height:1.5">${esc(n.message)}</div>
+          ${n.button_label && n.button_url ? `<a class="notif-btn" href="${esc(n.button_url)}" target="_blank" rel="noopener">${esc(n.button_label)}</a>` : ''}
+          <div class="notif-meta">${fmtNotifDate(n.sent_at)}</div>
+        </div>
+      `).join('')
+      const total = data.total || 0
+      const from = (page - 1) * NOTIF_LIMIT + 1
+      const to = Math.min(page * NOTIF_LIMIT, total)
+      document.getElementById('notif-page-info').textContent = `${from}–${to} из ${total}`
+      document.getElementById('notif-prev-btn').disabled = page <= 1
+      document.getElementById('notif-next-btn').disabled = to >= total
+      document.getElementById('notif-pagination').style.display = total > NOTIF_LIMIT ? 'flex' : 'none'
+    } catch {
+      listEl.innerHTML = '<p class="notif-empty" style="color:#f87171">Не удалось загрузить уведомления.</p>'
+    }
+  }
+
+  document.getElementById('notif-prev-btn').addEventListener('click', () => {
+    if (notifPage > 1) { notifPage--; loadNotifications(notifPage) }
+  })
+  document.getElementById('notif-next-btn').addEventListener('click', () => {
+    notifPage++; loadNotifications(notifPage)
   })
 
   // ── Orders ────────────────────────────────────────────────────────────────────
@@ -351,6 +476,8 @@
     populateProfile(user)
     loadOrders()
     loadNotifPrefs()
+    loadNotifications(notifPage)
+    initYandexMap()
 
     document.getElementById('logout-btn').addEventListener('click', () => window.LOOM_AUTH.logout())
   }

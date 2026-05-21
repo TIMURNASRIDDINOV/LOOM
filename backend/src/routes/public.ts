@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
-import { getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId, getUserById } from '../db/queries'
+import { getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId, getUserById, getUserNotifications } from '../db/queries'
 import { validateUpload, generateLogoKey } from '../lib/r2'
 import { verifyToken } from '../lib/jwt'
 import { requireAuth } from '../middleware/requireAuth'
@@ -199,6 +199,13 @@ meRouter.get('/orders', requireAuth, async (c) => {
   const limit = 20
   const { orders, total } = await getOrdersByUserId(c.env.DB, c.get('userId'), page, limit)
   return c.json({ orders, page, limit, total })
+})
+
+meRouter.get('/notifications', requireAuth, async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const limit = 25
+  const { items, total } = await getUserNotifications(c.env.DB, c.get('userId'), page, limit)
+  return c.json({ items, page, limit, total })
 })
 
 pub.route('/me', meRouter)

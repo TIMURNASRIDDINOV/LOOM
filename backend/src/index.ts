@@ -41,9 +41,10 @@ app.use('*', (c, next) => {
 
 app.route('/api', publicRoutes)               // GET /api/products, POST /api/orders, etc.
 app.route('/api/auth', authRoutes)            // POST /api/auth/register, /login, GET /api/auth/me, PATCH /profile etc.
-app.route('/api/admin', adminRoutes)          // /api/admin/* (orders, auth, media, users, analytics)
+app.route('/api/admin', adminRoutes)          // /api/admin/* (orders, auth, media, analytics)
 app.route('/api/admin', setupRouter)          // POST /api/admin/setup (no auth required)
 app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/admin/stats
+app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 
 // ─── Admin subdomain redirect ─────────────────────────────────────────────────

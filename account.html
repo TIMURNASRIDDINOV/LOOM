@@ -151,6 +151,24 @@
     .quick-links { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
     .quick-link { padding: 0.5rem 1rem; border: 0.5px solid rgba(255,255,255,0.15); border-radius: 3px; color: rgba(255,255,255,0.55); font-size: 0.78rem; transition: all 0.15s; }
     .quick-link:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+
+    /* ── Yandex map picker ───────────────────────────── */
+    #ymap-container {
+      width: 100%; height: 300px; border-radius: 4px;
+      border: 0.5px solid rgba(255,255,255,0.12);
+      overflow: hidden; margin-bottom: 0.75rem;
+      background: rgba(255,255,255,0.04);
+    }
+
+    /* ── Notifications list ──────────────────────────── */
+    .notif-item {
+      padding: 1rem; border-bottom: 0.5px solid var(--hairline);
+    }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-meta { font-size: 0.72rem; color: var(--muted); margin-top: 0.4rem; font-family: var(--mono); }
+    .notif-btn { display: inline-block; margin-top: 0.5rem; padding: 0.4rem 0.85rem; border-radius: 3px; border: 0.5px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.7); font-size: 0.78rem; transition: all 0.15s; }
+    .notif-btn:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+    .notif-empty { color: rgba(255,255,255,0.35); font-size: 0.85rem; padding: 1rem 0; text-align: center; }
   </style>
 </head>
 <body>
@@ -171,6 +189,7 @@
     <div class="tabs" role="tablist">
       <button class="tab-btn active" role="tab" data-tab="profile">Профиль</button>
       <button class="tab-btn" role="tab" data-tab="orders">Заказы</button>
+      <button class="tab-btn" role="tab" data-tab="notifications" id="notif-tab-btn">Уведомления</button>
       <button class="tab-btn" role="tab" data-tab="settings" id="settings-tab">Настройки</button>
     </div>
 
@@ -228,37 +247,30 @@
             <div class="location-sub" id="location-coords"></div>
           </div>
         </div>
+
+        <!-- Address search input -->
         <div class="field">
           <label class="field-label" for="loc-address">Адрес</label>
-          <input id="loc-address" class="field-input" placeholder="Ташкент, Юнусабадский р-н, ул. Амира Темура 1" />
-        </div>
-        <div class="form-row">
-          <div class="field">
-            <label class="field-label" for="loc-lat">Широта (lat)</label>
-            <input id="loc-lat" class="field-input" type="number" step="0.000001" placeholder="41.299496" />
-          </div>
-          <div class="field">
-            <label class="field-label" for="loc-lng">Долгота (lng)</label>
-            <input id="loc-lng" class="field-input" type="number" step="0.000001" placeholder="69.240073" />
+          <div style="display:flex;gap:0.5rem">
+            <input id="loc-address" class="field-input" placeholder="Ташкент, Юнусабадский р-н, ул. Амира Темура 1" style="flex:1" />
+            <button type="button" class="btn-ghost" id="loc-search-btn" style="white-space:nowrap;flex-shrink:0">Найти</button>
           </div>
         </div>
-        <p class="field-hint">Этот адрес будет автоматически подставляться при оформлении заказа.</p>
+
+        <!-- Yandex Map -->
+        <div id="ymap-container"></div>
+        <p class="field-hint" style="margin-bottom:0.75rem">Кликните на карту, чтобы выбрать точку, или воспользуйтесь поиском. Координаты определяются автоматически.</p>
+
+        <!-- Hidden lat/lng for form submission -->
+        <input id="loc-lat" type="hidden" />
+        <input id="loc-lng" type="hidden" />
+
         <div class="form-actions">
           <button class="btn-primary" id="save-location-btn">Сохранить адрес</button>
           <button class="btn-ghost" id="clear-location-btn">Очистить</button>
+          <button class="btn-ghost" id="req-geo-btn">Моя геолокация</button>
           <span class="msg-ok" id="location-msg"></span>
         </div>
-      </div>
-
-      <!-- Location permission status -->
-      <div class="card">
-        <p class="card-title">Разрешения</p>
-        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-          <span style="font-size:0.85rem">Доступ к геолокации:</span>
-          <span class="perm-badge prompt" id="geo-perm-badge">Не определено</span>
-          <button class="btn-ghost" id="req-geo-btn">Запросить доступ</button>
-        </div>
-        <p class="field-hint" style="margin-top:0.75rem">Используется для автоматического определения адреса при заказе.</p>
       </div>
 
       <!-- Quick actions -->
@@ -273,6 +285,19 @@
       <div class="card">
         <p class="card-title">История заказов</p>
         <div id="orders-container"><p class="empty-state">Загрузка…</p></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Notifications ─────────────────────── -->
+    <div class="tab-panel" id="tab-notifications">
+      <div class="card">
+        <p class="card-title">Уведомления от LOOM</p>
+        <div id="notif-list"><p class="notif-empty">Загрузка…</p></div>
+        <div id="notif-pagination" style="display:none;margin-top:1rem;display:flex;align-items:center;gap:0.75rem">
+          <button class="btn-ghost" id="notif-prev-btn" disabled>←</button>
+          <span id="notif-page-info" style="font-size:0.78rem;color:var(--muted)"></span>
+          <button class="btn-ghost" id="notif-next-btn" disabled>→</button>
+        </div>
       </div>
     </div>
 
@@ -353,6 +378,7 @@
 
   <script src="assets/config.js"></script>
   <script src="assets/auth.js"></script>
+  <script src="https://api-maps.yandex.ru/2.1/?apikey=b025f473-9a94-4c4e-b3ca-a16339e3b8c5&lang=ru_RU" type="text/javascript"></script>
   <script src="assets/account.js"></script>
 </body>
 </html>

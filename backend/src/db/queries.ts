@@ -118,13 +118,6 @@ export async function updateUserPassword(
   await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(passwordHash, id).run()
 }
 
-export async function updateUserAvatar(
-  db: D1Database,
-  id: number,
-  avatarKey: string | null,
-): Promise<void> {
-  await db.prepare('UPDATE users SET avatar_key = ? WHERE id = ?').bind(avatarKey, id).run()
-}
 
 export async function getUserOrderStats(
   db: D1Database,
@@ -139,53 +132,7 @@ export async function getUserOrderStats(
   return row ?? { order_count: 0, total_spent: 0 }
 }
 
-// ─── Admin: Users ────────────────────────────────────────────────────────────
 
-export interface AdminUserRow {
-  id: number
-  email: string
-  name: string | null
-  phone: string | null
-  avatar_key: string | null
-  location_preset: string | null
-  created_at: number
-  order_count: number
-  total_spent: number
-}
-
-export async function getAdminUsers(
-  db: D1Database,
-  filter: { q?: string; page: number; limit: number },
-): Promise<{ users: AdminUserRow[]; total: number }> {
-  const offset = (filter.page - 1) * filter.limit
-  const params: (string | number | null)[] = []
-  let where = ''
-  if (filter.q) {
-    where = 'WHERE u.email LIKE ? OR u.name LIKE ? OR u.phone LIKE ?'
-    params.push(`%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`)
-  }
-  const countRow = await db
-    .prepare(`SELECT COUNT(*) as c FROM users u ${where}`)
-    .bind(...params)
-    .first<{ c: number }>()
-  const total = countRow?.c ?? 0
-
-  const { results } = await db
-    .prepare(
-      `SELECT u.id, u.email, u.name, u.phone, u.avatar_key, u.location_preset, u.created_at,
-              COUNT(o.id) as order_count,
-              COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.total_price ELSE 0 END), 0) as total_spent
-       FROM users u LEFT JOIN orders o ON o.user_id = u.id
-       ${where}
-       GROUP BY u.id
-       ORDER BY u.created_at DESC
-       LIMIT ? OFFSET ?`,
-    )
-    .bind(...params, filter.limit, offset)
-    .all<AdminUserRow>()
-
-  return { users: results, total }
-}
 
 export async function updateAdminPassword(
   db: D1Database,
@@ -795,9 +742,11 @@ export interface AdminUsersFilter {
 export interface AdminUserRow {
   id: number
   phone: string | null
-  email: string
+  email: string | null
+  name: string | null
   first_name: string | null
   last_name: string | null
+  avatar_key: string | null
   telegram_username: string | null
   telegram_user_id: number | null
   role: string
@@ -814,12 +763,12 @@ export async function getAdminUsers(
 ): Promise<{ users: AdminUserRow[]; total: number }> {
   return safeQuery('getAdminUsers', async () => {
     const offset = (filter.page - 1) * filter.limit
-    const conditions: string[] = ['u.phone IS NOT NULL']
+    const conditions: string[] = []
     const params: (string | number | null)[] = []
 
     if (filter.q) {
-      conditions.push('(u.phone LIKE ? OR u.telegram_username LIKE ? OR u.first_name LIKE ?)')
-      params.push(`%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`)
+      conditions.push('(u.phone LIKE ? OR u.email LIKE ? OR u.name LIKE ? OR u.telegram_username LIKE ? OR u.first_name LIKE ?)')
+      params.push(`%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`)
     }
     if (filter.role) {
       conditions.push('u.role = ?')
@@ -830,7 +779,7 @@ export async function getAdminUsers(
       params.push(filter.status)
     }
 
-    const where = `WHERE ${conditions.join(' AND ')}`
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
     const countRow = await db
       .prepare(`SELECT COUNT(*) as c FROM users u ${where}`)
@@ -840,8 +789,9 @@ export async function getAdminUsers(
 
     const { results } = await db
       .prepare(
-        `SELECT u.id, u.phone, u.email, u.first_name, u.last_name, u.telegram_username,
-                u.telegram_user_id, u.role, u.status, u.created_at, u.last_login_at,
+        `SELECT u.id, u.phone, u.email, u.name, u.first_name, u.last_name, u.avatar_key,
+                u.telegram_username, u.telegram_user_id, u.role, u.status,
+                u.created_at, u.last_login_at,
                 COUNT(o.id) as orders_count,
                 COALESCE(SUM(o.total_price), 0) as total_spent
          FROM users u
@@ -862,8 +812,9 @@ export async function getAdminUserById(db: D1Database, id: number): Promise<Admi
   return safeQuery('getAdminUserById', () =>
     db
       .prepare(
-        `SELECT u.id, u.phone, u.email, u.first_name, u.last_name, u.telegram_username,
-                u.telegram_user_id, u.role, u.status, u.created_at, u.last_login_at,
+        `SELECT u.id, u.phone, u.email, u.name, u.first_name, u.last_name, u.avatar_key,
+                u.telegram_username, u.telegram_user_id, u.role, u.status,
+                u.created_at, u.last_login_at,
                 COUNT(o.id) as orders_count,
                 COALESCE(SUM(o.total_price), 0) as total_spent
          FROM users u
@@ -948,6 +899,27 @@ export async function getNotifications(
     const { results } = await db
       .prepare('SELECT * FROM notifications_sent ORDER BY sent_at DESC LIMIT ? OFFSET ?')
       .bind(limit, offset)
+      .all<NotificationSent>()
+    return { items: results, total }
+  })
+}
+
+export async function getUserNotifications(
+  db: D1Database,
+  userId: number,
+  page = 1,
+  limit = 25,
+): Promise<{ items: NotificationSent[]; total: number }> {
+  return safeQuery('getUserNotifications', async () => {
+    const offset = (page - 1) * limit
+    const countRow = await db
+      .prepare('SELECT COUNT(*) as c FROM notifications_sent WHERE user_id = ?')
+      .bind(userId)
+      .first<{ c: number }>()
+    const total = countRow?.c ?? 0
+    const { results } = await db
+      .prepare('SELECT * FROM notifications_sent WHERE user_id = ? ORDER BY sent_at DESC LIMIT ? OFFSET ?')
+      .bind(userId, limit, offset)
       .all<NotificationSent>()
     return { items: results, total }
   })

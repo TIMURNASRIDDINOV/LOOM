@@ -11,8 +11,15 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+function displayName(u) {
+  if (u.first_name || u.last_name) {
+    return [u.first_name, u.last_name].filter(Boolean).join(' ')
+  }
+  return u.name || ''
+}
+
 function initials(u) {
-  const name = u.name || u.email || ''
+  const name = displayName(u) || u.email || u.phone || ''
   return name.slice(0, 2).toUpperCase()
 }
 
@@ -26,22 +33,31 @@ function avatarHtml(u) {
   return `<div class="initials-sm">${esc(initials(u))}</div>`
 }
 
+function roleBadge(role) {
+  const colors = { owner: '#f59e0b', super_admin: '#8b5cf6', admin: '#3b82f6', user: '#6b7280', customer: '#6b7280' }
+  const c = colors[role] || '#6b7280'
+  return `<span style="font-size:0.68rem;padding:1px 6px;border-radius:3px;background:${c}22;color:${c};border:1px solid ${c}44">${esc(role)}</span>`
+}
+
 function renderUsers(users, total, page, limit) {
   const tbody = document.getElementById('users-tbody')
   if (!users.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="color:rgba(255,255,255,0.3);font-size:0.82rem;padding:1rem">Пользователи не найдены</td></tr>'
   } else {
-    tbody.innerHTML = users.map(u => `
+    tbody.innerHTML = users.map(u => {
+      const name = displayName(u)
+      const contact = u.email || u.phone || (u.telegram_username ? '@' + u.telegram_username : '')
+      return `
       <tr>
         <td>${avatarHtml(u)}</td>
-        <td class="mono">${esc(u.email)}</td>
-        <td>${u.name ? esc(u.name) : '<span class="muted">—</span>'}</td>
+        <td class="mono" style="font-size:0.8rem">${esc(contact)}</td>
+        <td>${name ? esc(name) : '<span class="muted">—</span>'}</td>
         <td class="mono muted">${u.phone ? esc(u.phone) : '—'}</td>
-        <td class="mono" style="text-align:center">${u.order_count ?? 0}</td>
-        <td class="mono muted">${u.total_spent ? formatPrice(u.total_spent) : '—'}</td>
+        <td style="text-align:center">${roleBadge(u.role || 'user')}</td>
+        <td class="mono" style="text-align:center">${u.orders_count ?? 0}</td>
         <td class="muted" style="font-size:0.78rem">${formatDate(u.created_at)}</td>
       </tr>
-    `).join('')
+    `}).join('')
   }
 
   const from = (page - 1) * limit + 1
