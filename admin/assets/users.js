@@ -1,6 +1,6 @@
 'use strict'
 
-const { API_BASE, apiJSON, checkAuth, formatPrice, formatDate } = window.LOOM
+const { apiJSON, checkAuth, formatPrice, formatDate } = window.LOOM
 
 let currentPage = 1
 const PAGE_SIZE = 50
@@ -25,7 +25,7 @@ function initials(u) {
 
 function avatarHtml(u) {
   const url = u.avatar_key
-    ? `${API_BASE}/api/files/avatars/${esc(u.avatar_key)}`
+    ? `${window.LOOM.API_BASE}/api/files/avatars/${esc(u.avatar_key)}`
     : null
   if (url) {
     return `<img class="avatar-sm" src="${url}" alt="" />`
