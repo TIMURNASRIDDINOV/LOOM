@@ -216,8 +216,9 @@ router.get('/users/:id/activity', requireAdmin, async (c) => {
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
-  const { items, total } = await getUserActivity(c.env.DB, id, page, 25)
-  return c.json({ items, total, page, limit: 25 })
+  const since = c.req.query('since') ?? undefined
+  const { items, total } = await getUserActivity(c.env.DB, id, page, 100, since)
+  return c.json({ items, total, page, limit: 100 })
 })
 
 // ─── POST /api/admin/notifications ───────────────────────────────────────────

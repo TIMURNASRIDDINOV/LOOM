@@ -1,7 +1,7 @@
 'use strict'
 
 ;(function () {
-  const { apiJSON, checkAuth, formatPrice, formatDate } = window.LOOM
+  const { apiJSON, checkAuth, formatPrice, formatDate, formatPhone } = window.LOOM
 
   let currentPage = 1
   const PAGE_SIZE = 50
@@ -53,7 +53,7 @@
           <td>${avatarHtml(u)}</td>
           <td class="mono" style="font-size:0.8rem">${esc(contact)}</td>
           <td>${name ? esc(name) : '<span class="muted">—</span>'}</td>
-          <td class="mono muted">${u.phone ? esc(u.phone) : '—'}</td>
+          <td class="mono muted">${u.phone ? esc(formatPhone(u.phone)) : '—'}</td>
           <td style="text-align:center">${roleBadge(u.role || 'user')}</td>
           <td class="mono" style="text-align:center">${u.orders_count ?? 0}</td>
           <td class="muted" style="font-size:0.78rem">${formatDate(u.created_at)}</td>

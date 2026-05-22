@@ -718,19 +718,34 @@ export async function getUserActivity(
   userId: number,
   page = 1,
   limit = 25,
+  since?: string,
 ): Promise<{ items: Array<{ id: number; action: string; metadata: string | null; created_at: number }>; total: number }> {
   return safeQuery('getUserActivity', async () => {
     const offset = (page - 1) * limit
+    const now = Date.now()
+    const sinceMs: Record<string, number> = {
+      day:   now - 1 * 24 * 60 * 60 * 1000,
+      week:  now - 7 * 24 * 60 * 60 * 1000,
+      month: now - 30 * 24 * 60 * 60 * 1000,
+      year:  now - 365 * 24 * 60 * 60 * 1000,
+    }
+    const sinceTs = since && sinceMs[since] ? sinceMs[since] : null
+
+    const baseWhere = sinceTs
+      ? 'WHERE user_id = ? AND created_at >= ?'
+      : 'WHERE user_id = ?'
+    const baseParams: (number)[] = sinceTs ? [userId, sinceTs] : [userId]
+
     const countRow = await db
-      .prepare('SELECT COUNT(*) as c FROM user_activity_log WHERE user_id = ?')
-      .bind(userId)
+      .prepare(`SELECT COUNT(*) as c FROM user_activity_log ${baseWhere}`)
+      .bind(...baseParams)
       .first<{ c: number }>()
     const total = countRow?.c ?? 0
     const { results } = await db
       .prepare(
-        'SELECT id, action, metadata, created_at FROM user_activity_log WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        `SELECT id, action, metadata, created_at FROM user_activity_log ${baseWhere} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       )
-      .bind(userId, limit, offset)
+      .bind(...baseParams, limit, offset)
       .all<{ id: number; action: string; metadata: string | null; created_at: number }>()
     return { items: results, total }
   })

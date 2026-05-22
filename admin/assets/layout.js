@@ -8,51 +8,169 @@
     { id: 'users',     label: 'Пользователи', href: 'users.html',  icon: '○' },
   ]
 
+  const THEME_KEY = 'loom_admin_theme'
+
   const CSS = `
+    /* ── Theme variables ─────────────────────────────────────────── */
+    :root, [data-theme="dark"] {
+      --bg:        #0a0a0a;
+      --bg-sidebar:#080808;
+      --bg-card:   #0f0f0f;
+      --text:      #ffffff;
+      --text-muted:rgba(255,255,255,0.45);
+      --text-dim:  rgba(255,255,255,0.3);
+      --hairline:  rgba(255,255,255,0.08);
+      --hairline2: rgba(255,255,255,0.06);
+      --link-color:rgba(255,255,255,0.45);
+      --link-hover:rgba(255,255,255,0.8);
+      --link-active:#ffffff;
+      --link-active-bg:rgba(255,255,255,0.04);
+      --hover-bg:  rgba(255,255,255,0.03);
+      --input-bg:  rgba(255,255,255,0.05);
+      --input-border:rgba(255,255,255,0.12);
+      --input-border-focus:rgba(255,255,255,0.35);
+      --btn-border:rgba(255,255,255,0.15);
+      --btn-color: rgba(255,255,255,0.5);
+      --btn-hover: #ffffff;
+      --btn-hover-border:rgba(255,255,255,0.4);
+      --logout-bg: transparent;
+    }
+    [data-theme="light"] {
+      --bg:        #f2f0ec;
+      --bg-sidebar:#e8e5e0;
+      --bg-card:   #ece9e4;
+      --text:      #1c1917;
+      --text-muted:rgba(28,25,23,0.55);
+      --text-dim:  rgba(28,25,23,0.38);
+      --hairline:  rgba(0,0,0,0.1);
+      --hairline2: rgba(0,0,0,0.07);
+      --link-color:rgba(28,25,23,0.5);
+      --link-hover:rgba(28,25,23,0.85);
+      --link-active:#1c1917;
+      --link-active-bg:rgba(0,0,0,0.06);
+      --hover-bg:  rgba(0,0,0,0.04);
+      --input-bg:  rgba(0,0,0,0.04);
+      --input-border:rgba(0,0,0,0.14);
+      --input-border-focus:rgba(0,0,0,0.38);
+      --btn-border:rgba(0,0,0,0.18);
+      --btn-color: rgba(28,25,23,0.55);
+      --btn-hover: #1c1917;
+      --btn-hover-border:rgba(0,0,0,0.4);
+      --logout-bg: transparent;
+    }
+
     html, body { height: 100%; }
-    body { display: flex !important; flex-direction: row !important; background: #0a0a0a; color: #fff; margin: 0; }
+    body {
+      display: flex !important; flex-direction: row !important;
+      background: var(--bg); color: var(--text); margin: 0;
+      transition: background 0.2s, color 0.2s;
+    }
     .sidebar {
       width: 220px; flex-shrink: 0;
-      background: #080808;
-      border-right: 0.5px solid rgba(255,255,255,0.08);
+      background: var(--bg-sidebar);
+      border-right: 0.5px solid var(--hairline);
       height: 100vh; position: sticky; top: 0;
       display: flex; flex-direction: column;
       padding: 0; overflow-y: auto; z-index: 50;
+      transition: background 0.2s, border-color 0.2s;
     }
     .sidebar-brand {
       font-family: 'DM Mono', monospace;
       font-size: 0.78rem; letter-spacing: 0.22em; text-transform: uppercase;
-      color: rgba(255,255,255,0.9); padding: 1.5rem 1.25rem 1.25rem;
-      border-bottom: 0.5px solid rgba(255,255,255,0.06);
-      text-decoration: none; display: block;
+      color: var(--text); padding: 1.5rem 1.25rem 1.25rem;
+      border-bottom: 0.5px solid var(--hairline2);
+      text-decoration: none; display: block; opacity: 0.9;
     }
     .sidebar-nav { flex: 1; padding: 0.75rem 0; }
     .sidebar-link {
       display: flex; align-items: center; gap: 0.6rem;
       padding: 0.6rem 1.25rem; font-size: 0.85rem;
-      color: rgba(255,255,255,0.45); text-decoration: none;
+      color: var(--link-color); text-decoration: none;
       transition: color 0.12s, background 0.12s;
       border-left: 2px solid transparent;
     }
-    .sidebar-link:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.03); }
-    .sidebar-link.active { color: #fff; border-left-color: #fff; background: rgba(255,255,255,0.04); }
+    .sidebar-link:hover { color: var(--link-hover); background: var(--hover-bg); }
+    .sidebar-link.active { color: var(--link-active); border-left-color: var(--link-active); background: var(--link-active-bg); }
     .sidebar-link .icon { font-size: 0.9rem; opacity: 0.7; width: 1.1rem; text-align: center; }
     .sidebar-footer {
-      padding: 1rem 1.25rem; border-top: 0.5px solid rgba(255,255,255,0.06);
+      padding: 1rem 1.25rem; border-top: 0.5px solid var(--hairline2);
       display: flex; flex-direction: column; gap: 0.4rem;
     }
-    .sidebar-email { font-size: 0.72rem; color: rgba(255,255,255,0.3); word-break: break-all; }
+    .sidebar-email { font-size: 0.72rem; color: var(--text-dim); word-break: break-all; }
     .sidebar-logout {
-      padding: 0.4rem 0.7rem; border: 0.5px solid rgba(255,255,255,0.15);
-      border-radius: 3px; background: transparent; color: rgba(255,255,255,0.5);
+      padding: 0.4rem 0.7rem; border: 0.5px solid var(--btn-border);
+      border-radius: 3px; background: var(--logout-bg); color: var(--btn-color);
       font-family: inherit; font-size: 0.75rem; cursor: pointer;
       transition: all 0.15s; text-align: left;
     }
-    .sidebar-logout:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
-    .main-content { flex: 1; min-width: 0; overflow-y: auto; }
+    .sidebar-logout:hover { color: var(--btn-hover); border-color: var(--btn-hover-border); }
+    .main-content { flex: 1; min-width: 0; overflow-y: auto; background: var(--bg); }
+
+    /* Theme toggle */
+    .theme-toggle-row {
+      display: flex; gap: 0.25rem; margin-bottom: 0.4rem;
+    }
+    .theme-btn {
+      flex: 1; padding: 0.3rem 0.2rem; border-radius: 3px;
+      border: 0.5px solid var(--btn-border); background: transparent;
+      color: var(--btn-color); font-family: inherit; font-size: 0.68rem;
+      cursor: pointer; transition: all 0.12s; text-align: center;
+    }
+    .theme-btn:hover { color: var(--btn-hover); border-color: var(--btn-hover-border); }
+    .theme-btn.active { color: var(--link-active); border-color: var(--link-active); background: var(--link-active-bg); }
+
+    /* Override page-level dark styles to use vars */
+    body { background: var(--bg) !important; color: var(--text) !important; }
+    .card, [class*="card"] { background: var(--bg-card) !important; border-color: var(--hairline) !important; }
+    .form-input, textarea.form-input, .notif-form input, .notif-form textarea {
+      background: var(--input-bg) !important; border-color: var(--input-border) !important;
+      color: var(--text) !important;
+    }
+    .form-input:focus, textarea.form-input:focus, .notif-form input:focus, .notif-form textarea:focus {
+      border-color: var(--input-border-focus) !important;
+    }
+    .form-input::placeholder, .notif-form input::placeholder, .notif-form textarea::placeholder {
+      color: var(--text-dim) !important;
+    }
+    .btn-action {
+      border-color: var(--btn-border) !important; color: var(--btn-color) !important;
+      background: transparent !important;
+    }
+    .btn-action:hover { color: var(--btn-hover) !important; border-color: var(--btn-hover-border) !important; }
+    .btn-action.primary { border-color: var(--input-border-focus) !important; color: var(--text) !important; }
+    .btn-action.danger { border-color: rgba(239,68,68,0.35) !important; color: #f87171 !important; }
+    .btn-action.danger:hover { border-color: #f87171 !important; }
+    .form-label, .info-label { color: var(--text-dim) !important; }
+    th { color: var(--text-dim) !important; border-color: var(--hairline) !important; }
+    td { border-color: var(--hairline2) !important; }
+    .muted { color: var(--text-muted) !important; }
+    .page-title { color: var(--text) !important; }
+    .btn-back { border-color: var(--btn-border) !important; color: var(--text-muted) !important; }
+    .btn-back:hover { color: var(--text) !important; border-color: var(--input-border-focus) !important; }
+    select { background: var(--input-bg) !important; border-color: var(--input-border) !important; color: var(--text) !important; }
+
     /* Hide legacy top nav if present */
     .nav { display: none !important; }
   `
+
+  function getStoredTheme() {
+    return localStorage.getItem(THEME_KEY) || 'system'
+  }
+
+  function applyTheme(theme) {
+    const html = document.documentElement
+    if (theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      html.setAttribute('data-theme', prefersDark ? 'dark' : 'light')
+    } else {
+      html.setAttribute('data-theme', theme)
+    }
+    localStorage.setItem(THEME_KEY, theme)
+    // Update active button state
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === theme)
+    })
+  }
 
   function injectCSS() {
     const style = document.createElement('style')
@@ -74,6 +192,11 @@
       <nav class="sidebar-nav">${navHtml}</nav>
       <div class="sidebar-footer">
         <span class="sidebar-email" id="sidebar-email"></span>
+        <div class="theme-toggle-row">
+          <button class="theme-btn" data-theme="light" title="Светлая тема">☀ Светлая</button>
+          <button class="theme-btn" data-theme="dark"  title="Тёмная тема">◑ Тёмная</button>
+          <button class="theme-btn" data-theme="system" title="Системная тема">⊙ Авто</button>
+        </div>
         <button class="sidebar-logout" id="sidebar-logout">Выйти</button>
       </div>
     `
@@ -93,12 +216,26 @@
   function init(activePage) {
     function run() {
       injectCSS()
+      // Apply saved theme before rendering to avoid flash
+      applyTheme(getStoredTheme())
+
       const sidebar = buildSidebar(activePage)
       wrapContent()
       document.body.insertBefore(sidebar, document.body.firstChild)
 
       document.getElementById('sidebar-logout').addEventListener('click', () => {
         window.LOOM.logout()
+      })
+
+      document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.addEventListener('click', () => applyTheme(btn.dataset.theme))
+      })
+      // Keep button states correct after sidebar is in DOM
+      applyTheme(getStoredTheme())
+
+      // Respond to system theme changes when in 'system' mode
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (getStoredTheme() === 'system') applyTheme('system')
       })
     }
 

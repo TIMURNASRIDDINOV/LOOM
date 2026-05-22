@@ -2148,7 +2148,14 @@ async function handleOrderSubmit(event) {
     });
 
     let orderId = null;
-    if (apiRes.ok) {
+    if (apiRes.status === 403) {
+      const errData = await apiRes.json().catch(() => ({}));
+      const bannedMsg = (errData.error || '').toLowerCase().includes('block')
+        ? 'Ваш аккаунт заблокирован. Размещение заказов недоступно.'
+        : (errData.error || 'Доступ запрещён.')
+      showToast('⛔ ' + bannedMsg, 'error')
+      return
+    } else if (apiRes.ok) {
       const apiData = await apiRes.json();
       orderId = apiData.id;
     } else {

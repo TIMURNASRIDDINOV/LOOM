@@ -80,6 +80,18 @@ function formatDate(ts) {
   return new Date(ts).toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent', dateStyle: 'short', timeStyle: 'short' })
 }
 
+function formatPhone(phone) {
+  if (!phone) return '—'
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('998') && digits.length === 12) {
+    return `+998 (${digits.slice(3,5)}) ${digits.slice(5,8)}-${digits.slice(8,10)}-${digits.slice(10,12)}`
+  }
+  if (digits.length === 9) {
+    return `+998 (${digits.slice(0,2)}) ${digits.slice(2,5)}-${digits.slice(5,7)}-${digits.slice(7,9)}`
+  }
+  return phone
+}
+
 // ─── Logout button ────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -88,4 +100,4 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 // Export for other scripts
-window.LOOM = { API_BASE, apiFetch, apiJSON, checkAuth, logout, statusBadge, formatPrice, formatDate, STATUS_LABELS, STATUS_COLORS }
+window.LOOM = { API_BASE, apiFetch, apiJSON, checkAuth, logout, statusBadge, formatPrice, formatDate, formatPhone, STATUS_LABELS, STATUS_COLORS }

@@ -1,7 +1,7 @@
 'use strict'
 
 ;(function () {
-  const { apiJSON, checkAuth, formatPrice, formatDate, statusBadge } = window.LOOM
+  const { apiJSON, checkAuth, formatPrice, formatDate, formatPhone, statusBadge } = window.LOOM
 
   let userId = null
   let currentUser = null
@@ -28,7 +28,7 @@
 
     const rows = [
       ['ID', String(u.id)],
-      ['Телефон', u.phone || '—'],
+      ['Телефон', u.phone ? formatPhone(u.phone) : '—'],
       ['Имя', [u.first_name, u.last_name].filter(Boolean).join(' ') || '—'],
       ['Telegram', u.telegram_username ? '@' + u.telegram_username : '—'],
       ['Telegram ID', u.telegram_user_id ? String(u.telegram_user_id) : '—'],
@@ -165,10 +165,18 @@
     }
   }
 
-  async function loadActivity() {
+  let activityPieChart = null
+
+  async function loadActivity(since) {
+    const tbody = document.getElementById('activity-tbody')
+    tbody.innerHTML = '<tr><td colspan="3" style="color:rgba(255,255,255,0.3)">Загрузка…</td></tr>'
     try {
-      const data = await apiJSON(`/api/admin/users/${userId}/activity`)
-      const tbody = document.getElementById('activity-tbody')
+      const qs = since ? `?since=${since}` : ''
+      const data = await apiJSON(`/api/admin/users/${userId}/activity${qs}`)
+
+      // Build pie chart from action breakdown
+      renderActivityPie(data.items || [])
+
       if (!data.items?.length) {
         tbody.innerHTML = '<tr><td colspan="3" style="color:rgba(255,255,255,0.3)">Нет записей</td></tr>'
         return
@@ -190,9 +198,50 @@
         `
       }).join('')
     } catch (err) {
-      document.getElementById('activity-tbody').innerHTML =
-        `<tr><td colspan="3" style="color:#f87171">${escHtml(err.message)}</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="3" style="color:#f87171">${escHtml(err.message)}</td></tr>`
     }
+  }
+
+  function renderActivityPie(items) {
+    const canvas = document.getElementById('activity-pie')
+    if (!canvas) return
+    const wrap = document.getElementById('activity-pie-wrap')
+
+    if (!items.length) {
+      if (wrap) wrap.style.display = 'none'
+      return
+    }
+    if (wrap) wrap.style.display = ''
+
+    // Count by action type
+    const counts = {}
+    for (const a of items) counts[a.action] = (counts[a.action] || 0) + 1
+    const labels = Object.keys(counts)
+    const values = labels.map(l => counts[l])
+
+    const palette = ['#60a5fa','#4ade80','#f97316','#a78bfa','#facc15','#f87171','#34d399','#fb923c','#c084fc','#38bdf8']
+    const colors = labels.map((_, i) => palette[i % palette.length])
+
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+    const legendColor = isLight ? 'rgba(28,25,23,0.7)' : 'rgba(255,255,255,0.6)'
+
+    if (activityPieChart) activityPieChart.destroy()
+    activityPieChart = new Chart(canvas.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }],
+      },
+      options: {
+        responsive: false,
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { color: legendColor, font: { size: 11 }, boxWidth: 12, padding: 10 },
+          },
+        },
+      },
+    })
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -360,6 +409,22 @@
     }
   })
 
+  // ── Phone input mask ──────────────────────────────────────────────────────
+
+  function applyPhoneMask(input) {
+    input.addEventListener('input', () => {
+      let d = input.value.replace(/\D/g, '')
+      if (d.startsWith('998')) d = d.slice(3)
+      d = d.slice(0, 9)
+      let v = '+998'
+      if (d.length > 0) v += ' (' + d.slice(0, 2)
+      if (d.length >= 2) v += ') ' + d.slice(2, 5)
+      if (d.length >= 5) v += '-' + d.slice(5, 7)
+      if (d.length >= 7) v += '-' + d.slice(7, 9)
+      input.value = v
+    })
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -377,6 +442,19 @@
       document.getElementById('user-info').textContent = 'Ошибка загрузки: ' + err.message
       return
     }
+
+    // Phone input mask
+    const phoneInput = document.getElementById('edit-phone')
+    if (phoneInput) applyPhoneMask(phoneInput)
+
+    // Activity filter buttons
+    document.querySelectorAll('.activity-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.activity-filter-btn').forEach(b => b.classList.remove('active'))
+        btn.classList.add('active')
+        loadActivity(btn.dataset.since || undefined)
+      })
+    })
 
     await Promise.all([loadOrders(), loadActivity()])
   })
