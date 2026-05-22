@@ -119,7 +119,7 @@
     .theme-btn:hover { color: var(--btn-hover); border-color: var(--btn-hover-border); }
     .theme-btn.active { color: var(--link-active); border-color: var(--link-active); background: var(--link-active-bg); }
 
-    /* Override page-level dark styles to use vars */
+    /* Always-on overrides (use CSS vars so they adapt to theme) */
     body { background: var(--bg) !important; color: var(--text) !important; }
     .card, [class*="card"] { background: var(--bg-card) !important; border-color: var(--hairline) !important; }
     .form-input, textarea.form-input, .notif-form input, .notif-form textarea {
@@ -148,6 +148,17 @@
     .btn-back { border-color: var(--btn-border) !important; color: var(--text-muted) !important; }
     .btn-back:hover { color: var(--text) !important; border-color: var(--input-border-focus) !important; }
     select { background: var(--input-bg) !important; border-color: var(--input-border) !important; color: var(--text) !important; }
+
+    /* Light-mode: fix page-level CSS var overrides + hardcoded white text */
+    [data-theme="light"] { --muted: rgba(28,25,23,0.5); --hairline: rgba(0,0,0,0.1); }
+    /* Reset all non-inline-colored elements to theme text color */
+    [data-theme="light"] .main-content *:not([style*="color"]) {
+      color: var(--text) !important;
+    }
+    /* Restore intentionally colored elements (badges, status counts) */
+    [data-theme="light"] .badge,
+    [data-theme="light"] [class*="badge"],
+    [data-theme="light"] [class*="status"] span { color: inherit; }
 
     /* Hide legacy top nav if present */
     .nav { display: none !important; }
