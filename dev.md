@@ -1,915 +1,327 @@
-# LOOM - Technical Documentation for AI Review
-
-**Project Type:** E-commerce Web Application (Custom Apparel Design Platform)  
-**Deployment:** GitHub Pages Static Site  
-**Live URL:** [looom.me](https://looom.me)  
-**Repository:** https://github.com/TIMURNASRIDDINOV/TIMURNASRIDDINOV.github.io
+# DEV.md — LOOM Internal Developer Guide
 
 ---
 
-## Project Purpose
+## Current Development Stage
 
-LOOM is a browser-based custom apparel design platform that allows users to:
+**Beta → Production**
 
-1. Browse a catalog of 9 customizable apparel products (t-shirts, hoodies, sweatshirts, etc.)
-2. Customize products using an interactive canvas-based design configurator
-3. Add custom text, upload images, select colors
-4. Preview designs on 3D models using Three.js
-5. View products in an interactive 3D viewer
-
-**Current State:** Front-end only MVP with no backend, payment processing, or order fulfillment. Designs are not persisted.
+The core product is fully functional and live at https://looom.me. All primary flows work end-to-end: catalog, 3D configurator, order placement, email/phone auth, user account, and the full admin panel. The platform is being actively used. Remaining gaps are around polish, missing product assets (GLB models), payment integration, and a few migration inconsistencies.
 
 ---
 
 ## Architecture Overview
 
-### Build System
+```
+┌──────────────────────────────────────────┐
+│   Frontend (Static — GitHub Pages)       │
+│   looom.me                               │
+│   Vanilla JS + Three.js + Tailwind       │
+│   ↓ fetch() calls to API                 │
+└──────────────────────────────────────────┘
+              ↓ CORS
+┌──────────────────────────────────────────┐
+│   Backend (Cloudflare Workers)           │
+│   api.looom.me                           │
+│   Hono v4.5 + TypeScript                 │
+│   ↓                                      │
+│   ├─ D1 Database (SQLite at the edge)    │
+│   ├─ R2 Storage (models + uploads)       │
+│   ├─ KV Namespace (rate limiting)        │
+│   └─ Telegram Bot API                    │
+└──────────────────────────────────────────┘
+              ↓ 301 redirect
+┌──────────────────────────────────────────┐
+│   Admin Panel (SPA — same static host)   │
+│   www.looom.me/admin/                    │
+│   admin.looom.me → redirects there       │
+│   Vanilla JS, separate asset bundle      │
+└──────────────────────────────────────────┘
+```
 
-- **Type:** Zero-build static site
-- **Dependencies:** All loaded via CDN at runtime (no npm, no bundler, no transpilation)
-- **Deployment:** Direct file push to GitHub Pages
-- **No compilation step** - HTML/CSS/JS files are served as-is
-
-### Technology Stack
-
-#### Core
-
-- **HTML5** - Semantic markup, accessibility features
-- **CSS3** - Custom properties, Grid, Flexbox, backdrop-filter
-- **Vanilla JavaScript (ES6+)** - No framework for business logic
-- **Tailwind CSS** - Loaded via CDN script tag
-
-#### External Libraries (CDN)
-
-- **React 18.x** - Loaded via UMD but largely unused (legacy code remnants)
-- **React DOM 18.x** - UMD bundle
-- **Three.js 0.160.0** - ES modules via import maps for 3D rendering
-- **Lucide Icons** - Icon library via script tag
-- **Google Fonts** - Inter font family (weights 300-900)
-
-#### Browser APIs Used
-
-- HTML5 Canvas API (configurator design tool)
-- WebGL (Three.js 3D rendering)
-- ES6+ modules (import/export via import maps)
-- File API (image upload)
-- localStorage (potential future use - not currently implemented)
+**Data flows:**
+- Frontend → `Authorization: Bearer <JWT>` for authenticated user requests
+- Admin panel → `admin_token` httpOnly cookie for all admin requests
+- Telegram bot → webhook POST to `/api/telegram/webhook` (secret header validated)
+- File serving → Worker proxies R2 objects through `/api/files/models/:key`
+- Rate limiting → KV counters keyed by `orders:<ip>` and `uploads:<ip>`
 
 ---
 
-## File Structure & Responsibilities
+## Completed Work
 
-```
-LOOM/
-├── index.html                    # Main landing page
-├── catalog.html                  # Product browser with 3D viewer
-├── configurator.html             # Canvas-based design tool
-├── tshirt_3d-white_front_001.html # Standalone 3D demo
-│
-├── products-catalog.js           # Product data array + rendering logic
-├── products-catalog.css          # Product card styles
-├── ProductList.css               # Unused legacy React styles
-│
-├── google-apps-script.js         # Google Sheets integration (unused)
-├── google-sheets-order-module.js # Order submission module (unused)
-│
-├── CNAME                         # Custom domain configuration
-│
-├── assets/
-│   └── models/
-│       └── oversized-tshirt.obj  # 3D model file for Three.js
-│
-├── configuratorprodutcs/
-│   └── tshirt_basic2d_white_001.png # 2D preview base image
-│
-├── images/
-│   ├── tshirt.png                # Hero section thumbnail
-│   └── tshirtgif.mp4             # Hero section video
-│
-├── products/
-│   ├── tshirt_regular_white_001.jpg
-│   ├── sweatshirt_regular_white_001.jpg
-│   ├── hoodie_ziphoodie_white_001.jpg
-│   ├── hoodie_regular_white_001.jpg
-│   ├── polo_regular_white_001.jpg
-│   ├── cap_regular_white_001.jpg
-│   ├── sweatpants_regular_white_001.jpg
-│   ├── tshirt_cropped_white_001.jpg
-│   ├── tshirt_muscle_white_001.jpg
-│   └── product_comingsoon.jpg
-│
-└── cloudflare-worker/            # Potential Cloudflare Workers backend
-    ├── package.json
-    ├── wrangler.jsonc
-    ├── README.md
-    └── src/
-        └── worker.js
-```
+### Backend
+- [x] Hono v4.5 TypeScript Worker on Cloudflare Workers
+- [x] D1 database with all 10 tables across 5 migrations
+- [x] All prepared statements via `safeQuery()` wrapper (no string concatenation)
+- [x] PBKDF2 password hashing (100k iterations, random salt)
+- [x] JWT sign/verify (Jose, HS256, 30-day user tokens, 12-hour admin tokens)
+- [x] Email/password registration and login
+- [x] Phone/Telegram auth flow (session → deep-link → webhook → cookie)
+- [x] Telegram webhook with secret token verification
+- [x] Admin auth (separate cookie, `requireAdmin` middleware)
+- [x] User middleware (`requireAuth` — supports both Bearer and cookie)
+- [x] Full product CRUD (admin)
+- [x] Full order management (place, list, filter, paginate, status update)
+- [x] Order status audit log
+- [x] User management (ban, promote, update, activity log)
+- [x] Avatar upload to R2
+- [x] Logo upload to R2 with validation
+- [x] GLB/thumbnail file serving from R2 (1-year immutable cache)
+- [x] Telegram notifications to individual users (admin-triggered)
+- [x] Dashboard stats: revenue, order counts, top products, recent orders
+- [x] Visitor analytics tracking (page, device, OS, browser, referrer)
+- [x] KV-based rate limiting (global across Worker isolates)
+- [x] CORS: production origins locked down, dev origins included in dev mode
+- [x] Admin subdomain redirect (`admin.looom.me` → `www.looom.me/admin/`)
+- [x] Uzbek phone number normalization (handles +998, 998, 0998, international)
+- [x] One-time admin setup endpoint (`/api/admin/setup`)
 
----
+### Frontend — Public Site
+- [x] Homepage: hero, product carousel (first 3 from API), features section
+- [x] Product catalog with API fetch and skeleton loaders
+- [x] 3D configurator: Three.js, front/back views, color picker
+- [x] Text layer: add, reposition, resize, rotate, font selection
+- [x] Image layer: upload PNG/JPEG/SVG, scale, reposition
+- [x] Real-time texture generation via Canvas API
+- [x] Order form submission with full `design_json`
+- [x] Email/password login and registration
+- [x] Phone/Telegram login with polling
+- [x] User account: order history, profile, address, avatar
+- [x] Map picker for delivery address (Nominatim + Yandex Maps)
+- [x] JWT stored in localStorage, sent as Bearer token
+- [x] Dark / light / system theme toggle
 
-## Detailed Component Analysis
-
-### 1. index.html (Landing Page)
-
-**Purpose:** Marketing page with hero, product grid, features, and footer
-
-**Key Sections:**
-
-- **Fixed Navigation Bar** - Glassmorphism effect with `backdrop-filter: blur(18px) saturate(140%)`
-- **Hero Section**
-  - Gradient background (purple to orange)
-  - Video element (1:1 aspect ratio, max-width 420px)
-  - CTA buttons to catalog and configurator
-- **Product Grid** - Dynamically populated by `products-catalog.js`
-- **Features Section** - 3-column grid showcasing platform capabilities
-- **Footer** - Contact info, social links
-
-**Dependencies:**
-
-```html
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script src="products-catalog.js"></script>
-```
-
-**Responsive Breakpoints:**
-
-- Mobile: < 768px (single column)
-- Tablet: 768px - 1024px (2 columns)
-- Desktop: > 1024px (3-4 columns)
+### Frontend — Admin Panel
+- [x] Admin login with cookie-based session
+- [x] Dashboard: stat cards, revenue chart, order pie chart, visitor breakdown
+- [x] Order list: search, filter by status, pagination
+- [x] Order detail: customer info, design JSON preview, status update form, history log
+- [x] Product list and soft-delete
+- [x] Product create/edit: GLB upload, thumbnail, colors, price, display order
+- [x] User list: search, filter by role/status
+- [x] User detail: activity log, order history, ban/promote/reset password
+- [x] Telegram notification sender with button label + URL
+- [x] Notification history with sent/failed status
+- [x] Sidebar navigation, responsive layout
+- [x] Dark / light / system theme (persisted in localStorage)
 
 ---
 
-### 2. catalog.html (Product Browser)
+## In Progress / Partially Complete
 
-**Purpose:** Display products with 3D model viewer
-
-**Key Features:**
-
-- **Three.js 3D Viewer**
-  - Canvas size: 550x600px
-  - OBJLoader for loading `.obj` model files
-  - OrbitControls for interactive rotation/zoom
-  - PerspectiveCamera with FOV 45°
-  - Directional lighting setup
-
-**Three.js Implementation:**
-
-```javascript
-import * as THREE from "three";
-import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-
-// Scene setup
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(
-  45,
-  canvas.width / canvas.height,
-  0.1,
-  1000
-);
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-
-// Model loading
-const loader = new OBJLoader();
-loader.load("assets/models/oversized-tshirt.obj", (object) => {
-  scene.add(object);
-});
-```
-
-**React Usage:**
-
-- React 18 UMD bundles loaded but minimal React code
-- Mostly legacy/unused imports
+- **3D model per product** — Only `t_shirt.glb` exists. The product schema supports `glb_key` per product, and the admin panel can upload GLBs, but no other models have been created yet. Non-shirt products will render the shirt mesh.
+- **Migration script coverage** — `package.json` scripts (`migrate:local`, `migrate:prod`) only run migrations 0001–0003. Migrations 0004 and 0005 must be applied manually.
+- **English language** — Schema has `name_en` column. The API returns it. Frontend does not yet use it; all UI is Russian-only.
+- **`cloudflare-worker/`** — A secondary standalone Worker (`worker.js`) for relaying orders to Telegram exists but its relationship to the main backend is unclear. It may be a legacy prototype.
 
 ---
 
-### 3. configurator.html (Design Tool)
+## Missing Features
 
-**Purpose:** Canvas-based design editor for customizing apparel
-
-**Layout:**
-
-- **Desktop:** 60% preview (left) / 40% controls (right)
-- **Mobile:** Stacked layout (preview on top, controls below)
-
-**Canvas Configuration:**
-
-```javascript
-const CANVAS_WIDTH = 600;
-const CANVAS_HEIGHT = 700;
-
-const PRINT_AREA = {
-  x: 175, // X offset
-  y: 220, // Y offset
-  width: 250, // Printable width
-  height: 250, // Printable height
-};
-```
-
-**Features Implemented:**
-
-1. **T-Shirt Color Selection**
-
-   - 5 colors: White (#FFFFFF), Black (#000000), Navy (#1e3a8a), Gray (#6b7280), Red (#dc2626)
-   - Changes base image via DOM manipulation
-
-2. **Text Customization**
-
-   - Input field for custom text
-   - Font selection: Inter, Helvetica, Arial, Georgia, Times New Roman
-   - Rendered on canvas with `ctx.fillText()`
-
-3. **Image Upload**
-
-   - Accepts PNG, JPEG, SVG
-   - FileReader API for local file loading
-   - Draws image to canvas via `ctx.drawImage()`
-
-4. **Transform Controls**
-
-   - Size slider: 50% - 150% scale
-   - Rotation slider: -180° to 180°
-   - Real-time canvas redraw on input
-
-5. **Canvas Rendering**
-
-```javascript
-function drawCanvas() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw t-shirt base image
-  ctx.drawImage(tshirtImage, 0, 0, canvas.width, canvas.height);
-
-  // Draw print area boundary
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
-  ctx.strokeRect(
-    PRINT_AREA.x,
-    PRINT_AREA.y,
-    PRINT_AREA.width,
-    PRINT_AREA.height
-  );
-
-  // Draw user design (text/image) within print area
-  if (uploadedImage) {
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate((rotation * Math.PI) / 180);
-    ctx.scale(scale, scale);
-    ctx.drawImage(
-      uploadedImage,
-      -imageWidth / 2,
-      -imageHeight / 2,
-      imageWidth,
-      imageHeight
-    );
-    ctx.restore();
-  }
-
-  if (text) {
-    ctx.font = `${fontSize}px ${selectedFont}`;
-    ctx.fillStyle = "#000000";
-    ctx.textAlign = "center";
-    ctx.fillText(text, centerX, centerY);
-  }
-}
-```
-
-**Current Limitations:**
-
-- No design export (PNG/PDF download)
-- No state persistence (designs lost on page reload)
-- No layer management (text and image conflict)
-- No undo/redo functionality
-- No design preview on 3D model
+- **Payment gateway** — No payment provider is integrated. Orders are placed and manually confirmed.
+- **Order confirmation emails** — No email sending; notifications are Telegram-only.
+- **Public order tracking** — Users must log in to see their orders. No anonymous tracking by order ID.
+- **Size / material variants** — Products have no variant system; a customer can only pick a color.
+- **Product search / filter on catalog page** — The catalog shows all active products in one grid; no search, category, or price filter.
+- **Password reset via email** — Admins can reset user passwords from the admin panel, but users have no self-service "forgot password" flow.
+- **Automated migration runner** — No tool to detect and apply unapplied migrations in sequence.
+- **CI/CD for backend** — Frontend deploys automatically on push; backend requires a manual `npm run deploy`.
 
 ---
 
-### 4. products-catalog.js (Data & Rendering)
+## Bugs / Technical Debt
 
-**Purpose:** Product data source and dynamic DOM generation
+### Bugs
 
-**Product Data Structure:**
+1. **Migration prefix conflict** — `0004_profile_visitors.sql` and `0004_roles_avatars.sql` both start with `0004_`. Wrangler's `d1 execute` doesn't glob-run migrations — each must be specified by name — but any tool that auto-discovers by prefix will break. Rename one file to `0004b_` or `0005_` and renumber downstream files.
 
-```javascript
-const products = [
-  {
-    id: 1,
-    name: "Классическая футболка", // Russian name
-    nameEn: "Regular T-shirt", // English name
-    type: "Обычная футболка", // Category
-    image: "products/tshirt_regular_white_001.jpg",
-    price: 150000, // Uzbek сум
-    customizable: true, // Can be customized
-  },
-  // ... 8 more products
-];
-```
+2. **`migrate:local` / `migrate:prod` scripts are incomplete** — They reference only 0001–0003. Any new developer running `npm run migrate:local` will miss the later schema additions (roles, avatars, visitors tables).
 
-**Price Range:**
+3. **`configurator.js` imports `t_shirt.glb` by hardcoded path** — If a product's `glb_key` is different, the configurator likely still loads the static local file. The 3D model per product is not dynamically loaded based on the selected product.
 
-- Min: 100,000 сум (caps)
-- Max: 280,000 сум (zip hoodies)
+### Technical Debt
 
-**Rendering Logic:**
+4. **`configurator.js` is ~2000 lines** — Single monolithic file with Three.js setup, Canvas composition, UI event handling, and API calls all mixed together. Refactoring into modules would improve maintainability.
 
-```javascript
-function renderProducts(containerId) {
-  const container = document.getElementById(containerId);
+5. **No TypeScript on the frontend** — All public-site and admin JS is plain ES6. There are no type checks, linting, or build tooling for frontend code. Typos in API field names go undetected until runtime.
 
-  products.forEach((product) => {
-    const card = document.createElement("div");
-    card.className = "product-card";
+6. **Legacy unused files** — `google-apps-script.js`, `google-sheets-order-module.js` are present in the repo but referenced nowhere. They suggest an older architecture where orders went to Google Sheets instead of D1.
 
-    const img = document.createElement("img");
-    img.src = product.image;
-    img.onerror = () => {
-      img.src = "products/product_comingsoon.jpg";
-    };
+7. **`wrangler.toml` has `BOT_USERNAME = ""`** — This is a required variable left blank in the config file. It must be set before deployment but there is no validation that catches an empty string at startup.
 
-    const price = document.createElement("p");
-    price.textContent = `${product.price.toLocaleString("ru-RU")} сум`;
+8. **No input sanitization for `design_json`** — The full design state (including user-supplied text) is stored as raw JSON. The text content is not sanitized before storage or display. Admin-side display should escape HTML when rendering design data.
 
-    const button = document.createElement("button");
-    button.textContent = product.customizable ? "Настроить" : "Скоро";
-    button.onclick = () => {
-      if (product.customizable) {
-        window.location.href = "configurator.html";
-      }
-    };
+9. **Admin `setup` endpoint is permanently open** — `POST /api/admin/setup` has no auth requirement by design (first-admin bootstrap), but it is not disabled or rate-limited after the first admin is created. A second call with different credentials would create a second admin account.
 
-    card.append(img, name, price, button);
-    container.appendChild(card);
-  });
-}
-```
+10. **`user-profile.ts` route** — This file exists as a separate route module but is not mounted in `index.ts`. Profile update functionality may be duplicated with or missing from `auth.ts`.
 
-**Error Handling:**
-
-- Image load failure → fallback to `product_comingsoon.jpg`
-- No try/catch blocks (relies on browser error handling)
+11. **`cloudflare-worker/` directory** — Contains a second standalone Worker. Its relationship to the main backend is unclear; it appears to be a legacy Telegram order relay that predates the current architecture. It should be removed or clearly documented.
 
 ---
 
-## CSS Architecture
+## Important Files
 
-### Design System
-
-**CSS Custom Properties:**
-
-```css
-:root {
-  --bg: #ffffff; /* Page background */
-  --text: #0a0a0a; /* Primary text */
-  --muted: #6b7280; /* Secondary text */
-  --hairline: rgba(0, 0, 0, 0.08); /* Borders */
-  --panel: #ffffff; /* Card backgrounds */
-  --brand: #0a84ff; /* Primary CTA */
-  --brand-ink: #0b66d6; /* Hover state */
-}
-```
-
-**Typography:**
-
-- Primary font: Inter (Google Fonts)
-- Fallbacks: `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif`
-- Weights: 300, 400, 500, 600, 700, 900
-- Font loading: `<link rel="preconnect">` for performance
-
-**Layout Patterns:**
-
-1. **Glassmorphism Nav:**
-
-   ```css
-   backdrop-filter: blur(18px) saturate(140%);
-   background: rgba(255, 255, 255, 0.8);
-   ```
-
-2. **Product Cards:**
-
-   ```css
-   border-radius: 16px;
-   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-   ```
-
-3. **Responsive Grid:**
-   ```css
-   display: grid;
-   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-   gap: 2rem;
-   ```
-
-**Animations:**
-
-- Cubic-bezier easing: `(0.4, 0, 0.2, 1)` (Material Design standard)
-- Transition duration: 200-300ms for interactions
+| File | Role |
+|---|---|
+| `backend/src/index.ts` | App entry point — all routes mounted here, CORS configured |
+| `backend/src/routes/public.ts` | Orders, product listing, uploads — the main customer-facing API |
+| `backend/src/routes/auth.ts` | Email/password auth: register, login, me, profile, password |
+| `backend/src/routes/telegram-auth.ts` | Phone/Telegram auth flow + webhook handler |
+| `backend/src/routes/admin.ts` | Admin login, stats, order management |
+| `backend/src/routes/admin-products.ts` | Product CRUD with R2 file handling |
+| `backend/src/routes/admin-users.ts` | User management, notifications |
+| `backend/src/db/queries.ts` | All D1 database queries (prepared statements) |
+| `backend/src/lib/jwt.ts` | JWT sign/verify wrapper around Jose |
+| `backend/src/lib/password.ts` | PBKDF2 hashing and verification |
+| `backend/src/lib/telegram.ts` | Telegram message builder and sender |
+| `backend/src/middleware/requireAuth.ts` | User auth middleware (Bearer + cookie) |
+| `backend/src/middleware/requireAdmin.ts` | Admin auth middleware (cookie) |
+| `backend/wrangler.toml` | All Cloudflare resource bindings |
+| `backend/migrations/0001_initial.sql` | Core schema: products, users, admins, orders |
+| `backend/migrations/0003_phone_auth.sql` | Auth sessions, activity log, notifications |
+| `assets/config.js` | `API_BASE` URL — only change needed to switch environments |
+| `configurator.js` | Entire 3D design tool: Three.js + Canvas + order submission |
+| `assets/auth.js` | Token storage, login/register calls, Telegram polling |
+| `admin/assets/app.js` | Admin API client, auth helpers, formatters (currency, phone) |
+| `admin/assets/layout.js` | Sidebar, navigation, theme toggle |
+| `admin/assets/dashboard.js` | Dashboard charts (Chart.js) |
 
 ---
 
-## Current Implementation Status
+## Dependencies Audit
 
-### ✅ Fully Implemented
+### Backend (`backend/package.json`)
 
-- [x] Responsive landing page with video hero
-- [x] Product catalog with 9 items
-- [x] Canvas-based design configurator
-- [x] 5-color t-shirt palette
-- [x] Text input with 5 font choices
-- [x] Image upload (PNG/JPEG/SVG)
-- [x] Size/rotation sliders
-- [x] Three.js 3D model viewer setup
-- [x] Mobile-responsive layouts (3 breakpoints)
-- [x] Glassmorphism UI effects
-- [x] GitHub Pages deployment
-- [x] Custom domain (looom.me)
+| Package | Version | Used | Notes |
+|---|---|---|---|
+| `hono` | ^4.5.0 | Yes | Core web framework |
+| `jose` | ^5.6.3 | Yes | JWT sign/verify |
+| `@cloudflare/workers-types` | ^4.20240718.0 | Yes (dev) | TypeScript types for CF bindings |
+| `typescript` | ^5.5.0 | Yes (dev) | TypeScript compiler |
+| `wrangler` | ^3.67.0 | Yes (dev) | Deploy and local dev |
 
-### 🚧 Partially Implemented
+All backend dependencies are actively used. No bloat.
 
-- [ ] **3D Model Loading** - Three.js code exists but model loading may fail
-- [ ] **Mobile Navigation** - Links hidden on mobile (no hamburger menu)
-- [ ] **Canvas State** - Designs not saved between page reloads
+### Frontend (CDN-loaded, no package.json)
 
-### ❌ Not Implemented (No Code Exists)
+| Library | Source | Used | Notes |
+|---|---|---|---|
+| Three.js r128 | CDN | Yes | 3D configurator |
+| Tailwind CSS | CDN | Yes | Utility classes across all pages |
+| Chart.js | CDN | Yes | Admin dashboard charts |
+| Nominatim API | Fetch | Yes | Map geocoding |
+| Yandex Maps | CDN | Yes (account.html) | Delivery map display |
+| Google Fonts | CDN | Yes | Typography |
 
-- [ ] Shopping cart
-- [ ] User authentication
-- [ ] Backend API
-- [ ] Payment processing
-- [ ] Order management
-- [ ] Database
-- [ ] Design export (PNG/PDF)
-- [ ] Design-to-3D model mapping
-- [ ] Email notifications
-- [ ] Admin panel
+No unused CDN libraries detected in active pages.
 
 ---
 
-## Technical Limitations & Issues
+## Security Review
 
-### Critical Issues
+### Strengths
 
-1. **No Backend** - Platform is 100% client-side
+- All D1 queries use prepared statements — no SQL injection risk
+- PBKDF2 with 100,000 iterations + random salt for passwords
+- JWT signed with HS256 and a 64+ char secret
+- Admin auth uses httpOnly cookies — not accessible to JS
+- Telegram webhook validated via secret header token
+- Rate limiting on order and upload endpoints (KV-based, global)
+- CORS locked to specific origins in production
+- R2 file keys are generated UUIDs — not guessable
 
-   - Cannot save user designs
-   - Cannot process orders
-   - Cannot handle payments
-   - No user accounts
+### Risks
 
-2. **No State Persistence**
+1. **`/api/admin/setup` is permanently open** — No guard prevents creating additional admin accounts after setup. Add a check: if any admin row exists, return 403.
 
-   - Canvas state lost on refresh
-   - No localStorage implementation
-   - No session management
+2. **`design_json` text content not sanitized** — User-supplied text in orders is stored verbatim and displayed in the admin panel. If the admin panel ever renders it as innerHTML (rather than textContent), it is an XSS vector. Audit all admin-side rendering of `design_json` fields.
 
-3. **Mobile Navigation Broken**
-   - Nav links use `hidden md:flex` (Tailwind)
-   - No hamburger menu component
-   - Users cannot navigate on mobile
+3. **`BOT_USERNAME` is blank in `wrangler.toml`** — An empty string here could cause Telegram deep-links to be malformed. No startup validation catches this.
 
-### Performance Issues
+4. **Phone numbers stored in plaintext** — `users.phone` is not hashed or masked. If D1 is ever compromised, all phone numbers are exposed. (Low risk in the current architecture, but worth noting.)
 
-4. **Unoptimized Images**
+5. **No refresh token mechanism** — User JWTs are valid for 30 days with no revocation path. If a token is stolen, it is valid until expiry. Adding a `jti` (JWT ID) column to `user_sessions` and validating it on each request would allow session revocation.
 
-   - Product images are full-size JPGs
-   - No lazy loading
-   - No responsive image srcsets
-   - No WebP/AVIF formats
-
-5. **No Service Worker**
-
-   - No offline capabilities
-   - No asset caching
-   - No PWA features
-
-6. **Blocking CDN Requests**
-   - Multiple render-blocking CDN scripts
-   - No async/defer on non-critical scripts
-
-### Browser Compatibility
-
-7. **Import Maps Support**
-
-   - Required for Three.js ES modules
-   - Not supported in Safari < 16.4
-   - Firefox < 108 unsupported
-
-8. **Backdrop Filter**
-   - Safari on older Macs has performance issues
-   - May cause janky scrolling
-
-### Code Quality Issues
-
-9. **Unused Dependencies**
-
-   - React loaded but barely used (catalog.html)
-   - ProductList.css file exists but unused
-   - Google Sheets modules present but not integrated
-
-10. **Hardcoded Data**
-
-    - Products defined in JavaScript (not API-fetched)
-    - Prices hardcoded (no dynamic pricing)
-    - No CMS or admin interface
-
-11. **No Input Validation**
-
-    - File upload has no size limits
-    - Text input has no length constraints
-    - Image dimensions not validated
-
-12. **No Error Handling**
-    - Try/catch blocks missing
-    - Failed API calls would crash (if backend existed)
-    - Image upload errors not user-facing
-
-### Accessibility Issues
-
-13. **Keyboard Navigation**
-
-    - Color picker not fully keyboard-accessible
-    - Focus states inconsistent
-    - Tab order not optimized
-
-14. **ARIA Labels**
-
-    - Some interactive elements lack labels
-    - Canvas has no accessible alternative
-
-15. **Color Contrast**
-    - Gray text (#6b7280) on white may fail WCAG AA
-    - Button states need higher contrast
+6. **Admin password reset writes new hash directly** — The admin can reset any user's password without requiring the current password. This is intentional for admin use, but there is no audit log entry written for password resets (only for bans and role changes).
 
 ---
 
-## Dependencies Analysis
+## Performance Review
 
-### Runtime (CDN-loaded)
+### Current State
 
-| Library       | Version | Size (est.) | Usage               | Removable? |
-| ------------- | ------- | ----------- | ------------------- | ---------- |
-| Tailwind CSS  | Latest  | ~100KB      | Utility styling     | No         |
-| React         | 18.x    | ~6KB (UMD)  | Minimal/Legacy      | Yes        |
-| React DOM     | 18.x    | ~130KB      | Minimal/Legacy      | Yes        |
-| Three.js      | 0.160.0 | ~600KB      | 3D rendering        | No         |
-| OBJLoader     | 0.160.0 | ~15KB       | 3D model loading    | No         |
-| OrbitControls | 0.160.0 | ~30KB       | 3D camera controls  | No         |
-| Lucide Icons  | Latest  | ~50KB       | UI icons            | No         |
-| Google Fonts  | -       | ~20KB       | Inter font (subset) | No         |
-| **Total**     | -       | **~951KB**  | -                   | -          |
+- **Cloudflare Workers + D1** — Excellent global latency. D1 is co-located with the Worker in the same Cloudflare PoP after the first request.
+- **R2 file serving** — Served through the Worker with 1-year `Cache-Control: immutable` headers. Browser caches GLB models after first load.
+- **Configurator startup** — Loads the `t_shirt.glb` model on page load. At ~5–15 MB for a GLB file, this is the largest network fetch on the site.
+- **Rate limiting** — KV is eventually consistent; under very high burst traffic, a few extra requests may slip through before the counter propagates. Acceptable for this use case.
 
-**Potential Optimizations:**
+### Bottlenecks
 
-- Remove React/ReactDOM (save ~136KB) - currently unused
-- Self-host Tailwind with only used utilities (save ~60KB)
-- Use icon subset instead of full Lucide library (save ~30KB)
+1. **`t_shirt.glb` size** — If the GLB file is large (>5 MB), configurator initial load is slow on mobile. Compress with `gltf-pipeline` or `draco` compression.
 
-### Browser Requirements
+2. **`configurator.js` canvas re-render** — Every text/image drag calls `updateTexture()` which redraws the full canvas. For complex designs with many layers this could drop below 60fps. Debouncing the texture update on drag events would help.
 
-**Minimum:**
+3. **No pagination on `/api/admin/users`** — If the user table grows large, the admin user list query fetches all rows. A `LIMIT/OFFSET` pattern should be added before user count grows beyond a few thousand.
 
-- Chrome 90+ / Edge 90+
-- Firefox 88+
-- Safari 14+
-
-**Critical Features Required:**
-
-- ES6 Modules (import/export)
-- Import Maps
-- Canvas API
-- WebGL 1.0
-- backdrop-filter CSS property
-- CSS Grid/Flexbox
-- CSS Custom Properties
-- FileReader API
-
-**Unsupported Browsers:**
-
-- IE 11 (no ES6 modules)
-- Safari < 14 (no backdrop-filter)
-- Firefox < 88 (no Import Maps without polyfill)
+4. **Visitor analytics writes on every page view** — `POST /api/files/track` fires on every page load. With high traffic this generates a large number of small D1 writes. Consider batching or moving to a dedicated analytics service.
 
 ---
 
-## Configuration Details
+## Suggested Next Tasks
 
-### GitHub Pages Setup
+### 1. Immediate Fixes (do first)
 
-**CNAME File:**
+- [ ] **Rename conflicting migration** — Rename `0004_roles_avatars.sql` to `0006_roles_avatars.sql` and update `package.json` scripts to run all migrations 0001–0006 in order
+- [ ] **Guard `/api/admin/setup`** — Add a check: if any row exists in `admins`, return 403
+- [ ] **Mount `user-profile.ts`** — Verify whether it is mounted in `index.ts`; if not, either mount it or remove it and confirm its logic is covered by `auth.ts`
+- [ ] **Fill `BOT_USERNAME` in `wrangler.toml`** — Or add a startup check that panics if it's empty
+- [ ] **Remove legacy files** — Delete `google-apps-script.js`, `google-sheets-order-module.js`, and the `cloudflare-worker/` directory (or document it clearly)
 
-```
-looom.me
-```
+### 2. MVP Completion
 
-**DNS Records:**
+- [ ] **Payment integration** — Integrate Payme or Click (Uzbek payment rails); store `payment_status` and `payment_id` on the `orders` table
+- [ ] **Self-service password reset** — Add `POST /api/auth/forgot-password` that sends a Telegram message with a reset link
+- [ ] **Complete migration scripts** — Update `migrate:local` and `migrate:prod` in `package.json` to include all migrations in numbered order
+- [ ] **Dynamic GLB loading in configurator** — Read the product's `glb_key` from the URL or page state, fetch it from the API, and load it instead of the hardcoded path
+- [ ] **Add 3D models for other product types** — Commission or create GLB files for hoodie, sweatshirt, cap
 
-```
-Type  | Name | Value
-------|------|------
-A     | @    | 185.199.108.153
-A     | @    | 185.199.109.153
-A     | @    | 185.199.110.153
-A     | @    | 185.199.111.153
-CNAME | www  | timurnasriddinov.github.io
-```
+### 3. Nice-to-Have Improvements
 
-### Three.js Import Map
-
-```html
-<script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-    }
-  }
-</script>
-```
-
-### Canvas Print Area
-
-```javascript
-// Located in configurator.html
-const PRINT_AREA = {
-  x: 175, // Left offset from canvas edge
-  y: 220, // Top offset from canvas edge
-  width: 250, // Printable area width
-  height: 250, // Printable area height
-};
-
-// Center point for design placement
-const centerX = PRINT_AREA.x + PRINT_AREA.width / 2; // 300
-const centerY = PRINT_AREA.y + PRINT_AREA.height / 2; // 345
-```
+- [ ] **Public order tracking** — `GET /api/orders/:id?phone=...` — no login required, returns status only
+- [ ] **Product variants** — Add size and material options to the order form and schema
+- [ ] **Catalog search and filter** — Filter by product type, price range on the catalog page
+- [ ] **Email notifications** — Order confirmation + status update emails via Cloudflare Email Workers or Resend
+- [ ] **English UI** — Wire `name_en` from the API into the frontend with a language toggle
+- [ ] **Compress GLB models** — Run `gltf-pipeline -i t_shirt.glb -o t_shirt_draco.glb --draco.compressMeshes` and update the loader
+- [ ] **Split `configurator.js`** — Separate Three.js setup, canvas/texture logic, UI events, and API calls into ES modules
+- [ ] **Frontend type safety** — Introduce a lightweight TypeScript + esbuild or Vite build step for the frontend
+- [ ] **CI/CD for backend** — Add a GitHub Actions workflow that runs `wrangler deploy` on push to `main`
 
 ---
 
-## Potential Backend Architecture (Not Implemented)
+## AI Handoff Context
 
-### Cloudflare Worker (Folder Exists)
+**What this product is:** LOOM is a custom apparel e-commerce platform for the Uzbek market. Users design garments using a 3D configurator, place orders, and track them. Admins manage everything through a separate panel.
 
-Located in `/cloudflare-worker/` but not deployed or integrated.
+**Stack at a glance:** Static HTML/JS/CSS frontend → Hono TypeScript backend on Cloudflare Workers → D1 (SQLite), R2 (files), KV (rate limiting) → Telegram Bot API.
 
-**Potential Use Cases:**
+**The frontend has no build step.** All files are served as-is. `assets/config.js` controls which API the frontend talks to. Change `API_BASE` to switch environments.
 
-- Handle image uploads to cloud storage (R2/S3)
-- Process design exports (PNG generation)
-- Forward orders to database/email
-- Rate limiting
-- CORS proxy for external APIs
+**The backend is a single Cloudflare Worker** in `backend/`. All routes are in `backend/src/routes/`. Database queries are in `backend/src/db/queries.ts`. Run `npm run dev` in `backend/` to start a local Worker on port 8787.
 
-**Current Status:**
+**Auth has two paths:**
+- Email/password: register/login → JWT → stored in localStorage → sent as `Authorization: Bearer <token>`
+- Phone/Telegram: session → deep-link → user taps in Telegram → webhook updates session → frontend polls → `user_token` httpOnly cookie set
 
-- Boilerplate files exist
-- No actual worker code implemented
-- Not connected to front-end
+**Admin auth is separate:** Cookie-based (`admin_token`), validated by `requireAdmin` middleware. Admin accounts live in the `admins` table, not the `users` table.
 
-### Google Sheets Integration (Files Exist)
+**The most critical file to understand the product is `backend/src/routes/public.ts`** — it handles product listing, order placement, and file uploads.
 
-Files present but unused:
+**The most complex frontend file is `configurator.js`** — it is ~2000 lines of Three.js + Canvas API. The 3D model is loaded from `assets/models/t_shirt.glb`. The design state (`designState`) is serialized to JSON and sent with the order.
 
-- `google-apps-script.js`
-- `google-sheets-order-module.js`
-
-**Intended Purpose:**
-
-- Submit orders to Google Sheets
-- Acts as simple database alternative
-- No server infrastructure needed
-
-**Why Not Used:**
-
-- CORS issues with client-side Google Sheets API
-- Authentication complexity
-- Not scalable for production
-
----
-
-## Code Patterns & Conventions
-
-### JavaScript Style
-
-- **Module Type:** ES6+ with import/export
-- **Variable Naming:** camelCase
-- **Constants:** UPPER_SNAKE_CASE
-- **No TypeScript** - Plain JavaScript only
-- **No JSX** - Despite React being loaded
-
-### DOM Manipulation
-
-```javascript
-// Vanilla JS approach
-const container = document.getElementById("products-grid");
-const card = document.createElement("div");
-card.className = "product-card";
-card.innerHTML = `<h3>${product.name}</h3>`;
-container.appendChild(card);
-```
-
-### Event Handling
-
-```javascript
-// Direct event listeners
-button.addEventListener('click', () => {
-  // Handle click
-});
-
-// Inline onclick (some legacy code)
-<button onclick="handleClick()">
-```
-
-### Canvas Rendering Pattern
-
-```javascript
-// Redraw entire canvas on state change
-function updateDesign() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawBaseImage();
-  drawDesignElements();
-  drawPrintAreaBoundary();
-}
-
-// Triggered by input events
-sizeSlider.addEventListener("input", updateDesign);
-rotationSlider.addEventListener("input", updateDesign);
-```
-
----
-
-## API Endpoints (None Exist)
-
-**Expected Future Endpoints:**
-
-```
-POST   /api/designs          - Save design
-GET    /api/designs/:id      - Retrieve design
-POST   /api/orders           - Submit order
-GET    /api/products         - Fetch product catalog
-POST   /api/uploads          - Handle image uploads
-POST   /api/export/:id       - Generate design PNG
-```
-
-**Current Reality:** All data is hardcoded in JavaScript files
-
----
-
-## Environment Variables (None)
-
-No `.env` file exists. All configuration is hardcoded.
-
-**Potential Future Env Vars:**
-
-```
-API_BASE_URL=https://api.looom.me
-STRIPE_PUBLIC_KEY=pk_live_...
-CLOUDFLARE_R2_BUCKET=looom-designs
-GOOGLE_ANALYTICS_ID=G-...
-```
-
----
-
-## Testing Status
-
-**Current State:** Zero tests
-
-**No Test Framework Configured:**
-
-- No Jest
-- No Vitest
-- No Cypress/Playwright
-- No unit tests
-- No integration tests
-- No E2E tests
-
-**Manual Testing Only:**
-
-- Browser-based manual QA
-- No automated CI/CD testing
-
----
-
-## Performance Metrics (Estimated)
-
-**Lighthouse Scores (Expected):**
-
-- Performance: ~75-80 (CDN dependencies, unoptimized images)
-- Accessibility: ~85-90 (some ARIA issues)
-- Best Practices: ~80-85 (missing service worker, no HTTPS headers)
-- SEO: ~90-95 (basic meta tags present)
-
-**Load Time:**
-
-- First Contentful Paint: ~1.5s
-- Time to Interactive: ~3s
-- Total Blocking Time: ~500ms (CDN scripts)
-
----
-
-## Security Considerations
-
-### Current Security Posture
-
-**Strengths:**
-
-- No backend = no API attack surface
-- No user data stored = no data breach risk
-- Static site = no server vulnerabilities
-
-**Weaknesses:**
-
-- No input sanitization (XSS vulnerable if backend added)
-- No CSRF protection (not needed currently)
-- No rate limiting (if backend added)
-- File upload not validated (size, type, malicious content)
-
-**Required for Production:**
-
-- Content Security Policy (CSP) headers
-- Input validation/sanitization
-- File upload scanning (antivirus)
-- Rate limiting on API endpoints
-- HTTPS enforcement
-- Secure cookie settings (if auth added)
-
----
-
-## Internationalization
-
-**Current Language Support:**
-
-- Primary: Russian (product names, UI labels)
-- Prices: Uzbek сум (UZS)
-- Some English fallbacks (nameEn field)
-
-**Not Implemented:**
-
-- No i18n framework
-- No locale switching
-- Hardcoded strings in HTML/JS
-- No translation files
-
----
-
-## Browser DevTools Console Output
-
-**Expected Warnings:**
-
-- Three.js: "OBJLoader: No material library found" (non-critical)
-- Possible CORS warnings if loading local files via file://
-- React warnings if running in development mode
-
-**No Errors Expected** (in normal operation)
-
----
-
-## Recommendations for AI Review
-
-When reviewing this project, consider:
-
-1. **Architecture Assessment**
-
-   - Is zero-build approach sustainable?
-   - Should React be removed or fully adopted?
-   - CDN vs. bundled dependencies trade-offs
-
-2. **Missing Critical Features**
-
-   - Backend API design suggestions
-   - State management approach (localStorage vs. database)
-   - Payment integration strategy
-
-3. **Code Quality**
-
-   - Refactoring opportunities
-   - Error handling gaps
-   - Input validation needs
-
-4. **Performance Optimization**
-
-   - Image optimization strategy
-   - Code splitting opportunities
-   - Caching strategies
-
-5. **Accessibility Improvements**
-
-   - WCAG 2.1 AA compliance path
-   - Keyboard navigation enhancements
-   - Screen reader compatibility
-
-6. **Security Hardening**
-
-   - CSP headers
-   - Input sanitization
-   - File upload security
-
-7. **Scalability**
-   - Database design for user designs
-   - CDN for assets
-   - Backend architecture (serverless vs. traditional)
-
----
-
-**Last Updated:** January 11, 2026  
-**Document Version:** 1.0  
-**Intended Audience:** AI code review assistants, technical stakeholders
+**Known gotchas:**
+- Migrations 0004 and 0005 are not included in the `npm run migrate:*` scripts — run them manually
+- `0004_profile_visitors.sql` and `0004_roles_avatars.sql` have conflicting numeric prefixes — both must be applied
+- `BOT_USERNAME` in `wrangler.toml` is blank and must be filled before deploying
+- `user-profile.ts` route may not be mounted in `index.ts` — verify before editing profile-update logic

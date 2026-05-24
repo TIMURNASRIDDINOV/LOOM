@@ -29,6 +29,14 @@ const admin = new Hono<AdminEnv>()
 
 const setupRouter = new Hono<BaseEnv>()
 setupRouter.post('/setup', async (c) => {
+  const adminCount = await c.env.DB.prepare(
+    'SELECT COUNT(*) as count FROM admins'
+  ).first<{ count: number }>();
+
+  if (adminCount && adminCount.count > 0) {
+    return c.json({ error: 'Setup already completed' }, 403);
+  }
+
   let body: unknown
   try {
     body = await c.req.json()
