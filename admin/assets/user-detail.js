@@ -165,17 +165,12 @@
     }
   }
 
-  let activityPieChart = null
-
   async function loadActivity(since) {
     const tbody = document.getElementById('activity-tbody')
     tbody.innerHTML = '<tr><td colspan="3" style="color:rgba(255,255,255,0.3)">Загрузка…</td></tr>'
     try {
       const qs = since ? `?since=${since}` : ''
       const data = await apiJSON(`/api/admin/users/${userId}/activity${qs}`)
-
-      // Build pie chart from action breakdown
-      renderActivityPie(data.items || [])
 
       if (!data.items?.length) {
         tbody.innerHTML = '<tr><td colspan="3" style="color:rgba(255,255,255,0.3)">Нет записей</td></tr>'
@@ -200,48 +195,6 @@
     } catch (err) {
       tbody.innerHTML = `<tr><td colspan="3" style="color:#f87171">${escHtml(err.message)}</td></tr>`
     }
-  }
-
-  function renderActivityPie(items) {
-    const canvas = document.getElementById('activity-pie')
-    if (!canvas) return
-    const wrap = document.getElementById('activity-pie-wrap')
-
-    if (!items.length) {
-      if (wrap) wrap.style.display = 'none'
-      return
-    }
-    if (wrap) wrap.style.display = ''
-
-    // Count by action type
-    const counts = {}
-    for (const a of items) counts[a.action] = (counts[a.action] || 0) + 1
-    const labels = Object.keys(counts)
-    const values = labels.map(l => counts[l])
-
-    const palette = ['#60a5fa','#4ade80','#f97316','#a78bfa','#facc15','#f87171','#34d399','#fb923c','#c084fc','#38bdf8']
-    const colors = labels.map((_, i) => palette[i % palette.length])
-
-    const isLight = document.documentElement.getAttribute('data-theme') === 'light'
-    const legendColor = isLight ? 'rgba(28,25,23,0.7)' : 'rgba(255,255,255,0.6)'
-
-    if (activityPieChart) activityPieChart.destroy()
-    activityPieChart = new Chart(canvas.getContext('2d'), {
-      type: 'doughnut',
-      data: {
-        labels,
-        datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }],
-      },
-      options: {
-        responsive: false,
-        plugins: {
-          legend: {
-            position: 'right',
-            labels: { color: legendColor, font: { size: 11 }, boxWidth: 12, padding: 10 },
-          },
-        },
-      },
-    })
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
