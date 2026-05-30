@@ -47,7 +47,7 @@ app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/adm
 app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 app.route('/api/auth', userProfile)
-app.route('/api/telegram', telegramAuthRoutes) // POST /api/telegram/auth/*, webhook
+app.route('/api/auth', telegramAuthRoutes)     // POST /api/auth/telegram/{start,status}, /api/auth/logout
 app.route('/api/telegram', webhookRouter)      // POST /api/telegram/webhook
 
 // ─── Admin subdomain redirect ─────────────────────────────────────────────────
