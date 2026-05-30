@@ -59,9 +59,14 @@ router.post('/telegram/start', async (c) => {
   }
 
   const botUsername = c.env.BOT_USERNAME
-  if (!botUsername) {
-    console.error('[TelegramAuth] BOT_USERNAME env var not set')
-    return c.json({ error: 'Bot not configured' }, 503)
+  if (!botUsername || !botUsername.trim()) {
+    // Loud: this disables the entire phone-auth flow. Fix wrangler.toml [vars]
+    // BOT_USERNAME or set it as a secret in the Cloudflare dashboard.
+    console.error(
+      '[TelegramAuth] CRITICAL: BOT_USERNAME is empty. Phone/Telegram login is disabled. ' +
+      'Set it in backend/wrangler.toml [vars] or via `wrangler secret put BOT_USERNAME`, then redeploy.',
+    )
+    return c.json({ error: 'Bot not configured (BOT_USERNAME is empty)' }, 503)
   }
 
   // Reuse pending session if one exists for this phone
