@@ -9,6 +9,26 @@ const DEVICE_COLORS  = { desktop: '#60a5fa', mobile: '#4ade80', tablet: '#f97316
 const BROWSER_COLORS = { chrome: '#facc15', safari: '#60a5fa', firefox: '#f97316', edge: '#a78bfa', samsung: '#4ade80', opera: '#ef4444', other: '#6b7280' }
 const OS_COLORS      = { android: '#4ade80', ios: '#60a5fa', windows: '#a78bfa', mac: '#facc15', linux: '#f97316', other: '#6b7280' }
 
+// Track chart instances + last data so we can recolor on theme change
+const chartInstances = {}
+const lastChartData = {}
+
+function isLightTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light'
+}
+
+function chartPalette() {
+  const light = isLightTheme()
+  return {
+    tick:     light ? 'rgba(28,25,23,0.6)'    : 'rgba(255,255,255,0.55)',
+    grid:     light ? 'rgba(0,0,0,0.07)'      : 'rgba(255,255,255,0.06)',
+    barFill:  light ? 'rgba(28,25,23,0.18)'   : 'rgba(255,255,255,0.14)',
+    barEdge:  light ? 'rgba(28,25,23,0.45)'   : 'rgba(255,255,255,0.4)',
+    line:     light ? 'rgba(13,148,136,0.85)' : 'rgba(99,202,183,0.85)',
+    lineFill: light ? 'rgba(13,148,136,0.12)' : 'rgba(99,202,183,0.1)',
+  }
+}
+
 function escHtml(s) {
   if (!s) return ''
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -16,7 +36,7 @@ function escHtml(s) {
 
 function renderBreakdown(containerId, rows, colorMap) {
   const container = document.getElementById(containerId)
-  if (!rows || !rows.length) { container.innerHTML = '<span style="font-size:0.8rem;color:rgba(255,255,255,0.3)">Нет данных</span>'; return }
+  if (!rows || !rows.length) { container.innerHTML = '<span class="breakdown-empty">Нет данных</span>'; return }
   const total = rows.reduce((s, r) => s + (r.count || 0), 0)
   const key = Object.keys(rows[0]).find(k => k !== 'count')
   container.innerHTML = `<div class="breakdown-list">` + rows.map(r => {
@@ -35,16 +55,18 @@ function renderBreakdown(containerId, rows, colorMap) {
   }).join('') + `</div>`
 }
 
-function makeLineChart(canvasId, labels, data, color = 'rgba(99,202,183,0.7)') {
+function makeLineChart(canvasId, labels, data) {
+  const p = chartPalette()
   const ctx = document.getElementById(canvasId).getContext('2d')
-  return new Chart(ctx, {
+  if (chartInstances[canvasId]) chartInstances[canvasId].destroy()
+  chartInstances[canvasId] = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [{
         data,
-        borderColor: color,
-        backgroundColor: color.replace('0.7', '0.08'),
+        borderColor: p.line,
+        backgroundColor: p.lineFill,
         borderWidth: 1.5,
         fill: true,
         tension: 0.3,
@@ -55,23 +77,27 @@ function makeLineChart(canvasId, labels, data, color = 'rgba(99,202,183,0.7)') {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.04)' } },
-        y: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+        x: { ticks: { color: p.tick, font: { size: 11 }, maxTicksLimit: 10 }, grid: { color: p.grid } },
+        y: { ticks: { color: p.tick, font: { size: 11 }, stepSize: 1 }, grid: { color: p.grid }, beginAtZero: true },
       },
     },
   })
+  lastChartData[canvasId] = { type: 'line', labels, data }
+  return chartInstances[canvasId]
 }
 
 function makeBarChart(canvasId, labels, data) {
+  const p = chartPalette()
   const ctx = document.getElementById(canvasId).getContext('2d')
-  return new Chart(ctx, {
+  if (chartInstances[canvasId]) chartInstances[canvasId].destroy()
+  chartInstances[canvasId] = new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
       datasets: [{
         data,
-        backgroundColor: 'rgba(255,255,255,0.12)',
-        borderColor: 'rgba(255,255,255,0.3)',
+        backgroundColor: p.barFill,
+        borderColor: p.barEdge,
         borderWidth: 1, borderRadius: 2,
       }],
     },
@@ -79,12 +105,26 @@ function makeBarChart(canvasId, labels, data) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.04)' } },
-        y: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+        x: { ticks: { color: p.tick, font: { size: 11 }, maxTicksLimit: 10 }, grid: { color: p.grid } },
+        y: { ticks: { color: p.tick, font: { size: 11 }, stepSize: 1 }, grid: { color: p.grid }, beginAtZero: true },
       },
     },
   })
+  lastChartData[canvasId] = { type: 'bar', labels, data }
+  return chartInstances[canvasId]
 }
+
+function recolorAllCharts() {
+  for (const [id, payload] of Object.entries(lastChartData)) {
+    if (payload.type === 'line') makeLineChart(id, payload.labels, payload.data)
+    else if (payload.type === 'bar') makeBarChart(id, payload.labels, payload.data)
+  }
+}
+
+// Watch for theme attribute changes and recolor charts
+new MutationObserver(muts => {
+  if (muts.some(m => m.attributeName === 'data-theme')) recolorAllCharts()
+}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
 // Fill missing days in last-N-days series
 function fillDays(rows, n, dateKey = 'day', countKey = 'count') {
@@ -161,14 +201,14 @@ async function loadDashboard() {
   // ── Recent orders ───────────────────────────────────────────────────────────
   const tbody = document.getElementById('recent-orders').querySelector('tbody')
   if (!stats.recentOrders?.length) {
-    tbody.innerHTML = '<tr><td colspan="3" style="color:rgba(255,255,255,0.3);font-size:0.82rem">Нет заказов</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-ph">Нет заказов</td></tr>'
   } else {
     tbody.innerHTML = stats.recentOrders.map(o => `
       <tr onclick="location.href='order.html?id=${o.id}'">
         <td class="id-col">#${o.id}</td>
         <td class="name-col">
           <div style="font-size:0.85rem">${escHtml(o.customer_name)}</div>
-          <div style="font-size:0.72rem;color:rgba(255,255,255,0.35);margin-top:2px">${formatDate(o.created_at)}</div>
+          <div class="row-date">${formatDate(o.created_at)}</div>
         </td>
         <td style="text-align:right;vertical-align:middle">${statusBadge(o.status)}</td>
       </tr>
@@ -178,15 +218,15 @@ async function loadDashboard() {
   // ── Top products ────────────────────────────────────────────────────────────
   const topEl = document.getElementById('top-products')
   if (!stats.topProducts?.length) {
-    topEl.innerHTML = '<span style="color:rgba(255,255,255,0.3);font-size:0.82rem">Нет данных</span>'
+    topEl.innerHTML = '<span class="empty-ph">Нет данных</span>'
   } else {
     topEl.innerHTML = stats.topProducts.map((p, i) => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.55rem 0;border-bottom:0.5px solid rgba(255,255,255,0.04)">
-        <div style="display:flex;align-items:center;gap:0.6rem">
-          <span style="font-family:var(--mono);font-size:0.72rem;color:rgba(255,255,255,0.3);width:1rem">${i + 1}</span>
-          <span style="font-size:0.85rem">${escHtml(p.name_ru ?? 'Без названия')}</span>
+      <div class="top-row">
+        <div class="top-row-left">
+          <span class="top-rank">${i + 1}</span>
+          <span class="top-name">${escHtml(p.name_ru ?? 'Без названия')}</span>
         </div>
-        <span style="font-family:var(--mono);font-size:0.82rem;color:rgba(255,255,255,0.5)">${p.count} зак.</span>
+        <span class="top-count">${p.count} зак.</span>
       </div>
     `).join('')
   }

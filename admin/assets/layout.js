@@ -293,6 +293,36 @@
       border-color: var(--input-border) !important;
     }
 
+    /* Dashboard / orders cells & inline elements that used hardcoded white-based colors */
+    [data-theme="light"] .cell-date,
+    [data-theme="light"] .cell-empty,
+    [data-theme="light"] .row-date,
+    [data-theme="light"] .top-count,
+    [data-theme="light"] .breakdown-label,
+    [data-theme="light"] .breakdown-count,
+    [data-theme="light"] .stat-label,
+    [data-theme="light"] .stat-sub,
+    [data-theme="light"] .status-lbl,
+    [data-theme="light"] .card-title,
+    [data-theme="light"] .section-label,
+    [data-theme="light"] .page-info { color: var(--text-muted) !important; }
+
+    [data-theme="light"] .cell-arrow,
+    [data-theme="light"] .arrow-col,
+    [data-theme="light"] .top-rank,
+    [data-theme="light"] .empty-ph,
+    [data-theme="light"] .breakdown-empty,
+    [data-theme="light"] .loading-ph { color: var(--text-dim) !important; }
+
+    /* Visitor sub-stat colored teal — soften slightly for light mode */
+    [data-theme="light"] .visitor-card .stat-sub { color: rgba(13,148,136,0.85) !important; }
+
+    /* Status badges (rendered inline by statusBadge()) — boost contrast in light theme.
+       Each badge has inline background/border/color in the form: bg=color+'22', color=color, border=color+'55'.
+       In light mode the alpha-22 background is too pale; force a stronger tinted fill. */
+    [data-theme="light"] [class*="badge"],
+    [data-theme="light"] .status-bar span[style] { font-weight: 500 !important; }
+
     /* Hide legacy top nav if present */
     .nav { display: none !important; }
   `

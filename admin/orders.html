@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-    :root { --mono: 'DM Mono', monospace; --hairline: rgba(255,255,255,0.08); --muted: rgba(255,255,255,0.45); }
+    :root { --mono: 'DM Mono', monospace; }
 
     /* Page */
     .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
@@ -17,29 +17,36 @@
     /* Controls */
     .controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
     .form-select, .form-input-sm {
-      padding: 0.55rem 0.9rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.85rem; outline: none;
+      padding: 0.55rem 0.9rem; border-radius: 4px; border: 0.5px solid var(--input-border);
+      background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.85rem; outline: none;
     }
     .form-select { appearance: none; padding-right: 2rem; cursor: pointer; min-width: 160px; }
     .form-input-sm { min-width: 220px; }
-    .form-input-sm::placeholder { color: rgba(255,255,255,0.3); }
-    .form-select:focus, .form-input-sm:focus { border-color: rgba(255,255,255,0.4); }
-    .form-select option { background: #1a1a1a; }
-    .btn-sm { padding: 0.55rem 1rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
-    .btn-sm:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .form-input-sm::placeholder { color: var(--text-dim); }
+    .form-select:focus, .form-input-sm:focus { border-color: var(--input-border-focus); }
+    .form-select option { background: var(--bg-card); color: var(--text); }
+    .btn-sm { padding: 0.55rem 1rem; border-radius: 4px; border: 0.5px solid var(--btn-border); background: var(--input-bg); color: var(--btn-color); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+    .btn-sm:hover { color: var(--btn-hover); border-color: var(--btn-hover-border); background: var(--hover-bg); }
     .btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* Table */
     .table-wrap { border: 0.5px solid var(--hairline); border-radius: 4px; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
-    thead th { padding: 0.75rem 1rem; text-align: left; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: #0a0a0a; border-bottom: 0.5px solid var(--hairline); white-space: nowrap; }
-    tbody td { padding: 0.8rem 1rem; font-size: 0.875rem; border-bottom: 0.5px solid rgba(255,255,255,0.04); vertical-align: middle; }
+    thead th { padding: 0.75rem 1rem; text-align: left; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); background: var(--bg); border-bottom: 0.5px solid var(--hairline); white-space: nowrap; }
+    tbody td { padding: 0.85rem 1rem; font-size: 0.9rem; color: var(--text); border-bottom: 0.5px solid var(--hairline2); vertical-align: middle; }
     tbody tr:last-child td { border-bottom: none; }
-    tbody tr { background: #0f0f0f; transition: background 0.1s; }
+    tbody tr { background: var(--bg-card); transition: background 0.1s; }
+    tbody tr.order-row { cursor: pointer; }
+    tbody tr.order-row:hover { background: var(--hover-bg); }
+    .cell-date { font-size: 0.82rem; color: var(--text-muted); }
+    .cell-mono { font-family: var(--mono); font-size: 0.85rem; }
+    .cell-arrow { color: var(--text-dim); }
+    .cell-empty { text-align: center; padding: 2rem; color: var(--text-muted); }
+    .cell-error { text-align: center; padding: 2rem; color: #ef4444; }
 
     /* Pagination */
     .pagination { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; justify-content: flex-end; }
-    .page-info { font-size: 0.8rem; color: var(--muted); }
+    .page-info { font-size: 0.8rem; color: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -75,7 +82,7 @@
           </tr>
         </thead>
         <tbody id="orders-tbody">
-          <tr><td colspan="8" style="text-align:center;padding:2rem;color:rgba(255,255,255,0.35)">Загрузка…</td></tr>
+          <tr><td colspan="8" class="cell-empty">Загрузка…</td></tr>
         </tbody>
       </table>
     </div>
@@ -88,8 +95,8 @@
   </main>
 
   <script src="assets/app.js?v=2"></script>
-  <script src="assets/layout.js?v=2"></script>
+  <script src="assets/layout.js?v=3"></script>
   <script>LOOM_LAYOUT.init('orders')</script>
-  <script src="assets/orders.js"></script>
+  <script src="assets/orders.js?v=3"></script>
 </body>
 </html>
