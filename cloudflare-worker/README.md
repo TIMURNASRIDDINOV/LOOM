@@ -1,5 +1,12 @@
 # LOOM Telegram Orders - Cloudflare Worker
 
+> **⚠ ORPHANED as of 2026-05-30.** The main backend in `backend/` now sends
+> the order notification to Telegram via `waitUntil` inside `POST /api/orders`
+> (see `backend/src/lib/telegram.ts`). The configurator no longer POSTs to
+> this Worker. The Worker is left deployed for now in case its richer
+> formatting is wanted back, but nothing in the live frontend calls it.
+> Safe to delete once you confirm no other client depends on it.
+
 Cloudflare Worker для отправки заказов из конфигуратора футболок LOOM в Telegram.
 
 ## 🚀 Быстрая установка
