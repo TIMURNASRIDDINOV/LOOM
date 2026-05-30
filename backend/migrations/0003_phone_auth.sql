@@ -36,6 +36,11 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_status   ON auth_sessions(status, e
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_telegram ON auth_sessions(telegram_user_id);
 
 -- ─── User sessions (cookie-based, longer lived) ───────────────────────────────
+-- NOTE (2026-05-30): This table is currently UNUSED. JWT/cookie auth is fully
+-- stateless — no code path inserts into or reads from user_sessions. The
+-- schema is kept in place reserved for a future server-side session
+-- revocation feature (so a `jti` claim on the JWT can be checked against
+-- this table on every request). Safe to drop if that feature is descoped.
 
 CREATE TABLE IF NOT EXISTS user_sessions (
   id          TEXT    PRIMARY KEY,        -- session token used as cookie
