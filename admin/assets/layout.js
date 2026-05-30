@@ -149,16 +149,149 @@
     .btn-back:hover { color: var(--text) !important; border-color: var(--input-border-focus) !important; }
     select { background: var(--input-bg) !important; border-color: var(--input-border) !important; color: var(--text) !important; }
 
-    /* Light-mode: fix page-level CSS var overrides + hardcoded white text */
+    /* Light-mode: comprehensive fixes for hardcoded dark colors */
     [data-theme="light"] { --muted: rgba(28,25,23,0.5); --hairline: rgba(0,0,0,0.1); }
-    /* Reset all non-inline-colored elements to theme text color */
+
+    /* Reset all text to theme color */
     [data-theme="light"] .main-content *:not([style*="color"]) {
       color: var(--text) !important;
     }
-    /* Restore intentionally colored elements (badges, status counts) */
+    /* Restore intentionally colored elements (badges, status) */
     [data-theme="light"] .badge,
     [data-theme="light"] [class*="badge"],
     [data-theme="light"] [class*="status"] span { color: inherit; }
+
+    /* Inputs, textareas, selects */
+    [data-theme="light"] .form-input,
+    [data-theme="light"] .form-textarea,
+    [data-theme="light"] .form-select,
+    [data-theme="light"] .form-input-sm,
+    [data-theme="light"] .search-input,
+    [data-theme="light"] .notif-form input,
+    [data-theme="light"] .notif-form textarea {
+      background: var(--input-bg) !important;
+      border-color: var(--input-border) !important;
+      color: var(--text) !important;
+    }
+    [data-theme="light"] .form-input::placeholder,
+    [data-theme="light"] .form-textarea::placeholder,
+    [data-theme="light"] .form-input-sm::placeholder,
+    [data-theme="light"] .search-input::placeholder,
+    [data-theme="light"] .notif-form input::placeholder,
+    [data-theme="light"] .notif-form textarea::placeholder {
+      color: var(--text-dim) !important;
+    }
+    [data-theme="light"] .form-input:focus,
+    [data-theme="light"] .form-textarea:focus,
+    [data-theme="light"] .form-select:focus,
+    [data-theme="light"] .form-input-sm:focus,
+    [data-theme="light"] .search-input:focus,
+    [data-theme="light"] .notif-form input:focus,
+    [data-theme="light"] .notif-form textarea:focus {
+      border-color: var(--input-border-focus) !important;
+    }
+    [data-theme="light"] .form-select option { background: var(--bg-card) !important; color: var(--text) !important; }
+
+    /* Buttons */
+    [data-theme="light"] .btn-sm,
+    [data-theme="light"] .btn-add-color,
+    [data-theme="light"] .action-btn,
+    [data-theme="light"] .activity-filter-btn {
+      border-color: var(--btn-border) !important;
+      color: var(--btn-color) !important;
+      background: transparent !important;
+    }
+    [data-theme="light"] .btn-sm:hover,
+    [data-theme="light"] .btn-add-color:hover,
+    [data-theme="light"] .action-btn:hover,
+    [data-theme="light"] .activity-filter-btn:hover {
+      color: var(--btn-hover) !important;
+      border-color: var(--btn-hover-border) !important;
+      background: var(--hover-bg) !important;
+    }
+    [data-theme="light"] .activity-filter-btn.active {
+      color: var(--link-active) !important;
+      border-color: var(--link-active) !important;
+      background: var(--link-active-bg) !important;
+    }
+    [data-theme="light"] .btn-primary,
+    [data-theme="light"] .btn-update {
+      border-color: var(--btn-border) !important;
+      color: var(--btn-color) !important;
+      background: var(--input-bg) !important;
+    }
+    [data-theme="light"] .btn-primary:hover,
+    [data-theme="light"] .btn-update:hover:not(:disabled) {
+      color: var(--btn-hover) !important;
+      border-color: var(--btn-hover-border) !important;
+      background: var(--hover-bg) !important;
+    }
+    /* Submit / send buttons (inverted style) */
+    [data-theme="light"] .btn-submit,
+    [data-theme="light"] .btn-send {
+      border-color: var(--text) !important;
+      background: var(--text) !important;
+      color: var(--bg) !important;
+    }
+    [data-theme="light"] .btn-submit:hover:not(:disabled),
+    [data-theme="light"] .btn-send:hover:not(:disabled) {
+      background: transparent !important;
+      color: var(--text) !important;
+    }
+
+    /* Table rows */
+    [data-theme="light"] tbody tr { background: var(--bg-card) !important; }
+    [data-theme="light"] tbody tr:hover td { background: var(--hover-bg) !important; }
+    [data-theme="light"] .mini-table tr:hover { background: var(--hover-bg) !important; }
+    [data-theme="light"] .mini-table tr:hover .arrow-col { color: var(--text) !important; }
+    [data-theme="light"] .arrow-col { color: var(--text-dim) !important; }
+
+    /* Labels and muted text */
+    [data-theme="light"] .field-label,
+    [data-theme="light"] .field-hint,
+    [data-theme="light"] .form-label,
+    [data-theme="light"] .info-label,
+    [data-theme="light"] .design-label,
+    [data-theme="light"] .page-sub,
+    [data-theme="light"] .loading-ph,
+    [data-theme="light"] .loading-msg,
+    [data-theme="light"] .sidebar-email { color: var(--text-muted) !important; }
+
+    /* Toggle switches */
+    [data-theme="light"] .toggle-slider {
+      background: rgba(0,0,0,0.12) !important;
+      border-color: rgba(0,0,0,0.18) !important;
+    }
+    [data-theme="light"] .toggle-slider::before { background: rgba(0,0,0,0.45) !important; }
+    [data-theme="light"] .toggle-label { color: var(--text-muted) !important; }
+    [data-theme="light"] .color-remove { color: var(--text-dim) !important; }
+
+    /* Avatar initials */
+    [data-theme="light"] .initials-sm {
+      background: rgba(0,0,0,0.08) !important;
+      color: var(--text-muted) !important;
+    }
+
+    /* Breakdown / progress bars */
+    [data-theme="light"] .breakdown-bar-wrap,
+    [data-theme="light"] .progress-bar-wrap { background: rgba(0,0,0,0.08) !important; }
+    [data-theme="light"] .progress-bar { background: rgba(0,0,0,0.35) !important; }
+    [data-theme="light"] .progress-text { color: var(--text-muted) !important; }
+
+    /* Upload zone */
+    [data-theme="light"] .upload-zone-text { color: var(--text-muted) !important; }
+    [data-theme="light"] .upload-zone-text strong { color: var(--text) !important; }
+    [data-theme="light"] .upload-zone:hover,
+    [data-theme="light"] .upload-zone.drag-over {
+      border-color: var(--input-border-focus) !important;
+      background: rgba(0,0,0,0.03) !important;
+    }
+
+    /* Location result box in user-detail */
+    [data-theme="light"] #admin-loc-result {
+      background: var(--input-bg) !important;
+      border-color: var(--input-border) !important;
+    }
 
     /* Hide legacy top nav if present */
     .nav { display: none !important; }
