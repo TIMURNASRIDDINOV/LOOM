@@ -1026,6 +1026,15 @@ export async function updateUserAvatar(db: D1Database, id: number, avatarKey: st
   })
 }
 
+export async function touchUserLastLogin(db: D1Database, id: number): Promise<void> {
+  return safeQuery('touchUserLastLogin', async () => {
+    await db
+      .prepare('UPDATE users SET last_login_at = ? WHERE id = ?')
+      .bind(Date.now(), id)
+      .run()
+  })
+}
+
 export async function insertOrderStatusLog(
   db: D1Database,
   params: {

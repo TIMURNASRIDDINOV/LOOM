@@ -10,6 +10,7 @@ import {
   markAuthSessionFailed,
   upsertPhoneUser,
   insertUserActivity,
+  touchUserLastLogin,
 } from '../db/queries'
 import { signToken } from '../lib/jwt'
 import type { BaseEnv } from '../types'
@@ -231,6 +232,7 @@ webhookRouter.post('/webhook', async (c) => {
 
       const jwt = await signToken({ sub: String(userId), role: 'user' }, c.env.JWT_SECRET, '30d')
 
+      await touchUserLastLogin(c.env.DB, userId)
       await markAuthSessionVerified(c.env.DB, session.id, userId, jwt)
       await insertUserActivity(c.env.DB, {
         user_id: userId,
