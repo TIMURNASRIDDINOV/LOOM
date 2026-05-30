@@ -7,7 +7,6 @@ import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
 import filesRoutes from './routes/files'
-import userProfile from './routes/user-profile'
 import type { BaseEnv } from './types'
 
 const PROD_ORIGINS = [
@@ -45,10 +44,9 @@ app.route('/api/admin', adminRoutes)          // /api/admin/* (orders, auth, med
 app.route('/api/admin', setupRouter)          // POST /api/admin/setup (no auth required)
 app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/admin/stats
 app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
-app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
-app.route('/api/auth', userProfile)
-app.route('/api/auth', telegramAuthRoutes)     // POST /api/auth/telegram/{start,status}, /api/auth/logout
-app.route('/api/telegram', webhookRouter)      // POST /api/telegram/webhook
+app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, /api/files/avatars/:key, POST /api/files/track
+app.route('/api/auth', telegramAuthRoutes)    // POST /api/auth/telegram/{start,status}, /api/auth/logout
+app.route('/api/telegram', webhookRouter)     // POST /api/telegram/webhook
 
 // ─── Admin subdomain redirect ─────────────────────────────────────────────────
 

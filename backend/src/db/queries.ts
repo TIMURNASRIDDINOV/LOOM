@@ -1026,15 +1026,6 @@ export async function updateUserAvatar(db: D1Database, id: number, avatarKey: st
   })
 }
 
-export async function updateUserDisplayName(db: D1Database, id: number, firstName: string): Promise<void> {
-  return safeQuery('updateUserDisplayName', async () => {
-    await db
-      .prepare('UPDATE users SET first_name = ? WHERE id = ?')
-      .bind(firstName, id)
-      .run()
-  })
-}
-
 export async function insertOrderStatusLog(
   db: D1Database,
   params: {
