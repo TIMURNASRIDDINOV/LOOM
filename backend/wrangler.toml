@@ -11,8 +11,11 @@ routes = [
 
 [vars]
 ENVIRONMENT = "production"
-# The bot username WITHOUT the @ prefix (e.g. "LoomAuthBot")
-BOT_USERNAME = ""
+# The bot username WITHOUT the @ prefix. Phone/Telegram login is unreachable
+# while this is empty — the start handler returns 503 "Bot not configured".
+# TODO: change "looom_design_bot" to the real bot username before deploying
+# from a different account, or override via the Cloudflare dashboard.
+BOT_USERNAME = "looom_design_bot"
 
 # D1 Database — fill in database_id after running: wrangler d1 list
 [[d1_databases]]

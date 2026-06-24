@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import {
   getUserByEmail, getUserById, createUser,
   updateUserProfile, updateUserPassword, updateUserAvatar,
-  getUserOrderStats,
+  getUserOrderStats, touchUserLastLogin,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { signToken } from '../lib/jwt'
@@ -66,6 +66,8 @@ auth.post('/login', async (c) => {
 
   const valid = await verifyPassword(password, user.password_hash)
   if (!valid) return c.json({ error: 'Invalid credentials' }, 401)
+
+  await touchUserLastLogin(c.env.DB, user.id)
 
   const token = await signToken({ sub: String(user.id), role: 'user' }, c.env.JWT_SECRET, '30d')
   return c.json({ token, user: { id: user.id, email: user.email, name: user.name } })

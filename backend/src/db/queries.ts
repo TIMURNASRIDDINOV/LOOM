@@ -1026,11 +1026,11 @@ export async function updateUserAvatar(db: D1Database, id: number, avatarKey: st
   })
 }
 
-export async function updateUserDisplayName(db: D1Database, id: number, firstName: string): Promise<void> {
-  return safeQuery('updateUserDisplayName', async () => {
+export async function touchUserLastLogin(db: D1Database, id: number): Promise<void> {
+  return safeQuery('touchUserLastLogin', async () => {
     await db
-      .prepare('UPDATE users SET first_name = ? WHERE id = ?')
-      .bind(firstName, id)
+      .prepare('UPDATE users SET last_login_at = ? WHERE id = ?')
+      .bind(Date.now(), id)
       .run()
   })
 }

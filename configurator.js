@@ -41,10 +41,12 @@ const FONT_OPTIONS = [
   { value: "Pacifico", label: "Pacifico (Script)" },
 ];
 
-// Cloudflare Worker endpoint for Telegram order notifications
-const WORKER_URL =
-  window.LOOM_CONFIG?.TELEGRAM_WORKER_URL
-  ?? "https://loom-telegram-orders.timurnasriddinov56.workers.dev";
+// Telegram notifications for orders are sent by the main backend
+// (backend POST /api/orders → sendOrderNotification via waitUntil).
+// The standalone cloudflare-worker/ (loom-telegram-orders) used to be
+// pinged from here as a parallel notification path — that's been
+// removed to stop double-messaging admins on every order. The
+// standalone Worker is now orphaned; remove it whenever convenient.
 
 // API base — resolved via config.js if available
 function getApiBase() {
@@ -2163,30 +2165,9 @@ async function handleOrderSubmit(event) {
       console.warn("API order failed:", errData.error);
     }
 
-    // ── 5. Also notify Telegram worker (non-blocking, best effort) ─────────
-    const workerPayload = {
-      item: currentProduct ? currentProduct.name_ru : "Футболка",
-      color: getColorName(designState.shirtColor),
-      size: selectedSize,
-      frontText: designState.front.text.content || "",
-      backText: designState.back.text.content || "",
-      frontImage: designState.front.image.name || "Не загружено",
-      backImage: designState.back.image.name || "Не загружено",
-      mapCoordinates: coords,
-      customerName: nameVal,
-      phone: phoneFmt,
-      address: addrVal,
-      comment,
-      timestamp: new Date().toISOString(),
-      orderId: orderId || "?",
-      frontScreenshot,
-      backScreenshot,
-    };
-    fetch(WORKER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(workerPayload),
-    }).catch(() => {});
+    // Telegram notification is fired by the backend via waitUntil in
+    // POST /api/orders — see backend/src/routes/public.ts. No second
+    // notification needed from the frontend.
 
     const idLabel = orderId ? ` #${orderId}` : "";
     showToast("✅ Заказ" + idLabel + " принят!", "success");
@@ -2287,35 +2268,6 @@ function bindMobileNav() {
   });
 }
 
-// ================================================================
-// SECTION 19 — TEST UTILITY (console debugging)
-// ================================================================
-
-window.testTelegramConnection = async function () {
-  const data = {
-    item: "Тестовый заказ",
-    color: "Белый",
-    text: "Тест",
-    font: "Arial",
-    imageUploaded: "Не загружено",
-    scale: "100%",
-    customerName: "Тест Тестович",
-    phone: "+998 90 123-45-67",
-    phoneClean: "998901234567",
-    address: "Тестовый адрес",
-    timestamp: new Date().toISOString(),
-  };
-  try {
-    const r = await fetch(WORKER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    const result = r.ok ? "✅ OK" : `❌ ${r.status}`;
-    console.log(result, await r.text());
-    showToast(result, r.ok ? "success" : "error");
-  } catch (e) {
-    console.error(e);
-    showToast("❌ " + e.message, "error");
-  }
-};
+// SECTION 19 (removed) — test utility for the standalone Telegram
+// worker. The worker is no longer called from this file; if you
+// need to test it, hit its URL directly with curl.
