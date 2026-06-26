@@ -1,5 +1,13 @@
 'use strict'
 
+// Wrapped in an IIFE so this file's top-level declarations stay function-scoped.
+// Without it, `const API_BASE` below collides with the global `const API_BASE`
+// declared in app.js (both are classic scripts sharing the page's global scope),
+// throwing "Identifier 'API_BASE' has already been declared". That SyntaxError
+// aborts the ENTIRE file, so the product-form submit handler is never attached
+// and clicking "Сохранить" just does a native form submit — i.e. adding a
+// product silently does nothing. Scope isolation is the standard back-office fix.
+;(function () {
 const { API_BASE, apiJSON, checkAuth } = window.LOOM
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -243,3 +251,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 })
+})()
