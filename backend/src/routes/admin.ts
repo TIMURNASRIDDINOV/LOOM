@@ -9,6 +9,7 @@ import {
   getAdminOrders,
   getOrderById,
   getOrderStatusLog,
+  getOrderItemsByOrderId,
   updateOrderStatus,
   insertOrderStatusLog,
   getVisitorStats,
@@ -157,7 +158,14 @@ admin.get('/orders/:id', requireAdmin, async (c) => {
   // Build logo URL for admin media route (served by worker, requires admin cookie)
   const logoUrl = order.logo_key ? `/api/admin/media/${order.logo_key}` : null
 
-  return c.json({ ...order, statusLog, logoUrl })
+  // Multi-item orders (cart checkout): attach line items with per-item logo URLs
+  const rawItems = await getOrderItemsByOrderId(c.env.DB, id)
+  const items = rawItems.map((it) => ({
+    ...it,
+    logoUrl: it.logo_key ? `/api/admin/media/${it.logo_key}` : null,
+  }))
+
+  return c.json({ ...order, statusLog, logoUrl, items })
 })
 
 // ─── PATCH /api/admin/orders/:id/status ──────────────────────────────────────

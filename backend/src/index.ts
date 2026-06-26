@@ -6,14 +6,15 @@ import telegramAuthRoutes, { webhookRouter } from './routes/telegram-auth'
 import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
+import cartRoutes from './routes/cart'
 import filesRoutes from './routes/files'
 import userProfile from './routes/user-profile'
 import type { BaseEnv } from './types'
 
 const PROD_ORIGINS = [
-  'https://looom.me',
-  'https://www.looom.me',
-  'https://admin.looom.me',
+  'https://loomdesign.uz',
+  'https://www.loomdesign.uz',
+  'https://admin.loomdesign.uz',
 ]
 
 const DEV_ORIGINS = [
@@ -39,6 +40,7 @@ app.use('*', (c, next) => {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
+app.route('/api/cart', cartRoutes)            // GET/POST/PATCH/DELETE /api/cart, POST /api/cart/checkout
 app.route('/api', publicRoutes)               // GET /api/products, POST /api/orders, etc.
 app.route('/api/auth', authRoutes)            // POST /api/auth/register, /login, GET /api/auth/me, PATCH /profile etc.
 app.route('/api/admin', adminRoutes)          // /api/admin/* (orders, auth, media, analytics)
@@ -54,10 +56,10 @@ app.route('/api/telegram', webhookRouter)      // POST /api/telegram/webhook
 
 app.all('*', (c, next) => {
   const host = new URL(c.req.url).hostname
-  if (host === 'admin.looom.me') {
+  if (host === 'admin.loomdesign.uz') {
     const url = new URL(c.req.url)
     const path = url.pathname === '/' ? '/admin/' : `/admin${url.pathname}`
-    return c.redirect(`https://www.looom.me${path}${url.search}`, 301)
+    return c.redirect(`https://loomdesign.uz${path}${url.search}`, 301)
   }
   return next()
 })

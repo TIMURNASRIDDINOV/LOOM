@@ -16,6 +16,49 @@ function parseDesign(json) {
   try { return JSON.parse(json) } catch { return {} }
 }
 
+function renderOrderItems(items, anchorCard) {
+  const { apiFetch, formatPrice } = window.LOOM
+  const card = document.createElement('div')
+  card.className = 'card'
+  card.innerHTML = `<p class="card-title">Позиции заказа (${items.length})</p>` +
+    items.map((it, i) => {
+      const d = parseDesign(it.design_json)
+      const color = d.shirtColor || '—'
+      const size = d.size || '—'
+      const text = d.front?.text?.content || ''
+      const font = d.front?.text?.font || ''
+      const logoName = d.front?.image?.name || d.back?.image?.name || ''
+      const meta = [
+        `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${escHtml(color)};border:1px solid var(--input-border);vertical-align:middle;margin-right:5px"></span>${escHtml(color)}`,
+        escHtml(size),
+        text ? `«${escHtml(text)}»${font ? ' (' + escHtml(font) + ')' : ''}` : '',
+        logoName ? 'лого: ' + escHtml(logoName) : '',
+      ].filter(Boolean).join(' · ')
+      return `<div style="display:flex;gap:0.85rem;padding:0.75rem 0;border-bottom:0.5px solid var(--hairline2)">
+        <div class="oi-thumb" data-logo="${escHtml(it.logoUrl || '')}" style="width:56px;height:56px;border-radius:6px;flex-shrink:0;background:var(--hover-bg);border:0.5px solid var(--hairline);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.7rem;overflow:hidden">${i + 1}</div>
+        <div style="flex:1;min-width:0;font-size:0.83rem">
+          <div style="font-weight:500;color:var(--text)">${escHtml(it.product_name || 'Футболка')}${it.quantity > 1 ? ' ×' + it.quantity : ''}</div>
+          <div style="color:var(--text-muted);margin-top:3px;line-height:1.5">${meta}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:0.82rem;white-space:nowrap">${formatPrice(it.unit_price * (it.quantity || 1))}</div>
+      </div>`
+    }).join('')
+  if (anchorCard && anchorCard.parentNode) anchorCard.parentNode.insertBefore(card, anchorCard)
+  else document.getElementById('detail-content')?.appendChild(card)
+  // Lazy-load each item's logo thumbnail (admin media route needs the admin cookie)
+  card.querySelectorAll('.oi-thumb[data-logo]').forEach(async (el) => {
+    const url = el.getAttribute('data-logo')
+    if (!url) return
+    try {
+      const r = await apiFetch(url)
+      if (r.ok) {
+        const u = URL.createObjectURL(await r.blob())
+        el.innerHTML = `<img src="${u}" style="width:100%;height:100%;object-fit:cover" alt="">`
+      }
+    } catch { /* logo not critical */ }
+  })
+}
+
 async function loadOrder(id) {
   const { apiFetch, apiJSON, statusBadge, formatPrice, formatDate, STATUS_LABELS } = window.LOOM
 
@@ -67,6 +110,15 @@ async function loadOrder(id) {
     // Raw JSON
     document.getElementById('design-json-raw').textContent =
       JSON.stringify(design, null, 2)
+
+    // Multi-item orders (cart checkout): show line items, hide single-design cards
+    if (o.items && o.items.length) {
+      const designCard = document.getElementById('design-color')?.closest('.card')
+      const jsonCard = document.getElementById('design-json-raw')?.closest('.card')
+      if (designCard) designCard.style.display = 'none'
+      if (jsonCard) jsonCard.style.display = 'none'
+      renderOrderItems(o.items, designCard || jsonCard)
+    }
 
     // Logo preview
     if (o.logoUrl) {

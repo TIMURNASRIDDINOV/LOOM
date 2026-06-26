@@ -1161,3 +1161,99 @@ export async function getVisitorStats(db: D1Database): Promise<VisitorStats> {
     dailyLast30: dailyRows.results,
   }
 }
+
+// ================================================================
+// CART + ORDER ITEMS (Phase 2 — account cart, multi-item orders)
+// ================================================================
+
+export interface CartItem {
+  id: number
+  user_id: number
+  product_id: number | null
+  design_json: string
+  logo_key: string | null
+  unit_price: number
+  quantity: number
+  created_at: number
+  updated_at: number
+}
+
+export async function getCartItems(db: D1Database, userId: number): Promise<CartItem[]> {
+  return safeQuery('getCartItems', async () => {
+    const { results } = await db
+      .prepare('SELECT * FROM cart_items WHERE user_id = ? ORDER BY created_at ASC')
+      .bind(userId)
+      .all<CartItem>()
+    return results
+  })
+}
+
+export async function getCartItemById(db: D1Database, id: number): Promise<CartItem | null> {
+  return safeQuery('getCartItemById', () =>
+    db.prepare('SELECT * FROM cart_items WHERE id = ?').bind(id).first<CartItem>(),
+  )
+}
+
+export async function addCartItem(
+  db: D1Database,
+  p: { user_id: number; product_id: number | null; design_json: string; logo_key: string | null; unit_price: number; quantity: number },
+): Promise<number> {
+  return safeQuery('addCartItem', async () => {
+    const now = Date.now()
+    const res = await db
+      .prepare(
+        `INSERT INTO cart_items (user_id, product_id, design_json, logo_key, unit_price, quantity, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(p.user_id, p.product_id, p.design_json, p.logo_key, p.unit_price, p.quantity, now, now)
+      .run()
+    return Number(res.meta.last_row_id)
+  })
+}
+
+export async function updateCartItemQty(db: D1Database, id: number, quantity: number): Promise<void> {
+  return safeQuery('updateCartItemQty', async () => {
+    await db
+      .prepare('UPDATE cart_items SET quantity = ?, updated_at = ? WHERE id = ?')
+      .bind(quantity, Date.now(), id)
+      .run()
+  })
+}
+
+export async function deleteCartItem(db: D1Database, id: number): Promise<void> {
+  return safeQuery('deleteCartItem', async () => {
+    await db.prepare('DELETE FROM cart_items WHERE id = ?').bind(id).run()
+  })
+}
+
+export async function clearCart(db: D1Database, userId: number): Promise<void> {
+  return safeQuery('clearCart', async () => {
+    await db.prepare('DELETE FROM cart_items WHERE user_id = ?').bind(userId).run()
+  })
+}
+
+export async function createOrderItem(
+  db: D1Database,
+  p: { order_id: number; product_id: number | null; product_name: string | null; design_json: string; logo_key: string | null; unit_price: number; quantity: number },
+): Promise<number> {
+  return safeQuery('createOrderItem', async () => {
+    const res = await db
+      .prepare(
+        `INSERT INTO order_items (order_id, product_id, product_name, design_json, logo_key, unit_price, quantity, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(p.order_id, p.product_id, p.product_name, p.design_json, p.logo_key, p.unit_price, p.quantity, Date.now())
+      .run()
+    return Number(res.meta.last_row_id)
+  })
+}
+
+export async function getOrderItemsByOrderId(db: D1Database, orderId: number): Promise<Record<string, unknown>[]> {
+  return safeQuery('getOrderItemsByOrderId', async () => {
+    const { results } = await db
+      .prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC')
+      .bind(orderId)
+      .all()
+    return results
+  })
+}

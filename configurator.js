@@ -52,7 +52,7 @@ function getApiBase() {
   const h = window.location.hostname;
   return (h === "localhost" || h === "127.0.0.1")
     ? "http://localhost:8787"
-    : "https://api.looom.me";
+    : "https://api.loomdesign.uz";
 }
 
 // Product loaded from API (null = using local fallback)
@@ -72,6 +72,7 @@ SHIRT_COLORS.forEach((c) => {
 const designState = {
   shirtColor: "#FFFFFF",
   activeView: "front",
+  activeLayer: "text", // which element the on-shirt drag + design panel edits
 
   front: {
     text: {
@@ -172,9 +173,9 @@ document.addEventListener("DOMContentLoaded", async function () {
 function initThreeJS() {
   const container = document.getElementById("three-container");
 
-  // Scene with soft light-gray background
+  // Transparent scene so the CSS spotlight/vignette behind the canvas shows through
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000000);
+  scene.background = null;
 
   // Perspective camera — FOV 40 for a natural product lens feel
   const w = container.clientWidth || 600;
@@ -187,8 +188,10 @@ function initThreeJS() {
   renderer = new THREE.WebGLRenderer({
     antialias: true,
     preserveDrawingBuffer: true,
+    alpha: true,
   });
   renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.setClearColor(0x000000, 0);
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.LinearToneMapping;
@@ -489,6 +492,14 @@ async function loadProductFromSlug() {
         const priceEls = document.querySelectorAll(".summary-price .summary-val, .summary-price .summary-value, .configurator-price");
         const fmt = new Intl.NumberFormat("ru-RU").format(product.price) + " сум";
         priceEls.forEach(el => { el.textContent = fmt; });
+        // New studio panel header + footer price
+        const numFmt = new Intl.NumberFormat("ru-RU").format(product.price);
+        const nameEl = document.getElementById("panel-product-name");
+        if (nameEl && product.name_ru) nameEl.textContent = product.name_ru;
+        ["panel-price", "foot-price-num"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = numFmt;
+        });
       }
     } catch (e) {
       console.warn("Product fetch failed, using default model:", e);
@@ -1081,6 +1092,23 @@ const _rcMouse = new THREE.Vector2();
 let _logoDragging = false;
 let _dragStartClientX = 0, _dragStartClientY = 0;
 let _dragBaseX = 0, _dragBaseY = 0;
+let _dragObj = null;
+
+/**
+ * Returns the design element the on-shirt drag should move: the active layer
+ * (text or logo) if it has content, otherwise whichever element exists.
+ */
+function _activeDraggable() {
+  const layer = designState[designState.activeView];
+  const hasText = !!(layer.text && layer.text.content);
+  const hasImg = !!(layer.image && layer.image.img);
+  const pref = designState.activeLayer;
+  if (pref === "text" && hasText) return layer.text;
+  if (pref === "image" && hasImg) return layer.image;
+  if (hasImg) return layer.image;
+  if (hasText) return layer.text;
+  return null;
+}
 
 /** Returns true if the mouse/touch event hits any part of the shirt. */
 function _hitsShirt(e) {
@@ -1112,31 +1140,31 @@ function bindLogoDrag3D() {
   }
 
   function onDown(e) {
-    const layer = designState[designState.activeView];
-    if (!layer.image.img) return;
+    const d = _activeDraggable();
+    if (!d) return;
     if (!_hitsShirt(e)) return;
 
     e.stopImmediatePropagation();
     e.preventDefault();
     _logoDragging = true;
+    _dragObj = d;
 
     const { x, y } = clientXY(e);
     _dragStartClientX = x;
     _dragStartClientY = y;
-    _dragBaseX = layer.image.x;
-    _dragBaseY = layer.image.y;
+    _dragBaseX = d.x;
+    _dragBaseY = d.y;
   }
 
   function onMove(e) {
-    if (!_logoDragging) return;
+    if (!_logoDragging || !_dragObj) return;
     e.stopImmediatePropagation();
     e.preventDefault();
 
     const { x, y } = clientXY(e);
     const sc = texScale();
-    const layer = designState[designState.activeView];
-    layer.image.x = _dragBaseX + (x - _dragStartClientX) * sc;
-    layer.image.y = _dragBaseY + (y - _dragStartClientY) * sc;
+    _dragObj.x = _dragBaseX + (x - _dragStartClientX) * sc;
+    _dragObj.y = _dragBaseY + (y - _dragStartClientY) * sc;
     redrawActive();
   }
 
@@ -1155,8 +1183,7 @@ function bindLogoDrag3D() {
   // Cursor feedback
   canvas.addEventListener("mousemove", (e) => {
     if (_logoDragging) { canvas.style.cursor = "grabbing"; return; }
-    const layer = designState[designState.activeView];
-    if (!layer.image.img) { canvas.style.cursor = ""; return; }
+    if (!_activeDraggable()) { canvas.style.cursor = ""; return; }
     canvas.style.cursor = _hitsShirt(e) ? "grab" : "";
   });
 }
@@ -1181,6 +1208,212 @@ function initUI() {
   bindMobileNav();
   bindSizeSelector();
   bindCenterButtons();
+  bindLayerSwitch();
+  bindCart();
+}
+
+// ----------------------------------------------------------------
+// Layer switch (Text / Logo) in the unified Design tab
+// ----------------------------------------------------------------
+function bindLayerSwitch() {
+  const btns = document.querySelectorAll(".layer-btn");
+  const textCtl = document.getElementById("design-text-controls");
+  const logoCtl = document.getElementById("design-logo-controls");
+  btns.forEach((b) => {
+    b.addEventListener("click", () => {
+      const layer = b.dataset.layer; // 'text' | 'image'
+      designState.activeLayer = layer;
+      btns.forEach((x) => {
+        const on = x.dataset.layer === layer;
+        x.classList.toggle("active", on);
+        x.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      if (textCtl) textCtl.style.display = layer === "text" ? "flex" : "none";
+      if (logoCtl) logoCtl.style.display = layer === "image" ? "flex" : "none";
+    });
+  });
+}
+
+// ================================================================
+// SECTION 10b — CART (Phase 2: account-bound cart + multi-item checkout)
+// ================================================================
+let cartState = { items: [], total: 0 };
+
+function _esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function _authHeaders(json) {
+  const h = json ? { "Content-Type": "application/json" } : {};
+  const token = window.LOOM_AUTH && window.LOOM_AUTH.getToken && window.LOOM_AUTH.getToken();
+  if (token) h["Authorization"] = "Bearer " + token;
+  return h;
+}
+function updateCartCount() {
+  const n = (cartState.items || []).reduce((s, i) => s + (i.quantity || 1), 0);
+  const el = document.getElementById("cartCount");
+  if (el) { el.textContent = n; el.classList.toggle("show", n > 0); }
+}
+async function loadCart() {
+  try {
+    const res = await fetch(getApiBase() + "/api/cart", { headers: _authHeaders(false), credentials: "include" });
+    cartState = res.ok ? await res.json() : { items: [], total: 0 };
+  } catch { cartState = { items: [], total: 0 }; }
+  updateCartCount();
+  return cartState;
+}
+function _summarizeDesign(designJson) {
+  let d = {};
+  try { d = JSON.parse(designJson || "{}"); } catch { d = {}; }
+  const color = d.shirtColor ? getColorName(d.shirtColor) : "";
+  const size = d.size || "";
+  const text = (d.front && d.front.text && d.front.text.content) || d.text || "";
+  const hasLogo = !!(d.front && d.front.image && d.front.image.name);
+  return { color, size, text, hasLogo };
+}
+function _buildDesignJson() {
+  const front = designState.front, back = designState.back;
+  return JSON.stringify({
+    shirtColor: designState.shirtColor,
+    size: selectedSize,
+    front: {
+      text: { content: front.text.content, font: front.text.font, size: front.text.size, color: front.text.color, bold: front.text.bold, italic: front.text.italic },
+      image: { name: front.image.name, scalePct: front.image.scalePct },
+    },
+    back: {
+      text: { content: back.text.content, font: back.text.font },
+      image: { name: back.image.name, scalePct: back.image.scalePct },
+    },
+  });
+}
+async function _uploadCurrentLogo() {
+  const logoFile = uploadedFileData.front || uploadedFileData.back;
+  if (!logoFile || !logoFile.base64) return null;
+  try {
+    const [header, b64] = logoFile.base64.split(",");
+    const mime = header.match(/:(.*?);/)?.[1] || "image/png";
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const fd = new FormData();
+    fd.append("file", new File([new Blob([bytes], { type: mime })], logoFile.name || "logo.png", { type: mime }));
+    const up = await fetch(getApiBase() + "/api/uploads", { method: "POST", body: fd });
+    if (up.ok) return (await up.json()).key || null;
+  } catch (e) { /* non-fatal */ }
+  return null;
+}
+async function addToCart() {
+  // Account-bound cart → require login first
+  let user = null;
+  try {
+    user = window.LOOM_LOGIN_MODAL
+      ? await window.LOOM_LOGIN_MODAL.requireAuth()
+      : (window.LOOM_AUTH ? await window.LOOM_AUTH.getCurrentUser() : null);
+  } catch { return; } // login modal cancelled
+  if (!user) { showToast("Войдите, чтобы добавить в корзину", "error"); return; }
+
+  const btn = document.getElementById("btn-add-to-cart");
+  if (btn) btn.disabled = true;
+  try {
+    const logoKey = await _uploadCurrentLogo();
+    const designJson = _buildDesignJson();
+    const res = await fetch(getApiBase() + "/api/cart", {
+      method: "POST",
+      headers: _authHeaders(true),
+      credentials: "include",
+      body: JSON.stringify({
+        productId: currentProduct ? currentProduct.id : null,
+        designJson,
+        logoKey,
+        unitPrice: currentProduct ? currentProduct.price : 150000,
+        quantity: 1,
+      }),
+    });
+    if (res.status === 401) { showToast("Войдите, чтобы добавить в корзину", "error"); return; }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.error || "Ошибка добавления", "error"); return; }
+    cartState = await res.json();
+    updateCartCount();
+    renderCart();
+    showToast("Добавлено в корзину");
+    openCartDrawer();
+  } catch (e) {
+    showToast("Ошибка сети", "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+async function removeFromCart(id) {
+  try {
+    const res = await fetch(getApiBase() + "/api/cart/" + encodeURIComponent(id), {
+      method: "DELETE", headers: _authHeaders(false), credentials: "include",
+    });
+    if (res.ok) cartState = await res.json();
+  } catch (e) { /* ignore */ }
+  updateCartCount();
+  renderCart();
+}
+function renderCart() {
+  const body = document.getElementById("cartBody");
+  const foot = document.getElementById("cartFoot");
+  const totalEl = document.getElementById("cartTotal");
+  if (!body) return;
+  const items = cartState.items || [];
+  const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n);
+  if (!items.length) {
+    body.innerHTML = '<p class="cart-empty">Корзина пуста</p>';
+    if (foot) foot.style.display = "none";
+    return;
+  }
+  body.innerHTML = items.map((it) => {
+    const s = _summarizeDesign(it.design_json);
+    const meta = [s.color, s.size, s.text ? "«" + _esc(s.text) + "»" : "", s.hasLogo ? "логотип" : "", (it.quantity > 1 ? "×" + it.quantity : "")].filter(Boolean).join(" · ");
+    return `
+      <div class="cart-item">
+        <div class="cart-item-thumb" style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.3)">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
+        </div>
+        <div class="cart-item-info">
+          <span class="cart-item-name">${_esc(it.product_name || "Футболка")}</span>
+          <span class="cart-item-meta">${meta}</span>
+          <span class="cart-item-price">${fmt(it.unit_price * (it.quantity || 1))} сум</span>
+        </div>
+        <button class="cart-item-remove" data-id="${it.id}" aria-label="Удалить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>`;
+  }).join("");
+  body.querySelectorAll(".cart-item-remove").forEach((b) =>
+    b.addEventListener("click", () => removeFromCart(b.dataset.id)));
+  if (totalEl) totalEl.textContent = fmt(cartState.total || 0);
+  if (foot) foot.style.display = "flex";
+}
+function openCartDrawer() {
+  document.getElementById("cartDrawer")?.classList.add("active");
+  document.getElementById("cartBackdrop")?.classList.add("active");
+  document.body.classList.add("menu-open");
+}
+async function openCart() {
+  await loadCart();
+  renderCart();
+  openCartDrawer();
+}
+function closeCart() {
+  document.getElementById("cartDrawer")?.classList.remove("active");
+  document.getElementById("cartBackdrop")?.classList.remove("active");
+  document.body.classList.remove("menu-open");
+}
+function bindCart() {
+  document.getElementById("navCartBtn")?.addEventListener("click", openCart);
+  document.getElementById("cartClose")?.addEventListener("click", closeCart);
+  document.getElementById("cartBackdrop")?.addEventListener("click", closeCart);
+  document.getElementById("btn-add-to-cart")?.addEventListener("click", addToCart);
+  document.getElementById("cartCheckoutBtn")?.addEventListener("click", () => {
+    if (!cartState.items || !cartState.items.length) { showToast("Корзина пуста"); return; }
+    closeCart();
+    openOrderModal(true); // open checkout in cart mode
+  });
+  loadCart();
 }
 
 // ----------------------------------------------------------------
@@ -1284,8 +1517,8 @@ function bindTabNav() {
         else tc.style.display = "none";
       });
 
-      // Refresh design canvas whenever text / image tab is shown
-      if (target === "text" || target === "image") refreshDesignCanvas();
+      // Refresh design preview when the design tab is shown
+      if (target === "design") refreshDesignCanvas();
 
       // Update summary when that tab opens
       if (target === "summary") updateSummaryTab();
@@ -1550,7 +1783,7 @@ function bindSummaryTab() {
   const btnOrder = document.getElementById("btn-place-order");
 
   if (btnReset) btnReset.addEventListener("click", resetDesign);
-  if (btnOrder) btnOrder.addEventListener("click", openOrderModal);
+  if (btnOrder) btnOrder.addEventListener("click", () => openOrderModal(false));
 }
 
 function updateSummaryTab() {
@@ -1700,7 +1933,9 @@ function getColorName(hex) {
   return COLOR_NAMES[hex] || hex;
 }
 
-function openOrderModal() {
+function openOrderModal(cartMode) {
+  cartMode = cartMode === true;
+  window.__cartCheckout = cartMode;
   // Strict auth gate — must be logged in to place an order
   if (window.LOOM_AUTH) {
     window.LOOM_AUTH.getCurrentUser().then((user) => {
@@ -1708,14 +1943,18 @@ function openOrderModal() {
         window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search)
         return
       }
-      _openOrderModalInner()
+      _openOrderModalInner(cartMode)
     })
     return
   }
-  _openOrderModalInner()
+  _openOrderModalInner(cartMode)
 }
 
-function _openOrderModalInner() {
+function _openOrderModalInner(cartMode) {
+  // Cart-checkout mode hides the single-item summary (items already in cart)
+  const summaryEl = document.querySelector("#orderModal .order-summary");
+  if (summaryEl) summaryEl.style.display = cartMode ? "none" : "";
+
   updateSummaryTab(); // ensures snapshot + summary info are fresh
 
   // Populate the existing order modal's summary section
@@ -1829,7 +2068,7 @@ function bindOrderModal() {
   // Trigger from Summary tab's "Заказать" button (already wired in bindSummaryTab)
   // Also keep legacy order-btn if it exists anywhere
   const legacyBtn = document.getElementById("order-btn");
-  if (legacyBtn) legacyBtn.addEventListener("click", openOrderModal);
+  if (legacyBtn) legacyBtn.addEventListener("click", () => openOrderModal(false));
 
   const close = document.getElementById("modalClose");
   const backdrop = document.getElementById("modalBackdrop");
@@ -2017,6 +2256,45 @@ async function captureGLB() {
   });
 }
 
+// Submit the account cart as a single multi-item order (Phase 2 checkout).
+async function handleCartCheckout(o) {
+  try {
+    const res = await fetch(getApiBase() + "/api/cart/checkout", {
+      method: "POST",
+      headers: _authHeaders(true),
+      credentials: "include",
+      body: JSON.stringify({
+        customerName: o.nameVal,
+        customerPhone: o.phoneFmt,
+        address: o.addrVal || null,
+        coordinates: o.locType === "map" ? o.coords : null,
+        comment: o.comment || null,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      showToast("Войдите, чтобы оформить заказ", "error");
+    } else if (res.status === 403) {
+      showToast("⛔ " + (data.error || "Доступ запрещён"), "error");
+    } else if (res.ok) {
+      window.__cartCheckout = false;
+      closeOrderModal();
+      await loadCart();
+      renderCart();
+      updateCartCount();
+      showToast("Заказ оформлен! №" + data.id);
+    } else {
+      showToast(data.error || "Ошибка оформления заказа", "error");
+    }
+  } catch (e) {
+    showToast("Ошибка сети. Попробуйте снова.", "error");
+  } finally {
+    o.btn.disabled = false;
+    if (o.txt) o.txt.style.display = "block";
+    if (o.loader) o.loader.style.display = "none";
+  }
+}
+
 async function handleOrderSubmit(event) {
   event.preventDefault();
 
@@ -2042,6 +2320,12 @@ async function handleOrderSubmit(event) {
     ].filter(Boolean).join(" ");
     const phoneFmt = document.getElementById("phoneInput")?.value.trim() || "";
     const comment = document.getElementById("commentInput")?.value.trim() || "";
+
+    // ── Cart-checkout mode: submit the whole cart as ONE multi-item order ──
+    if (window.__cartCheckout) {
+      await handleCartCheckout({ nameVal, phoneFmt, addrVal, coords, comment, locType, btn, txt, loader });
+      return;
+    }
 
     // ── 1. Upload logo to R2 if present ───────────────────────────────────
     let logoKey = null;
