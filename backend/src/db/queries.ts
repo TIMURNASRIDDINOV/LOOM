@@ -437,6 +437,26 @@ export async function softDeleteProduct(db: D1Database, id: number): Promise<voi
   })
 }
 
+// Number of orders that reference this product — used to decide whether a
+// product can be permanently deleted or must be archived (soft-deleted) to
+// keep order history intact.
+export async function countOrdersForProduct(db: D1Database, id: number): Promise<number> {
+  return safeQuery('countOrdersForProduct', async () => {
+    const row = await db
+      .prepare('SELECT COUNT(*) as c FROM orders WHERE product_id = ?')
+      .bind(id)
+      .first<{ c: number }>()
+    return row?.c ?? 0
+  })
+}
+
+// Permanently remove a product row. Only call when no orders reference it.
+export async function hardDeleteProduct(db: D1Database, id: number): Promise<void> {
+  return safeQuery('hardDeleteProduct', async () => {
+    await db.prepare('DELETE FROM products WHERE id = ?').bind(id).run()
+  })
+}
+
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 export interface AdminStats {

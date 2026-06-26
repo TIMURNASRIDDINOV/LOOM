@@ -5,6 +5,8 @@ import {
   createProduct,
   updateProduct,
   softDeleteProduct,
+  hardDeleteProduct,
+  countOrdersForProduct,
   AdminProductsFilter,
 } from '../db/queries'
 import { requireAdmin } from '../middleware/requireAdmin'
@@ -276,17 +278,38 @@ router.patch('/products/:id', requireAdmin, async (c) => {
   return c.json(withUrls(c.req.url, product as unknown as Record<string, unknown>))
 })
 
-// ─── DELETE /api/admin/products/:id (soft delete) ────────────────────────────
+// ─── DELETE /api/admin/products/:id ──────────────────────────────────────────
+// Permanently deletes a product when it is safe to do so (no orders reference
+// it): the DB row and its R2 assets are removed. If orders DO reference it, the
+// row is kept and archived (active = 0) instead, so order history stays intact.
+// Response: { ok, mode: 'deleted' | 'archived', orders? }
 
 router.delete('/products/:id', requireAdmin, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
-  const existing = await getProductById(c.env.DB, id)
+  const existing = await getProductById(c.env.DB, id) as unknown as
+    { glb_key?: string | null; thumbnail_key?: string | null } | null
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
-  await softDeleteProduct(c.env.DB, id)
-  return c.json({ ok: true })
+  // Referential integrity: a product referenced by orders cannot be removed
+  // without orphaning that order history — archive it instead.
+  const orderCount = await countOrdersForProduct(c.env.DB, id)
+  if (orderCount > 0) {
+    await softDeleteProduct(c.env.DB, id)
+    return c.json({ ok: true, mode: 'archived', orders: orderCount })
+  }
+
+  // No orders → permanently delete. Best-effort R2 cleanup first (don't fail the
+  // delete if an asset is already gone), then remove the row.
+  try {
+    if (existing.glb_key) await c.env.LOOM_MODELS.delete(existing.glb_key)
+    if (existing.thumbnail_key) await c.env.LOOM_MODELS.delete(existing.thumbnail_key)
+  } catch (err) {
+    console.warn('[admin-products] R2 cleanup during delete failed (non-fatal):', err)
+  }
+  await hardDeleteProduct(c.env.DB, id)
+  return c.json({ ok: true, mode: 'deleted' })
 })
 
 export default router

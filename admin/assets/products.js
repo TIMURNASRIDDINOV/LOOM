@@ -85,10 +85,13 @@ async function loadProducts() {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id
         const name = btn.dataset.name
-        if (!confirm(`Деактивировать продукт "${name}"?\n(Файлы в R2 сохранятся)`)) return
+        if (!confirm(`Удалить продукт "${name}"?\n\nЕсли по нему уже есть заказы, он будет архивирован (деактивирован), а не удалён полностью — чтобы сохранить историю заказов.`)) return
         btn.disabled = true
         try {
-          await apiJSON(`/api/admin/products/${id}`, { method: 'DELETE' })
+          const res = await apiJSON(`/api/admin/products/${id}`, { method: 'DELETE' })
+          if (res && res.mode === 'archived') {
+            alert(`Продукт "${name}" нельзя удалить полностью: на него ссылаются заказы (${res.orders}).\nОн архивирован (деактивирован) и больше не показывается в каталоге.`)
+          }
           await loadProducts()
         } catch (e) {
           alert('Ошибка: ' + e.message)
