@@ -5,44 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Уведомления — LOOM Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=5" />
+  <script src="assets/theme-init.js?v=5"></script>
   <style>
     *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-    :root { --mono: 'DM Mono', monospace; --hairline: rgba(255,255,255,0.08); --muted: rgba(255,255,255,0.45); }
-    body { background: #0a0a0a; color: #fff; margin: 0; }
+    :root { --mono: 'DM Mono', monospace; }
+    body { background: var(--bg); color: var(--text); margin: 0; }
 
     .page { padding: 2rem 1.75rem; max-width: 1000px; }
     .page-header { margin-bottom: 1.75rem; }
     .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0 0 0.35rem; }
-    .page-sub { font-size: 0.82rem; color: rgba(255,255,255,0.4); margin: 0; }
+    .page-sub { font-size: 0.82rem; color: var(--text-muted); margin: 0; }
 
-    .card { background: #0f0f0f; border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; margin-bottom: 1.25rem; }
+    .card { background: var(--bg-card); border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; margin-bottom: 1.25rem; }
     .card-title { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 1.25rem; }
 
     /* Compose form */
     .field { margin-bottom: 1rem; }
-    .field-label { display: block; font-size: 0.8rem; color: rgba(255,255,255,0.55); margin-bottom: 0.35rem; }
-    .form-input { width: 100%; padding: 0.6rem 0.85rem; border-radius: 4px; border: 0.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 0.85rem; outline: none; }
-    .form-input::placeholder { color: rgba(255,255,255,0.25); }
-    .form-input:focus { border-color: rgba(255,255,255,0.35); }
+    .field-label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.35rem; }
+    .form-input { width: 100%; padding: 0.6rem 0.85rem; border-radius: 4px; border: 0.5px solid var(--input-border); background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.85rem; outline: none; }
+    .form-input::placeholder { color: var(--text-dim); }
+    .form-input:focus { border-color: var(--input-border-focus); }
     textarea.form-input { resize: vertical; min-height: 100px; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
     @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
-    .btn-send { padding: 0.7rem 1.5rem; border-radius: 3px; border: 1px solid #fff; background: #fff; color: #111; font-family: inherit; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
-    .btn-send:hover:not(:disabled) { background: transparent; color: #fff; }
+    .btn-send { padding: 0.7rem 1.5rem; border-radius: 3px; border: 1px solid var(--invert-bg); background: var(--invert-bg); color: var(--invert-text); font-family: inherit; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+    .btn-send:hover:not(:disabled) { background: transparent; color: var(--text); }
     .btn-send:disabled { opacity: 0.45; cursor: not-allowed; }
     .form-result { font-size: 0.82rem; margin-top: 0.6rem; min-height: 1.2em; }
 
     /* History table */
     table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    th { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.35); padding: 0.4rem 0.75rem; text-align: left; border-bottom: 0.5px solid rgba(255,255,255,0.08); }
-    td { padding: 0.6rem 0.75rem; border-bottom: 0.5px solid rgba(255,255,255,0.04); vertical-align: top; }
+    th { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); padding: 0.4rem 0.75rem; text-align: left; border-bottom: 0.5px solid var(--hairline); }
+    td { padding: 0.6rem 0.75rem; border-bottom: 0.5px solid var(--hairline2); vertical-align: top; }
     .mono { font-family: var(--mono); font-size: 0.8rem; }
-    .badge-sent   { color: #4ade80; font-size: 0.72rem; }
-    .badge-failed { color: #f87171; font-size: 0.72rem; }
+    .badge-sent   { color: var(--success); font-size: 0.72rem; }
+    .badge-failed { color: var(--danger); font-size: 0.72rem; }
 
-    .pagination { display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem; font-size: 0.82rem; color: rgba(255,255,255,0.45); }
-    .page-btn { padding: 0.35rem 0.7rem; border: 0.5px solid rgba(255,255,255,0.12); border-radius: 3px; background: transparent; color: rgba(255,255,255,0.55); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
-    .page-btn:hover:not(:disabled) { color: #fff; border-color: rgba(255,255,255,0.4); }
+    .pagination { display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem; font-size: 0.82rem; color: var(--text-muted); }
+    .page-btn { padding: 0.35rem 0.7rem; border: 0.5px solid var(--input-border); border-radius: 3px; background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+    .page-btn:hover:not(:disabled) { color: var(--text); border-color: var(--btn-hover-border); }
     .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
   </style>
 </head>
@@ -71,7 +73,7 @@
         </div>
         <div>
           <label class="field-label" for="n-btn-url">Кнопка — URL</label>
-          <input id="n-btn-url" class="form-input" type="url" placeholder="https://looom.me/…" />
+          <input id="n-btn-url" class="form-input" type="url" placeholder="https://loomdesign.uz/…" />
         </div>
       </div>
       <button class="btn-send" id="btn-send">Отправить</button>
@@ -92,7 +94,7 @@
           </tr>
         </thead>
         <tbody id="notif-tbody">
-          <tr><td colspan="5" style="color:rgba(255,255,255,0.3)">Загрузка…</td></tr>
+          <tr><td colspan="5" style="color:var(--text-dim)">Загрузка…</td></tr>
         </tbody>
       </table>
       <div class="pagination">
@@ -103,9 +105,9 @@
     </div>
   </main>
 
-  <script src="assets/app.js?v=2"></script>
-  <script src="assets/layout.js?v=3"></script>
+  <script src="assets/app.js?v=5"></script>
+  <script src="assets/layout.js?v=5"></script>
   <script>LOOM_LAYOUT.init('notifications')</script>
-  <script src="assets/notifications.js"></script>
+  <script src="assets/notifications.js?v=5"></script>
 </body>
 </html>

@@ -57,7 +57,7 @@ async function loadOrder(id) {
     const logoName = design.front?.image?.name || design.back?.image?.name || '—'
 
     document.getElementById('design-color').innerHTML =
-      `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${escHtml(color)};border:1px solid rgba(255,255,255,0.2);vertical-align:middle;margin-right:6px"></span>${escHtml(color)}`
+      `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${escHtml(color)};border:1px solid var(--input-border);vertical-align:middle;margin-right:6px"></span>${escHtml(color)}`
     document.getElementById('design-size').textContent = size
     document.getElementById('design-front-text').textContent = frontText
     document.getElementById('design-back-text').textContent = backText
@@ -109,18 +109,18 @@ async function loadOrder(id) {
     // ── Status log ────────────────────────────────────────────────
     const logEl = document.getElementById('status-log')
     if (!o.statusLog?.length) {
-      logEl.innerHTML = '<p style="color:rgba(255,255,255,0.35);font-size:0.82rem">История пуста</p>'
+      logEl.innerHTML = '<p style="color:var(--text-dim);font-size:0.82rem">История пуста</p>'
     } else {
       logEl.innerHTML = o.statusLog.map(entry => `
-        <div style="padding:0.6rem 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+        <div style="padding:0.6rem 0;border-bottom:1px solid var(--hairline2)">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
             <div>
-              <span style="color:rgba(255,255,255,0.4);font-size:0.75rem">${entry.old_status ? escHtml(STATUS_LABELS[entry.old_status] || entry.old_status) + ' →' : ''}</span>
+              <span style="color:var(--text-muted);font-size:0.75rem">${entry.old_status ? escHtml(STATUS_LABELS[entry.old_status] || entry.old_status) + ' →' : ''}</span>
               ${statusBadge(entry.new_status)}
             </div>
-            <span style="font-size:0.72rem;color:rgba(255,255,255,0.35);white-space:nowrap">${formatDate(entry.changed_at)}</span>
+            <span style="font-size:0.72rem;color:var(--text-dim);white-space:nowrap">${formatDate(entry.changed_at)}</span>
           </div>
-          ${entry.note ? `<p style="margin:0.3rem 0 0;font-size:0.8rem;color:rgba(255,255,255,0.55)">${escHtml(entry.note)}</p>` : ''}
+          ${entry.note ? `<p style="margin:0.3rem 0 0;font-size:0.8rem;color:var(--text-secondary)">${escHtml(entry.note)}</p>` : ''}
         </div>
       `).join('')
     }

@@ -43,7 +43,7 @@
   function renderUsers(users, total, page, limit) {
     const tbody = document.getElementById('users-tbody')
     if (!users.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:rgba(255,255,255,0.3);font-size:0.82rem;padding:1rem">Пользователи не найдены</td></tr>'
+      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-dim);font-size:0.82rem;padding:1rem">Пользователи не найдены</td></tr>'
     } else {
       tbody.innerHTML = users.map(u => {
         const name = displayName(u)
@@ -79,7 +79,7 @@
       const data = await apiJSON('/api/admin/users?' + qs)
       renderUsers(data.users, data.total, data.page, data.limit)
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="7" style="color:#f87171;font-size:0.82rem;padding:1rem">${esc(err.message)}</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger);font-size:0.82rem;padding:1rem">${esc(err.message)}</td></tr>`
     }
   }
 

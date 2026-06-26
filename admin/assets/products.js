@@ -20,7 +20,7 @@ async function loadProducts() {
   if (q) params.set('q', q)
 
   const tbody = document.getElementById('products-tbody')
-  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:rgba(255,255,255,0.35)">Загрузка…</td></tr>'
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-dim)">Загрузка…</td></tr>'
 
   try {
     const data = await apiJSON('/api/admin/products?' + params)
@@ -32,7 +32,7 @@ async function loadProducts() {
     document.getElementById('btn-next').disabled = page >= totalPages
 
     if (!products.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:rgba(255,255,255,0.35)">Продуктов нет</td></tr>'
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-dim)">Продуктов нет</td></tr>'
       return
     }
 
@@ -44,7 +44,7 @@ async function loadProducts() {
       return `
         <tr>
           <td>${thumb}</td>
-          <td style="font-family:var(--mono);font-size:0.8rem;color:rgba(255,255,255,0.6)">${escHtml(p.slug)}</td>
+          <td style="font-family:var(--mono);font-size:0.8rem;color:var(--text-secondary)">${escHtml(p.slug)}</td>
           <td>${escHtml(p.name_ru)}</td>
           <td style="font-family:var(--mono)">${formatPrice(p.price)}</td>
           <td>
@@ -97,7 +97,7 @@ async function loadProducts() {
       })
     })
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:#ef4444">Ошибка: ${escHtml(e.message)}</td></tr>`
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--danger)">Ошибка: ${escHtml(e.message)}</td></tr>`
   }
 }
 

@@ -11,7 +11,7 @@ let baseColors = []
 function renderColors() {
   const list = document.getElementById('colors-list')
   if (!baseColors.length) {
-    list.innerHTML = '<span style="font-size:0.78rem;color:rgba(255,255,255,0.25)">Нет цветов</span>'
+    list.innerHTML = '<span style="font-size:0.78rem;color:var(--text-dim)">Нет цветов</span>'
     return
   }
   list.innerHTML = baseColors.map((c, i) => `

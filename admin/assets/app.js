@@ -5,7 +5,7 @@
 const API_BASE = (() => {
   const h = window.location.hostname
   if (h === 'localhost' || h === '127.0.0.1') return 'http://localhost:8787'
-  return 'https://api.looom.me'
+  return 'https://api.loomdesign.uz'
 })()
 
 // ─── Fetch wrapper with credentials (sends admin_token cookie) ─────────────────
@@ -63,12 +63,9 @@ const STATUS_COLORS = {
 
 function statusBadge(status) {
   const label = STATUS_LABELS[status] ?? status
-  const color = STATUS_COLORS[status] ?? '#6b7280'
-  return `<span style="
-    display:inline-block;padding:2px 10px;border-radius:9999px;font-size:0.72rem;
-    font-weight:500;letter-spacing:0.05em;
-    background:${color}22;color:${color};border:1px solid ${color}55
-  ">${label}</span>`
+  // Colours live in theme.css (.badge / .badge-<status>) so they adapt per theme.
+  const safe = STATUS_LABELS[status] ? status : 'cancelled'
+  return `<span class="badge badge-${safe}">${label}</span>`
 }
 
 function formatPrice(sums) {

@@ -20,10 +20,10 @@ function isLightTheme() {
 function chartPalette() {
   const light = isLightTheme()
   return {
-    tick:     light ? 'rgba(28,25,23,0.6)'    : 'rgba(255,255,255,0.55)',
-    grid:     light ? 'rgba(0,0,0,0.07)'      : 'rgba(255,255,255,0.06)',
-    barFill:  light ? 'rgba(28,25,23,0.18)'   : 'rgba(255,255,255,0.14)',
-    barEdge:  light ? 'rgba(28,25,23,0.45)'   : 'rgba(255,255,255,0.4)',
+    tick:     light ? 'rgba(24,24,27,0.6)'    : 'rgba(255,255,255,0.55)',
+    grid:     light ? 'rgba(24,24,27,0.08)'   : 'rgba(255,255,255,0.06)',
+    barFill:  light ? 'rgba(24,24,27,0.14)'   : 'rgba(255,255,255,0.14)',
+    barEdge:  light ? 'rgba(24,24,27,0.45)'   : 'rgba(255,255,255,0.4)',
     line:     light ? 'rgba(13,148,136,0.85)' : 'rgba(99,202,183,0.85)',
     lineFill: light ? 'rgba(13,148,136,0.12)' : 'rgba(99,202,183,0.1)',
   }

@@ -12,14 +12,16 @@
   }
 
   function roleBadge(role) {
+    // [color, bg, border] — real-hue roles keep their hue + ${color}30 border;
+    // white-based roles use neutral tokens and a tokenized border (hairline)
     const map = {
-      owner:       ['OWNER',       '#fbbf24', 'rgba(251,191,36,0.15)'],
-      super_admin: ['SUPER ADMIN', '#a78bfa', 'rgba(167,139,250,0.15)'],
-      admin:       ['ADMIN',       '#60a5fa', 'rgba(96,165,250,0.15)'],
-      user:        ['USER',        'rgba(255,255,255,0.5)', 'rgba(255,255,255,0.06)'],
+      owner:       ['OWNER',       '#fbbf24', 'rgba(251,191,36,0.15)', '#fbbf2430'],
+      super_admin: ['SUPER ADMIN', '#a78bfa', 'rgba(167,139,250,0.15)', '#a78bfa30'],
+      admin:       ['ADMIN',       '#60a5fa', 'rgba(96,165,250,0.15)', '#60a5fa30'],
+      user:        ['USER',        'var(--text-muted)', 'var(--hover-bg)', 'var(--hairline)'],
     }
-    const [label, color, bg] = map[role] || ['?', 'rgba(255,255,255,0.3)', 'transparent']
-    return `<span class="badge" style="color:${color};background:${bg};border:1px solid ${color}30">${label}</span>`
+    const [label, color, bg, border] = map[role] || ['?', 'var(--text-dim)', 'transparent', 'var(--hairline)']
+    return `<span class="badge" style="color:${color};background:${bg};border:1px solid ${border}">${label}</span>`
   }
 
   function renderUserInfo(u) {
@@ -63,8 +65,8 @@
       roleContainer.innerHTML = `
         <select id="role-select" style="
           padding:0.45rem 0.75rem;border-radius:3px;
-          border:0.5px solid rgba(255,255,255,0.2);
-          background:rgba(255,255,255,0.05);color:#fff;
+          border:0.5px solid var(--btn-border);
+          background:var(--input-bg);color:var(--text);
           font-family:inherit;font-size:0.8rem;cursor:pointer;outline:none;
         ">
           <option value="user"${u.role === 'user' ? ' selected' : ''}>user</option>
@@ -148,32 +150,32 @@
       const data = await apiJSON(`/api/admin/users/${userId}/orders`)
       const tbody = document.getElementById('orders-tbody')
       if (!data.orders?.length) {
-        tbody.innerHTML = '<tr><td colspan="4" style="color:rgba(255,255,255,0.3)">Заказов нет</td></tr>'
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim)">Заказов нет</td></tr>'
         return
       }
       tbody.innerHTML = data.orders.map(o => `
         <tr style="cursor:pointer" onclick="location.href='order.html?id=${o.id}'">
           <td class="mono">#${o.id}</td>
-          <td style="color:rgba(255,255,255,0.5)">${formatDate(o.created_at)}</td>
+          <td style="color:var(--text-muted)">${formatDate(o.created_at)}</td>
           <td>${statusBadge(o.status)}</td>
           <td style="text-align:right;font-family:var(--mono)">${formatPrice(o.total_price)}</td>
         </tr>
       `).join('')
     } catch (err) {
       document.getElementById('orders-tbody').innerHTML =
-        `<tr><td colspan="4" style="color:#f87171">${escHtml(err.message)}</td></tr>`
+        `<tr><td colspan="4" style="color:var(--danger)">${escHtml(err.message)}</td></tr>`
     }
   }
 
   async function loadActivity(since) {
     const tbody = document.getElementById('activity-tbody')
-    tbody.innerHTML = '<tr><td colspan="3" style="color:rgba(255,255,255,0.3)">Загрузка…</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-dim)">Загрузка…</td></tr>'
     try {
       const qs = since ? `?since=${since}` : ''
       const data = await apiJSON(`/api/admin/users/${userId}/activity${qs}`)
 
       if (!data.items?.length) {
-        tbody.innerHTML = '<tr><td colspan="3" style="color:rgba(255,255,255,0.3)">Нет записей</td></tr>'
+        tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-dim)">Нет записей</td></tr>'
         return
       }
       tbody.innerHTML = data.items.map(a => {
@@ -187,13 +189,13 @@
         return `
           <tr>
             <td class="mono" style="font-size:0.8rem">${escHtml(a.action)}</td>
-            <td style="color:rgba(255,255,255,0.4);font-size:0.8rem">${formatDate(a.created_at)}</td>
-            <td style="color:rgba(255,255,255,0.4);font-size:0.78rem">${escHtml(meta)}</td>
+            <td style="color:var(--text-muted);font-size:0.8rem">${formatDate(a.created_at)}</td>
+            <td style="color:var(--text-muted);font-size:0.78rem">${escHtml(meta)}</td>
           </tr>
         `
       }).join('')
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="3" style="color:#f87171">${escHtml(err.message)}</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="3" style="color:var(--danger)">${escHtml(err.message)}</td></tr>`
     }
   }
 
@@ -232,9 +234,9 @@
     const btnUrl = document.getElementById('notif-btn-url').value.trim()
     const result = document.getElementById('notif-result')
 
-    if (!msg) { result.style.color = '#f87171'; result.textContent = 'Введите текст сообщения'; return }
+    if (!msg) { result.style.color = 'var(--danger)'; result.textContent = 'Введите текст сообщения'; return }
 
-    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Отправка…'
+    result.style.color = 'var(--text-muted)'; result.textContent = 'Отправка…'
 
     try {
       const body = { user_id: userId, message: msg }
@@ -245,10 +247,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      result.style.color = '#4ade80'; result.textContent = '✅ Уведомление отправлено'
+      result.style.color = 'var(--success)'; result.textContent = '✅ Уведомление отправлено'
       document.getElementById('notif-msg').value = ''
     } catch (err) {
-      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
     }
   })
 
@@ -262,17 +264,17 @@
       email: document.getElementById('edit-email').value.trim() || null,
       phone: document.getElementById('edit-phone').value.trim() || null,
     }
-    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Сохранение…'
+    result.style.color = 'var(--text-muted)'; result.textContent = 'Сохранение…'
     try {
       const updated = await apiJSON(`/api/admin/users/${userId}/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      result.style.color = '#4ade80'; result.textContent = '✅ Сохранено'
+      result.style.color = 'var(--success)'; result.textContent = '✅ Сохранено'
       renderUserInfo(updated)
     } catch (err) {
-      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
     }
   })
 
@@ -288,12 +290,12 @@
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=ru`
       const res = await fetch(url)
       const data = await res.json()
-      if (!data.length) { result.style.color = '#f87171'; result.textContent = 'Адрес не найден'; return }
+      if (!data.length) { result.style.color = 'var(--danger)'; result.textContent = 'Адрес не найден'; return }
       const { lat, lon, display_name } = data[0]
       document.getElementById('edit-location-addr').value = display_name
       showAdminLocResult(display_name, parseFloat(lat), parseFloat(lon))
     } catch (err) {
-      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
     } finally {
       btn.disabled = false; btn.textContent = 'Найти'
     }
@@ -305,7 +307,7 @@
 
   document.getElementById('btn-save-location').addEventListener('click', async () => {
     const result = document.getElementById('location-result')
-    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Сохранение…'
+    result.style.color = 'var(--text-muted)'; result.textContent = 'Сохранение…'
     const loc = _adminLocAddr ? { address: _adminLocAddr, lat: _adminLocLat, lng: _adminLocLng } : null
     try {
       await apiJSON(`/api/admin/users/${userId}/location`, {
@@ -313,9 +315,9 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ location_preset: loc }),
       })
-      result.style.color = '#4ade80'; result.textContent = '✅ Сохранено'
+      result.style.color = 'var(--success)'; result.textContent = '✅ Сохранено'
     } catch (err) {
-      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
     }
   })
 
@@ -325,16 +327,16 @@
     document.getElementById('admin-loc-result').style.display = 'none'
     document.getElementById('admin-loc-current').style.display = 'none'
     _adminLocAddr = null; _adminLocLat = null; _adminLocLng = null
-    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Очистка…'
+    result.style.color = 'var(--text-muted)'; result.textContent = 'Очистка…'
     try {
       await apiJSON(`/api/admin/users/${userId}/location`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ location_preset: null }),
       })
-      result.style.color = '#4ade80'; result.textContent = '✅ Локация очищена'
+      result.style.color = 'var(--success)'; result.textContent = '✅ Локация очищена'
     } catch (err) {
-      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
     }
   })
 
@@ -344,21 +346,21 @@
     const result = document.getElementById('password-result')
     const password = document.getElementById('edit-password').value
     if (password.length < 6) {
-      result.style.color = '#f87171'; result.textContent = 'Минимум 6 символов'
+      result.style.color = 'var(--danger)'; result.textContent = 'Минимум 6 символов'
       return
     }
     if (!confirm('Установить новый пароль для этого пользователя?')) return
-    result.style.color = 'rgba(255,255,255,0.4)'; result.textContent = 'Сохранение…'
+    result.style.color = 'var(--text-muted)'; result.textContent = 'Сохранение…'
     try {
       await apiJSON(`/api/admin/users/${userId}/password`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       })
-      result.style.color = '#4ade80'; result.textContent = '✅ Пароль установлен'
+      result.style.color = 'var(--success)'; result.textContent = '✅ Пароль установлен'
       document.getElementById('edit-password').value = ''
     } catch (err) {
-      result.style.color = '#f87171'; result.textContent = 'Ошибка: ' + err.message
+      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
     }
   })
 
