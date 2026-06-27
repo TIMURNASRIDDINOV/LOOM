@@ -13,12 +13,14 @@ import {
   updateOrderStatus,
   insertOrderStatusLog,
   getVisitorStats,
+  getUserById,
+  insertNotification,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { signToken, verifyToken } from '../lib/jwt'
 import { requireAdmin } from '../middleware/requireAdmin'
 import { ORDER_STATUSES } from '../db/schema'
-import type { AdminEnv, BaseEnv } from '../types'
+import type { AdminEnv, BaseEnv, Bindings } from '../types'
 
 const COOKIE_MAX_AGE = 12 * 60 * 60 // 12 hours in seconds
 
@@ -201,8 +203,84 @@ admin.patch('/orders/:id/status', requireAdmin, async (c) => {
     note: typeof note === 'string' ? note.trim() : null,
   })
 
+  // Auto-notify the customer when the status actually changed:
+  // Telegram push (if linked) + an in-site notification (account → Уведомления).
+  if (order.user_id && status !== order.status) {
+    c.executionCtx.waitUntil(
+      notifyOrderStatus(c.env, {
+        orderId: id,
+        userId: order.user_id,
+        status: status as string,
+        note: typeof note === 'string' ? note.trim() : null,
+        adminId: c.get('adminId'),
+      }),
+    )
+  }
+
   return c.json({ ok: true })
 })
+
+// ─── Order-status customer notification ──────────────────────────────────────
+
+const ORDER_STATUS_MESSAGES: Record<string, string> = {
+  new:       '🆕 Ваш заказ LOOM #%N принят.',
+  confirmed: '✅ Ваш заказ LOOM #%N подтверждён — мы приступаем к работе.',
+  producing: '🧵 Ваш заказ LOOM #%N в производстве.',
+  shipped:   '🚚 Ваш заказ LOOM #%N отправлен — скоро будет у вас!',
+  delivered: '📦 Ваш заказ LOOM #%N доставлен. Спасибо за покупку! 🖤',
+  cancelled: '❌ Ваш заказ LOOM #%N отменён. По вопросам свяжитесь с нами.',
+}
+
+async function notifyOrderStatus(
+  env: Bindings,
+  p: { orderId: number; userId: number; status: string; note: string | null; adminId: number },
+): Promise<void> {
+  try {
+    const base = (ORDER_STATUS_MESSAGES[p.status] || 'ℹ️ Статус вашего заказа LOOM #%N обновлён.')
+      .replace('%N', String(p.orderId))
+    const text = p.note ? `${base}\n\n💬 ${p.note}` : base
+
+    const user = await getUserById(env.DB, p.userId)
+
+    let telegramMessageId: number | null = null
+    let sendStatus = 'sent'
+    let errorDetail: string | null = null
+
+    const botToken = env.TELEGRAM_BOT_TOKEN
+    if (user?.telegram_user_id && botToken) {
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: user.telegram_user_id, text }),
+        })
+        const data = (await res.json()) as { ok: boolean; result?: { message_id: number }; description?: string }
+        if (data.ok) telegramMessageId = data.result?.message_id ?? null
+        else { sendStatus = 'failed'; errorDetail = data.description ?? 'Telegram API error' }
+      } catch (err) {
+        sendStatus = 'failed'
+        errorDetail = err instanceof Error ? err.message : String(err)
+      }
+    } else {
+      // No Telegram link — still record the in-site notification
+      sendStatus = user?.telegram_user_id ? 'failed' : 'no_telegram'
+    }
+
+    // Always store an in-site notification so it shows in the account panel
+    await insertNotification(env.DB, {
+      user_id: p.userId,
+      message: text,
+      button_label: null,
+      button_url: null,
+      telegram_message_id: telegramMessageId,
+      sent_by_admin_id: p.adminId,
+      status: sendStatus,
+      error_detail: errorDetail,
+    })
+  } catch (err) {
+    console.error('[notifyOrderStatus] failed:', err)
+  }
+}
 
 // ─── GET /api/admin/media/:key  (serve R2 logo to admin panel) ───────────────
 // The admin panel fetches this with credentials: 'include' and creates a blob URL.
