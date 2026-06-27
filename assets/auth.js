@@ -16,7 +16,7 @@
     }
 
     const token = getToken()
-    const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me'
+    const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz'
 
     // Try Bearer token (email auth)
     if (token) {
@@ -80,7 +80,7 @@
     clearToken()
     // Clear phone-auth cookie too
     try {
-      await fetch((window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me') + '/api/auth/logout', {
+      await fetch((window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz') + '/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       })
@@ -94,6 +94,12 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   }
 
+  // Translation helper with fallback when i18n.js is not loaded
+  function L(key, fallback) {
+    try { return (window.LOOM_I18N ? window.LOOM_I18N.t(key) : fallback) || fallback }
+    catch (e) { return fallback }
+  }
+
   async function renderAuthNav() {
     const slots = document.querySelectorAll('.auth-nav-slot')
     if (!slots.length) return
@@ -102,7 +108,7 @@
 
     slots.forEach(slot => {
       if (!user) {
-        slot.innerHTML = `<a href="login.html" class="auth-nav-link">Войти</a>`
+        slot.innerHTML = `<a href="login.html" class="auth-nav-link">${esc(L('nav.login', 'Войти'))}</a>`
         return
       }
 
@@ -122,9 +128,9 @@
             </svg>
           </button>
           <div class="auth-dropdown-menu" role="menu">
-            <a href="account.html" class="auth-dropdown-item" role="menuitem">Личный кабинет</a>
-            <a href="account.html#settings" class="auth-dropdown-item" role="menuitem">Настройки</a>
-            <button class="auth-dropdown-item auth-dropdown-logout" role="menuitem">Выйти</button>
+            <a href="account.html" class="auth-dropdown-item" role="menuitem">${esc(L('nav.account', 'Личный кабинет'))}</a>
+            <a href="account.html#settings" class="auth-dropdown-item" role="menuitem">${esc(L('nav.settings', 'Настройки'))}</a>
+            <button class="auth-dropdown-item auth-dropdown-logout" role="menuitem">${esc(L('nav.logout', 'Выйти'))}</button>
           </div>
         </div>
       `
@@ -146,6 +152,9 @@
       slot.querySelector('.auth-dropdown-logout').addEventListener('click', logout)
     })
   }
+
+  // Re-render the auth nav when the language changes
+  window.addEventListener('loom:langchange', () => { renderAuthNav() })
 
   window.LOOM_AUTH = { getToken, setToken, clearToken, getCurrentUser, login, register, logout, renderAuthNav }
 })()

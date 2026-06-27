@@ -5,8 +5,8 @@ workers_dev = true
 
 # Custom domain route (uncomment after setting up):
 routes = [
-  { pattern = "api.looom.me", custom_domain = true },
-  { pattern = "admin.looom.me", custom_domain = true },
+  { pattern = "api.loomdesign.uz", custom_domain = true },
+  { pattern = "admin.loomdesign.uz", custom_domain = true },
 ]
 
 [vars]

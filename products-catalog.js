@@ -3,7 +3,13 @@
   'use strict'
 
   // ── Helpers ──────────────────────────────────────────────────────────────
+  function T(key, fallback) {
+    try { return (window.LOOM_I18N ? window.LOOM_I18N.t(key) : fallback) || fallback }
+    catch (e) { return fallback }
+  }
+
   function formatPrice(price) {
+    if (window.LOOM_I18N) return window.LOOM_I18N.formatPrice(price)
     return Number(price).toLocaleString('ru-RU') + ' сум'
   }
 
@@ -13,7 +19,7 @@
   }
 
   function getApiBase() {
-    return window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me'
+    return window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz'
   }
 
   // ── Skeleton placeholders ─────────────────────────────────────────────────
@@ -52,7 +58,7 @@
     const wrap = document.createElement('div')
     wrap.style.cssText = 'text-align:center;padding:4rem 1.5rem;color:rgba(255,255,255,0.45)'
     wrap.innerHTML = `
-      <p style="margin-bottom:1rem">Не удалось загрузить каталог.</p>
+      <p style="margin-bottom:1rem">${T('catalog.loadError', 'Не удалось загрузить каталог.')}</p>
       <button id="catalog-retry" style="
         padding:0.65rem 1.4rem;border:1px solid rgba(255,255,255,0.4);
         background:transparent;color:#fff;border-radius:2px;font-family:inherit;
@@ -107,8 +113,8 @@
 
     const btn = document.createElement('button')
     btn.className = 'customize-btn btn-primary'
-    btn.textContent = 'Настроить дизайн'
-    btn.setAttribute('aria-label', `Настроить дизайн ${esc(product.name_ru)}`)
+    btn.textContent = T('catalog.customize', 'Настроить дизайн')
+    btn.setAttribute('aria-label', `${T('catalog.customize', 'Настроить дизайн')} ${esc(product.name_ru)}`)
     btn.addEventListener('click', () => {
       window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
     })
@@ -256,4 +262,7 @@
   } else {
     renderProducts()
   }
+
+  // Re-render product cards (prices, button labels) when the language changes
+  window.addEventListener('loom:langchange', renderProducts)
 })()

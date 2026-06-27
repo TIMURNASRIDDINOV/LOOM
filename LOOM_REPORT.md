@@ -36,7 +36,7 @@ LOOM/
 ├── products-catalog.js                # Fetches and renders product grid from API
 ├── google-sheets-order-module.js      # Legacy Google Sheets order integration (unused)
 ├── google-apps-script.js              # Google Apps Script automation (legacy, unused)
-├── CNAME                              # GitHub Pages custom domain: looom.me
+├── CNAME                              # GitHub Pages custom domain: loomdesign.uz
 ├── README.md                          # Project documentation
 ├── dev.md                             # Development notes
 │
@@ -430,7 +430,7 @@ CREATE TABLE order_status_log (
 ```javascript
 // assets/config.js
 window.LOOM_CONFIG = {
-  API_BASE: (localhost) ? 'http://localhost:8787' : 'https://api.looom.me'
+  API_BASE: (localhost) ? 'http://localhost:8787' : 'https://api.loomdesign.uz'
 }
 ```
 
@@ -443,9 +443,9 @@ window.LOOM_CONFIG = {
 ### CORS Allowed Origins
 
 ```
-https://looom.me
-https://www.looom.me
-https://admin.looom.me
+https://loomdesign.uz
+https://www.loomdesign.uz
+https://admin.loomdesign.uz
 http://localhost:8787     ← dev only
 http://localhost:3000     ← dev only
 null                      ← file:// protocol (dev only, SHOULD BE REMOVED in prod)

@@ -3,16 +3,16 @@
  * One-shot script: registers our Worker URL as the Telegram bot webhook.
  *
  * Usage:
- *   BOT_TOKEN=<token> WORKER_URL=https://api.looom.me WEBHOOK_SECRET=<secret> npx tsx scripts/set-telegram-webhook.ts
+ *   BOT_TOKEN=<token> WORKER_URL=https://api.loomdesign.uz WEBHOOK_SECRET=<secret> npx tsx scripts/set-telegram-webhook.ts
  *
  * Or set them in a local .env (never commit it):
  *   BOT_TOKEN=...
- *   WORKER_URL=https://api.looom.me
+ *   WORKER_URL=https://api.loomdesign.uz
  *   WEBHOOK_SECRET=...   (must match TELEGRAM_WEBHOOK_SECRET secret in wrangler)
  */
 
 const BOT_TOKEN = process.env.BOT_TOKEN
-const WORKER_URL = process.env.WORKER_URL ?? 'https://api.looom.me'
+const WORKER_URL = process.env.WORKER_URL ?? 'https://api.loomdesign.uz'
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
 
 if (!BOT_TOKEN) {

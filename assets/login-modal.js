@@ -12,7 +12,7 @@
  */
 
 ;(function () {
-  const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me'
+  const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz'
 
   const TIMEOUT_MS = 10 * 60 * 1000   // 10 minutes (matches server)
   const POLL_MS    = 2_000             // 2 s polling interval

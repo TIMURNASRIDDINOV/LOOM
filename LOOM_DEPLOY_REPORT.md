@@ -11,7 +11,7 @@
 |------|-------|
 | Worker name | `loom-backend` |
 | Workers.dev URL | `https://loom-backend.timurnasriddinov56.workers.dev` |
-| Custom domain | `https://api.looom.me` ✅ Live |
+| Custom domain | `https://api.loomdesign.uz` ✅ Live |
 | D1 Database | `loom-db` — ID: `37d489b5-dd14-431c-********` |
 | D1 Migrations | `0001_initial.sql` ✅ / `0002_seed.sql` ✅ |
 | Version ID | `0aba2edb-8fa6-45d4-9390-48867ab56e37` |
@@ -31,7 +31,7 @@
 
 ### TEST 1 — Health Check
 ```
-GET https://api.looom.me/
+GET https://api.loomdesign.uz/
 ```
 **Response (HTTP 200):**
 ```json
@@ -47,7 +47,7 @@ GET https://api.looom.me/
 
 ### TEST 2 — Products List
 ```
-GET https://api.looom.me/api/products
+GET https://api.loomdesign.uz/api/products
 ```
 **Response (HTTP 200):**
 ```json
@@ -61,7 +61,7 @@ GET https://api.looom.me/api/products
 
 ### TEST 3 — Register
 ```
-POST https://api.looom.me/api/auth/register
+POST https://api.loomdesign.uz/api/auth/register
 Body: {"email":"deploy_test@mailnull.com","password":"TestPass123!"}
 ```
 **Response (HTTP 201):**
@@ -81,7 +81,7 @@ Body: {"email":"deploy_test@mailnull.com","password":"TestPass123!"}
 
 ### TEST 4 — Login
 ```
-POST https://api.looom.me/api/auth/login
+POST https://api.loomdesign.uz/api/auth/login
 Body: {"email":"deploy_test@mailnull.com","password":"TestPass123!"}
 ```
 **Response (HTTP 200):**
@@ -101,7 +101,7 @@ Body: {"email":"deploy_test@mailnull.com","password":"TestPass123!"}
 
 ### TEST 5 — Get Profile
 ```
-GET https://api.looom.me/api/auth/me
+GET https://api.loomdesign.uz/api/auth/me
 Authorization: Bearer <token from TEST 4>
 ```
 **Response (HTTP 200):**
@@ -119,7 +119,7 @@ Authorization: Bearer <token from TEST 4>
 
 ### TEST 6 — Admin Setup Locked
 ```
-POST https://api.looom.me/api/admin/setup
+POST https://api.loomdesign.uz/api/admin/setup
 Body: {"email":"x@x.com","password":"anything1"}
 ```
 **Response (HTTP 403):**
@@ -134,15 +134,15 @@ Body: {"email":"x@x.com","password":"anything1"}
 
 ### TEST 7 — CORS Headers
 ```
-GET https://api.looom.me/api/products
-Origin: https://looom.me
+GET https://api.loomdesign.uz/api/products
+Origin: https://loomdesign.uz
 ```
 **Response headers:**
 ```
-access-control-allow-origin: https://looom.me
+access-control-allow-origin: https://loomdesign.uz
 access-control-allow-credentials: true
 ```
-**Result: ✅ PASS** — CORS correctly scoped to `looom.me`
+**Result: ✅ PASS** — CORS correctly scoped to `loomdesign.uz`
 
 ---
 
@@ -168,12 +168,12 @@ Requests 1–11: HTTP 400 (invalid file — rate limit never triggered)
 
 | Check | Result | Notes |
 |-------|--------|-------|
-| `https://looom.me` loads | ✅ PASS | HTTP 200, title: "LOOM — Custom Apparel" |
-| `https://looom.me/configurator.html` loads | ✅ PASS | HTTP 200, title: "LOOM — 3D Конфигуратор футболок" |
-| `https://looom.me/login.html` loads | ✅ PASS | HTTP 200, title: "LOOM — Вход" |
-| `https://admin.looom.me` loads | ❌ FAIL | NXDOMAIN — DNS not configured |
+| `https://loomdesign.uz` loads | ✅ PASS | HTTP 200, title: "LOOM — Custom Apparel" |
+| `https://loomdesign.uz/configurator.html` loads | ✅ PASS | HTTP 200, title: "LOOM — 3D Конфигуратор футболок" |
+| `https://loomdesign.uz/login.html` loads | ✅ PASS | HTTP 200, title: "LOOM — Вход" |
+| `https://admin.loomdesign.uz` loads | ❌ FAIL | NXDOMAIN — DNS not configured |
 | API `GET /api/products` returns 200 from browser | ✅ PASS | Confirmed via CORS test |
-| CORS `looom.me → api.looom.me` | ✅ PASS | `access-control-allow-origin: https://looom.me` |
+| CORS `loomdesign.uz → api.loomdesign.uz` | ✅ PASS | `access-control-allow-origin: https://loomdesign.uz` |
 
 > **Note:** Browser extension was not connected — smoke tests performed via curl + DNS checks rather than interactive Chrome session. 3D canvas and login form submission could not be verified interactively.
 
@@ -183,9 +183,9 @@ Requests 1–11: HTTP 400 (invalid file — rate limit never triggered)
 
 | Issue | Resolution |
 |-------|------------|
-| `api.looom.me` NXDOMAIN at start | Resolved automatically when `wrangler deploy` with `custom_domain: true` created the DNS record |
+| `api.loomdesign.uz` NXDOMAIN at start | Resolved automatically when `wrangler deploy` with `custom_domain: true` created the DNS record |
 | `wrangler.toml` had `YOUR_D1_DATABASE_ID` placeholder | Ran `wrangler d1 create loom-db`, got real ID, updated file |
-| Route pattern `api.looom.me/*` rejected (wildcards not allowed in custom domains) | Changed to `api.looom.me` (no wildcard) |
+| Route pattern `api.loomdesign.uz/*` rejected (wildcards not allowed in custom domains) | Changed to `api.loomdesign.uz` (no wildcard) |
 | R2 buckets `loom-models` / `loom-uploads` not found — R2 not enabled | Skipped R2 by commenting out bindings; made R2 types optional in `types.ts` |
 | `wrangler secret put` syntax errors in terminal | Used `echo "value" | npx wrangler secret put KEY` pattern from within `backend/` directory |
 
@@ -218,13 +218,13 @@ Requests 1–11: HTTP 400 (invalid file — rate limit never triggered)
 
 ### 🟡 Important
 
-3. **`admin.looom.me` has no DNS record**
+3. **`admin.loomdesign.uz` has no DNS record**
    - Admin panel is unreachable
-   - **Fix:** In Cloudflare Dashboard → `looom.me` → DNS → Add record:
+   - **Fix:** In Cloudflare Dashboard → `loomdesign.uz` → DNS → Add record:
      ```
      Type: CNAME
      Name: admin
-     Target: looom.me (or the GitHub Pages domain if hosted separately)
+     Target: loomdesign.uz (or the GitHub Pages domain if hosted separately)
      Proxy: ON
      ```
    - If admin is a separate static site, deploy it to Pages or a subdirectory first
@@ -256,4 +256,4 @@ Requests 1–11: HTTP 400 (invalid file — rate limit never triggered)
 | Frontend pages | 3 | 1 (admin DNS) |
 | **Total** | **9** | **3** |
 
-**The LOOM backend is live at `https://api.looom.me` with all core functionality working. Three items require follow-up: R2 storage, Telegram credentials, and admin subdomain DNS.**
+**The LOOM backend is live at `https://api.loomdesign.uz` with all core functionality working. Three items require follow-up: R2 storage, Telegram credentials, and admin subdomain DNS.**

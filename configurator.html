@@ -18,6 +18,7 @@
     <!-- Auth styles -->
     <link rel="stylesheet" href="assets/auth.css" />
     <link rel="stylesheet" href="assets/login-modal.css" />
+    <link rel="stylesheet" href="assets/nav.css?v=1" />
 
     <style>
       /* ============================================================
@@ -44,98 +45,6 @@
       }
       body { background: var(--bg); color: var(--text); min-height: 100vh; }
 
-      /* ── Navigation ─────────────────────────────────────────── */
-      .nav {
-        position: fixed; top: 0; left: 0; right: 0; min-height: 64px;
-        background: rgba(8,8,8,0.72);
-        backdrop-filter: blur(12px) saturate(140%);
-        -webkit-backdrop-filter: blur(12px) saturate(140%);
-        z-index: 200; border-bottom: 0.5px solid rgba(255,255,255,0.08); overflow: visible;
-      }
-      .nav-content {
-        max-width: 1280px; margin: 0 auto; padding: 0 1.75rem;
-        display: flex; justify-content: space-between; align-items: center; min-height: 64px;
-      }
-      .nav-brand {
-        font-family: var(--mono); font-size: 0.9rem; font-weight: 400;
-        letter-spacing: 0.2em; color: #fff; text-transform: uppercase; text-decoration: none;
-      }
-      .nav-links { display: flex; align-items: center; gap: 2rem; }
-      .nav-link {
-        color: rgba(255,255,255,0.55); text-decoration: none; font-weight: 400;
-        font-size: 0.78rem; letter-spacing: 0.06em; padding: 0.4rem 0; position: relative;
-        display: inline-flex; align-items: center; gap: 0.5rem; transition: color 200ms ease;
-        -webkit-tap-highlight-color: transparent;
-      }
-      .nav-link:hover, .nav-link.active { color: #fff; }
-      .nav-link.active::after {
-        content: ''; position: absolute; bottom: -2px; left: 0; right: 0;
-        height: 1.5px; background: #fff; border-radius: 1px;
-      }
-      .nav-right { display: flex; align-items: center; gap: 1.25rem; }
-
-      /* Cart button in nav */
-      .nav-cart-btn {
-        position: relative; display: inline-flex; align-items: center; justify-content: center;
-        width: 40px; height: 40px; border-radius: 8px; background: transparent;
-        border: 0.5px solid rgba(255,255,255,0.12); color: #fff; cursor: pointer;
-        transition: background 0.2s ease, border-color 0.2s ease; -webkit-tap-highlight-color: transparent;
-      }
-      .nav-cart-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.25); }
-      .nav-cart-btn svg { width: 19px; height: 19px; }
-      .cart-count {
-        position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px;
-        padding: 0 5px; border-radius: 9px; background: var(--brand); color: #fff;
-        font-size: 0.68rem; font-weight: 700; font-family: var(--mono);
-        display: none; align-items: center; justify-content: center; line-height: 1;
-      }
-      .cart-count.show { display: inline-flex; }
-
-      .nav-hamburger {
-        display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
-        background: transparent; border: none; cursor: pointer; color: #fff;
-        -webkit-tap-highlight-color: transparent; z-index: 210; padding: 0;
-      }
-      .nav-hamburger svg { width: 22px; height: 22px; }
-      @media (min-width: 768px) { .nav-hamburger { display: none; } }
-      @media (max-width: 767px) { .nav-links { display: none; } }
-
-      /* ── Mobile Menu ─────────────────────────────────────────── */
-      .mobile-backdrop {
-        position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
-        z-index: 90; opacity: 0; visibility: hidden; transition: opacity 200ms ease, visibility 200ms ease;
-      }
-      .mobile-backdrop.active { opacity: 1; visibility: visible; }
-      .mobile-menu {
-        position: fixed; top: 0; right: 0; width: 300px; max-width: 80vw; height: 100%;
-        background: rgba(10,10,10,0.97); backdrop-filter: blur(20px);
-        border-left: 0.5px solid rgba(255,255,255,0.08); z-index: 100; transform: translateX(100%);
-        transition: transform 300ms cubic-bezier(0.4,0,0.2,1); display: flex; flex-direction: column;
-      }
-      .mobile-menu.active { transform: translateX(0); }
-      .mobile-menu-header {
-        display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem;
-        border-bottom: 0.5px solid rgba(255,255,255,0.08); min-height: 64px; flex-shrink: 0;
-      }
-      .mobile-menu-brand { font-family: var(--mono); font-size: 0.9rem; letter-spacing: 0.2em; color: #fff; text-transform: uppercase; }
-      .mobile-menu-close {
-        display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
-        background: transparent; border: none; cursor: pointer; color: rgba(255,255,255,0.6);
-        border-radius: 4px; transition: background 200ms ease, color 200ms ease; padding: 0;
-      }
-      .mobile-menu-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
-      .mobile-menu-close svg { width: 20px; height: 20px; }
-      .mobile-menu-links { display: flex; flex-direction: column; padding: 0.5rem 0; flex: 1; }
-      .mobile-menu-link {
-        display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.5rem;
-        color: rgba(255,255,255,0.6); text-decoration: none; font-weight: 400; font-size: 0.9rem;
-        border-bottom: 0.5px solid rgba(255,255,255,0.06); transition: background 200ms ease, color 200ms ease;
-      }
-      .mobile-menu-link:hover { background: rgba(255,255,255,0.04); color: #fff; }
-      .mobile-menu-link.active { color: #fff; background: rgba(255,255,255,0.06); font-weight: 500; }
-      .mobile-menu-link svg { width: 18px; height: 18px; opacity: 0.7; }
-      body.menu-open { overflow: hidden; }
-      @media (min-width: 768px) { .mobile-menu, .mobile-backdrop { display: none !important; } }
 
       /* ── Studio stage (immersive) ────────────────────────────── */
       .studio {
@@ -442,6 +351,7 @@
       .field-error { display: block; color: #ef4444; font-size: 0.72rem; margin-top: 0.25rem; min-height: 18px; }
       .field-success { position: absolute; right: 12px; top: 38px; color: #10b981; font-size: 1.1rem; }
       .location-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+      .saved-loc-preview { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.85rem; border-radius: 9px; background: rgba(16,185,129,0.08); border: 0.5px solid rgba(16,185,129,0.28); color: rgba(255,255,255,0.85); font-size: 0.83rem; margin-bottom: 0.75rem; }
       .toggle-btn { flex: 1; padding: 0.7rem 1rem; border: 0.5px solid rgba(255,255,255,0.12); border-radius: 9px; background: rgba(255,255,255,0.06); font-family: inherit; font-size: 0.85rem; cursor: pointer; color: rgba(255,255,255,0.6); transition: all 200ms ease; }
       .toggle-btn:hover { background: rgba(255,255,255,0.09); color: #fff; }
       .toggle-btn.active { background: #fff; color: #111; border-color: #fff; }
@@ -462,6 +372,43 @@
       .size-btn { padding: 0.45rem 0.7rem; border-radius: 8px; border: 0.5px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); font-family: inherit; font-size: 0.82rem; font-weight: 500; cursor: pointer; color: rgba(255,255,255,0.7); transition: all 0.15s ease; min-width: 38px; text-align: center; }
       .size-btn.active { background: #fff; color: #111; border-color: #fff; }
       .size-btn:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.1); }
+
+      /* ── Size guide ──────────────────────────────────────────── */
+      .size-guide { margin-top: 1rem; }
+      .size-guide-toggle {
+        display: flex; align-items: center; gap: 0.45rem; width: 100%;
+        padding: 0.55rem 0.7rem; border-radius: 8px;
+        border: 0.5px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.04);
+        color: rgba(255,255,255,0.75); font-family: inherit; font-size: 0.78rem; font-weight: 500;
+        cursor: pointer; transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .size-guide-toggle:hover { color: #fff; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.3); }
+      .size-guide-toggle svg:first-child { flex-shrink: 0; opacity: 0.8; }
+      .size-guide-toggle .sg-caret { margin-left: auto; opacity: 0.6; transition: transform 0.2s ease; }
+      .size-guide-toggle[aria-expanded="true"] .sg-caret { transform: rotate(180deg); }
+      .size-guide-body { margin-top: 0.75rem; animation: sgFade 0.2s ease; }
+      @keyframes sgFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+      .size-guide-intro { font-size: 0.76rem; line-height: 1.5; color: rgba(255,255,255,0.55); margin: 0 0 0.85rem; }
+      .size-guide-sub {
+        font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase;
+        color: rgba(255,255,255,0.35); margin: 0.9rem 0 0.5rem;
+      }
+      .size-guide-scroll { overflow-x: auto; border: 0.5px solid rgba(255,255,255,0.1); border-radius: 8px; }
+      .size-guide-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; white-space: nowrap; }
+      .size-guide-table th {
+        background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6); font-weight: 500;
+        text-align: center; padding: 0.5rem 0.55rem; border-bottom: 0.5px solid rgba(255,255,255,0.1);
+      }
+      .size-guide-table td {
+        text-align: center; padding: 0.45rem 0.55rem; color: rgba(255,255,255,0.8);
+        border-bottom: 0.5px solid rgba(255,255,255,0.05);
+      }
+      .size-guide-table tbody tr:last-child td { border-bottom: none; }
+      .size-guide-table td:first-child, .size-guide-table th:first-child { font-weight: 600; color: #fff; position: sticky; left: 0; background: #14141a; }
+      .size-guide-notes { margin: 0; padding-left: 1.1rem; }
+      .size-guide-notes li { font-size: 0.74rem; line-height: 1.5; color: rgba(255,255,255,0.55); margin-bottom: 0.35rem; }
+      .size-guide-notes li:last-child { margin-bottom: 0; }
 
       /* ── Mobile: panel becomes a bottom sheet ────────────────── */
       @media (max-width: 900px) {
@@ -488,18 +435,19 @@
       <div class="nav-content">
         <a href="index.html" class="nav-brand">LOOM</a>
         <div class="nav-links">
-          <a href="index.html" class="nav-link">Главная</a>
-          <a href="catalog.html" class="nav-link">Каталог</a>
-          <a href="configurator.html" class="nav-link active">Кастомизация</a>
+          <a href="index.html" class="nav-link" data-i18n="nav.home">Главная</a>
+          <a href="catalog.html" class="nav-link" data-i18n="nav.catalog">Каталог</a>
+          <a href="configurator.html" class="nav-link active" data-i18n="nav.configure">Кастомизация</a>
         </div>
         <div class="nav-right">
-          <button class="nav-cart-btn" id="navCartBtn" aria-label="Корзина">
+          <button class="nav-cart-btn" id="navCartBtn" aria-label="Cart">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             <span class="cart-count" id="cartCount">0</span>
           </button>
+          <div class="lang-switcher-mount"></div>
           <div class="auth-nav-slot"></div>
-          <button class="nav-hamburger" id="menuToggle" aria-label="Открыть меню" aria-expanded="false">
-            <i data-lucide="menu"></i>
+          <button class="nav-hamburger" id="menuToggle" aria-label="Menu" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
         </div>
       </div>
@@ -510,12 +458,19 @@
     <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
       <div class="mobile-menu-header">
         <span class="mobile-menu-brand">LOOM</span>
-        <button class="mobile-menu-close" id="menuClose" aria-label="Закрыть меню"><i data-lucide="x"></i></button>
+        <button class="mobile-menu-close" id="menuClose" aria-label="Close menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="mobile-menu-links">
-        <a href="index.html" class="mobile-menu-link"><i data-lucide="home"></i>Главная</a>
-        <a href="catalog.html" class="mobile-menu-link"><i data-lucide="grid-3x3"></i>Каталог</a>
-        <a href="configurator.html" class="mobile-menu-link active"><i data-lucide="palette"></i>Кастомизация</a>
+        <a href="index.html" class="mobile-menu-link" data-i18n="nav.home">Главная</a>
+        <a href="catalog.html" class="mobile-menu-link" data-i18n="nav.catalog">Каталог</a>
+        <a href="configurator.html" class="mobile-menu-link active" data-i18n="nav.configure">Кастомизация</a>
+        <a href="account.html" class="mobile-menu-link" data-i18n="nav.account">Личный кабинет</a>
+      </div>
+      <div class="mobile-lang">
+        <span class="mobile-lang-label" data-i18n="nav.language">Язык</span>
+        <div class="lang-switcher-mount"></div>
       </div>
     </div>
 
@@ -524,7 +479,7 @@
       <!-- Loading overlay -->
       <div id="loading-overlay" class="loading-overlay">
         <div class="loading-spinner-ring"></div>
-        <p class="loading-text">Загрузка 3D модели… <span id="loading-pct"></span></p>
+        <p class="loading-text"><span data-i18n="cfg.loading3d">Загрузка 3D модели…</span> <span id="loading-pct"></span></p>
       </div>
 
       <!-- Three.js mounts canvas here -->
@@ -533,45 +488,45 @@
       <!-- Floating stage chips -->
       <a href="catalog.html" class="stage-chip chip-garment" title="Сменить товар">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
-        Сменить товар
+        <span data-i18n="cfg.changeGarment">Сменить товар</span>
       </a>
       <button id="btn-reset-view" class="stage-chip chip-reset" title="Сбросить вид">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 10 9 10"/></svg>
-        Сброс вида
+        <span data-i18n="cfg.resetView">Сброс вида</span>
       </button>
       <button id="btn-save-design" class="stage-chip chip-save" title="Сохранить дизайн как PNG">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Сохранить
+        <span data-i18n="cfg.save">Сохранить</span>
       </button>
 
       <!-- View toggle -->
       <div class="view-toggle">
-        <button id="btn-view-front" class="view-btn active" aria-pressed="true">Перед</button>
-        <button id="btn-view-back" class="view-btn" aria-pressed="false">Зад</button>
+        <button id="btn-view-front" class="view-btn active" aria-pressed="true" data-i18n="cfg.viewFront">Перед</button>
+        <button id="btn-view-back" class="view-btn" aria-pressed="false" data-i18n="cfg.viewBack">Зад</button>
       </div>
 
       <!-- ===== Floating control card ===== -->
       <aside class="studio-panel" aria-label="Панель настройки">
         <div class="panel-head">
-          <p class="panel-product" id="panel-product-name">Создайте свой дизайн</p>
-          <p class="panel-price"><span id="panel-price">150 000</span> сум</p>
+          <p class="panel-product" id="panel-product-name" data-i18n="cfg.panelProduct">Создайте свой дизайн</p>
+          <p class="panel-price"><span id="panel-price">150 000</span> <span data-i18n="cfg.currency">сум</span></p>
         </div>
 
         <nav class="tab-nav" role="tablist">
-          <button class="tab-btn active" data-tab="color" role="tab" aria-selected="true">Цвет</button>
-          <button class="tab-btn" data-tab="design" role="tab" aria-selected="false">Дизайн</button>
-          <button class="tab-btn" data-tab="summary" role="tab" aria-selected="false">Итог</button>
+          <button class="tab-btn active" data-tab="color" role="tab" aria-selected="true" data-i18n="cfg.tabColor">Цвет</button>
+          <button class="tab-btn" data-tab="design" role="tab" aria-selected="false" data-i18n="cfg.tabDesign">Дизайн</button>
+          <button class="tab-btn" data-tab="summary" role="tab" aria-selected="false" data-i18n="cfg.tabSummary">Итог</button>
         </nav>
 
         <div class="tab-scroll">
           <!-- ── TAB: COLOR ── -->
           <div id="tab-color" class="tab-content active" role="tabpanel">
-            <p class="tab-section-label">Цвет футболки</p>
+            <p class="tab-section-label" data-i18n="cfg.shirtColor">Цвет футболки</p>
             <div class="color-swatches" id="color-swatches" role="radiogroup" aria-label="Выбор цвета"></div>
             <input type="color" id="custom-color-picker" value="#FFFFFF" style="display:none" aria-hidden="true" />
             <input type="text" id="custom-color-hex" value="#FFFFFF" style="display:none" aria-hidden="true" />
             <div class="divider"></div>
-            <p class="tab-section-label">Размер</p>
+            <p class="tab-section-label" data-i18n="cfg.size">Размер</p>
             <div class="size-selector" id="size-selector" role="radiogroup" aria-label="Выбор размера">
               <button class="size-btn" data-size="XS">XS</button>
               <button class="size-btn" data-size="S">S</button>
@@ -581,51 +536,91 @@
               <button class="size-btn" data-size="XXL">XXL</button>
               <button class="size-btn" data-size="XXXL">XXXL</button>
             </div>
+
+            <!-- Size guide -->
+            <div class="size-guide">
+              <button type="button" class="size-guide-toggle" id="sizeGuideToggle" aria-expanded="false" aria-controls="sizeGuideBody">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l3-3 4 4 4-4 4 4 3-3"/><path d="M21 9v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9"/></svg>
+                <span data-i18n="sg.toggle">Подробнее о размерах</span>
+                <svg class="sg-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="size-guide-body" id="sizeGuideBody" hidden>
+                <p class="size-guide-intro" data-i18n="sg.intro">Не понимаете обозначения XS–XL? Ниже — таблица международных размеров и как снять мерки.</p>
+                <p class="size-guide-sub" data-i18n="sg.intl">Международные стандарты</p>
+                <div class="size-guide-scroll">
+                  <table class="size-guide-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="sg.colSize">Размер</th>
+                        <th>US</th><th>EU</th><th>RU</th><th>CN</th>
+                        <th data-i18n="sg.colChest">Обхват груди (см)</th>
+                        <th data-i18n="sg.colLength">Длина (см)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td>XS</td><td>XS</td><td>42–44</td><td>42–44</td><td>165</td><td>86–89</td><td>66</td></tr>
+                      <tr><td>S</td><td>S</td><td>44–46</td><td>46</td><td>170</td><td>90–94</td><td>69</td></tr>
+                      <tr><td>M</td><td>M</td><td>48</td><td>48</td><td>175</td><td>95–99</td><td>71</td></tr>
+                      <tr><td>L</td><td>L</td><td>50</td><td>50</td><td>180</td><td>100–104</td><td>73</td></tr>
+                      <tr><td>XL</td><td>XL</td><td>52–54</td><td>52–54</td><td>185</td><td>105–110</td><td>75</td></tr>
+                      <tr><td>XXL</td><td>2XL</td><td>56</td><td>56</td><td>190</td><td>111–116</td><td>77</td></tr>
+                      <tr><td>XXXL</td><td>3XL</td><td>58–60</td><td>58–60</td><td>195</td><td>117–122</td><td>79</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="size-guide-sub" data-i18n="sg.measure">Как снять мерки</p>
+                <ul class="size-guide-notes">
+                  <li data-i18n="sg.measureChest">Грудь: измерьте по самой широкой части груди под подмышками.</li>
+                  <li data-i18n="sg.measureLength">Длина: от шва плеча до нижнего края футболки.</li>
+                  <li data-i18n="sg.tip">Совет: если вы между размерами, берите больший для свободной посадки.</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
           <!-- ── TAB: DESIGN (text + logo unified) ── -->
           <div id="tab-design" class="tab-content" role="tabpanel" style="display:none">
             <div class="shirt-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>
-              Перетаскивайте элемент прямо на футболке, чтобы разместить его
+              <span data-i18n="cfg.dragHint">Перетаскивайте элемент прямо на футболке, чтобы разместить его</span>
             </div>
 
             <!-- Layer switch -->
             <div class="layer-switch" role="tablist" aria-label="Слой">
               <button class="layer-btn active" data-layer="text" role="tab" aria-selected="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
-                Текст
+                <span data-i18n="cfg.layerText">Текст</span>
               </button>
               <button class="layer-btn" data-layer="image" role="tab" aria-selected="false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                Логотип
+                <span data-i18n="cfg.layerLogo">Логотип</span>
               </button>
             </div>
 
             <!-- TEXT controls -->
             <div id="design-text-controls" style="display:flex; flex-direction:column; gap:1.1rem;">
               <div class="form-field-group">
-                <label class="field-label" for="text-content-input">Текст на футболке</label>
-                <input type="text" id="text-content-input" class="form-input" placeholder="Введите текст…" />
+                <label class="field-label" for="text-content-input" data-i18n="cfg.textLabel">Текст на футболке</label>
+                <input type="text" id="text-content-input" class="form-input" placeholder="Введите текст…" data-i18n-attr="placeholder:cfg.textPlaceholder" />
               </div>
               <div class="form-field-group">
-                <label class="field-label" for="font-family-select">Шрифт</label>
+                <label class="field-label" for="font-family-select" data-i18n="cfg.font">Шрифт</label>
                 <select id="font-family-select" class="form-select"></select>
               </div>
               <div class="slider-group">
-                <div class="slider-label"><span>Размер</span><span class="slider-value" id="font-size-display">160px</span></div>
+                <div class="slider-label"><span data-i18n="cfg.sizeSlider">Размер</span><span class="slider-value" id="font-size-display">160px</span></div>
                 <input type="range" id="font-size-slider" class="slider" min="24" max="240" value="160" />
               </div>
               <div style="display:flex; gap:0.9rem; align-items:flex-end;">
                 <div class="form-field-group" style="flex:1;">
-                  <label class="field-label">Цвет текста</label>
+                  <label class="field-label" data-i18n="cfg.textColor">Цвет текста</label>
                   <div class="custom-color-row">
                     <input type="color" id="text-color-picker" value="#000000" class="color-picker-input" aria-label="Цвет текста" />
                     <span class="color-label" id="text-color-label">#000000</span>
                   </div>
                 </div>
                 <div class="form-field-group">
-                  <label class="field-label">Стиль</label>
+                  <label class="field-label" data-i18n="cfg.style">Стиль</label>
                   <div class="style-toggle-group">
                     <button id="btn-bold" class="style-toggle-btn" aria-pressed="false" title="Жирный">B</button>
                     <button id="btn-italic" class="style-toggle-btn italic" aria-pressed="false" title="Курсив">I</button>
@@ -633,8 +628,8 @@
                 </div>
               </div>
               <div class="inline-actions">
-                <button id="btn-center-text" class="btn-ghost" type="button">По центру</button>
-                <button id="btn-remove-text" class="btn-danger-outline" type="button">Удалить текст</button>
+                <button id="btn-center-text" class="btn-ghost" type="button" data-i18n="cfg.center">По центру</button>
+                <button id="btn-remove-text" class="btn-danger-outline" type="button" data-i18n="cfg.removeText">Удалить текст</button>
               </div>
             </div>
 
@@ -645,17 +640,17 @@
                 <div class="upload-icon-wrap">
                   <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>
                 </div>
-                <p class="upload-text">Загрузить логотип</p>
-                <p class="upload-subtext">PNG, JPG или SVG — нажмите или перетащите</p>
+                <p class="upload-text" data-i18n="cfg.uploadTitle">Загрузить логотип</p>
+                <p class="upload-subtext" data-i18n="cfg.uploadSubtext">PNG, JPG или SVG — нажмите или перетащите</p>
               </div>
               <div id="image-controls" style="display:none; flex-direction:column; gap:1.1rem;">
                 <div class="slider-group">
-                  <div class="slider-label"><span>Масштаб</span><span class="slider-value" id="image-scale-display">100%</span></div>
+                  <div class="slider-label"><span data-i18n="cfg.scale">Масштаб</span><span class="slider-value" id="image-scale-display">100%</span></div>
                   <input type="range" id="image-scale-slider" class="slider" min="10" max="200" value="100" />
                 </div>
                 <div class="inline-actions">
-                  <button id="btn-center-logo" class="btn-ghost" type="button">По центру</button>
-                  <button id="btn-remove-image" class="btn-danger-outline" type="button">Удалить</button>
+                  <button id="btn-center-logo" class="btn-ghost" type="button" data-i18n="cfg.center">По центру</button>
+                  <button id="btn-remove-image" class="btn-danger-outline" type="button" data-i18n="cfg.remove">Удалить</button>
                 </div>
               </div>
             </div>
@@ -665,30 +660,30 @@
           <div id="tab-summary" class="tab-content" role="tabpanel" style="display:none">
             <div class="summary-snapshot-wrap">
               <canvas id="summary-snapshot" width="200" height="200"></canvas>
-              <p class="hint-text">Снимок текущего вида</p>
+              <p class="hint-text" data-i18n="cfg.snapshot">Снимок текущего вида</p>
             </div>
             <div class="summary-info">
-              <div class="summary-row"><span class="summary-label">Цвет</span><span class="summary-val" id="sum-color">Белый</span></div>
-              <div class="summary-row"><span class="summary-label">Размер</span><span class="summary-val" id="sum-size">L</span></div>
-              <div class="summary-row"><span class="summary-label">Текст</span><span class="summary-val" id="sum-text">—</span></div>
-              <div class="summary-row"><span class="summary-label">Шрифт</span><span class="summary-val" id="sum-font">Arial</span></div>
-              <div class="summary-row"><span class="summary-label">Логотип</span><span class="summary-val" id="sum-image">Не загружено</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumColor">Цвет</span><span class="summary-val" id="sum-color">Белый</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumSize">Размер</span><span class="summary-val" id="sum-size">L</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumText">Текст</span><span class="summary-val" id="sum-text">—</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumFont">Шрифт</span><span class="summary-val" id="sum-font">Arial</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumLogo">Логотип</span><span class="summary-val" id="sum-image">Не загружено</span></div>
             </div>
-            <button id="btn-reset-design" class="btn-secondary-full" type="button">Сбросить дизайн</button>
+            <button id="btn-reset-design" class="btn-secondary-full" type="button" data-i18n="cfg.resetDesign">Сбросить дизайн</button>
           </div>
         </div>
 
         <!-- Sticky footer actions -->
         <div class="panel-foot">
           <div class="foot-price-row">
-            <span class="foot-price-label">Итого</span>
-            <span class="foot-price"><span id="foot-price-num">150 000</span> сум</span>
+            <span class="foot-price-label" data-i18n="cfg.total">Итого</span>
+            <span class="foot-price"><span id="foot-price-num">150 000</span> <span data-i18n="cfg.currency">сум</span></span>
           </div>
           <button id="btn-add-to-cart" class="btn-primary-full" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-            В корзину
+            <span data-i18n="cfg.addToCart">В корзину</span>
           </button>
-          <button id="btn-place-order" class="btn-secondary-full" type="button">Купить сейчас</button>
+          <button id="btn-place-order" class="btn-secondary-full" type="button" data-i18n="cfg.buyNow">Купить сейчас</button>
         </div>
       </aside>
     </main>
@@ -697,18 +692,20 @@
     <div class="drawer-backdrop" id="cartBackdrop"></div>
     <aside class="cart-drawer" id="cartDrawer" aria-label="Корзина" aria-hidden="true">
       <div class="cart-head">
-        <h2 class="cart-title">Корзина</h2>
-        <button class="mobile-menu-close" id="cartClose" aria-label="Закрыть"><i data-lucide="x"></i></button>
+        <h2 class="cart-title" data-i18n="cfg.cartTitle">Корзина</h2>
+        <button class="mobile-menu-close" id="cartClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="cart-body" id="cartBody">
-        <p class="cart-empty">Корзина пуста</p>
+        <p class="cart-empty" data-i18n="cfg.cartEmpty">Корзина пуста</p>
       </div>
       <div class="cart-foot" id="cartFoot" style="display:none">
         <div class="cart-total-row">
-          <span class="cart-total-label">Итого</span>
-          <span class="cart-total-val"><span id="cartTotal">0</span> сум</span>
+          <span class="cart-total-label" data-i18n="cfg.total">Итого</span>
+          <span class="cart-total-val"><span id="cartTotal">0</span> <span data-i18n="cfg.currency">сум</span></span>
         </div>
-        <button class="btn-primary-full" id="cartCheckoutBtn" type="button">Оформить заказ</button>
+        <button class="btn-primary-full" id="cartCheckoutBtn" type="button" data-i18n="cfg.checkout">Оформить заказ</button>
       </div>
     </aside>
 
@@ -719,54 +716,68 @@
         <button class="modal-close" id="modalClose" aria-label="Закрыть">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
-        <h2 id="modalTitle" class="modal-title">Оформление заказа</h2>
+        <h2 id="modalTitle" class="modal-title" data-i18n="order.title">Оформление заказа</h2>
         <div class="order-summary">
-          <h3 class="summary-title">📦 Ваш заказ</h3>
+          <h3 class="summary-title">📦 <span data-i18n="order.yourOrder">Ваш заказ</span></h3>
           <div class="summary-content">
             <div class="summary-preview"><canvas id="summaryCanvas" width="150" height="150"></canvas></div>
             <div class="summary-details">
-              <div class="summary-row"><span class="summary-label">Цвет:</span><span class="summary-value" id="summaryColor">Белый</span></div>
-              <div class="summary-row"><span class="summary-label">Размер:</span><span class="summary-value" id="summarySize">L</span></div>
-              <div class="summary-row"><span class="summary-label">Масштаб:</span><span class="summary-value" id="summaryScale">100%</span></div>
-              <div class="summary-row"><span class="summary-label">Текст:</span><span class="summary-value" id="summaryText">Не указан</span></div>
-              <div class="summary-row"><span class="summary-label">Шрифт:</span><span class="summary-value" id="summaryFont">Arial</span></div>
-              <div class="summary-row"><span class="summary-label">Логотип:</span><span class="summary-value" id="summaryImage">Не загружено</span></div>
-              <div class="summary-row summary-price"><span class="summary-label">Цена:</span><span class="summary-value">150,000 сум</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="order.color">Цвет:</span><span class="summary-value" id="summaryColor">Белый</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="order.size">Размер:</span><span class="summary-value" id="summarySize">L</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="order.scale">Масштаб:</span><span class="summary-value" id="summaryScale">100%</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="order.text">Текст:</span><span class="summary-value" id="summaryText">Не указан</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="order.font">Шрифт:</span><span class="summary-value" id="summaryFont">Arial</span></div>
+              <div class="summary-row"><span class="summary-label" data-i18n="order.logo">Логотип:</span><span class="summary-value" id="summaryImage">Не загружено</span></div>
+              <div class="summary-row summary-price"><span class="summary-label" data-i18n="order.price">Цена:</span><span class="summary-value" id="summaryPrice">150 000 сум</span></div>
             </div>
           </div>
         </div>
-        <div id="auth-order-badge" style="display:none;background:rgba(16,185,129,0.1);border:0.5px solid rgba(16,185,129,0.3);border-radius:8px;padding:0.6rem 0.9rem;margin-bottom:1rem;font-size:0.82rem;color:#4ade80;">
+        <div id="auth-order-badge" style="display:none;background:rgba(16,185,129,0.1);border:0.5px solid rgba(16,185,129,0.3);border-radius:8px;padding:0.6rem 0.9rem;margin-bottom:1rem;font-size:0.82rem;color:#4ade80;" data-i18n="order.bound">
           ✓ Заказ будет привязан к вашему аккаунту
         </div>
         <form id="orderForm" class="order-form">
           <div class="form-row">
             <div class="form-field">
-              <label for="nameInput" class="form-label">Имя <span class="required">*</span></label>
-              <input type="text" id="nameInput" class="form-input" placeholder="Введите ваше имя" required minlength="2" maxlength="50" aria-required="true" />
+              <label for="nameInput" class="form-label"><span data-i18n="order.name">Имя</span> <span class="required">*</span></label>
+              <input type="text" id="nameInput" class="form-input" placeholder="Введите ваше имя" data-i18n-attr="placeholder:order.namePh" required minlength="2" maxlength="50" aria-required="true" />
               <span class="field-error" id="nameError"></span>
               <span class="field-success" style="display:none">✓</span>
             </div>
             <div class="form-field">
-              <label for="surnameInput" class="form-label">Фамилия</label>
-              <input type="text" id="surnameInput" class="form-input" placeholder="Необязательно" maxlength="50" />
+              <label for="surnameInput" class="form-label" data-i18n="order.surname">Фамилия</label>
+              <input type="text" id="surnameInput" class="form-input" placeholder="Необязательно" data-i18n-attr="placeholder:order.optional" maxlength="50" />
             </div>
           </div>
           <div class="form-field">
-            <label for="phoneInput" class="form-label">Телефон <span class="required">*</span></label>
+            <label for="phoneInput" class="form-label"><span data-i18n="order.phone">Телефон</span> <span class="required">*</span></label>
             <input type="tel" id="phoneInput" class="form-input" placeholder="+998 90 123-45-67" required aria-required="true" />
             <span class="field-error" id="phoneError"></span>
             <span class="field-success" style="display:none">✓</span>
           </div>
           <div class="form-field">
-            <label for="commentInput" class="form-label">Комментарий к заказу</label>
-            <textarea id="commentInput" class="form-input" rows="2" placeholder="Укажите размер, дополнительные пожелания…" maxlength="500"></textarea>
-            <span style="font-size:12px;color:var(--muted);margin-top:4px;display:block">Необязательно, до 500 символов</span>
+            <label for="commentInput" class="form-label" data-i18n="order.comment">Комментарий к заказу</label>
+            <textarea id="commentInput" class="form-input" rows="2" placeholder="Укажите размер, дополнительные пожелания…" data-i18n-attr="placeholder:order.commentPh" maxlength="500"></textarea>
+            <span style="font-size:12px;color:var(--muted);margin-top:4px;display:block" data-i18n="order.commentHint">Необязательно, до 500 символов</span>
           </div>
           <div class="form-field">
-            <label class="form-label">Адрес доставки <span class="required">*</span></label>
+            <label class="form-label"><span data-i18n="order.address">Адрес доставки</span> <span class="required">*</span></label>
+
+            <!-- Saved address (shown when the user has a default address in settings) -->
+            <div id="savedLocationCard" style="display:none">
+              <div class="saved-loc-preview">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" style="opacity:0.7;flex-shrink:0"><path d="M8 1a5 5 0 0 1 5 5c0 3.5-5 9-5 9S3 9.5 3 6a5 5 0 0 1 5-5z"/><circle cx="8" cy="6" r="1.5"/></svg>
+                <span id="savedLocationText"></span>
+              </div>
+              <div class="location-toggle" style="margin-bottom:0.75rem">
+                <button type="button" class="toggle-btn active" id="useSavedLocation" data-i18n="order.useSaved">Использовать сохранённый</button>
+                <button type="button" class="toggle-btn" id="enterNewLocation" data-i18n="order.enterNew">Ввести новый</button>
+              </div>
+            </div>
+
+            <div id="newLocationWrap">
             <div class="location-toggle">
-              <button type="button" class="toggle-btn" id="toggleMap" data-type="map">📍 На карте</button>
-              <button type="button" class="toggle-btn active" id="toggleAddress" data-type="address">✏️ Адрес</button>
+              <button type="button" class="toggle-btn" id="toggleMap" data-type="map" data-i18n="order.onMap">📍 На карте</button>
+              <button type="button" class="toggle-btn active" id="toggleAddress" data-type="address" data-i18n="order.addressTab">✏️ Адрес</button>
             </div>
             <div id="mapContainer" class="map-container" style="display:none">
               <div id="map" style="height:240px;border-radius:12px;position:relative">
@@ -775,15 +786,16 @@
               <p class="map-coords" id="mapCoords">Координаты: 41.2995, 69.2401</p>
             </div>
             <div id="addressContainer" class="address-container">
-              <textarea id="addressInput" class="form-input" rows="2" placeholder="Ташкент, улица Амира Темура, дом 10"></textarea>
+              <textarea id="addressInput" class="form-input" rows="2" placeholder="Ташкент, улица Амира Темура, дом 10" data-i18n-attr="placeholder:order.addressPh"></textarea>
             </div>
+            </div><!-- /newLocationWrap -->
             <span class="field-error" id="locationError"></span>
           </div>
           <button type="submit" class="btn-submit" id="submitBtn">
-            <span id="submitText">Оформить заказ</span>
+            <span id="submitText" data-i18n="order.submit">Оформить заказ</span>
             <span id="submitLoader" style="display:none">
               <svg class="spinner" width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
-              Отправка…
+              <span data-i18n="order.sending">Отправка…</span>
             </span>
           </button>
         </form>
@@ -793,7 +805,7 @@
     <!-- Success toast (legacy) -->
     <div id="successNotification" class="success-toast" style="display:none">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-      <span>Заказ успешно оформлен!</span>
+      <span data-i18n="order.success">Заказ успешно оформлен!</span>
     </div>
 
     <!-- Yandex Maps -->
@@ -806,10 +818,11 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
     <!-- Config + Auth -->
     <script src="assets/config.js?v=2"></script>
-    <script src="assets/auth.js"></script>
+    <script src="assets/i18n.js?v=1"></script>
+    <script src="assets/auth.js?v=2"></script>
     <script src="assets/login-modal.js"></script>
     <script src="assets/track.js"></script>
     <!-- Main configurator logic -->
-    <script src="configurator.js?v=3"></script>
+    <script src="configurator.js?v=4"></script>
   </body>
 </html>

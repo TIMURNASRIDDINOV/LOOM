@@ -75,7 +75,7 @@ function isRateLimited(key: string, maxRequests: number, windowMs: number): bool
 
 **New CORS setup:**
 ```typescript
-const PROD_ORIGINS = ['https://looom.me', 'https://www.looom.me', 'https://admin.looom.me']
+const PROD_ORIGINS = ['https://loomdesign.uz', 'https://www.loomdesign.uz', 'https://admin.loomdesign.uz']
 const DEV_ORIGINS  = ['http://localhost:8787', 'http://localhost:3000']
 
 app.use('*', (c, next) => {
@@ -274,25 +274,25 @@ See manual steps under FIX 6 for the complete deploy sequence.
 
 ## Phase 4 — Live Test Results
 
-**Status:** ❌ BLOCKED — External network (api.looom.me, workers.dev) is not reachable from this environment.
+**Status:** ❌ BLOCKED — External network (api.loomdesign.uz, workers.dev) is not reachable from this environment.
 
 Once you deploy following the FIX 6 steps, run these curl commands to verify each fix:
 
 ### Test 1 — Health Check
 ```bash
-curl https://api.looom.me/
+curl https://api.loomdesign.uz/
 # Expected: {"service":"LOOM Backend","version":"0.2.0","status":"ok"}
 ```
 
 ### Test 2 — Products List
 ```bash
-curl https://api.looom.me/api/products
+curl https://api.loomdesign.uz/api/products
 # Expected: {"products":[...]}
 ```
 
 ### Test 3 — Auth: Register
 ```bash
-curl -X POST https://api.looom.me/api/auth/register \
+curl -X POST https://api.loomdesign.uz/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"testuser_loom@mailnull.com","password":"TestPass123!"}'
 # Expected: {"token":"...","user":{...}}
@@ -300,7 +300,7 @@ curl -X POST https://api.looom.me/api/auth/register \
 
 ### Test 4 — Auth: Login
 ```bash
-curl -X POST https://api.looom.me/api/auth/login \
+curl -X POST https://api.loomdesign.uz/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"testuser_loom@mailnull.com","password":"TestPass123!"}'
 # Expected: {"token":"...","user":{...}}
@@ -309,7 +309,7 @@ curl -X POST https://api.looom.me/api/auth/login \
 ### Test 5 — Auth: Get Profile
 ```bash
 TOKEN="<token from test 4>"
-curl https://api.looom.me/api/auth/me \
+curl https://api.loomdesign.uz/api/auth/me \
   -H "Authorization: Bearer $TOKEN"
 # Expected: {"id":...,"email":"testuser_loom@mailnull.com",...}
 ```
@@ -318,7 +318,7 @@ curl https://api.looom.me/api/auth/me \
 ```bash
 for i in {1..6}; do
   curl -s -o /dev/null -w "Request $i: %{http_code}\n" \
-    -X POST https://api.looom.me/api/orders \
+    -X POST https://api.loomdesign.uz/api/orders \
     -H "Content-Type: application/json" \
     -d '{"customerName":"Test","customerPhone":"+1234567890","designJson":"{}","totalPrice":100000}'
 done
@@ -329,7 +329,7 @@ done
 ```bash
 for i in {1..11}; do
   curl -s -o /dev/null -w "Request $i: %{http_code}\n" \
-    -X POST https://api.looom.me/api/uploads \
+    -X POST https://api.loomdesign.uz/api/uploads \
     -F "file=@/dev/null"
 done
 # Expected: Requests 1–10: 400, Request 11: 429
@@ -337,7 +337,7 @@ done
 
 ### Test 8 — Admin Setup Locked (FIX 5)
 ```bash
-curl -X POST https://api.looom.me/api/admin/setup \
+curl -X POST https://api.loomdesign.uz/api/admin/setup \
   -H "Content-Type: application/json" \
   -d '{"email":"x@x.com","password":"anything1"}'
 # Expected: {"error":"Setup already completed"} with 403
@@ -345,29 +345,29 @@ curl -X POST https://api.looom.me/api/admin/setup \
 
 ### Test 9 — Admin Login
 ```bash
-curl -c cookies.txt -X POST https://api.looom.me/api/admin/login \
+curl -c cookies.txt -X POST https://api.loomdesign.uz/api/admin/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@looom.me","password":"<your-admin-password>"}'
+  -d '{"email":"admin@loomdesign.uz","password":"<your-admin-password>"}'
 # Expected: {"ok":true} and admin_token cookie set
 ```
 
 ### Test 10 — Admin Stats (FIX 3)
 ```bash
-curl -b cookies.txt https://api.looom.me/api/admin/stats
+curl -b cookies.txt https://api.loomdesign.uz/api/admin/stats
 # Expected: {"ordersByStatus":{...},"revenueLast30Days":...}
 ```
 
 ### Test 11 — CORS null Origin Blocked (FIX 2)
 ```bash
-curl -H "Origin: null" https://api.looom.me/api/products
+curl -H "Origin: null" https://api.loomdesign.uz/api/products
 # Expected: Access-Control-Allow-Origin should NOT be "null"
-# Should return "https://looom.me" (the default fallback)
+# Should return "https://loomdesign.uz" (the default fallback)
 ```
 
 ### Test 12 — Paginated User Orders (FIX 7)
 ```bash
 TOKEN="<user token>"
-curl "https://api.looom.me/api/me/orders?page=1" \
+curl "https://api.loomdesign.uz/api/me/orders?page=1" \
   -H "Authorization: Bearer $TOKEN"
 # Expected: {"orders":[...],"page":1,"limit":20,"total":<number>}
 ```

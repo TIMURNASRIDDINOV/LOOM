@@ -4,13 +4,13 @@
 -- After applying, use POST /api/admin/setup to set the real password,
 -- OR update manually:
 --   wrangler d1 execute loom-db --local --command \
---   "UPDATE admins SET password_hash='<hash>' WHERE email='admin@looom.me'"
+--   "UPDATE admins SET password_hash='<hash>' WHERE email='admin@loomdesign.uz'"
 -- See README.md for how to generate a PBKDF2 hash.
 -- ================================================================
 
 INSERT OR IGNORE INTO admins (email, password_hash, created_at)
 VALUES (
-  'admin@looom.me',
+  'admin@loomdesign.uz',
   'PLACEHOLDER_USE_SETUP_ENDPOINT',
   unixepoch() * 1000
 );

@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="products-catalog.css" />
     <!-- Auth styles -->
     <link rel="stylesheet" href="assets/auth.css" />
+    <link rel="stylesheet" href="assets/nav.css?v=1" />
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -59,175 +60,6 @@
         color: var(--text);
       }
 
-      /* ── Navigation ─────────────────────────────────────────── */
-      .nav {
-        position: fixed;
-        top: 0; left: 0; right: 0;
-        min-height: 64px;
-        background: rgba(8,8,8,0.72);
-        backdrop-filter: blur(12px) saturate(140%);
-        -webkit-backdrop-filter: blur(12px) saturate(140%);
-        z-index: 200;
-        border-bottom: 0.5px solid rgba(255,255,255,0.08);
-        overflow: visible;
-      }
-      .nav-content {
-        max-width: 1280px;
-        margin: 0 auto;
-        padding: 0 1.75rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        min-height: 64px;
-      }
-      .nav-brand {
-        font-family: var(--mono);
-        font-size: 0.9rem;
-        font-weight: 400;
-        letter-spacing: 0.2em;
-        color: #fff;
-        text-transform: uppercase;
-        text-decoration: none;
-      }
-      .nav-links {
-        display: flex;
-        align-items: center;
-        gap: 2rem;
-        margin-right: 0;
-      }
-      .nav-link {
-        color: rgba(255,255,255,0.55);
-        text-decoration: none;
-        font-weight: 400;
-        font-size: 0.78rem;
-        letter-spacing: 0.06em;
-        padding: 0.4rem 0;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        transition: color 200ms ease;
-        -webkit-tap-highlight-color: transparent;
-      }
-      .nav-link:hover, .nav-link.active { color: #fff; }
-      .nav-link.active { position: relative; }
-      .nav-link.active::after {
-        content: '';
-        position: absolute;
-        bottom: -2px; left: 0; right: 0;
-        height: 1.5px;
-        background: #fff;
-        border-radius: 1px;
-      }
-      .nav-link:focus, .nav-link:focus-visible { outline: none; }
-      .link-underline-center::after { display: none; }
-      .nav-icon { width: 16px; height: 16px; opacity: 0.7; }
-      .nav-hamburger {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 40px; height: 40px;
-        background: transparent;
-        border: none;
-        cursor: pointer;
-        color: #fff;
-        -webkit-tap-highlight-color: transparent;
-        z-index: 210;
-      }
-      .nav-hamburger svg { width: 22px; height: 22px; }
-      @media (min-width: 768px) { .nav-hamburger { display: none; } }
-      @media (min-width: 768px) { .nav-links { gap: 1.75rem; } }
-      @media (max-width: 767px) { .nav-links { display: none; } }
-
-      /* ── Nav CTA ─────────────────────────────────────────────── */
-      .nav-cta {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.52rem 1.1rem;
-        font-size: 0.72rem;
-        font-weight: 500;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: #fff;
-        border: 1px solid rgba(255,255,255,0.55);
-        border-radius: 3px;
-        text-decoration: none;
-        white-space: nowrap;
-        transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
-        flex-shrink: 0;
-      }
-      .nav-cta:hover { background: #fff; color: #0a0a0a; border-color: #fff; }
-      @media (max-width: 767px) { .nav-cta { display: none; } }
-
-      /* ── Mobile Menu ─────────────────────────────────────────── */
-      .mobile-backdrop {
-        position: fixed; inset: 0;
-        background: rgba(0,0,0,0.65);
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
-        z-index: 90;
-        opacity: 0; visibility: hidden;
-        transition: opacity 200ms ease, visibility 200ms ease;
-      }
-      .mobile-backdrop.active { opacity: 1; visibility: visible; }
-      .mobile-menu {
-        position: fixed;
-        top: 0; right: 0;
-        width: 300px; max-width: 80vw;
-        height: 100%;
-        background: rgba(10,10,10,0.97);
-        backdrop-filter: blur(20px);
-        border-left: 0.5px solid rgba(255,255,255,0.08);
-        z-index: 100;
-        transform: translateX(100%);
-        transition: transform 300ms cubic-bezier(0.4,0,0.2,1);
-        display: flex;
-        flex-direction: column;
-      }
-      .mobile-menu.active { transform: translateX(0); }
-      .mobile-menu-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 1.5rem;
-        border-bottom: 0.5px solid rgba(255,255,255,0.08);
-        min-height: 64px;
-        flex-shrink: 0;
-      }
-      .mobile-menu-brand {
-        font-family: var(--mono);
-        font-size: 0.9rem;
-        font-weight: 400;
-        letter-spacing: 0.2em;
-        color: #fff;
-        text-transform: uppercase;
-      }
-      .mobile-menu-close {
-        display: flex; align-items: center; justify-content: center;
-        width: 32px; height: 32px;
-        background: transparent; border: none;
-        cursor: pointer;
-        color: rgba(255,255,255,0.6);
-        border-radius: 4px;
-        transition: background 200ms ease, color 200ms ease;
-        padding: 0;
-      }
-      .mobile-menu-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
-      .mobile-menu-close svg { width: 20px; height: 20px; }
-      .mobile-menu-links { display: flex; flex-direction: column; padding: 0.5rem 0; flex: 1; }
-      .mobile-menu-link {
-        display: flex; align-items: center; gap: 0.75rem;
-        padding: 1rem 1.5rem;
-        color: rgba(255,255,255,0.6);
-        text-decoration: none;
-        font-weight: 400; font-size: 0.9rem;
-        border-bottom: 0.5px solid rgba(255,255,255,0.06);
-        transition: background 200ms ease, color 200ms ease;
-      }
-      .mobile-menu-link:hover { background: rgba(255,255,255,0.04); color: #fff; }
-      .mobile-menu-link.active { color: #fff; background: rgba(255,255,255,0.06); font-weight: 500; }
-      .mobile-menu-link svg { width: 18px; height: 18px; opacity: 0.7; }
-      body.menu-open { overflow: hidden; }
-      @media (min-width: 768px) { .mobile-menu, .mobile-backdrop { display: none !important; } }
 
       /* ── Fixed background ───────────────────────────────────────── */
       .fixed-bg {
@@ -537,23 +369,19 @@
     <nav class="nav">
       <div class="nav-content">
         <a href="index.html" class="nav-brand">LOOM</a>
-        <!-- Desktop Navigation Links -->
         <div class="nav-links">
-          <a href="index.html" class="nav-link">Главная</a>
-          <a href="catalog.html" class="nav-link active">Каталог</a>
-          <a href="configurator.html" class="nav-link">Кастомизация</a>
+          <a href="index.html" class="nav-link" data-i18n="nav.home">Главная</a>
+          <a href="catalog.html" class="nav-link active" data-i18n="nav.catalog">Каталог</a>
+          <a href="configurator.html" class="nav-link" data-i18n="nav.configure">Кастомизация</a>
         </div>
-        <a href="configurator.html" class="nav-cta">Создать дизайн</a>
-        <div class="auth-nav-slot"></div>
-        <!-- Hamburger Button (Mobile) -->
-        <button
-          class="nav-hamburger"
-          id="menuToggle"
-          aria-label="Открыть меню навигации"
-          aria-expanded="false"
-        >
-          <i data-lucide="menu"></i>
-        </button>
+        <div class="nav-right">
+          <div class="lang-switcher-mount"></div>
+          <div class="auth-nav-slot"></div>
+          <a href="configurator.html" class="nav-cta" data-i18n="nav.start">Создать дизайн</a>
+          <button class="nav-hamburger" id="menuToggle" aria-label="Menu" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+        </div>
       </div>
     </nav>
 
@@ -564,35 +392,28 @@
     <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
       <div class="mobile-menu-header">
         <span class="mobile-menu-brand">LOOM</span>
-        <button
-          class="mobile-menu-close"
-          id="menuClose"
-          aria-label="Закрыть меню"
-        >
-          <i data-lucide="x"></i>
+        <button class="mobile-menu-close" id="menuClose" aria-label="Close menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <div class="mobile-menu-links">
-        <a href="index.html" class="mobile-menu-link">
-          <i data-lucide="home"></i>
-          Главная
-        </a>
-        <a href="catalog.html" class="mobile-menu-link active">
-          <i data-lucide="grid-3x3"></i>
-          Каталог
-        </a>
-        <a href="configurator.html" class="mobile-menu-link">
-          <i data-lucide="palette"></i>
-          Кастомизация
-        </a>
+        <a href="index.html" class="mobile-menu-link" data-i18n="nav.home">Главная</a>
+        <a href="catalog.html" class="mobile-menu-link active" data-i18n="nav.catalog">Каталог</a>
+        <a href="configurator.html" class="mobile-menu-link" data-i18n="nav.configure">Кастомизация</a>
+        <a href="account.html" class="mobile-menu-link" data-i18n="nav.account">Личный кабинет</a>
+        <a href="configurator.html" class="mobile-menu-link mobile-menu-link--cta" data-i18n="nav.start">Создать дизайн</a>
+      </div>
+      <div class="mobile-lang">
+        <span class="mobile-lang-label" data-i18n="nav.language">Язык</span>
+        <div class="lang-switcher-mount"></div>
       </div>
     </div>
 
     <!-- Catalog Hero Section -->
     <section class="catalog-hero">
       <div class="container">
-        <h1>Исследуйте нашу коллекцию</h1>
-        <p>Интерактивный 3D просмотр модели</p>
+        <h1 data-i18n="catalog.heroTitle">Исследуйте нашу коллекцию</h1>
+        <p data-i18n="catalog.heroSubtitle">Интерактивный 3D просмотр модели</p>
       </div>
     </section>
 
@@ -609,13 +430,13 @@
 
     <footer class="footer" id="about">
       <div class="footer__inner">
-        <p class="footer__copy">© 2026 LOOM — looom.me</p>
+        <p class="footer__copy">© 2026 LOOM — loomdesign.uz</p>
         <div class="footer__links">
           <a href="https://www.instagram.com/loom_uz?igsh=MTI3OWxzNTloZTNvdw%3D%3D&utm_source=qr" class="footer__link" target="_blank" rel="noopener noreferrer">Instagram</a>
           <a href="" class="footer__link" target="_blank" rel="noopener noreferrer">Telegram</a>
-          <a href="mailto:loom.uzbekistan@gmail.com" class="footer__link">Contact</a>
+          <a href="mailto:loom.uzbekistan@gmail.com" class="footer__link" data-i18n="footer.contact">Контакты</a>
         </div>
-        <p class="footer__location">Tashkent, Uzbekistan</p>
+        <p class="footer__location" data-i18n="footer.location">Ташкент, Узбекистан</p>
       </div>
     </footer>
 
@@ -673,72 +494,15 @@
     </script>
 
     <!-- Config + Auth -->
-    <script src="assets/config.js"></script>
-    <script src="assets/auth.js"></script>
+    <script src="assets/config.js?v=2"></script>
+    <script src="assets/i18n.js?v=1"></script>
+    <script src="assets/auth.js?v=2"></script>
+    <script src="assets/nav.js?v=1"></script>
     <script src="assets/track.js"></script>
     <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
 
     <!-- Product Catalog Vanilla JS -->
     <script src="products-catalog.js"></script>
 
-    <!-- Mobile Navigation Script -->
-    <script>
-      (function () {
-        if (typeof lucide !== "undefined") {
-          lucide.createIcons();
-        }
-
-        const menuToggle = document.getElementById("menuToggle");
-        const menuClose = document.getElementById("menuClose");
-        const mobileMenu = document.getElementById("mobileMenu");
-        const mobileBackdrop = document.getElementById("mobileBackdrop");
-
-        if (!menuToggle || !mobileMenu) return;
-
-        function openMenu() {
-          mobileMenu.classList.add("active");
-          mobileBackdrop.classList.add("active");
-          document.body.classList.add("menu-open");
-          menuToggle.setAttribute("aria-expanded", "true");
-          mobileMenu.setAttribute("aria-hidden", "false");
-          const firstLink = mobileMenu.querySelector(".mobile-menu-link");
-          if (firstLink) firstLink.focus();
-        }
-
-        function closeMenu() {
-          mobileMenu.classList.remove("active");
-          mobileBackdrop.classList.remove("active");
-          document.body.classList.remove("menu-open");
-          menuToggle.setAttribute("aria-expanded", "false");
-          mobileMenu.setAttribute("aria-hidden", "true");
-          menuToggle.focus();
-        }
-
-        menuToggle.addEventListener("click", openMenu);
-        if (menuClose) menuClose.addEventListener("click", closeMenu);
-        if (mobileBackdrop) mobileBackdrop.addEventListener("click", closeMenu);
-
-        document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape" && mobileMenu.classList.contains("active")) {
-            closeMenu();
-          }
-        });
-
-        mobileMenu
-          .querySelectorAll(".mobile-menu-link")
-          .forEach(function (link) {
-            link.addEventListener("click", closeMenu);
-          });
-
-        window.addEventListener("resize", function () {
-          if (
-            window.innerWidth >= 768 &&
-            mobileMenu.classList.contains("active")
-          ) {
-            closeMenu();
-          }
-        });
-      })();
-    </script>
   </body>
 </html>

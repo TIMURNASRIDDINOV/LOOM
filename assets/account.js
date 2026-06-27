@@ -1,9 +1,15 @@
 'use strict'
 ;(function () {
+  // i18n helper (Russian fallback when i18n.js absent)
+  function AT(key, fb) {
+    try { return (window.LOOM_I18N ? window.LOOM_I18N.t(key) : fb) || fb } catch (e) { return fb }
+  }
+  function lang() { try { return window.LOOM_I18N ? window.LOOM_I18N.getLang() : 'ru' } catch (e) { return 'ru' } }
+
   const STATUS_LABELS = {
-    new: 'Новый', confirmed: 'Подтверждён', producing: 'Производство',
-    shipped: 'Отправлен', delivered: 'Доставлен', cancelled: 'Отменён',
-    pending: 'Ожидает', processing: 'В работе',
+    ru: { new: 'Новый', confirmed: 'Подтверждён', producing: 'Производство', shipped: 'Отправлен', delivered: 'Доставлен', cancelled: 'Отменён', pending: 'Ожидает', processing: 'В работе' },
+    uz: { new: 'Yangi', confirmed: 'Tasdiqlangan', producing: 'Ishlab chiqarilmoqda', shipped: 'Jo‘natilgan', delivered: 'Yetkazilgan', cancelled: 'Bekor qilingan', pending: 'Kutilmoqda', processing: 'Jarayonda' },
+    en: { new: 'New', confirmed: 'Confirmed', producing: 'In production', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', pending: 'Pending', processing: 'Processing' },
   }
   const STATUS_COLORS = {
     new: '#3b82f6', confirmed: '#eab308', producing: '#f97316',
@@ -15,17 +21,22 @@
     if (!s) return ''
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
-  function fmt(n) { return Number(n || 0).toLocaleString('ru-RU') + ' сум' }
+  function fmt(n) {
+    if (window.LOOM_I18N) return window.LOOM_I18N.formatPrice(n)
+    return Number(n || 0).toLocaleString('ru-RU') + ' сум'
+  }
   function fmtDate(ts) {
     if (!ts) return '—'
-    return new Date(Number(ts)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
+    const loc = { ru: 'ru-RU', uz: 'uz-UZ', en: 'en-US' }[lang()] || 'ru-RU'
+    return new Date(Number(ts)).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })
   }
   function fmtYear(ts) {
     if (!ts) return '—'
     return new Date(Number(ts)).getFullYear().toString()
   }
   function statusBadge(status) {
-    const label = STATUS_LABELS[status] || status
+    const map = STATUS_LABELS[lang()] || STATUS_LABELS.ru
+    const label = map[status] || status
     const color = STATUS_COLORS[status] || '#6b7280'
     return `<span class="status-badge" style="background:${color}22;color:${color};border:1px solid ${color}55">${esc(label)}</span>`
   }
@@ -108,7 +119,7 @@
     renderAvatar(u)
     document.getElementById('profile-name').textContent = u.name || u.email.split('@')[0]
     document.getElementById('profile-email').textContent = u.email
-    document.getElementById('profile-since').textContent = 'С нами с ' + fmtDate(u.created_at)
+    document.getElementById('profile-since').textContent = AT('acc.statSince', 'С нами с') + ' ' + fmtDate(u.created_at)
 
     // Stats
     document.getElementById('stat-orders').textContent = u.order_count ?? '0'
@@ -235,7 +246,7 @@
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Ошибка') }
       user.location_preset = loc ? JSON.stringify(loc) : null
       populateLocation(user.location_preset)
-      msg.textContent = 'Адрес сохранён!'
+      msg.textContent = AT('acc.addrSaved', 'Адрес сохранён!')
       sessionStorage.removeItem('loom_user')
     } catch (err) {
       msg.textContent = '⚠ ' + err.message
@@ -467,17 +478,31 @@
   async function init() {
     API = window.LOOM_CONFIG ? window.LOOM_CONFIG.API_BASE
       : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:8787' : 'https://api.looom.me')
+          ? 'http://localhost:8787' : 'https://api.loomdesign.uz')
 
     user = await window.LOOM_AUTH.getCurrentUser()
     if (!user) { window.location.href = 'login.html?redirect=account.html'; return }
+
+    // Populate the shared site navbar (auth slot, avatar/dropdown)
+    if (window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav) window.LOOM_AUTH.renderAuthNav()
 
     populateProfile(user)
     loadOrders()
     loadNotifPrefs()
     loadNotifications(notifPage)
 
-    document.getElementById('logout-btn').addEventListener('click', () => window.LOOM_AUTH.logout())
+    // Legacy standalone logout button (logout now lives in the nav dropdown)
+    const logoutBtn = document.getElementById('logout-btn')
+    if (logoutBtn) logoutBtn.addEventListener('click', () => window.LOOM_AUTH.logout())
+
+    // Re-render language-sensitive dynamic content on language switch
+    window.addEventListener('loom:langchange', () => {
+      if (user) {
+        document.getElementById('profile-since').textContent = AT('acc.statSince', 'С нами с') + ' ' + fmtDate(user.created_at)
+      }
+      loadOrders()
+      loadNotifications(notifPage)
+    })
   }
 
   if (document.readyState === 'loading') {

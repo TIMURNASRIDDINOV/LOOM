@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/auth.css" />
+  <link rel="stylesheet" href="assets/nav.css?v=1" />
 
   <style>
     /* ============================================================
@@ -139,175 +140,6 @@
       color: #fff;
     }
 
-    /* ============================================================
-       NAV — fixed, glass
-    ============================================================ */
-    .nav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 64px;
-      z-index: 200;
-      background: rgba(8, 8, 8, 0.55);
-      backdrop-filter: blur(12px) saturate(140%);
-      -webkit-backdrop-filter: blur(12px) saturate(140%);
-      border-bottom: 1px solid var(--w07);
-    }
-
-    .nav__inner {
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 0 1.75rem;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 2rem;
-    }
-
-    .nav__logo {
-      font-family: var(--mono);
-      font-size: 0.9rem;
-      font-weight: 500;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: #fff;
-      flex-shrink: 0;
-    }
-
-    .nav__links {
-      display: flex;
-      align-items: center;
-      gap: 2.2rem;
-    }
-
-    .nav__link {
-      font-size: 0.78rem;
-      font-weight: 400;
-      letter-spacing: 0.06em;
-      color: var(--w50);
-      transition: color 200ms var(--ease);
-    }
-    .nav__link:hover { color: #fff; }
-
-    .nav__cta-wrap { flex-shrink: 0; }
-    .nav__cta-wrap .btn-outline {
-      padding: 0.55rem 1.2rem;
-      font-size: 0.7rem;
-    }
-
-    .nav__hamburger {
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      gap: 5px;
-      background: none;
-      border: none;
-      padding: 4px;
-      width: 40px;
-      height: 40px;
-      color: #fff;
-      flex-shrink: 0;
-    }
-    .nav__hamburger span {
-      display: block;
-      width: 22px;
-      height: 1.5px;
-      background: currentColor;
-      transition: transform 220ms var(--ease), opacity 220ms var(--ease);
-    }
-
-    @media (max-width: 767px) {
-      .nav__links, .nav__cta-wrap { display: none; }
-      .nav__hamburger { display: flex; }
-    }
-
-    /* ============================================================
-       MOBILE MENU
-    ============================================================ */
-    .mobile-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 250;
-      background: rgba(0,0,0,0.65);
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 220ms ease, visibility 220ms ease;
-    }
-    .mobile-backdrop.open { opacity: 1; visibility: visible; }
-
-    .mobile-menu {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: 300px;
-      max-width: 82vw;
-      height: 100%;
-      z-index: 300;
-      background: #0a0a0a;
-      border-left: 1px solid var(--w07);
-      transform: translateX(100%);
-      transition: transform 300ms var(--ease);
-      display: flex;
-      flex-direction: column;
-    }
-    .mobile-menu.open { transform: translateX(0); }
-
-    .mobile-menu__header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 1.5rem;
-      height: 64px;
-      border-bottom: 1px solid var(--w07);
-      flex-shrink: 0;
-    }
-
-    .mobile-menu__close {
-      background: none;
-      border: none;
-      color: #fff;
-      padding: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0.7;
-      transition: opacity 200ms ease;
-    }
-    .mobile-menu__close:hover { opacity: 1; }
-    .mobile-menu__close svg { width: 20px; height: 20px; }
-
-    .mobile-menu__links {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      padding: 0.5rem 0;
-    }
-
-    .mobile-menu__link {
-      padding: 1rem 1.5rem;
-      font-size: 0.9rem;
-      font-weight: 400;
-      color: var(--w80);
-      border-bottom: 1px solid var(--w07);
-      transition: color 200ms ease, background 200ms ease;
-    }
-    .mobile-menu__link:hover { color: #fff; background: var(--w07); }
-
-    .mobile-menu__link--cta {
-      margin: 1.25rem 1.5rem 0;
-      border: 1px solid rgba(255,255,255,0.5);
-      padding: 0.85rem 1.5rem;
-      text-align: center;
-      font-size: 0.75rem;
-      font-weight: 500;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #fff;
-      transition: background 300ms var(--ease), color 300ms var(--ease);
-    }
-    .mobile-menu__link--cta:hover { background: #fff; color: #0a0a0a; }
 
     /* ============================================================
        SCENE 1 — HERO
@@ -742,56 +574,46 @@
   <!-- ============================================================
        NAV
   ============================================================ -->
-  <header class="nav">
-    <div class="nav__inner">
-      <a href="index.html" class="nav__logo">LOOM</a>
-
-      <nav class="nav__links" aria-label="Main navigation">
-        <a href="catalog.html" class="nav__link">Catalog</a>
-        <a href="configurator.html" class="nav__link">Configure</a>
-        <a href="#about" class="nav__link">About</a>
-      </nav>
-
-      <div class="nav__cta-wrap" style="display:flex;align-items:center;gap:1rem;">
-        <div class="auth-nav-slot"></div>
-        <a href="configurator.html" class="btn-outline">Start designing</a>
+  <nav class="nav">
+    <div class="nav-content">
+      <a href="index.html" class="nav-brand">LOOM</a>
+      <div class="nav-links">
+        <a href="index.html" class="nav-link active" data-i18n="nav.home">Главная</a>
+        <a href="catalog.html" class="nav-link" data-i18n="nav.catalog">Каталог</a>
+        <a href="configurator.html" class="nav-link" data-i18n="nav.configure">Кастомизация</a>
       </div>
-
-      <button
-        class="nav__hamburger"
-        id="menuToggle"
-        aria-label="Open navigation"
-        aria-expanded="false"
-      >
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
+      <div class="nav-right">
+        <div class="lang-switcher-mount"></div>
+        <div class="auth-nav-slot"></div>
+        <a href="configurator.html" class="nav-cta" data-i18n="nav.start">Создать дизайн</a>
+        <button class="nav-hamburger" id="menuToggle" aria-label="Menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
     </div>
-  </header>
-
-  <!-- Mobile backdrop -->
-  <div class="mobile-backdrop" id="mobileBackdrop" aria-hidden="true"></div>
+  </nav>
 
   <!-- Mobile menu -->
-  <aside class="mobile-menu" id="mobileMenu" aria-hidden="true">
-    <div class="mobile-menu__header">
-      <span class="nav__logo">LOOM</span>
-      <button class="mobile-menu__close" id="menuClose" aria-label="Close menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
+  <div class="mobile-backdrop" id="mobileBackdrop"></div>
+  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+    <div class="mobile-menu-header">
+      <span class="mobile-menu-brand">LOOM</span>
+      <button class="mobile-menu-close" id="menuClose" aria-label="Close menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <div class="mobile-menu__links">
-      <a href="catalog.html" class="mobile-menu__link">Catalog</a>
-      <a href="configurator.html" class="mobile-menu__link">Configure</a>
-      <a href="#about" class="mobile-menu__link">About</a>
-      <a href="account.html" class="mobile-menu__link" id="mobile-account-link">Account</a>
-      <a href="configurator.html" class="mobile-menu__link mobile-menu__link--cta">Start designing</a>
+    <div class="mobile-menu-links">
+      <a href="index.html" class="mobile-menu-link active" data-i18n="nav.home">Главная</a>
+      <a href="catalog.html" class="mobile-menu-link" data-i18n="nav.catalog">Каталог</a>
+      <a href="configurator.html" class="mobile-menu-link" data-i18n="nav.configure">Кастомизация</a>
+      <a href="account.html" class="mobile-menu-link" id="mobile-account-link" data-i18n="nav.account">Личный кабинет</a>
+      <a href="configurator.html" class="mobile-menu-link mobile-menu-link--cta" data-i18n="nav.start">Создать дизайн</a>
     </div>
-  </aside>
+    <div class="mobile-lang">
+      <span class="mobile-lang-label" data-i18n="nav.language">Язык</span>
+      <div class="lang-switcher-mount"></div>
+    </div>
+  </div>
 
   <!-- ============================================================
        SCENE 1 — HERO
@@ -802,19 +624,18 @@
 
     <div class="hero__content">
       <h1 class="hero__title fade-up" data-delay="1">
-        <span>Wear /</span>
-        <span class="line-dim">what you</span>
-        <span>imagine.</span>
+        <span data-i18n="hero.t1">Носи /</span>
+        <span class="line-dim" data-i18n="hero.t2">то, что ты</span>
+        <span data-i18n="hero.t3">придумал.</span>
       </h1>
 
-      <p class="hero__subtitle fade-up" data-delay="2">
-        Design your own clothes. See them in 3D.<br>
-        Order to your door anywhere in Uzbekistan.
+      <p class="hero__subtitle fade-up" data-delay="2" data-i18n="hero.subtitle">
+        Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану.
       </p>
 
       <div class="hero__btns fade-up" data-delay="3">
-        <a href="configurator.html" class="btn-outline">Start designing</a>
-        <a href="catalog.html" class="btn-fill">View catalog</a>
+        <a href="configurator.html" class="btn-outline" data-i18n="hero.start">Создать дизайн</a>
+        <a href="catalog.html" class="btn-fill" data-i18n="hero.catalog">Смотреть каталог</a>
       </div>
     </div>
   </section>
@@ -826,19 +647,19 @@
     <div class="stats__inner">
       <div class="stats__item fade-up">
         <span class="stats__num">9</span>
-        <span class="stats__label">Products</span>
+        <span class="stats__label" data-i18n="stats.products">Товаров</span>
       </div>
       <div class="stats__item fade-up" data-delay="1">
         <span class="stats__num">5</span>
-        <span class="stats__label">Colors</span>
+        <span class="stats__label" data-i18n="stats.colors">Цветов</span>
       </div>
       <div class="stats__item fade-up" data-delay="2">
         <span class="stats__num">3D</span>
-        <span class="stats__label">Preview</span>
+        <span class="stats__label" data-i18n="stats.preview">Просмотр</span>
       </div>
       <div class="stats__item fade-up" data-delay="3">
         <span class="stats__num">UZ</span>
-        <span class="stats__label">Shipping</span>
+        <span class="stats__label" data-i18n="stats.shipping">Доставка</span>
       </div>
     </div>
   </div>
@@ -852,19 +673,19 @@
 
     <div class="spotlight__body">
       <div class="spotlight__inner">
-        <p class="spotlight__eyebrow fade-up">Best seller</p>
+        <p class="spotlight__eyebrow fade-up" data-i18n="spot.eyebrow">Хит продаж</p>
 
         <h2 class="spotlight__title fade-up" data-delay="1">
-          <span>Classic /</span>
-          <span>T-shirt.</span>
+          <span data-i18n="spot.t1">Классическая /</span>
+          <span data-i18n="spot.t2">футболка.</span>
         </h2>
 
         <div class="spotlight__details fade-up" data-delay="2">
-          <p class="spotlight__detail"><strong>100% cotton</strong> · Unisex cut</p>
-          <p class="spotlight__detail"><strong>5 base colors</strong> · From 89,000 UZS</p>
+          <p class="spotlight__detail" data-i18n-html="spot.d1"><strong>100% хлопок</strong> · Унисекс крой</p>
+          <p class="spotlight__detail" data-i18n-html="spot.d2"><strong>5 базовых цветов</strong> · от 89 000 сум</p>
         </div>
 
-        <a href="configurator.html" class="btn-outline fade-up" data-delay="3">Customize this</a>
+        <a href="configurator.html" class="btn-outline fade-up" data-delay="3" data-i18n="spot.customize">Настроить эту</a>
       </div>
     </div>
   </section>
@@ -876,8 +697,8 @@
     <div class="products-section__inner">
 
       <div class="products-section__header fade-up">
-        <span class="products-section__label">Products</span>
-        <a href="catalog.html" class="products-section__view-all">View all →</a>
+        <span class="products-section__label" data-i18n="prod.sectionLabel">Товары</span>
+        <a href="catalog.html" class="products-section__view-all" data-i18n="prod.viewAll">Смотреть все →</a>
       </div>
 
       <div class="product-grid">
@@ -891,8 +712,8 @@
             </svg>
           </div>
           <p class="product-card__tag">Apparel · 01</p>
-          <h3 class="product-card__name">Classic T-shirt</h3>
-          <p class="product-card__desc">100% premium cotton, unisex cut, oversized fit. The perfect canvas for your design.</p>
+          <h3 class="product-card__name" data-i18n="prod.t1.name">Классическая футболка</h3>
+          <p class="product-card__desc" data-i18n="prod.t1.desc">100% премиальный хлопок, унисекс крой, свободный фасон. Идеальный холст для вашего дизайна.</p>
           <div class="product-card__footer">
             <span class="product-card__price">89,000 UZS</span>
             <div class="color-dots">
@@ -916,8 +737,8 @@
             </svg>
           </div>
           <p class="product-card__tag">Apparel · 02</p>
-          <h3 class="product-card__name">Heavyweight Hoodie</h3>
-          <p class="product-card__desc">Fleece-lined premium fabric, double-layered hood, relaxed silhouette for all seasons.</p>
+          <h3 class="product-card__name" data-i18n="prod.t2.name">Тёплое худи</h3>
+          <p class="product-card__desc" data-i18n="prod.t2.desc">Премиальная ткань с начёсом, двухслойный капюшон, свободный силуэт на все сезоны.</p>
           <div class="product-card__footer">
             <span class="product-card__price">189,000 UZS</span>
             <div class="color-dots">
@@ -940,8 +761,8 @@
             </svg>
           </div>
           <p class="product-card__tag">Apparel · 03</p>
-          <h3 class="product-card__name">Polo Shirt</h3>
-          <p class="product-card__desc">Piqué cotton blend, structured collar, clean tailored lines. Smart casual, effortlessly.</p>
+          <h3 class="product-card__name" data-i18n="prod.t3.name">Поло</h3>
+          <p class="product-card__desc" data-i18n="prod.t3.desc">Хлопок пике, структурированный воротник, чистые линии. Smart casual без усилий.</p>
           <div class="product-card__footer">
             <span class="product-card__price">129,000 UZS</span>
             <div class="color-dots">
@@ -965,15 +786,15 @@
 
     <div class="cta-scene__body">
       <h2 class="cta-scene__title fade-up">
-        <span>Your design.</span>
-        <span class="line-dim">Your rules.</span>
+        <span data-i18n="cta.t1">Твой дизайн.</span>
+        <span class="line-dim" data-i18n="cta.t2">Твои правила.</span>
       </h2>
 
-      <p class="cta-scene__subtitle fade-up" data-delay="1">
-        Start with a blank canvas. Add text, upload artwork, pick your colors.
+      <p class="cta-scene__subtitle fade-up" data-delay="1" data-i18n="cta.subtitle">
+        Начните с чистого холста. Добавьте текст, загрузите изображение, выберите цвета.
       </p>
 
-      <a href="configurator.html" class="btn-outline fade-up" data-delay="2">Open configurator →</a>
+      <a href="configurator.html" class="btn-outline fade-up" data-delay="2" data-i18n="cta.open">Открыть конфигуратор →</a>
     </div>
   </section>
 
@@ -982,7 +803,7 @@
   ============================================================ -->
   <footer class="footer opaque" id="about">
     <div class="footer__inner">
-      <p class="footer__copy">© 2026 LOOM — looom.me</p>
+      <p class="footer__copy">© 2026 LOOM — loomdesign.uz</p>
 
       <div class="footer__links">
         <a
@@ -992,55 +813,24 @@
           rel="noopener noreferrer"
         >Instagram</a>
         <a href="" class="footer__link" target="_blank" rel="noopener noreferrer">Telegram</a>
-        <a href="mailto:loom.uzbekistan@gmail.com" class="footer__link">Contact</a>
+        <a href="mailto:loom.uzbekistan@gmail.com" class="footer__link" data-i18n="footer.contact">Контакты</a>
       </div>
 
-      <p class="footer__location">Tashkent, Uzbekistan</p>
+      <p class="footer__location" data-i18n="footer.location">Ташкент, Узбекистан</p>
     </div>
   </footer>
 
   <!-- ============================================================
        JS — Mobile nav + Scroll reveal
   ============================================================ -->
-  <script src="assets/config.js"></script>
-  <script src="assets/auth.js"></script>
+  <script src="assets/config.js?v=2"></script>
+  <script src="assets/i18n.js?v=1"></script>
+  <script src="assets/auth.js?v=2"></script>
+  <script src="assets/nav.js?v=1"></script>
   <script src="assets/track.js"></script>
   <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
 
   <script>
-    // ── Mobile nav ──────────────────────────────────────────────
-    (function () {
-      const toggle   = document.getElementById('menuToggle');
-      const closeBtn = document.getElementById('menuClose');
-      const menu     = document.getElementById('mobileMenu');
-      const backdrop = document.getElementById('mobileBackdrop');
-
-      function open() {
-        menu.classList.add('open');
-        backdrop.classList.add('open');
-        document.body.style.overflow = 'hidden';
-        toggle.setAttribute('aria-expanded', 'true');
-        menu.setAttribute('aria-hidden', 'false');
-        backdrop.setAttribute('aria-hidden', 'false');
-      }
-
-      function close() {
-        menu.classList.remove('open');
-        backdrop.classList.remove('open');
-        document.body.style.overflow = '';
-        toggle.setAttribute('aria-expanded', 'false');
-        menu.setAttribute('aria-hidden', 'true');
-        backdrop.setAttribute('aria-hidden', 'true');
-      }
-
-      toggle.addEventListener('click', open);
-      closeBtn.addEventListener('click', close);
-      backdrop.addEventListener('click', close);
-      document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-      menu.querySelectorAll('.mobile-menu__link').forEach(l => l.addEventListener('click', close));
-      window.addEventListener('resize', () => { if (window.innerWidth >= 768) close(); });
-    })();
-
     // ── Scroll reveal ────────────────────────────────────────────
     (function () {
       const observer = new IntersectionObserver(

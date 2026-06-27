@@ -154,7 +154,7 @@ webhookRouter.post('/webhook', async (c) => {
     const sessionId = parts[1]?.trim()
 
     if (!sessionId) {
-      await sendTelegramMessage(botToken, msg.chat.id, 'Откройте looom.me и введите номер телефона для входа.')
+      await sendTelegramMessage(botToken, msg.chat.id, 'Откройте loomdesign.uz и введите номер телефона для входа.')
       return c.json({ ok: true })
     }
 
@@ -163,7 +163,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '❌ Ссылка устарела или уже использована. Вернитесь на looom.me и запросите новую.',
+        '❌ Ссылка устарела или уже использована. Вернитесь на loomdesign.uz и запросите новую.',
       )
       return c.json({ ok: true })
     }
@@ -198,7 +198,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '❌ Сессия не найдена или истекла. Вернитесь на looom.me и попробуйте снова.',
+        '❌ Сессия не найдена или истекла. Вернитесь на loomdesign.uz и попробуйте снова.',
       )
       return c.json({ ok: true })
     }
@@ -236,7 +236,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '✅ Вы успешно вошли в систему! Можете закрыть этот чат и вернуться на looom.me.',
+        '✅ Вы успешно вошли в систему! Можете закрыть этот чат и вернуться на loomdesign.uz.',
         undefined,
         true,  // remove keyboard
       )
@@ -246,7 +246,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '❌ Произошла ошибка. Попробуйте снова на looom.me.',
+        '❌ Произошла ошибка. Попробуйте снова на loomdesign.uz.',
       )
     }
 
@@ -285,7 +285,7 @@ async function sendTelegramMessage(
 async function sendContactRequest(botToken: string, chatId: number): Promise<void> {
   const payload = {
     chat_id: chatId,
-    text: '📱 Нажмите кнопку ниже, чтобы поделиться номером телефона и войти в looom.me.',
+    text: '📱 Нажмите кнопку ниже, чтобы поделиться номером телефона и войти в loomdesign.uz.',
     reply_markup: {
       keyboard: [[{ text: '📱 Поделиться номером телефона', request_contact: true }]],
       one_time_keyboard: true,

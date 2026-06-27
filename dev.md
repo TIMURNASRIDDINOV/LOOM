@@ -1,327 +1,279 @@
-# DEV.md — LOOM Internal Developer Guide
+# LOOM — Technical Overview
+
+*Engineering companion to the [README](README.md). Written to give a technical reviewer — or an accelerator's technical due-diligence — a clear picture of how LOOM is built, why the architecture is lean and scalable, and where the engineering is headed.*
 
 ---
 
-## Current Development Stage
+## TL;DR for Reviewers
 
-**Beta → Production**
-
-The core product is fully functional and live at https://looom.me. All primary flows work end-to-end: catalog, 3D configurator, order placement, email/phone auth, user account, and the full admin panel. The platform is being actively used. Remaining gaps are around polish, missing product assets (GLB models), payment integration, and a few migration inconsistencies.
+- **Full-stack TypeScript product, already deployed end-to-end** — storefront, real-time 3D configurator, dual authentication, complete order system, and an admin back office.
+- **Runs entirely on Cloudflare's global edge** (Workers + D1 + R2 + KV). **No origin servers, no idle cost, global by default.**
+- **Built and shipped by a solo lead developer in ~10 months (~96 commits)** — strong evidence of capital-efficient execution.
+- **Scales without a rewrite** — the same serverless architecture serves the first customer and the hundred-thousandth.
 
 ---
 
-## Architecture Overview
+## Development Stage
+
+**Launch-ready MVP.**
+
+Every primary flow works end-to-end in production: catalog → 3D configurator → order placement → email/Telegram auth → user account → full admin panel. The platform is deployed and operational. The remaining pre-launch work is **commercial** (signing the production partner, integrating a payment gateway) rather than foundational — the core engineering is done.
+
+---
+
+## Architecture
 
 ```
-┌──────────────────────────────────────────┐
-│   Frontend (Static — GitHub Pages)       │
-│   looom.me                               │
-│   Vanilla JS + Three.js + Tailwind       │
-│   ↓ fetch() calls to API                 │
-└──────────────────────────────────────────┘
-              ↓ CORS
-┌──────────────────────────────────────────┐
-│   Backend (Cloudflare Workers)           │
-│   api.looom.me                           │
-│   Hono v4.5 + TypeScript                 │
-│   ↓                                      │
-│   ├─ D1 Database (SQLite at the edge)    │
-│   ├─ R2 Storage (models + uploads)       │
-│   ├─ KV Namespace (rate limiting)        │
-│   └─ Telegram Bot API                    │
-└──────────────────────────────────────────┘
-              ↓ 301 redirect
-┌──────────────────────────────────────────┐
-│   Admin Panel (SPA — same static host)   │
-│   www.looom.me/admin/                    │
-│   admin.looom.me → redirects there       │
-│   Vanilla JS, separate asset bundle      │
-└──────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│   Customer Storefront (static)               │
+│   loomdesign.uz                              │
+│   Vanilla JS + Three.js + Tailwind           │
+│   No build step · globally cached on edge    │
+└───────────────────┬──────────────────────────┘
+                    │ fetch() + CORS
+┌───────────────────▼──────────────────────────┐
+│   API (Cloudflare Worker)                    │
+│   api.loomdesign.uz · Hono + TypeScript      │
+│                                              │
+│   ├─ D1   — SQLite database at the edge       │
+│   ├─ R2   — 3D models, logos, avatars         │
+│   ├─ KV   — rate limiting counters            │
+│   └─ Telegram Bot API — auth + notifications  │
+└───────────────────┬──────────────────────────┘
+                    │
+┌───────────────────▼──────────────────────────┐
+│   Admin Back Office (static SPA)             │
+│   loomdesign.uz/admin/                       │
+│   Cookie-authenticated · separate bundle     │
+└──────────────────────────────────────────────┘
 ```
 
-**Data flows:**
-- Frontend → `Authorization: Bearer <JWT>` for authenticated user requests
-- Admin panel → `admin_token` httpOnly cookie for all admin requests
-- Telegram bot → webhook POST to `/api/telegram/webhook` (secret header validated)
-- File serving → Worker proxies R2 objects through `/api/files/models/:key`
-- Rate limiting → KV counters keyed by `orders:<ip>` and `uploads:<ip>`
+**Key data flows**
+- **Authenticated user requests** → `Authorization: Bearer <JWT>` (email/password) *or* `user_token` httpOnly cookie (Telegram).
+- **Admin requests** → `admin_token` httpOnly cookie, validated by middleware.
+- **Telegram bot** → webhook `POST /api/telegram/webhook`, verified by a secret header.
+- **File serving** → the Worker streams R2 objects with long-lived immutable cache headers.
+- **Rate limiting** → KV counters keyed per IP, enforced globally across edge isolates.
 
 ---
 
-## Completed Work
+## Why This Architecture Wins
+
+These are the technical points worth making in a pitch:
+
+| Property | Why it matters commercially |
+|---|---|
+| **Edge-native, serverless** | No servers to provision or pay for at idle. Fixed infrastructure cost at launch is effectively **zero**; cost grows only with real usage. |
+| **Globally distributed by default** | Code and database run in 300+ Cloudflare locations. Low latency for every user with no extra engineering. |
+| **Scales without a rewrite** | The same Workers + D1 + R2 + KV stack handles the first order and a six-figure order volume. No "we'll re-architect when we grow" risk. |
+| **No DevOps overhead** | Deploys are a single command; there is no Kubernetes, no servers to patch, no on-call infrastructure. A small team can run the whole platform. |
+| **Lean dependency surface** | The backend has **five** production/dev dependencies, all actively used. Less to audit, less to break, faster to onboard a new engineer. |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | HTML5, CSS3, Vanilla JavaScript (ES6+) |
+| 3D rendering | Three.js (r128) |
+| Styling | Tailwind CSS (CDN) + custom CSS |
+| Backend framework | [Hono](https://hono.dev/) v4.5 |
+| Language | TypeScript 5.5 |
+| Compute | Cloudflare Workers |
+| Database | Cloudflare D1 (SQLite at the edge) |
+| File storage | Cloudflare R2 |
+| Rate limiting | Cloudflare KV |
+| Auth tokens | Jose v5.6 (HS256 JWTs) |
+| Integrations | Telegram Bot API, Nominatim (geocoding), Yandex Maps |
+| Tooling | Wrangler v3.67 |
+
+---
+
+## Repository Layout
+
+```
+LOOM/
+├── index.html / catalog.html / configurator.html   # storefront pages
+├── login.html / register.html / account.html       # auth & account
+├── configurator.js          # the 3D design engine (Three.js + Canvas)
+├── products-catalog.js      # catalog rendering + API calls
+│
+├── assets/                  # shared frontend logic
+│   ├── auth.js              # login/register + Telegram polling
+│   ├── account.js           # account page
+│   ├── config.js            # API_BASE endpoint config (only env switch)
+│   ├── map-picker.js        # delivery-address map picker
+│   └── track.js             # page analytics
+│
+├── admin/                   # admin back office (static SPA)
+│   ├── *.html               # dashboard, orders, products, users, notifications
+│   └── assets/*.js          # API client, charts, CRUD logic, theming
+│
+└── backend/                 # Cloudflare Worker (the API)
+    ├── wrangler.toml        # Workers / D1 / R2 / KV bindings
+    ├── src/
+    │   ├── index.ts         # app entry, CORS, route mounting
+    │   ├── routes/          # public, auth, telegram-auth, admin, admin-*
+    │   ├── middleware/      # requireAuth, requireAdmin
+    │   ├── lib/             # jwt, password, r2, telegram, rate-limit
+    │   └── db/              # schema types + prepared-statement queries
+    └── migrations/          # versioned SQL schema migrations
+```
+
+---
+
+## Data Model
+
+Cloudflare D1 (SQLite at the edge), binding `DB`, database `loom-db`.
+
+| Table | Purpose |
+|---|---|
+| `products` | Catalog — slug, name (RU/EN), price (UZS), R2 model/image keys, colors |
+| `users` | Registered customers — email, PBKDF2 hash, profile, Telegram ID, role, status |
+| `admins` | Admin accounts (kept separate from customers) |
+| `orders` | Orders with the full `design_json` spec, status, address, coordinates |
+| `order_status_log` | Immutable audit trail of every status change |
+| `auth_sessions` | Short-lived Telegram phone-auth sessions |
+| `user_sessions` | Login session tracking |
+| `user_activity_log` | Per-user event log (login, order, role change, …) |
+| `notifications_sent` | Telegram notifications with delivery status |
+| `page_visits` | Visitor analytics — page, device, OS, browser, referrer |
+
+---
+
+## API Surface
+
+A REST API on a single Worker. Highlights:
+
+**Public** — `GET /api/products`, `GET /api/products/:slug`, `POST /api/orders` (rate-limited), `POST /api/uploads` (rate-limited), `GET /api/files/models/:key`
+
+**User auth** — `POST /api/auth/register`, `/login`, `GET /api/auth/me`, `PATCH /api/auth/profile`, `/password`, `POST /api/auth/avatar`
+
+**Telegram auth** — `POST /api/auth/telegram/start` (returns bot deep-link), `GET /api/auth/telegram/status` (poll), `POST /api/telegram/webhook`
+
+**Admin** (cookie-authenticated) — dashboard stats, paginated orders with filters, order status updates, product CRUD, user management, and Telegram notification sending.
+
+> Full endpoint-by-endpoint reference lives alongside the route modules in `backend/src/routes/`.
+
+---
+
+## Security Posture
+
+Security was designed in, not bolted on:
+
+- **Parameterized queries everywhere** — all D1 access uses prepared statements; no string-concatenated SQL.
+- **Strong password hashing** — PBKDF2, 100,000 iterations, per-user random salt.
+- **Signed, scoped tokens** — JWTs signed with HS256 and a 64+ character secret; admin sessions use short-lived httpOnly cookies (not reachable from JS).
+- **Verified webhooks** — Telegram callbacks are authenticated with a secret header token.
+- **Abuse protection** — KV-based rate limiting on order and upload endpoints, enforced globally across edge isolates.
+- **Locked-down CORS** — production origins are explicitly allow-listed.
+- **Unguessable file keys** — R2 object keys are generated UUIDs.
+
+---
+
+## Performance & Scalability
+
+- **Edge co-location** — Workers and D1 run in the same Cloudflare PoP, so database round-trips stay fast.
+- **Aggressive asset caching** — 3D models and images are served from R2 with long-lived immutable cache headers, so each asset is fetched once per client.
+- **Stateless compute** — Workers hold no per-instance state, so the platform scales horizontally without sticky sessions or session servers.
+- **Lightweight frontend** — no framework runtime and no build step; pages are static and globally cached.
+
+The current architecture comfortably handles launch-scale traffic; the optimization roadmap below covers the steps that keep it smooth as volume grows.
+
+---
+
+## Engineering Roadmap
+
+Planned technical investments, sequenced by launch priority:
+
+**Pre-launch (commercial-critical)**
+- **Payment integration** — wire up a local gateway (Payme / Click); add `payment_status` / `payment_id` to `orders`.
+- **Production-partner handoff** — structured export/forwarding of the order's `design_json` to the printing partner.
+
+**Post-launch (growth)**
+- **Designer marketplace** — designer accounts, listings, sales attribution, and commission payouts.
+- **Dynamic 3D models** — load each product's own GLB by `glb_key` instead of a shared mesh; add models for hoodies, caps, bags.
+- **Product variants** — size and material options across schema, configurator, and order form.
+- **Self-service order tracking** — anonymous lookup by order ID + phone; status-change notifications via Telegram/email.
+
+**Scaling & hardening**
+- **Asset pipeline** — Draco-compress GLB models to cut configurator load time on mobile.
+- **Configurator modularization** — split the 3D engine into ES modules (Three.js setup, canvas/texture, UI, API) for maintainability.
+- **Frontend type safety** — introduce a lightweight TypeScript + bundler step for the storefront and admin.
+- **CI/CD** — GitHub Actions to deploy the backend automatically on merge.
+- **i18n** — wire the existing `name_en` schema fields into a language toggle (RU ↔ EN).
+
+---
+
+## Local Development
+
+### Prerequisites
+- Node.js 18+
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) (`npm i -g wrangler`)
+- A Cloudflare account with Workers, D1, R2, and KV
+- A Telegram bot token from [@BotFather](https://t.me/BotFather)
 
 ### Backend
-- [x] Hono v4.5 TypeScript Worker on Cloudflare Workers
-- [x] D1 database with all 10 tables across 5 migrations
-- [x] All prepared statements via `safeQuery()` wrapper (no string concatenation)
-- [x] PBKDF2 password hashing (100k iterations, random salt)
-- [x] JWT sign/verify (Jose, HS256, 30-day user tokens, 12-hour admin tokens)
-- [x] Email/password registration and login
-- [x] Phone/Telegram auth flow (session → deep-link → webhook → cookie)
-- [x] Telegram webhook with secret token verification
-- [x] Admin auth (separate cookie, `requireAdmin` middleware)
-- [x] User middleware (`requireAuth` — supports both Bearer and cookie)
-- [x] Full product CRUD (admin)
-- [x] Full order management (place, list, filter, paginate, status update)
-- [x] Order status audit log
-- [x] User management (ban, promote, update, activity log)
-- [x] Avatar upload to R2
-- [x] Logo upload to R2 with validation
-- [x] GLB/thumbnail file serving from R2 (1-year immutable cache)
-- [x] Telegram notifications to individual users (admin-triggered)
-- [x] Dashboard stats: revenue, order counts, top products, recent orders
-- [x] Visitor analytics tracking (page, device, OS, browser, referrer)
-- [x] KV-based rate limiting (global across Worker isolates)
-- [x] CORS: production origins locked down, dev origins included in dev mode
-- [x] Admin subdomain redirect (`admin.looom.me` → `www.looom.me/admin/`)
-- [x] Uzbek phone number normalization (handles +998, 998, 0998, international)
-- [x] One-time admin setup endpoint (`/api/admin/setup`)
+```bash
+cd backend
+npm install
+cp .dev.vars.example .dev.vars      # fill in secrets (see below)
+npm run dev                         # Worker at http://localhost:8787
+```
 
-### Frontend — Public Site
-- [x] Homepage: hero, product carousel (first 3 from API), features section
-- [x] Product catalog with API fetch and skeleton loaders
-- [x] 3D configurator: Three.js, front/back views, color picker
-- [x] Text layer: add, reposition, resize, rotate, font selection
-- [x] Image layer: upload PNG/JPEG/SVG, scale, reposition
-- [x] Real-time texture generation via Canvas API
-- [x] Order form submission with full `design_json`
-- [x] Email/password login and registration
-- [x] Phone/Telegram login with polling
-- [x] User account: order history, profile, address, avatar
-- [x] Map picker for delivery address (Nominatim + Yandex Maps)
-- [x] JWT stored in localStorage, sent as Bearer token
-- [x] Dark / light / system theme toggle
+### Database migrations
+```bash
+npm run migrate:local               # base schema (local D1)
+npm run migrate:prod                # base schema (production D1)
+# Later migrations are applied explicitly by file, e.g.:
+wrangler d1 execute loom-db --local --file migrations/0005_visitors.sql
+```
 
-### Frontend — Admin Panel
-- [x] Admin login with cookie-based session
-- [x] Dashboard: stat cards, revenue chart, order pie chart, visitor breakdown
-- [x] Order list: search, filter by status, pagination
-- [x] Order detail: customer info, design JSON preview, status update form, history log
-- [x] Product list and soft-delete
-- [x] Product create/edit: GLB upload, thumbnail, colors, price, display order
-- [x] User list: search, filter by role/status
-- [x] User detail: activity log, order history, ban/promote/reset password
-- [x] Telegram notification sender with button label + URL
-- [x] Notification history with sent/failed status
-- [x] Sidebar navigation, responsive layout
-- [x] Dark / light / system theme (persisted in localStorage)
+### Frontend
+No build step — serve the repo root with any static server:
+```bash
+python3 -m http.server 8000         # → http://localhost:8000
+```
+Switch environments by editing `API_BASE` in `assets/config.js`.
 
 ---
 
-## In Progress / Partially Complete
+## Environment Variables
 
-- **3D model per product** — Only `t_shirt.glb` exists. The product schema supports `glb_key` per product, and the admin panel can upload GLBs, but no other models have been created yet. Non-shirt products will render the shirt mesh.
-- **Migration script coverage** — `package.json` scripts (`migrate:local`, `migrate:prod`) only run migrations 0001–0003. Migrations 0004 and 0005 must be applied manually.
-- **English language** — Schema has `name_en` column. The API returns it. Frontend does not yet use it; all UI is Russian-only.
-- **`cloudflare-worker/`** — A secondary standalone Worker (`worker.js`) for relaying orders to Telegram exists but its relationship to the main backend is unclear. It may be a legacy prototype.
+Set via `backend/.dev.vars` locally, or `wrangler secret put` in production.
 
----
+| Variable | Required | Description |
+|---|---|---|
+| `JWT_SECRET` | Yes | 64+ char random string for signing user JWTs (HS256) |
+| `TELEGRAM_BOT_TOKEN` | Yes | Token from BotFather |
+| `TELEGRAM_CHAT_ID` | Yes | Admin group/channel ID for order alerts |
+| `TELEGRAM_WEBHOOK_SECRET` | Yes | Secret sent by Telegram as a webhook header |
+| `BOT_USERNAME` | Yes | Bot username without `@` (set in `wrangler.toml [vars]`) |
+| `ENVIRONMENT` | Yes | `production` or `development` (controls CORS) |
 
-## Missing Features
-
-- **Payment gateway** — No payment provider is integrated. Orders are placed and manually confirmed.
-- **Order confirmation emails** — No email sending; notifications are Telegram-only.
-- **Public order tracking** — Users must log in to see their orders. No anonymous tracking by order ID.
-- **Size / material variants** — Products have no variant system; a customer can only pick a color.
-- **Product search / filter on catalog page** — The catalog shows all active products in one grid; no search, category, or price filter.
-- **Password reset via email** — Admins can reset user passwords from the admin panel, but users have no self-service "forgot password" flow.
-- **Automated migration runner** — No tool to detect and apply unapplied migrations in sequence.
-- **CI/CD for backend** — Frontend deploys automatically on push; backend requires a manual `npm run deploy`.
-
----
-
-## Bugs / Technical Debt
-
-### Bugs
-
-1. **Migration prefix conflict** — `0004_profile_visitors.sql` and `0004_roles_avatars.sql` both start with `0004_`. Wrangler's `d1 execute` doesn't glob-run migrations — each must be specified by name — but any tool that auto-discovers by prefix will break. Rename one file to `0004b_` or `0005_` and renumber downstream files.
-
-2. **`migrate:local` / `migrate:prod` scripts are incomplete** — They reference only 0001–0003. Any new developer running `npm run migrate:local` will miss the later schema additions (roles, avatars, visitors tables).
-
-3. **`configurator.js` imports `t_shirt.glb` by hardcoded path** — If a product's `glb_key` is different, the configurator likely still loads the static local file. The 3D model per product is not dynamically loaded based on the selected product.
-
-### Technical Debt
-
-4. **`configurator.js` is ~2000 lines** — Single monolithic file with Three.js setup, Canvas composition, UI event handling, and API calls all mixed together. Refactoring into modules would improve maintainability.
-
-5. **No TypeScript on the frontend** — All public-site and admin JS is plain ES6. There are no type checks, linting, or build tooling for frontend code. Typos in API field names go undetected until runtime.
-
-6. **Legacy unused files** — `google-apps-script.js`, `google-sheets-order-module.js` are present in the repo but referenced nowhere. They suggest an older architecture where orders went to Google Sheets instead of D1.
-
-7. **`wrangler.toml` has `BOT_USERNAME = ""`** — This is a required variable left blank in the config file. It must be set before deployment but there is no validation that catches an empty string at startup.
-
-8. **No input sanitization for `design_json`** — The full design state (including user-supplied text) is stored as raw JSON. The text content is not sanitized before storage or display. Admin-side display should escape HTML when rendering design data.
-
-9. **Admin `setup` endpoint is permanently open** — `POST /api/admin/setup` has no auth requirement by design (first-admin bootstrap), but it is not disabled or rate-limited after the first admin is created. A second call with different credentials would create a second admin account.
-
-10. **`user-profile.ts` route** — This file exists as a separate route module but is not mounted in `index.ts`. Profile update functionality may be duplicated with or missing from `auth.ts`.
-
-11. **`cloudflare-worker/` directory** — Contains a second standalone Worker. Its relationship to the main backend is unclear; it appears to be a legacy Telegram order relay that predates the current architecture. It should be removed or clearly documented.
+```bash
+cd backend
+wrangler secret put JWT_SECRET
+wrangler secret put TELEGRAM_BOT_TOKEN
+wrangler secret put TELEGRAM_CHAT_ID
+wrangler secret put TELEGRAM_WEBHOOK_SECRET
+npm run set-webhook                 # register the Telegram webhook
+```
 
 ---
 
-## Important Files
+## Deployment
 
-| File | Role |
-|---|---|
-| `backend/src/index.ts` | App entry point — all routes mounted here, CORS configured |
-| `backend/src/routes/public.ts` | Orders, product listing, uploads — the main customer-facing API |
-| `backend/src/routes/auth.ts` | Email/password auth: register, login, me, profile, password |
-| `backend/src/routes/telegram-auth.ts` | Phone/Telegram auth flow + webhook handler |
-| `backend/src/routes/admin.ts` | Admin login, stats, order management |
-| `backend/src/routes/admin-products.ts` | Product CRUD with R2 file handling |
-| `backend/src/routes/admin-users.ts` | User management, notifications |
-| `backend/src/db/queries.ts` | All D1 database queries (prepared statements) |
-| `backend/src/lib/jwt.ts` | JWT sign/verify wrapper around Jose |
-| `backend/src/lib/password.ts` | PBKDF2 hashing and verification |
-| `backend/src/lib/telegram.ts` | Telegram message builder and sender |
-| `backend/src/middleware/requireAuth.ts` | User auth middleware (Bearer + cookie) |
-| `backend/src/middleware/requireAdmin.ts` | Admin auth middleware (cookie) |
-| `backend/wrangler.toml` | All Cloudflare resource bindings |
-| `backend/migrations/0001_initial.sql` | Core schema: products, users, admins, orders |
-| `backend/migrations/0003_phone_auth.sql` | Auth sessions, activity log, notifications |
-| `assets/config.js` | `API_BASE` URL — only change needed to switch environments |
-| `configurator.js` | Entire 3D design tool: Three.js + Canvas + order submission |
-| `assets/auth.js` | Token storage, login/register calls, Telegram polling |
-| `admin/assets/app.js` | Admin API client, auth helpers, formatters (currency, phone) |
-| `admin/assets/layout.js` | Sidebar, navigation, theme toggle |
-| `admin/assets/dashboard.js` | Dashboard charts (Chart.js) |
+**Backend → Cloudflare Workers**
+1. Create D1, R2, and KV resources (dashboard or Wrangler) and set their IDs in `wrangler.toml`.
+2. Set all secrets with `wrangler secret put`.
+3. `npm run deploy`
+4. `npm run set-webhook` to register the Telegram webhook.
+
+**Frontend → Cloudflare Pages**
+Static files deploy on push — no build step. Live at [loomdesign.uz](https://loomdesign.uz); the admin panel is served from `/admin/`.
 
 ---
 
-## Dependencies Audit
-
-### Backend (`backend/package.json`)
-
-| Package | Version | Used | Notes |
-|---|---|---|---|
-| `hono` | ^4.5.0 | Yes | Core web framework |
-| `jose` | ^5.6.3 | Yes | JWT sign/verify |
-| `@cloudflare/workers-types` | ^4.20240718.0 | Yes (dev) | TypeScript types for CF bindings |
-| `typescript` | ^5.5.0 | Yes (dev) | TypeScript compiler |
-| `wrangler` | ^3.67.0 | Yes (dev) | Deploy and local dev |
-
-All backend dependencies are actively used. No bloat.
-
-### Frontend (CDN-loaded, no package.json)
-
-| Library | Source | Used | Notes |
-|---|---|---|---|
-| Three.js r128 | CDN | Yes | 3D configurator |
-| Tailwind CSS | CDN | Yes | Utility classes across all pages |
-| Chart.js | CDN | Yes | Admin dashboard charts |
-| Nominatim API | Fetch | Yes | Map geocoding |
-| Yandex Maps | CDN | Yes (account.html) | Delivery map display |
-| Google Fonts | CDN | Yes | Typography |
-
-No unused CDN libraries detected in active pages.
-
----
-
-## Security Review
-
-### Strengths
-
-- All D1 queries use prepared statements — no SQL injection risk
-- PBKDF2 with 100,000 iterations + random salt for passwords
-- JWT signed with HS256 and a 64+ char secret
-- Admin auth uses httpOnly cookies — not accessible to JS
-- Telegram webhook validated via secret header token
-- Rate limiting on order and upload endpoints (KV-based, global)
-- CORS locked to specific origins in production
-- R2 file keys are generated UUIDs — not guessable
-
-### Risks
-
-1. **`/api/admin/setup` is permanently open** — No guard prevents creating additional admin accounts after setup. Add a check: if any admin row exists, return 403.
-
-2. **`design_json` text content not sanitized** — User-supplied text in orders is stored verbatim and displayed in the admin panel. If the admin panel ever renders it as innerHTML (rather than textContent), it is an XSS vector. Audit all admin-side rendering of `design_json` fields.
-
-3. **`BOT_USERNAME` is blank in `wrangler.toml`** — An empty string here could cause Telegram deep-links to be malformed. No startup validation catches this.
-
-4. **Phone numbers stored in plaintext** — `users.phone` is not hashed or masked. If D1 is ever compromised, all phone numbers are exposed. (Low risk in the current architecture, but worth noting.)
-
-5. **No refresh token mechanism** — User JWTs are valid for 30 days with no revocation path. If a token is stolen, it is valid until expiry. Adding a `jti` (JWT ID) column to `user_sessions` and validating it on each request would allow session revocation.
-
-6. **Admin password reset writes new hash directly** — The admin can reset any user's password without requiring the current password. This is intentional for admin use, but there is no audit log entry written for password resets (only for bans and role changes).
-
----
-
-## Performance Review
-
-### Current State
-
-- **Cloudflare Workers + D1** — Excellent global latency. D1 is co-located with the Worker in the same Cloudflare PoP after the first request.
-- **R2 file serving** — Served through the Worker with 1-year `Cache-Control: immutable` headers. Browser caches GLB models after first load.
-- **Configurator startup** — Loads the `t_shirt.glb` model on page load. At ~5–15 MB for a GLB file, this is the largest network fetch on the site.
-- **Rate limiting** — KV is eventually consistent; under very high burst traffic, a few extra requests may slip through before the counter propagates. Acceptable for this use case.
-
-### Bottlenecks
-
-1. **`t_shirt.glb` size** — If the GLB file is large (>5 MB), configurator initial load is slow on mobile. Compress with `gltf-pipeline` or `draco` compression.
-
-2. **`configurator.js` canvas re-render** — Every text/image drag calls `updateTexture()` which redraws the full canvas. For complex designs with many layers this could drop below 60fps. Debouncing the texture update on drag events would help.
-
-3. **No pagination on `/api/admin/users`** — If the user table grows large, the admin user list query fetches all rows. A `LIMIT/OFFSET` pattern should be added before user count grows beyond a few thousand.
-
-4. **Visitor analytics writes on every page view** — `POST /api/files/track` fires on every page load. With high traffic this generates a large number of small D1 writes. Consider batching or moving to a dedicated analytics service.
-
----
-
-## Suggested Next Tasks
-
-### 1. Immediate Fixes (do first)
-
-- [ ] **Rename conflicting migration** — Rename `0004_roles_avatars.sql` to `0006_roles_avatars.sql` and update `package.json` scripts to run all migrations 0001–0006 in order
-- [ ] **Guard `/api/admin/setup`** — Add a check: if any row exists in `admins`, return 403
-- [ ] **Mount `user-profile.ts`** — Verify whether it is mounted in `index.ts`; if not, either mount it or remove it and confirm its logic is covered by `auth.ts`
-- [ ] **Fill `BOT_USERNAME` in `wrangler.toml`** — Or add a startup check that panics if it's empty
-- [ ] **Remove legacy files** — Delete `google-apps-script.js`, `google-sheets-order-module.js`, and the `cloudflare-worker/` directory (or document it clearly)
-
-### 2. MVP Completion
-
-- [ ] **Payment integration** — Integrate Payme or Click (Uzbek payment rails); store `payment_status` and `payment_id` on the `orders` table
-- [ ] **Self-service password reset** — Add `POST /api/auth/forgot-password` that sends a Telegram message with a reset link
-- [ ] **Complete migration scripts** — Update `migrate:local` and `migrate:prod` in `package.json` to include all migrations in numbered order
-- [ ] **Dynamic GLB loading in configurator** — Read the product's `glb_key` from the URL or page state, fetch it from the API, and load it instead of the hardcoded path
-- [ ] **Add 3D models for other product types** — Commission or create GLB files for hoodie, sweatshirt, cap
-
-### 3. Nice-to-Have Improvements
-
-- [ ] **Public order tracking** — `GET /api/orders/:id?phone=...` — no login required, returns status only
-- [ ] **Product variants** — Add size and material options to the order form and schema
-- [ ] **Catalog search and filter** — Filter by product type, price range on the catalog page
-- [ ] **Email notifications** — Order confirmation + status update emails via Cloudflare Email Workers or Resend
-- [ ] **English UI** — Wire `name_en` from the API into the frontend with a language toggle
-- [ ] **Compress GLB models** — Run `gltf-pipeline -i t_shirt.glb -o t_shirt_draco.glb --draco.compressMeshes` and update the loader
-- [ ] **Split `configurator.js`** — Separate Three.js setup, canvas/texture logic, UI events, and API calls into ES modules
-- [ ] **Frontend type safety** — Introduce a lightweight TypeScript + esbuild or Vite build step for the frontend
-- [ ] **CI/CD for backend** — Add a GitHub Actions workflow that runs `wrangler deploy` on push to `main`
-
----
-
-## AI Handoff Context
-
-**What this product is:** LOOM is a custom apparel e-commerce platform for the Uzbek market. Users design garments using a 3D configurator, place orders, and track them. Admins manage everything through a separate panel.
-
-**Stack at a glance:** Static HTML/JS/CSS frontend → Hono TypeScript backend on Cloudflare Workers → D1 (SQLite), R2 (files), KV (rate limiting) → Telegram Bot API.
-
-**The frontend has no build step.** All files are served as-is. `assets/config.js` controls which API the frontend talks to. Change `API_BASE` to switch environments.
-
-**The backend is a single Cloudflare Worker** in `backend/`. All routes are in `backend/src/routes/`. Database queries are in `backend/src/db/queries.ts`. Run `npm run dev` in `backend/` to start a local Worker on port 8787.
-
-**Auth has two paths:**
-- Email/password: register/login → JWT → stored in localStorage → sent as `Authorization: Bearer <token>`
-- Phone/Telegram: session → deep-link → user taps in Telegram → webhook updates session → frontend polls → `user_token` httpOnly cookie set
-
-**Admin auth is separate:** Cookie-based (`admin_token`), validated by `requireAdmin` middleware. Admin accounts live in the `admins` table, not the `users` table.
-
-**The most critical file to understand the product is `backend/src/routes/public.ts`** — it handles product listing, order placement, and file uploads.
-
-**The most complex frontend file is `configurator.js`** — it is ~2000 lines of Three.js + Canvas API. The 3D model is loaded from `assets/models/t_shirt.glb`. The design state (`designState`) is serialized to JSON and sent with the order.
-
-**Known gotchas:**
-- Migrations 0004 and 0005 are not included in the `npm run migrate:*` scripts — run them manually
-- `0004_profile_visitors.sql` and `0004_roles_avatars.sql` have conflicting numeric prefixes — both must be applied
-- `BOT_USERNAME` in `wrangler.toml` is blank and must be filled before deploying
-- `user-profile.ts` route may not be mounted in `index.ts` — verify before editing profile-update logic
+<p align="center"><em>For the product and business story, see the <a href="README.md">README</a>.</em></p>

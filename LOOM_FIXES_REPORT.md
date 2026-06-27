@@ -18,9 +18,9 @@
 - All 3 secrets confirmed: `JWT_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 
 ### Phase 3 — Admin DNS ✅
-- **Root cause:** `admin.looom.me` cannot be a plain CNAME to the Workers URL — the Worker must own the custom domain, and the admin panel is a static site on GitHub Pages
-- **Fix implemented:** Added `admin.looom.me` as a Worker custom domain in `wrangler.toml`
-- Added redirect handler in `backend/src/index.ts`: `admin.looom.me/*` → 301 → `https://www.looom.me/admin/*`
+- **Root cause:** `admin.loomdesign.uz` cannot be a plain CNAME to the Workers URL — the Worker must own the custom domain, and the admin panel is a static site on GitHub Pages
+- **Fix implemented:** Added `admin.loomdesign.uz` as a Worker custom domain in `wrangler.toml`
+- Added redirect handler in `backend/src/index.ts`: `admin.loomdesign.uz/*` → 301 → `https://www.loomdesign.uz/admin/*`
 - User deleted the manually-added CNAME record; wrangler created the correct managed DNS record on redeploy
 
 ### Phase 4 — Global Rate Limiting with KV ✅
@@ -51,7 +51,7 @@
 
 ### TEST 1 — Health Check
 ```
-GET https://api.looom.me/
+GET https://api.loomdesign.uz/
 ```
 **Response (HTTP 200):**
 ```json
@@ -67,7 +67,7 @@ GET https://api.looom.me/
 
 ### TEST 2 — R2 Upload Endpoint
 ```
-POST https://api.looom.me/api/uploads  (file=@/dev/null)
+POST https://api.loomdesign.uz/api/uploads  (file=@/dev/null)
 ```
 **Response (HTTP 400):**
 ```json
@@ -79,7 +79,7 @@ POST https://api.looom.me/api/uploads  (file=@/dev/null)
 
 ### TEST 3 — Telegram Order Notification
 ```
-POST https://api.looom.me/api/orders
+POST https://api.loomdesign.uz/api/orders
 Body: {"customerName":"Final Verify","customerPhone":"+998901234567",
        "address":"Tashkent","designJson":"{\"color\":\"white\",\"size\":\"L\"}","totalPrice":150000}
 ```
@@ -92,22 +92,22 @@ Body: {"customerName":"Final Verify","customerPhone":"+998901234567",
 
 ---
 
-### TEST 4 — admin.looom.me
+### TEST 4 — admin.loomdesign.uz
 ```
-GET https://admin.looom.me/
+GET https://admin.loomdesign.uz/
 ```
 **Response:**
 ```
-HTTP 301 → Location: https://www.looom.me/admin/
+HTTP 301 → Location: https://www.loomdesign.uz/admin/
 HTTP 200 (after redirect)
 ```
-**Result: ✅ PASS** — `admin.looom.me` correctly redirects to the admin panel.
+**Result: ✅ PASS** — `admin.loomdesign.uz` correctly redirects to the admin panel.
 
 ---
 
 ### TEST 5 — KV Order Rate Limit
 ```
-POST https://api.looom.me/api/orders × 7 (same IP, consecutive)
+POST https://api.loomdesign.uz/api/orders × 7 (same IP, consecutive)
 ```
 **Results:**
 ```
@@ -125,7 +125,7 @@ Request 7: HTTP 429 | Too many requests. Please wait a minute before placing ano
 
 ### TEST 6 — KV Upload Rate Limit
 ```
-POST https://api.looom.me/api/uploads × 11 (same IP, consecutive)
+POST https://api.loomdesign.uz/api/uploads × 11 (same IP, consecutive)
 ```
 **Results (from earlier run):**
 ```
@@ -139,11 +139,11 @@ Request 11:   HTTP 429
 
 ### TEST 7 — Frontend Smoke Tests
 ```
-GET https://looom.me/              → HTTP 200, title: "LOOM — Custom Apparel"
-GET https://looom.me/configurator.html → HTTP 200, title: "LOOM — 3D Конфигуратор футболок"
-GET https://looom.me/login.html    → HTTP 200, title: "LOOM — Вход"
-GET https://admin.looom.me/        → HTTP 301 → www.looom.me/admin/ → HTTP 200
-CORS: GET /api/products with Origin: https://looom.me → access-control-allow-origin: https://looom.me ✅
+GET https://loomdesign.uz/              → HTTP 200, title: "LOOM — Custom Apparel"
+GET https://loomdesign.uz/configurator.html → HTTP 200, title: "LOOM — 3D Конфигуратор футболок"
+GET https://loomdesign.uz/login.html    → HTTP 200, title: "LOOM — Вход"
+GET https://admin.loomdesign.uz/        → HTTP 301 → www.loomdesign.uz/admin/ → HTTP 200
+CORS: GET /api/products with Origin: https://loomdesign.uz → access-control-allow-origin: https://loomdesign.uz ✅
 ```
 **Result: ✅ PASS** — All frontend pages load. API CORS correctly scoped.
 
@@ -159,7 +159,7 @@ CORS: GET /api/products with Origin: https://looom.me → access-control-allow-o
 | Auth endpoints | ✅ Working | Register, login, JWT, profile all pass |
 | R2 storage | ✅ Connected | `loom-models` + `loom-uploads` bound and accessible |
 | Telegram notify | ✅ Configured | Real secrets set; fires on every `POST /api/orders` |
-| admin.looom.me DNS | ✅ Live | 301 redirect → `www.looom.me/admin/` |
+| admin.loomdesign.uz DNS | ✅ Live | 301 redirect → `www.loomdesign.uz/admin/` |
 | Global rate limiting | ✅ Working | KV-backed, enforced across all CF Worker isolates |
 | D1 database | ✅ Working | Migrations applied, orders/users persisting |
 
@@ -170,7 +170,7 @@ CORS: GET /api/products with Origin: https://looom.me → access-control-allow-o
 ### 🟡 Minor — R2 actual file write not verified
 The upload endpoint returns 400 for invalid files (correct). A successful upload (valid PNG/JPEG/SVG under size limit) to R2 has not been end-to-end tested. To verify:
 ```bash
-curl -s -X POST https://api.looom.me/api/uploads \
+curl -s -X POST https://api.loomdesign.uz/api/uploads \
   -F "file=@any-real-image.png;type=image/png"
 # Expected: {"key": "logos/...png"} HTTP 201
 ```
@@ -188,10 +188,10 @@ echo "REAL_CHAT_ID" | npx wrangler secret put TELEGRAM_CHAT_ID
 ```
 
 ### 🟢 Info — admin panel path handling
-`admin.looom.me` → redirects to `https://www.looom.me/admin/`. Deep links like `admin.looom.me/orders.html` → `https://www.looom.me/admin/orders.html`. The redirect logic in `index.ts` handles subpaths correctly.
+`admin.loomdesign.uz` → redirects to `https://www.loomdesign.uz/admin/`. Deep links like `admin.loomdesign.uz/orders.html` → `https://www.loomdesign.uz/admin/orders.html`. The redirect logic in `index.ts` handles subpaths correctly.
 
 ### 🟢 Info — No products in catalog
-`GET /api/products` returns `{"products":[]}`. Products must be added via the admin panel at `https://www.looom.me/admin/` once admin credentials are known.
+`GET /api/products` returns `{"products":[]}`. Products must be added via the admin panel at `https://www.loomdesign.uz/admin/` once admin credentials are known.
 
 ---
 
@@ -208,8 +208,8 @@ Bindings:
   Var: ENVIRONMENT → "production"
 
 Custom domains:
-  api.looom.me   → API routes
-  admin.looom.me → 301 redirect to www.looom.me/admin/
+  api.loomdesign.uz   → API routes
+  admin.loomdesign.uz → 301 redirect to www.loomdesign.uz/admin/
 
 Secrets: JWT_SECRET ✅ | TELEGRAM_BOT_TOKEN ✅ | TELEGRAM_CHAT_ID ✅
 ```

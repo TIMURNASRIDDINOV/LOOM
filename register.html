@@ -8,24 +8,32 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/auth.css" />
+  <link rel="stylesheet" href="assets/nav.css?v=1" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'DM Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+    .auth-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+    .auth-back { font-size: 0.78rem; color: rgba(255,255,255,0.5); text-decoration: none; transition: color 0.15s; }
+    .auth-back:hover { color: #fff; }
   </style>
 </head>
 <body class="auth-page">
 
   <div class="auth-card">
+    <div class="auth-topbar">
+      <a href="index.html" class="auth-back" data-i18n="nav.backToStore">← Вернуться на сайт</a>
+      <div class="lang-switcher-mount"></div>
+    </div>
     <a href="index.html" class="auth-logo">LOOM</a>
 
-    <h1 class="auth-title">Создать аккаунт</h1>
-    <p class="auth-subtitle">Отслеживайте заказы и сохраняйте дизайны</p>
+    <h1 class="auth-title" data-i18n="auth.regTitle">Создать аккаунт</h1>
+    <p class="auth-subtitle" data-i18n="auth.regSub">Отслеживайте заказы и сохраняйте дизайны</p>
 
     <div class="auth-banner" id="authBanner"></div>
 
     <form id="registerForm" novalidate>
       <div class="auth-field">
-        <label class="auth-label" for="emailInput">Email <span style="color:#ef4444">*</span></label>
+        <label class="auth-label" for="emailInput"><span data-i18n="auth.email">Email</span> <span style="color:#ef4444">*</span></label>
         <input
           type="email"
           id="emailInput"
@@ -38,12 +46,13 @@
       </div>
 
       <div class="auth-field">
-        <label class="auth-label" for="passwordInput">Пароль <span style="color:#ef4444">*</span></label>
+        <label class="auth-label" for="passwordInput"><span data-i18n="auth.password">Пароль</span> <span style="color:#ef4444">*</span></label>
         <input
           type="password"
           id="passwordInput"
           class="auth-input"
           placeholder="Минимум 8 символов"
+          data-i18n-attr="placeholder:auth.pwMin8"
           autocomplete="new-password"
           required
         />
@@ -51,19 +60,20 @@
       </div>
 
       <div class="auth-field">
-        <label class="auth-label" for="nameInput">Имя</label>
+        <label class="auth-label" for="nameInput" data-i18n="auth.name">Имя</label>
         <input
           type="text"
           id="nameInput"
           class="auth-input"
           placeholder="Необязательно"
+          data-i18n-attr="placeholder:order.optional"
           autocomplete="name"
           maxlength="80"
         />
       </div>
 
       <div class="auth-field">
-        <label class="auth-label" for="phoneInput">Телефон</label>
+        <label class="auth-label" for="phoneInput" data-i18n="auth.phone">Телефон</label>
         <input
           type="tel"
           id="phoneInput"
@@ -74,16 +84,17 @@
         />
       </div>
 
-      <button type="submit" class="auth-btn" id="submitBtn">Зарегистрироваться</button>
+      <button type="submit" class="auth-btn" id="submitBtn" data-i18n="auth.regBtn">Зарегистрироваться</button>
     </form>
 
     <p class="auth-footer">
-      Уже есть аккаунт? <a href="login.html">Войти</a>
+      <span data-i18n="auth.haveAccount">Уже есть аккаунт?</span> <a href="login.html" data-i18n="auth.loginBtn">Войти</a>
     </p>
   </div>
 
-  <script src="assets/config.js"></script>
-  <script src="assets/auth.js"></script>
+  <script src="assets/config.js?v=2"></script>
+  <script src="assets/i18n.js?v=1"></script>
+  <script src="assets/auth.js?v=2"></script>
   <script>
     'use strict';
     (function () {
@@ -91,6 +102,8 @@
       window.LOOM_AUTH.getCurrentUser().then(function (user) {
         if (user) window.location.href = 'account.html';
       });
+
+      const T = (k, fb) => { try { return (window.LOOM_I18N ? window.LOOM_I18N.t(k) : fb) || fb; } catch (e) { return fb; } };
 
       const form      = document.getElementById('registerForm');
       const emailIn   = document.getElementById('emailInput');
@@ -126,19 +139,19 @@
         let valid = true;
 
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          emailErr.textContent = 'Введите корректный email';
+          emailErr.textContent = T('auth.errEmail', 'Введите корректный email');
           emailIn.classList.add('error');
           valid = false;
         }
         if (!password || password.length < 8) {
-          passErr.textContent = 'Пароль должен содержать минимум 8 символов';
+          passErr.textContent = T('auth.errPwLen', 'Пароль должен содержать минимум 8 символов');
           passIn.classList.add('error');
           valid = false;
         }
         if (!valid) return;
 
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Регистрация…';
+        submitBtn.textContent = T('auth.registering', 'Регистрация…');
 
         try {
           await window.LOOM_AUTH.register(email, password, name || undefined, phone || undefined);
@@ -146,7 +159,7 @@
         } catch (err) {
           showBanner(err.message || 'Ошибка регистрации', 'error');
           submitBtn.disabled = false;
-          submitBtn.textContent = 'Зарегистрироваться';
+          submitBtn.textContent = T('auth.regBtn', 'Зарегистрироваться');
         }
       });
     })();

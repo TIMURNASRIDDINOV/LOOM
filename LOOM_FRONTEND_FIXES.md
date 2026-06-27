@@ -15,14 +15,14 @@
 function getApiBase() {
   if (window.LOOM_CONFIG) return window.LOOM_CONFIG.API_BASE
   const h = window.location.hostname
-  return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:8787' : 'https://api.looom.me'
+  return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:8787' : 'https://api.loomdesign.uz'
 }
 ```
 
 **After:**
 ```js
 function getApiBase() {
-  return window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me'
+  return window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz'
 }
 ```
 
@@ -38,12 +38,12 @@ function getApiBase() {
 ```js
 const API = window.LOOM_CONFIG ? window.LOOM_CONFIG.API_BASE
   : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:8787' : 'https://api.looom.me');
+      ? 'http://localhost:8787' : 'https://api.loomdesign.uz');
 ```
 
 **After:**
 ```js
-const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.looom.me';
+const API = window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz';
 ```
 
 **Why:** Same issue as products-catalog.js — eliminated localhost fallback risk.
@@ -122,7 +122,7 @@ const WORKER_URL =
 window.LOOM_CONFIG = {
   API_BASE: (h === 'localhost' || h === '127.0.0.1')
     ? 'http://localhost:8787'
-    : 'https://api.looom.me',
+    : 'https://api.loomdesign.uz',
 }
 ```
 
@@ -131,7 +131,7 @@ window.LOOM_CONFIG = {
 window.LOOM_CONFIG = {
   API_BASE: (h === 'localhost' || h === '127.0.0.1')
     ? 'http://localhost:8787'
-    : 'https://api.looom.me',
+    : 'https://api.loomdesign.uz',
   TELEGRAM_WORKER_URL: 'https://loom-telegram-orders.timurnasriddinov56.workers.dev',
 }
 ```
@@ -189,10 +189,10 @@ All deletions were confirmed by `grep` before removal.
 | **TEST 3 — Configurator page loads** | ✅ PASS | HTTP 200; `config.js` present; `t_shirt.glb` is the model path |
 | **TEST 3 — 3D error fallback** | ✅ PASS | `onError` callback exists — shows placeholder geometry, not blank canvas |
 | **TEST 4 — Login page loads** | ✅ PASS | HTTP 200; `config.js` → `auth.js` load order confirmed |
-| **TEST 4 — Login posts to api.looom.me** | ✅ PASS | `auth.js` uses `window.LOOM_CONFIG.API_BASE` exclusively |
+| **TEST 4 — Login posts to api.loomdesign.uz** | ✅ PASS | `auth.js` uses `window.LOOM_CONFIG.API_BASE` exclusively |
 | **TEST 5 — Account page loads** | ✅ PASS | HTTP 200; `config.js` → `account.js` load order confirmed |
 | **TEST 5 — No localhost URL in account** | ✅ PASS | `account.js` API call cleaned to use config |
-| **TEST 6 — admin.looom.me loads** | ✅ PASS | HTTP 200 (after 301 redirect to `www.looom.me/admin/`) |
+| **TEST 6 — admin.loomdesign.uz loads** | ✅ PASS | HTTP 200 (after 301 redirect to `www.loomdesign.uz/admin/`) |
 
 ---
 
@@ -204,9 +204,9 @@ All deletions were confirmed by `grep` before removal.
 **Suggested fix:** Check if `dist/index.js` was a compiled React bundle that is no longer needed. If the React components have been replaced by `products-catalog.js`, remove this script tag from `catalog.html`.
 
 ### Issue — Catalog shows empty (no products seeded)
-`GET https://api.looom.me/api/products` returns `{"products":[]}`. The catalog renders "Каталог пуст." Users see an empty page.
+`GET https://api.loomdesign.uz/api/products` returns `{"products":[]}`. The catalog renders "Каталог пуст." Users see an empty page.
 
-**Suggested fix:** Add products via the admin panel at `https://www.looom.me/admin/` once admin credentials are known.
+**Suggested fix:** Add products via the admin panel at `https://www.loomdesign.uz/admin/` once admin credentials are known.
 
 ### Issue — `configurator.js` WORKER_URL used before `config.js` is guaranteed to have loaded
 `WORKER_URL` is set at the module's top-level (line 44), which executes immediately when the script is parsed — before `DOMContentLoaded`. If `config.js` hasn't run yet, `window.LOOM_CONFIG` will be undefined and the nullish coalescing fallback will be used. Since `config.js` is loaded synchronously before `configurator.js` in the HTML, this is safe in practice, but fragile.
@@ -219,7 +219,7 @@ All deletions were confirmed by `grep` before removal.
 
 | Item | Priority | Steps |
 |------|----------|-------|
-| Add products via admin panel | 🔴 High | Log in to `https://www.looom.me/admin/`, add at least 1 product with a GLB model |
+| Add products via admin panel | 🔴 High | Log in to `https://www.loomdesign.uz/admin/`, add at least 1 product with a GLB model |
 | Remove or fix `dist/index.js` reference in catalog.html | 🟡 Medium | Check if React bundle is still needed; if not, remove `<script src="dist/index.js">` from `catalog.html` |
 | Browser extension reconnect | 🟡 Medium | Reconnect Chrome extension to verify 3D canvas render, login flow, and console errors interactively |
 | Update Telegram bot token/chat ID | 🟡 Medium | If placeholder values were used during deployment, update with real values via `wrangler secret put` |

@@ -1,0 +1,362 @@
+/* ================================================================
+   LOOM — Lightweight i18n (UZ / RU / EN)
+   - data-i18n="key"            → element.textContent
+   - data-i18n-html="key"       → element.innerHTML (for markup like <strong>)
+   - data-i18n-attr="attr:key;…" → element attribute(s), e.g. "placeholder:order.namePh"
+   Language persists in localStorage. Default: Russian.
+   Public API: window.LOOM_I18N = { getLang, setLang, t, apply, formatPrice, LANGS }
+   Fires window event "loom:langchange" with detail.lang so JS-rendered
+   content (product cards, orders, toasts) can re-render.
+================================================================ */
+'use strict';
+(function () {
+  const LANGS = ['uz', 'ru', 'en'];
+  const DEFAULT = 'ru';
+  const STORE_KEY = 'loom_lang';
+
+  const LANG_LABELS = { uz: "O‘zbekcha", ru: 'Русский', en: 'English' };
+  const LANG_SHORT  = { uz: 'UZ', ru: 'RU', en: 'EN' };
+
+  // ── Dictionary ────────────────────────────────────────────────
+  const DICT = {
+    // ===== Navigation (shared) =====
+    'nav.home':       { uz: 'Bosh sahifa', ru: 'Главная',       en: 'Home' },
+    'nav.catalog':    { uz: 'Katalog',     ru: 'Каталог',       en: 'Catalog' },
+    'nav.configure':  { uz: 'Konstruktor', ru: 'Кастомизация',  en: 'Customize' },
+    'nav.about':      { uz: 'Biz haqimizda', ru: 'О нас',        en: 'About' },
+    'nav.start':      { uz: 'Dizayn yaratish', ru: 'Создать дизайн', en: 'Start designing' },
+    'nav.login':      { uz: 'Kirish',      ru: 'Войти',          en: 'Sign in' },
+    'nav.account':    { uz: 'Shaxsiy kabinet', ru: 'Личный кабинет', en: 'My account' },
+    'nav.settings':   { uz: 'Sozlamalar',  ru: 'Настройки',      en: 'Settings' },
+    'nav.logout':     { uz: 'Chiqish',     ru: 'Выйти',          en: 'Sign out' },
+    'nav.cart':       { uz: 'Savatcha',    ru: 'Корзина',        en: 'Cart' },
+    'nav.backToStore':{ uz: '← Do‘konga qaytish', ru: '← Вернуться на сайт', en: '← Back to store' },
+    'nav.language':   { uz: 'Til',         ru: 'Язык',           en: 'Language' },
+
+    // ===== Home — hero =====
+    'hero.t1':       { uz: 'Tasavvuringizdagini', ru: 'Носи /',          en: 'Wear /' },
+    'hero.t2':       { uz: 'kiyimga',             ru: 'то, что ты',       en: 'what you' },
+    'hero.t3':       { uz: 'aylantiring.',        ru: 'придумал.',        en: 'imagine.' },
+    'hero.subtitle': { uz: 'O‘z kiyimingizni o‘zingiz yarating. Uni 3D’da ko‘ring. O‘zbekiston bo‘ylab yetkazib beramiz.', ru: 'Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану.', en: 'Design your own clothes. See them in 3D. Order to your door anywhere in Uzbekistan.' },
+    'hero.start':    { uz: 'Dizayn yaratish', ru: 'Создать дизайн',  en: 'Start designing' },
+    'hero.catalog':  { uz: 'Katalogni ko‘rish', ru: 'Смотреть каталог', en: 'View catalog' },
+
+    // ===== Home — stats =====
+    'stats.products': { uz: 'Mahsulot',   ru: 'Товаров',   en: 'Products' },
+    'stats.colors':   { uz: 'Rang',       ru: 'Цветов',    en: 'Colors' },
+    'stats.preview':  { uz: 'Ko‘rinish',  ru: 'Просмотр',  en: 'Preview' },
+    'stats.shipping': { uz: 'Yetkazish',  ru: 'Доставка',  en: 'Shipping' },
+
+    // ===== Home — spotlight =====
+    'spot.eyebrow':  { uz: 'Eng ommabop',  ru: 'Хит продаж',    en: 'Best seller' },
+    'spot.t1':       { uz: 'Klassik /',    ru: 'Классическая /', en: 'Classic /' },
+    'spot.t2':       { uz: 'futbolka.',    ru: 'футболка.',      en: 'T-shirt.' },
+    'spot.d1':       { uz: '<strong>100% paxta</strong> · Uniseks bichim', ru: '<strong>100% хлопок</strong> · Унисекс крой', en: '<strong>100% cotton</strong> · Unisex cut' },
+    'spot.d2':       { uz: '<strong>5 ta asosiy rang</strong> · 89 000 so‘mdan', ru: '<strong>5 базовых цветов</strong> · от 89 000 сум', en: '<strong>5 base colors</strong> · From 89,000 UZS' },
+    'spot.customize':{ uz: 'Buni sozlash', ru: 'Настроить эту', en: 'Customize this' },
+
+    // ===== Home — products grid (static cards) =====
+    'prod.sectionLabel': { uz: 'Mahsulotlar', ru: 'Товары',     en: 'Products' },
+    'prod.viewAll':      { uz: 'Hammasini ko‘rish →', ru: 'Смотреть все →', en: 'View all →' },
+    'prod.t1.name':  { uz: 'Klassik futbolka', ru: 'Классическая футболка', en: 'Classic T-shirt' },
+    'prod.t1.desc':  { uz: '100% premium paxta, uniseks bichim, erkin fason. Dizayningiz uchun mukammal asos.', ru: '100% премиальный хлопок, унисекс крой, свободный фасон. Идеальный холст для вашего дизайна.', en: '100% premium cotton, unisex cut, oversized fit. The perfect canvas for your design.' },
+    'prod.t2.name':  { uz: 'Qalin xudi',  ru: 'Тёплое худи',    en: 'Heavyweight Hoodie' },
+    'prod.t2.desc':  { uz: 'Ichi yumshoq premium mato, ikki qatlamli kapyushon, barcha fasllar uchun erkin siluet.', ru: 'Премиальная ткань с начёсом, двухслойный капюшон, свободный силуэт на все сезоны.', en: 'Fleece-lined premium fabric, double-layered hood, relaxed silhouette for all seasons.' },
+    'prod.t3.name':  { uz: 'Polo futbolka', ru: 'Поло',         en: 'Polo Shirt' },
+    'prod.t3.desc':  { uz: 'Piké paxta aralashmasi, tikilgan yoqa, toza chiziqlar. Bemalol smart-casual.', ru: 'Хлопок пике, структурированный воротник, чистые линии. Smart casual без усилий.', en: 'Piqué cotton blend, structured collar, clean tailored lines. Smart casual, effortlessly.' },
+
+    // ===== Home — CTA =====
+    'cta.t1':       { uz: 'Sizning dizayningiz.', ru: 'Твой дизайн.',  en: 'Your design.' },
+    'cta.t2':       { uz: 'Sizning qoidalaringiz.', ru: 'Твои правила.', en: 'Your rules.' },
+    'cta.subtitle': { uz: 'Bo‘sh asosdan boshlang. Matn qo‘shing, rasm yuklang, ranglarni tanlang.', ru: 'Начните с чистого холста. Добавьте текст, загрузите изображение, выберите цвета.', en: 'Start with a blank canvas. Add text, upload artwork, pick your colors.' },
+    'cta.open':     { uz: 'Konstruktorni ochish →', ru: 'Открыть конфигуратор →', en: 'Open configurator →' },
+
+    // ===== Footer =====
+    'footer.contact':  { uz: 'Aloqa',  ru: 'Контакты',  en: 'Contact' },
+    'footer.location': { uz: 'Toshkent, O‘zbekiston', ru: 'Ташкент, Узбекистан', en: 'Tashkent, Uzbekistan' },
+
+    // ===== Catalog =====
+    'catalog.heroTitle':    { uz: 'Kolleksiyamizni kashf eting', ru: 'Исследуйте нашу коллекцию', en: 'Explore our collection' },
+    'catalog.heroSubtitle': { uz: 'Interaktiv 3D ko‘rinish', ru: 'Интерактивный 3D просмотр модели', en: 'Interactive 3D model preview' },
+    'catalog.customize':    { uz: 'Dizaynni sozlash', ru: 'Настроить дизайн', en: 'Customize design' },
+    'catalog.loadError':    { uz: 'Katalogni yuklab bo‘lmadi.', ru: 'Не удалось загрузить каталог.', en: 'Failed to load the catalog.' },
+    'catalog.soon':         { uz: 'Tez orada', ru: 'Скоро', en: 'Coming soon' },
+
+    // ===== Configurator — panel =====
+    'cfg.panelProduct': { uz: 'O‘z dizayningizni yarating', ru: 'Создайте свой дизайн', en: 'Create your design' },
+    'cfg.currency':     { uz: 'so‘m', ru: 'сум', en: 'UZS' },
+    'cfg.tabColor':     { uz: 'Rang',   ru: 'Цвет',   en: 'Color' },
+    'cfg.tabDesign':    { uz: 'Dizayn', ru: 'Дизайн', en: 'Design' },
+    'cfg.tabSummary':   { uz: 'Yakun',  ru: 'Итог',   en: 'Summary' },
+    'cfg.shirtColor':   { uz: 'Futbolka rangi', ru: 'Цвет футболки', en: 'Shirt color' },
+    'cfg.size':         { uz: 'O‘lcham', ru: 'Размер', en: 'Size' },
+    'cfg.dragHint':     { uz: 'Joylashtirish uchun elementni to‘g‘ridan-to‘g‘ri futbolka ustida suring', ru: 'Перетаскивайте элемент прямо на футболке, чтобы разместить его', en: 'Drag the element right on the shirt to position it' },
+    'cfg.layerText':    { uz: 'Matn',     ru: 'Текст',    en: 'Text' },
+    'cfg.layerLogo':    { uz: 'Logotip',  ru: 'Логотип',  en: 'Logo' },
+    'cfg.textLabel':    { uz: 'Futbolkadagi matn', ru: 'Текст на футболке', en: 'Text on shirt' },
+    'cfg.textPlaceholder': { uz: 'Matn kiriting…', ru: 'Введите текст…', en: 'Enter text…' },
+    'cfg.font':         { uz: 'Shrift',   ru: 'Шрифт',    en: 'Font' },
+    'cfg.sizeSlider':   { uz: 'O‘lcham',  ru: 'Размер',   en: 'Size' },
+    'cfg.textColor':    { uz: 'Matn rangi', ru: 'Цвет текста', en: 'Text color' },
+    'cfg.style':        { uz: 'Uslub',    ru: 'Стиль',    en: 'Style' },
+    'cfg.center':       { uz: 'Markazga', ru: 'По центру', en: 'Center' },
+    'cfg.removeText':   { uz: 'Matnni o‘chirish', ru: 'Удалить текст', en: 'Remove text' },
+    'cfg.uploadTitle':  { uz: 'Logotip yuklash', ru: 'Загрузить логотип', en: 'Upload logo' },
+    'cfg.uploadSubtext':{ uz: 'PNG, JPG yoki SVG — bosing yoki sudrang', ru: 'PNG, JPG или SVG — нажмите или перетащите', en: 'PNG, JPG or SVG — click or drag' },
+    'cfg.scale':        { uz: 'Masshtab', ru: 'Масштаб',  en: 'Scale' },
+    'cfg.remove':       { uz: 'O‘chirish', ru: 'Удалить', en: 'Remove' },
+    'cfg.snapshot':     { uz: 'Joriy ko‘rinish tasviri', ru: 'Снимок текущего вида', en: 'Snapshot of current view' },
+    'cfg.sumColor':     { uz: 'Rang',     ru: 'Цвет',     en: 'Color' },
+    'cfg.sumSize':      { uz: 'O‘lcham',  ru: 'Размер',   en: 'Size' },
+    'cfg.sumText':      { uz: 'Matn',     ru: 'Текст',    en: 'Text' },
+    'cfg.sumFont':      { uz: 'Shrift',   ru: 'Шрифт',    en: 'Font' },
+    'cfg.sumLogo':      { uz: 'Logotip',  ru: 'Логотип',  en: 'Logo' },
+    'cfg.notUploaded':  { uz: 'Yuklanmagan', ru: 'Не загружено', en: 'Not uploaded' },
+    'cfg.resetDesign':  { uz: 'Dizaynni tiklash', ru: 'Сбросить дизайн', en: 'Reset design' },
+    'cfg.total':        { uz: 'Jami',     ru: 'Итого',    en: 'Total' },
+    'cfg.addToCart':    { uz: 'Savatga',  ru: 'В корзину', en: 'Add to cart' },
+    'cfg.buyNow':       { uz: 'Hozir sotib olish', ru: 'Купить сейчас', en: 'Buy now' },
+    'cfg.cartTitle':    { uz: 'Savatcha', ru: 'Корзина',  en: 'Cart' },
+    'cfg.cartEmpty':    { uz: 'Savatcha bo‘sh', ru: 'Корзина пуста', en: 'Your cart is empty' },
+    'cfg.checkout':     { uz: 'Buyurtma berish', ru: 'Оформить заказ', en: 'Checkout' },
+    'cfg.viewFront':    { uz: 'Old',      ru: 'Перед',    en: 'Front' },
+    'cfg.viewBack':     { uz: 'Orqa',     ru: 'Зад',      en: 'Back' },
+    'cfg.changeGarment':{ uz: 'Mahsulotni o‘zgartirish', ru: 'Сменить товар', en: 'Change garment' },
+    'cfg.resetView':    { uz: 'Ko‘rinishni tiklash', ru: 'Сброс вида', en: 'Reset view' },
+    'cfg.save':         { uz: 'Saqlash',  ru: 'Сохранить', en: 'Save' },
+    'cfg.loading3d':    { uz: '3D model yuklanmoqda…', ru: 'Загрузка 3D модели…', en: 'Loading 3D model…' },
+    'cfg.colorWhite':   { uz: 'Oq',       ru: 'Белый',    en: 'White' },
+    'cfg.colorBlack':   { uz: 'Qora',     ru: 'Чёрный',   en: 'Black' },
+    'cfg.toastAddedCart':  { uz: 'Savatga qo‘shildi', ru: 'Добавлено в корзину', en: 'Added to cart' },
+    'cfg.toastLoginCart':  { uz: 'Savatga qo‘shish uchun tizimga kiring', ru: 'Войдите, чтобы добавить в корзину', en: 'Sign in to add to cart' },
+    'cfg.toastAddError':   { uz: 'Qo‘shishda xatolik', ru: 'Ошибка добавления', en: 'Could not add item' },
+
+    // ===== Size guide =====
+    'sg.toggle':     { uz: 'O‘lchamlar haqida batafsil', ru: 'Подробнее о размерах', en: 'More about sizes' },
+    'sg.intro':      { uz: 'XS–XL belgilari tushunarsizmi? Quyida xalqaro o‘lcham jadvali va o‘lchamlarni qanday olish ko‘rsatilgan.', ru: 'Не понимаете обозначения XS–XL? Ниже — таблица международных размеров и как снять мерки.', en: 'Not sure what XS–XL mean? Below is an international size chart and how to measure.' },
+    'sg.colSize':    { uz: 'O‘lcham', ru: 'Размер', en: 'Size' },
+    'sg.colChest':   { uz: 'Ko‘krak (sm)', ru: 'Обхват груди (см)', en: 'Chest (cm)' },
+    'sg.colLength':  { uz: 'Uzunlik (sm)', ru: 'Длина (см)', en: 'Length (cm)' },
+    'sg.intl':       { uz: 'Xalqaro standartlar', ru: 'Международные стандарты', en: 'International standards' },
+    'sg.measure':    { uz: 'Qanday o‘lchanadi', ru: 'Как снять мерки', en: 'How to measure' },
+    'sg.measureChest':  { uz: 'Ko‘krak: qo‘ltiq ostidan ko‘krakning eng keng joyidan o‘lchang.', ru: 'Грудь: измерьте по самой широкой части груди под подмышками.', en: 'Chest: measure around the fullest part of the chest, under the arms.' },
+    'sg.measureLength': { uz: 'Uzunlik: yelka choqidan futbolkaning past chetigacha.', ru: 'Длина: от шва плеча до нижнего края футболки.', en: 'Length: from the shoulder seam to the bottom hem.' },
+    'sg.tip':        { uz: 'Maslahat: ikki o‘lcham orasida bo‘lsangiz, erkinroq fason uchun kattaroq o‘lchamni tanlang.', ru: 'Совет: если вы между размерами, берите больший для свободной посадки.', en: 'Tip: between two sizes? Pick the larger one for a relaxed fit.' },
+
+    // ===== Order modal =====
+    'order.title':       { uz: 'Buyurtma berish', ru: 'Оформление заказа', en: 'Checkout' },
+    'order.yourOrder':   { uz: 'Sizning buyurtmangiz', ru: 'Ваш заказ', en: 'Your order' },
+    'order.color':       { uz: 'Rang:',     ru: 'Цвет:',    en: 'Color:' },
+    'order.size':        { uz: 'O‘lcham:',  ru: 'Размер:',  en: 'Size:' },
+    'order.scale':       { uz: 'Masshtab:', ru: 'Масштаб:', en: 'Scale:' },
+    'order.text':        { uz: 'Matn:',     ru: 'Текст:',   en: 'Text:' },
+    'order.font':        { uz: 'Shrift:',   ru: 'Шрифт:',   en: 'Font:' },
+    'order.logo':        { uz: 'Logotip:',  ru: 'Логотип:', en: 'Logo:' },
+    'order.price':       { uz: 'Narx:',     ru: 'Цена:',    en: 'Price:' },
+    'order.textNone':    { uz: 'Ko‘rsatilmagan', ru: 'Не указан', en: 'None' },
+    'order.bound':       { uz: '✓ Buyurtma akkauntingizga bog‘lanadi', ru: '✓ Заказ будет привязан к вашему аккаунту', en: '✓ This order will be linked to your account' },
+    'order.name':        { uz: 'Ism',       ru: 'Имя',      en: 'First name' },
+    'order.namePh':      { uz: 'Ismingizni kiriting', ru: 'Введите ваше имя', en: 'Enter your name' },
+    'order.surname':     { uz: 'Familiya',  ru: 'Фамилия',  en: 'Last name' },
+    'order.optional':    { uz: 'Ixtiyoriy', ru: 'Необязательно', en: 'Optional' },
+    'order.phone':       { uz: 'Telefon',   ru: 'Телефон',  en: 'Phone' },
+    'order.comment':     { uz: 'Buyurtmaga izoh', ru: 'Комментарий к заказу', en: 'Order comment' },
+    'order.commentPh':   { uz: 'O‘lcham, qo‘shimcha istaklar…', ru: 'Укажите размер, дополнительные пожелания…', en: 'Size, extra requests…' },
+    'order.commentHint': { uz: 'Ixtiyoriy, 500 belgigacha', ru: 'Необязательно, до 500 символов', en: 'Optional, up to 500 characters' },
+    'order.address':     { uz: 'Yetkazib berish manzili', ru: 'Адрес доставки', en: 'Delivery address' },
+    'order.savedTitle':  { uz: 'Saqlangan manzil', ru: 'Сохранённый адрес', en: 'Saved address' },
+    'order.useSaved':    { uz: 'Saqlangandan foydalanish', ru: 'Использовать сохранённый', en: 'Use saved' },
+    'order.enterNew':    { uz: 'Yangi kiritish', ru: 'Ввести новый', en: 'Enter new' },
+    'order.onMap':       { uz: '📍 Xaritada', ru: '📍 На карте', en: '📍 On map' },
+    'order.addressTab':  { uz: '✏️ Manzil', ru: '✏️ Адрес', en: '✏️ Address' },
+    'order.addressPh':   { uz: 'Toshkent, Amir Temur ko‘chasi, 10-uy', ru: 'Ташкент, улица Амира Темура, дом 10', en: 'Tashkent, Amir Temur street, 10' },
+    'order.submit':      { uz: 'Buyurtma berish', ru: 'Оформить заказ', en: 'Place order' },
+    'order.sending':     { uz: 'Yuborilmoqda…', ru: 'Отправка…', en: 'Sending…' },
+    'order.success':     { uz: 'Buyurtma muvaffaqiyatli berildi!', ru: 'Заказ успешно оформлен!', en: 'Order placed successfully!' },
+
+    // ===== Account =====
+    'acc.pageTitle':   { uz: 'Shaxsiy kabinet', ru: 'Личный кабинет', en: 'My account' },
+    'acc.tabProfile':  { uz: 'Profil',     ru: 'Профиль',     en: 'Profile' },
+    'acc.tabOrders':   { uz: 'Buyurtmalar', ru: 'Заказы',     en: 'Orders' },
+    'acc.tabNotif':    { uz: 'Bildirishnomalar', ru: 'Уведомления', en: 'Notifications' },
+    'acc.tabSettings': { uz: 'Sozlamalar', ru: 'Настройки',   en: 'Settings' },
+    'acc.myProfile':   { uz: 'Mening profilim', ru: 'Мой профиль', en: 'My profile' },
+    'acc.statOrders':  { uz: 'Buyurtmalar', ru: 'Заказов',    en: 'Orders' },
+    'acc.statSpent':   { uz: 'Sarflangan', ru: 'Потрачено',   en: 'Spent' },
+    'acc.statSince':   { uz: 'Biz bilan',  ru: 'С нами с',    en: 'Member since' },
+    'acc.defaultAddr': { uz: 'Yetkazib berish manzili (asosiy)', ru: 'Адрес доставки (по умолчанию)', en: 'Delivery address (default)' },
+    'acc.enterAddr':   { uz: 'Manzilni kiriting', ru: 'Введите адрес', en: 'Enter address' },
+    'acc.find':        { uz: 'Topish',     ru: 'Найти',       en: 'Find' },
+    'acc.pickOnMap':   { uz: '📍 Xaritada tanlash', ru: '📍 Выбрать на карте', en: '📍 Pick on map' },
+    'acc.saveAddr':    { uz: 'Manzilni saqlash', ru: 'Сохранить адрес', en: 'Save address' },
+    'acc.clear':       { uz: 'Tozalash',   ru: 'Очистить',    en: 'Clear' },
+    'acc.myGeo':       { uz: 'Mening joylashuvim', ru: 'Моя геолокация', en: 'My location' },
+    'acc.addrSaved':   { uz: 'Manzil saqlandi!', ru: 'Адрес сохранён!', en: 'Address saved!' },
+    'acc.catalogLink': { uz: 'Katalog →', ru: 'Каталог →', en: 'Catalog →' },
+    'acc.designLink':  { uz: 'Dizayn yaratish →', ru: 'Создать дизайн →', en: 'Start designing →' },
+    'acc.orderHistory':{ uz: 'Buyurtmalar tarixi', ru: 'История заказов', en: 'Order history' },
+    'acc.loading':     { uz: 'Yuklanmoqda…', ru: 'Загрузка…', en: 'Loading…' },
+    'acc.notifTitle':  { uz: 'LOOM bildirishnomalari', ru: 'Уведомления от LOOM', en: 'Notifications from LOOM' },
+    'acc.editProfile': { uz: 'Profilni tahrirlash', ru: 'Редактировать профиль', en: 'Edit profile' },
+    'acc.fieldName':   { uz: 'Ism',        ru: 'Имя',         en: 'Name' },
+    'acc.fieldPhone':  { uz: 'Telefon',    ru: 'Телефон',     en: 'Phone' },
+    'acc.save':        { uz: 'Saqlash',    ru: 'Сохранить',   en: 'Save' },
+    'acc.changePw':    { uz: 'Parolni o‘zgartirish', ru: 'Изменить пароль', en: 'Change password' },
+    'acc.pwCurrent':   { uz: 'Joriy parol', ru: 'Текущий пароль', en: 'Current password' },
+    'acc.pwNew':       { uz: 'Yangi parol', ru: 'Новый пароль', en: 'New password' },
+    'acc.pwMin':       { uz: 'kamida 8 belgi', ru: 'мин. 8 символов', en: 'min. 8 characters' },
+    'acc.pwConfirm':   { uz: 'Tasdiqlash', ru: 'Подтвердить', en: 'Confirm' },
+    'acc.pwUpdate':    { uz: 'Parolni yangilash', ru: 'Обновить пароль', en: 'Update password' },
+    'acc.notifPrefs':  { uz: 'Bildirishnomalar', ru: 'Уведомления', en: 'Notifications' },
+    'acc.notifOrder':  { uz: 'Buyurtma holati', ru: 'Статус заказа', en: 'Order status' },
+    'acc.notifOrderSub': { uz: 'Buyurtmangiz yangi bosqichga o‘tganda', ru: 'Когда ваш заказ перейдёт на новый этап', en: 'When your order moves to a new stage' },
+    'acc.notifPromo':  { uz: 'Aksiya va yangiliklar', ru: 'Акции и новинки', en: 'Promotions & news' },
+    'acc.notifPromoSub': { uz: 'Yangi mahsulotlar va maxsus takliflar', ru: 'Новые продукты и специальные предложения', en: 'New products and special offers' },
+
+    // ===== Auth (login / register) =====
+    'auth.loginTitle':  { uz: 'Akkauntga kirish', ru: 'Вход в аккаунт', en: 'Sign in' },
+    'auth.loginSub':    { uz: 'Buyurtmalarni kuzatish uchun kiring', ru: 'Войдите, чтобы отслеживать заказы', en: 'Sign in to track your orders' },
+    'auth.email':       { uz: 'Email', ru: 'Email', en: 'Email' },
+    'auth.password':    { uz: 'Parol', ru: 'Пароль', en: 'Password' },
+    'auth.loginBtn':    { uz: 'Kirish', ru: 'Войти', en: 'Sign in' },
+    'auth.loggingIn':   { uz: 'Kirilmoqda…', ru: 'Вход…', en: 'Signing in…' },
+    'auth.noAccount':   { uz: 'Akkauntingiz yo‘qmi?', ru: 'Нет аккаунта?', en: 'No account?' },
+    'auth.register':    { uz: 'Ro‘yxatdan o‘tish', ru: 'Зарегистрироваться', en: 'Sign up' },
+    'auth.regTitle':    { uz: 'Akkaunt yaratish', ru: 'Создать аккаунт', en: 'Create account' },
+    'auth.regSub':      { uz: 'Buyurtmalarni kuzating va dizaynlarni saqlang', ru: 'Отслеживайте заказы и сохраняйте дизайны', en: 'Track orders and save your designs' },
+    'auth.name':        { uz: 'Ism', ru: 'Имя', en: 'Name' },
+    'auth.phone':       { uz: 'Telefon', ru: 'Телефон', en: 'Phone' },
+    'auth.pwMin8':      { uz: 'Kamida 8 belgi', ru: 'Минимум 8 символов', en: 'Minimum 8 characters' },
+    'auth.regBtn':      { uz: 'Ro‘yxatdan o‘tish', ru: 'Зарегистрироваться', en: 'Sign up' },
+    'auth.registering': { uz: 'Ro‘yxatdan o‘tilmoqda…', ru: 'Регистрация…', en: 'Signing up…' },
+    'auth.haveAccount': { uz: 'Akkauntingiz bormi?', ru: 'Уже есть аккаунт?', en: 'Already have an account?' },
+    'auth.errEmail':    { uz: 'To‘g‘ri email kiriting', ru: 'Введите корректный email', en: 'Enter a valid email' },
+    'auth.errPw':       { uz: 'Parolni kiriting', ru: 'Введите пароль', en: 'Enter your password' },
+    'auth.errPwLen':    { uz: 'Parol kamida 8 belgidan iborat bo‘lishi kerak', ru: 'Пароль должен содержать минимум 8 символов', en: 'Password must be at least 8 characters' }
+  };
+
+  // ── Core ──────────────────────────────────────────────────────
+  function getLang() {
+    try { const l = localStorage.getItem(STORE_KEY); if (LANGS.indexOf(l) !== -1) return l; } catch (e) {}
+    return DEFAULT;
+  }
+
+  function t(key, lang) {
+    lang = lang || getLang();
+    const entry = DICT[key];
+    if (!entry) return key;
+    return (entry[lang] != null) ? entry[lang] : (entry[DEFAULT] != null ? entry[DEFAULT] : key);
+  }
+
+  function applyTo(root, lang) {
+    lang = lang || getLang();
+    root = root || document;
+
+    root.querySelectorAll('[data-i18n]').forEach(function (el) {
+      const key = el.getAttribute('data-i18n');
+      if (DICT[key]) el.textContent = t(key, lang);
+    });
+    root.querySelectorAll('[data-i18n-html]').forEach(function (el) {
+      const key = el.getAttribute('data-i18n-html');
+      if (DICT[key]) el.innerHTML = t(key, lang);
+    });
+    root.querySelectorAll('[data-i18n-attr]').forEach(function (el) {
+      el.getAttribute('data-i18n-attr').split(';').forEach(function (pair) {
+        pair = pair.trim(); if (!pair) return;
+        const idx = pair.indexOf(':');
+        if (idx === -1) return;
+        const attr = pair.slice(0, idx).trim();
+        const key = pair.slice(idx + 1).trim();
+        if (DICT[key]) el.setAttribute(attr, t(key, lang));
+      });
+    });
+  }
+
+  function apply(lang) {
+    lang = lang || getLang();
+    document.documentElement.setAttribute('lang', lang);
+    applyTo(document, lang);
+    document.querySelectorAll('.lang-current').forEach(function (el) { el.textContent = LANG_SHORT[lang]; });
+    document.querySelectorAll('.lang-option').forEach(function (el) {
+      el.classList.toggle('active', el.getAttribute('data-lang') === lang);
+    });
+    try { window.dispatchEvent(new CustomEvent('loom:langchange', { detail: { lang: lang } })); } catch (e) {}
+  }
+
+  function setLang(lang) {
+    if (LANGS.indexOf(lang) === -1) return;
+    try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+    apply(lang);
+  }
+
+  function formatPrice(n, lang) {
+    lang = lang || getLang();
+    var num = Number(n || 0);
+    var grouped;
+    try { grouped = num.toLocaleString('ru-RU'); } catch (e) { grouped = String(num); }
+    return grouped + ' ' + t('cfg.currency', lang);
+  }
+
+  // ── Language switcher UI ──────────────────────────────────────
+  function buildSwitcher(mount) {
+    if (!mount || mount.dataset.langBuilt) return;
+    mount.dataset.langBuilt = '1';
+    var cur = getLang();
+    var wrap = document.createElement('div');
+    wrap.className = 'lang-switcher';
+    wrap.innerHTML =
+      '<button class="lang-btn" aria-haspopup="true" aria-expanded="false" aria-label="' + t('nav.language') + '">' +
+        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></svg>' +
+        '<span class="lang-current">' + LANG_SHORT[cur] + '</span>' +
+        '<svg class="lang-caret" width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</button>' +
+      '<div class="lang-menu" role="menu">' +
+        LANGS.map(function (l) {
+          return '<button class="lang-option' + (l === cur ? ' active' : '') + '" data-lang="' + l + '" role="menuitem">' + LANG_LABELS[l] + '</button>';
+        }).join('') +
+      '</div>';
+
+    mount.appendChild(wrap);
+
+    var btn = wrap.querySelector('.lang-btn');
+    var menu = wrap.querySelector('.lang-menu');
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = menu.classList.toggle('open');
+      btn.setAttribute('aria-expanded', String(open));
+    });
+    document.addEventListener('click', function () {
+      menu.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    });
+    wrap.querySelectorAll('.lang-option').forEach(function (opt) {
+      opt.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setLang(opt.getAttribute('data-lang'));
+        menu.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    });
+  }
+
+  function initSwitchers() {
+    document.querySelectorAll('.lang-switcher-mount').forEach(buildSwitcher);
+  }
+
+  function boot() {
+    initSwitchers();
+    apply(getLang());
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+
+  window.LOOM_I18N = {
+    getLang: getLang, setLang: setLang, t: t, apply: apply,
+    applyTo: applyTo, formatPrice: formatPrice, initSwitchers: initSwitchers,
+    LANGS: LANGS
+  };
+})();

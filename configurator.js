@@ -55,6 +55,12 @@ function getApiBase() {
     : "https://api.loomdesign.uz";
 }
 
+// i18n helper — translate a key with a Russian fallback when i18n.js is absent
+function CT(key, fallback) {
+  try { return (window.LOOM_I18N ? window.LOOM_I18N.t(key) : fallback) || fallback; }
+  catch (e) { return fallback; }
+}
+
 // Product loaded from API (null = using local fallback)
 let currentProduct = null;
 
@@ -495,7 +501,8 @@ async function loadProductFromSlug() {
         // New studio panel header + footer price
         const numFmt = new Intl.NumberFormat("ru-RU").format(product.price);
         const nameEl = document.getElementById("panel-product-name");
-        if (nameEl && product.name_ru) nameEl.textContent = product.name_ru;
+        // Drop the i18n key so a language switch won't overwrite the product name
+        if (nameEl && product.name_ru) { nameEl.removeAttribute("data-i18n"); nameEl.textContent = product.name_ru; }
         ["panel-price", "foot-price-num"].forEach((id) => {
           const el = document.getElementById(id);
           if (el) el.textContent = numFmt;
@@ -1128,64 +1135,69 @@ function _hitsShirt(e) {
 function bindLogoDrag3D() {
   const canvas = renderer.domElement;
 
-  function clientXY(e) {
-    return e.touches
-      ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
-      : { x: e.clientX, y: e.clientY };
-  }
-
   function texScale() {
     // Shirt fills ~75% of viewport height; map screen pixels → texture pixels
     return TEX_SIZE / (canvas.clientHeight * 0.75);
   }
 
+  // Pointer events unify mouse + touch and live in the SAME event stream as
+  // OrbitControls (which also uses pointer events). We intercept in the capture
+  // phase BEFORE OrbitControls' own pointerdown listener, and — when a logo/text
+  // is being dragged — stop propagation + disable the controls so the camera
+  // does not orbit underneath us. This is the fix for "can't move the logo/text".
   function onDown(e) {
+    if (e.button != null && e.button !== 0 && e.pointerType === "mouse") return;
     const d = _activeDraggable();
     if (!d) return;
     if (!_hitsShirt(e)) return;
 
-    e.stopImmediatePropagation();
-    e.preventDefault();
     _logoDragging = true;
     _dragObj = d;
+    if (controls) controls.enabled = false; // freeze camera while repositioning
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
 
-    const { x, y } = clientXY(e);
-    _dragStartClientX = x;
-    _dragStartClientY = y;
+    _dragStartClientX = e.clientX;
+    _dragStartClientY = e.clientY;
     _dragBaseX = d.x;
     _dragBaseY = d.y;
+
+    canvas.style.cursor = "grabbing";
+    e.stopPropagation();     // keep OrbitControls' bubble-phase pointerdown from firing
+    e.preventDefault();
   }
 
   function onMove(e) {
-    if (!_logoDragging || !_dragObj) return;
-    e.stopImmediatePropagation();
-    e.preventDefault();
-
-    const { x, y } = clientXY(e);
+    if (!_logoDragging || !_dragObj) {
+      // Hover affordance: show a grab cursor over a draggable element
+      if (_activeDraggable() && _hitsShirt(e)) canvas.style.cursor = "grab";
+      else canvas.style.cursor = "";
+      return;
+    }
     const sc = texScale();
-    _dragObj.x = _dragBaseX + (x - _dragStartClientX) * sc;
-    _dragObj.y = _dragBaseY + (y - _dragStartClientY) * sc;
+    const nx = _dragBaseX + (e.clientX - _dragStartClientX) * sc;
+    const ny = _dragBaseY + (e.clientY - _dragStartClientY) * sc;
+    // Clamp into the printable area so the element never leaves the print zone
+    _dragObj.x = Math.max(PRINT_AREA.x, Math.min(PRINT_AREA.x + PRINT_AREA.w, nx));
+    _dragObj.y = Math.max(PRINT_AREA.y, Math.min(PRINT_AREA.y + PRINT_AREA.h, ny));
     redrawActive();
+    e.preventDefault();
   }
 
-  function onUp() {
+  function onUp(e) {
+    if (!_logoDragging) return;
     _logoDragging = false;
+    _dragObj = null;
+    if (controls) controls.enabled = true; // hand control back to the camera
+    try { if (e && e.pointerId != null) canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    canvas.style.cursor = "";
   }
 
-  // Capture phase → fires before OrbitControls
-  canvas.addEventListener("mousedown", onDown, true);
-  canvas.addEventListener("mousemove", onMove, true);
-  window.addEventListener("mouseup", onUp);
-  canvas.addEventListener("touchstart", onDown, { capture: true, passive: false });
-  canvas.addEventListener("touchmove", onMove, { capture: true, passive: false });
-  window.addEventListener("touchend", onUp);
-
-  // Cursor feedback
-  canvas.addEventListener("mousemove", (e) => {
-    if (_logoDragging) { canvas.style.cursor = "grabbing"; return; }
-    if (!_activeDraggable()) { canvas.style.cursor = ""; return; }
-    canvas.style.cursor = _hitsShirt(e) ? "grab" : "";
-  });
+  // Capture phase → our handler runs before OrbitControls' pointerdown
+  canvas.addEventListener("pointerdown", onDown, true);
+  canvas.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  canvas.addEventListener("pointercancel", onUp);
+  canvas.style.touchAction = "none";
 }
 
 // ================================================================
@@ -1210,6 +1222,29 @@ function initUI() {
   bindCenterButtons();
   bindLayerSwitch();
   bindCart();
+  bindSizeGuide();
+  bindLangChange();
+}
+
+// Expand/collapse the size guide under the size picker
+function bindSizeGuide() {
+  const toggle = document.getElementById("sizeGuideToggle");
+  const body = document.getElementById("sizeGuideBody");
+  if (!toggle || !body) return;
+  toggle.addEventListener("click", () => {
+    const open = body.hasAttribute("hidden");
+    if (open) body.removeAttribute("hidden"); else body.setAttribute("hidden", "");
+    toggle.setAttribute("aria-expanded", String(open));
+  });
+}
+
+// Refresh JS-rendered strings when the language changes
+function bindLangChange() {
+  window.addEventListener("loom:langchange", () => {
+    // Summary tab (if visible) + order-modal summary use translated color/labels
+    try { if (typeof updateSummaryTab === "function") updateSummaryTab(); } catch (e) {}
+    try { if (typeof renderCart === "function") renderCart(); } catch (e) {}
+  });
 }
 
 // ----------------------------------------------------------------
@@ -1311,7 +1346,7 @@ async function addToCart() {
       ? await window.LOOM_LOGIN_MODAL.requireAuth()
       : (window.LOOM_AUTH ? await window.LOOM_AUTH.getCurrentUser() : null);
   } catch { return; } // login modal cancelled
-  if (!user) { showToast("Войдите, чтобы добавить в корзину", "error"); return; }
+  if (!user) { showToast(CT("cfg.toastLoginCart", "Войдите, чтобы добавить в корзину"), "error"); return; }
 
   const btn = document.getElementById("btn-add-to-cart");
   if (btn) btn.disabled = true;
@@ -1330,12 +1365,12 @@ async function addToCart() {
         quantity: 1,
       }),
     });
-    if (res.status === 401) { showToast("Войдите, чтобы добавить в корзину", "error"); return; }
-    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.error || "Ошибка добавления", "error"); return; }
+    if (res.status === 401) { showToast(CT("cfg.toastLoginCart", "Войдите, чтобы добавить в корзину"), "error"); return; }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.error || CT("cfg.toastAddError", "Ошибка добавления"), "error"); return; }
     cartState = await res.json();
     updateCartCount();
     renderCart();
-    showToast("Добавлено в корзину");
+    showToast(CT("cfg.toastAddedCart", "Добавлено в корзину"));
     openCartDrawer();
   } catch (e) {
     showToast("Ошибка сети", "error");
@@ -1361,13 +1396,14 @@ function renderCart() {
   const items = cartState.items || [];
   const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n);
   if (!items.length) {
-    body.innerHTML = '<p class="cart-empty">Корзина пуста</p>';
+    body.innerHTML = '<p class="cart-empty">' + _esc(CT("cfg.cartEmpty", "Корзина пуста")) + '</p>';
     if (foot) foot.style.display = "none";
     return;
   }
+  const cur = CT("cfg.currency", "сум");
   body.innerHTML = items.map((it) => {
     const s = _summarizeDesign(it.design_json);
-    const meta = [s.color, s.size, s.text ? "«" + _esc(s.text) + "»" : "", s.hasLogo ? "логотип" : "", (it.quantity > 1 ? "×" + it.quantity : "")].filter(Boolean).join(" · ");
+    const meta = [s.color, s.size, s.text ? "«" + _esc(s.text) + "»" : "", s.hasLogo ? CT("cfg.layerLogo", "Логотип") : "", (it.quantity > 1 ? "×" + it.quantity : "")].filter(Boolean).join(" · ");
     return `
       <div class="cart-item">
         <div class="cart-item-thumb" style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.3)">
@@ -1376,7 +1412,7 @@ function renderCart() {
         <div class="cart-item-info">
           <span class="cart-item-name">${_esc(it.product_name || "Футболка")}</span>
           <span class="cart-item-meta">${meta}</span>
-          <span class="cart-item-price">${fmt(it.unit_price * (it.quantity || 1))} сум</span>
+          <span class="cart-item-price">${fmt(it.unit_price * (it.quantity || 1))} ${cur}</span>
         </div>
         <button class="cart-item-remove" data-id="${it.id}" aria-label="Удалить">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -1812,16 +1848,14 @@ function updateSummaryTab() {
     if (el) el.textContent = txt;
   };
 
-  const colorName =
-    COLOR_NAMES[designState.shirtColor] || designState.shirtColor;
-  setEl("sum-color", colorName);
+  setEl("sum-color", getColorName(designState.shirtColor));
   setEl("sum-size", selectedSize);
   setEl("sum-text", designState.front.text.content || "—");
   setEl(
     "sum-font",
     designState.front.text.content ? designState.front.text.font : "—",
   );
-  setEl("sum-image", designState.front.image.name || "Не загружено");
+  setEl("sum-image", designState.front.image.name || CT("cfg.notUploaded", "Не загружено"));
 }
 
 function resetDesign() {
@@ -1930,6 +1964,10 @@ function bindSaveDesign() {
 
 // Map hex → Russian color name for order display
 function getColorName(hex) {
+  // Translate the two base colors; fall back to stored name / hex for custom colors
+  const h = (hex || "").toUpperCase();
+  if (h === "#FFFFFF") return CT("cfg.colorWhite", "Белый");
+  if (h === "#1F2937") return CT("cfg.colorBlack", "Чёрный");
   return COLOR_NAMES[hex] || hex;
 }
 
@@ -1967,9 +2005,11 @@ function _openOrderModalInner(cartMode) {
   setTxt("summaryColor", getColorName(designState.shirtColor));
   setTxt("summarySize", selectedSize);
   setTxt("summaryScale", front.image.scalePct + "%");
-  setTxt("summaryText", front.text.content || "Не указан");
+  setTxt("summaryText", front.text.content || CT("order.textNone", "Не указан"));
   setTxt("summaryFont", front.text.font);
-  setTxt("summaryImage", front.image.name || "Не загружено");
+  setTxt("summaryImage", front.image.name || CT("cfg.notUploaded", "Не загружено"));
+  const _price = currentProduct ? currentProduct.price : 150000;
+  setTxt("summaryPrice", window.LOOM_I18N ? window.LOOM_I18N.formatPrice(_price) : (_price.toLocaleString("ru-RU") + " " + CT("cfg.currency", "сум")));
 
   // Copy 3D renderer screenshot into summary canvas
   const summaryCanvas = document.getElementById("summaryCanvas");
@@ -2015,6 +2055,7 @@ function _openOrderModalInner(cartMode) {
         if (nameIn && !nameIn.value && user.name) nameIn.value = user.name;
         if (phoneIn && !phoneIn.value && user.phone) phoneIn.value = user.phone;
         if (badge) badge.style.display = "block";
+        _setupSavedLocation(user); // offer the saved default address
       });
     }
 
@@ -2039,6 +2080,64 @@ function _openOrderModalInner(cartMode) {
   };
   localStorage.setItem("loomDesignConfig", JSON.stringify(config));
   if (modal) modal.dataset.designConfig = JSON.stringify(config);
+}
+
+// Offer the user's saved default address in the order modal with a
+// "Use saved / Enter new" toggle (fixes: saved settings address ignored at checkout).
+function _setupSavedLocation(user) {
+  const card = document.getElementById("savedLocationCard");
+  if (!card) return;
+
+  let preset = null;
+  try {
+    const raw = user && user.location_preset;
+    preset = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw) : null;
+  } catch (_) { preset = null; }
+
+  const addrInput = document.getElementById("addressInput");
+
+  if (!preset || !preset.address) {
+    card.style.display = "none";
+    window.__savedLocCoords = null;
+    return;
+  }
+
+  card.style.display = "block";
+  const textEl = document.getElementById("savedLocationText");
+  if (textEl) textEl.textContent = preset.address;
+
+  const useSaved = document.getElementById("useSavedLocation");
+  const enterNew = document.getElementById("enterNewLocation");
+
+  function ensureAddressMode() {
+    // Make sure the manual "Address" (text) mode is showing
+    const toggleAddr = document.getElementById("toggleAddress");
+    if (toggleAddr && !toggleAddr.classList.contains("active")) toggleAddr.click();
+  }
+
+  function activate(which) {
+    if (useSaved) useSaved.classList.toggle("active", which === "saved");
+    if (enterNew) enterNew.classList.toggle("active", which === "new");
+    ensureAddressMode();
+    if (which === "saved") {
+      if (addrInput) addrInput.value = preset.address;
+      window.__savedLocCoords =
+        preset.lat && preset.lng ? { lat: preset.lat, lng: preset.lng } : null;
+    } else {
+      if (addrInput) { addrInput.value = ""; addrInput.focus(); }
+      window.__savedLocCoords = null;
+    }
+    if (typeof validateLocation === "function") validateLocation();
+  }
+
+  if (!card.dataset.bound) {
+    card.dataset.bound = "1";
+    if (useSaved) useSaved.addEventListener("click", (e) => { e.preventDefault(); activate("saved"); });
+    if (enterNew) enterNew.addEventListener("click", (e) => { e.preventDefault(); activate("new"); });
+  }
+
+  // Default to the saved address on open (unless the user already typed something)
+  if (addrInput && !addrInput.value.trim()) activate("saved");
 }
 
 function closeOrderModal() {

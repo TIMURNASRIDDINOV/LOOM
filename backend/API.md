@@ -1,6 +1,6 @@
 # LOOM Backend API
 
-Base URL: `https://api.looom.me`
+Base URL: `https://api.loomdesign.uz`
 
 All request/response bodies are `application/json` unless noted. Admin endpoints require the `admin_token` httpOnly cookie set by `/api/admin/login`.
 
