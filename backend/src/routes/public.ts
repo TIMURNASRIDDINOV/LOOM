@@ -112,6 +112,10 @@ pub.post('/orders', async (c) => {
   if (userRecord?.status === 'banned') {
     return c.json({ error: 'Your account has been blocked' }, 403)
   }
+  // Require a Telegram-verified phone number before an order can be placed.
+  if (!userRecord?.telegram_user_id) {
+    return c.json({ error: 'Подтвердите номер телефона через Telegram, чтобы оформить заказ.', code: 'phone_not_verified' }, 403)
+  }
 
   // Optional: validate productId
   let productId: number | null = null

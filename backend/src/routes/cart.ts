@@ -109,6 +109,10 @@ router.post('/checkout', async (c) => {
   const userId = c.get('userId')
   const user = await getUserById(c.env.DB, userId)
   if (user?.status === 'banned') return c.json({ error: 'Your account has been blocked' }, 403)
+  // Require a Telegram-verified phone number before an order can be placed.
+  if (!user?.telegram_user_id) {
+    return c.json({ error: 'Подтвердите номер телефона через Telegram, чтобы оформить заказ.', code: 'phone_not_verified' }, 403)
+  }
 
   const items = await getCartItems(c.env.DB, userId)
   if (!items.length) return c.json({ error: 'Cart is empty' }, 400)

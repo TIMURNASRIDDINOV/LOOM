@@ -95,6 +95,8 @@ auth.get('/me', requireAuth, async (c) => {
     created_at: user.created_at,
     order_count: stats.order_count,
     total_spent: stats.total_spent,
+    // True once the phone number has been verified through Telegram.
+    phone_verified: !!user.telegram_user_id,
   })
 })
 

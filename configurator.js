@@ -1971,21 +1971,34 @@ function getColorName(hex) {
   return COLOR_NAMES[hex] || hex;
 }
 
-function openOrderModal(cartMode) {
+async function openOrderModal(cartMode) {
   cartMode = cartMode === true;
   window.__cartCheckout = cartMode;
-  // Strict auth gate — must be logged in to place an order
+
+  // Orders require a Telegram-VERIFIED phone number (no random numbers).
+  let user = null;
   if (window.LOOM_AUTH) {
-    window.LOOM_AUTH.getCurrentUser().then((user) => {
-      if (!user) {
-        window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search)
-        return
-      }
-      _openOrderModalInner(cartMode)
-    })
-    return
+    try { user = await window.LOOM_AUTH.getCurrentUser(); } catch (_) {}
   }
-  _openOrderModalInner(cartMode)
+
+  if (!user || !user.phone_verified) {
+    if (window.LOOM_LOGIN_MODAL) {
+      if (user && !user.phone_verified) {
+        showToast(CT('order.verifyPhone', 'Подтвердите номер телефона через Telegram, чтобы оформить заказ.'), 'error');
+      }
+      try {
+        await window.LOOM_LOGIN_MODAL.open();      // phone → Telegram contact → verified
+      } catch (_) { return; }                       // user cancelled
+      // Refresh the cached profile so phone_verified is current
+      if (window.LOOM_AUTH) { try { user = await window.LOOM_AUTH.getCurrentUser(true); } catch (_) {} }
+    } else if (!user) {
+      window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+      return;
+    }
+    if (!user || !user.phone_verified) return;      // still unverified → abort
+  }
+
+  _openOrderModalInner(cartMode);
 }
 
 function _openOrderModalInner(cartMode) {

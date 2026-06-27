@@ -232,7 +232,13 @@
     'auth.haveAccount': { uz: 'Akkauntingiz bormi?', ru: 'Уже есть аккаунт?', en: 'Already have an account?' },
     'auth.errEmail':    { uz: 'To‘g‘ri email kiriting', ru: 'Введите корректный email', en: 'Enter a valid email' },
     'auth.errPw':       { uz: 'Parolni kiriting', ru: 'Введите пароль', en: 'Enter your password' },
-    'auth.errPwLen':    { uz: 'Parol kamida 8 belgidan iborat bo‘lishi kerak', ru: 'Пароль должен содержать минимум 8 символов', en: 'Password must be at least 8 characters' }
+    'auth.errPwLen':    { uz: 'Parol kamida 8 belgidan iborat bo‘lishi kerak', ru: 'Пароль должен содержать минимум 8 символов', en: 'Password must be at least 8 characters' },
+
+    // Telegram-verified sign up / sign in
+    'auth.viaTelegram':   { uz: 'Telegram orqali davom etish', ru: 'Продолжить через Telegram', en: 'Continue with Telegram' },
+    'auth.tgHint':        { uz: 'Telefon raqamingizni Telegram orqali tasdiqlaymiz — tez va parolsiz.', ru: 'Подтвердим ваш номер через Telegram — быстро и без пароля.', en: 'We verify your number via Telegram — fast and password-free.' },
+    'auth.orEmail':       { uz: 'yoki email orqali', ru: 'или по email', en: 'or with email' },
+    'order.verifyPhone':  { uz: 'Buyurtma berish uchun raqamingizni Telegram orqali tasdiqlang.', ru: 'Чтобы оформить заказ, подтвердите номер телефона через Telegram.', en: 'Verify your phone via Telegram to place an order.' }
   };
 
   // ── Core ──────────────────────────────────────────────────────
