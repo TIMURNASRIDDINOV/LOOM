@@ -11,8 +11,8 @@ routes = [
 
 [vars]
 ENVIRONMENT = "production"
-# The bot username WITHOUT the @ prefix (e.g. "LoomAuthBot")
-BOT_USERNAME = ""
+# The bot username WITHOUT the @ prefix
+BOT_USERNAME = "looom_design_bot"
 
 # D1 Database — fill in database_id after running: wrangler d1 list
 [[d1_databases]]
