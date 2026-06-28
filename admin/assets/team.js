@@ -17,20 +17,26 @@
     try {
       const { admins } = await apiJSON('/api/admin/admins')
       if (!admins.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim)">Нет администраторов</td></tr>'; return }
+      const canManage = me && me.role === 'owner'
       tbody.innerHTML = admins.map((a) => {
         const isSelf = me && a.id === me.id
-        const isOwner = a.role === 'owner'
-        // Role <select> (can't demote/promote the owner row here; transfer is explicit)
-        const roleCell = isOwner
-          ? roleBadge('owner')
-          : `<select class="sel-inline" data-role-for="${a.id}">
+        const rowIsOwner = a.role === 'owner'
+        // Owners get an inline role <select>; everyone else sees a static badge.
+        const roleCell = (canManage && !rowIsOwner)
+          ? `<select class="sel-inline" data-role-for="${a.id}">
                <option value="staff"${a.role === 'staff' ? ' selected' : ''}>staff</option>
                <option value="manager"${a.role === 'manager' ? ' selected' : ''}>manager</option>
                <option value="owner">передать owner…</option>
              </select>`
-        const actions = (isSelf || isOwner)
-          ? '<span style="color:var(--text-dim);font-size:0.78rem">' + (isSelf ? 'это вы' : 'владелец') + '</span>'
-          : `<button class="btn-action danger" data-del="${a.id}" data-email="${esc(a.email)}" style="padding:0.35rem 0.7rem">Удалить</button>`
+          : roleBadge(a.role)
+        let actions = ''
+        if (canManage) {
+          actions = (isSelf || rowIsOwner)
+            ? '<span style="color:var(--text-dim);font-size:0.78rem">' + (isSelf ? 'это вы' : 'владелец') + '</span>'
+            : `<button class="btn-action danger" data-del="${a.id}" data-email="${esc(a.email)}" style="padding:0.35rem 0.7rem">Удалить</button>`
+        } else if (isSelf) {
+          actions = '<span style="color:var(--text-dim);font-size:0.78rem">это вы</span>'
+        }
         return `<tr>
           <td class="mono">${esc(a.email)}</td>
           <td>${roleCell}</td>
@@ -99,12 +105,15 @@
     me = await checkAuth()
     if (!me) { window.location.href = 'login.html'; return }
     if (me.role !== 'owner') {
-      document.getElementById('no-access').style.display = 'block'
-      document.getElementById('team-card').style.display = 'none'
+      // Non-owners: read-only roster, no add form.
       document.getElementById('add-card').style.display = 'none'
-      return
+      const note = document.getElementById('no-access')
+      note.style.display = 'block'
+      note.style.color = 'var(--text-muted)'
+      note.textContent = 'Список команды доступен для просмотра. Управление — только у владельца (owner).'
+    } else {
+      wireAddForm()
     }
-    wireAddForm()
     loadAdmins()
   }
 

@@ -140,8 +140,9 @@ admin.get('/me', requireAdmin, async (c) => {
 
 // ─── Admin team management (OWNER only) ───────────────────────────────────────
 
-// List all admin accounts.
-admin.get('/admins', requireAdmin, requireRole('owner'), async (c) => {
+// List all admin accounts — any admin can SEE the team roster (who is owner/
+// manager/staff); only the owner can add/change/remove (gated below).
+admin.get('/admins', requireAdmin, async (c) => {
   const admins = await listAdmins(c.env.DB)
   return c.json({ admins })
 })

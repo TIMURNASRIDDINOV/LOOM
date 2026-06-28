@@ -1119,7 +1119,7 @@ const _rcMouse = new THREE.Vector2();
 
 // Interaction state for on-shirt move/resize
 let _moving = false, _resizing = false;
-let _moveObj = null, _grabOffX = 0, _grabOffY = 0;
+let _moveObj = null, _moveBaseX = 0, _moveBaseY = 0, _startClientX = 0, _startClientY = 0;
 let _resizeObj = null, _resizeKind = "", _resizeCenter = { x: 0, y: 0 }, _resizeD0 = 1, _resizeStartSize = 0;
 let _selectedKind = null; // 'text' | 'image' | null
 
@@ -1200,8 +1200,10 @@ function _raycastTex(e) {
 function _hitsShirt(e) { return _raycastTex(e) !== null; }
 
 // ── Box hit helpers (texture space) ─────────────────────────────
+// HIT padding is generous (a comfortable, touch-friendly grab margin around the
+// element) and intentionally LARGER than the drawn selection outline (pad 26).
 function _boxEdges(b) {
-  const pad = 26;
+  const pad = 95;
   return { l: b.cx - b.w / 2 - pad, r: b.cx + b.w / 2 + pad, t: b.cy - b.h / 2 - pad, b: b.cy + b.h / 2 + pad };
 }
 function _inBox(b, tx, ty) { const p = _boxEdges(b); return tx >= p.l && tx <= p.r && ty >= p.t && ty <= p.b; }
@@ -1243,24 +1245,42 @@ function bindLogoDrag3D() {
     canvas.style.cursor = "";
   }
 
-  // Capture phase → runs before OrbitControls' pointerdown. We only take over
-  // the gesture (and stop the camera orbiting) when the pointer lands ON an
-  // element's box or a corner handle; clicking bare shirt orbits as normal.
+  function screenToTexScale() {
+    // Shirt fills ~75% of viewport height; screen px → texture px (for the move fallback)
+    return TEX_SIZE / (canvas.clientHeight * 0.75);
+  }
+
+  // Capture phase → runs before OrbitControls' pointerdown. We take over the
+  // gesture (and stop the camera orbiting) when the pointer lands ON an element
+  // (precise via UV box, or — if UV is unavailable — the active element while
+  // over the shirt). Clicking bare shirt orbits as normal. The MOVE itself uses
+  // a robust screen-delta so it works even when UV hit-testing is flaky.
   function onDown(e) {
     if (e.button != null && e.button !== 0 && e.pointerType === "mouse") return;
-    const hit = _raycastTex(e);
-    if (!hit) return;                       // off the shirt → orbit
     const view = designState.activeView;
     const boxes = _boxes[view] || {};
-    const order = designState.activeLayer === "image" ? ["image", "text"] : ["text", "image"];
-    let kind = null, mode = null;
-    for (const k of order) {
-      const b = boxes[k];
-      if (!b) continue;
-      if (_nearCorner(b, hit.tx, hit.ty)) { kind = k; mode = "resize"; break; }
-      if (_inBox(b, hit.tx, hit.ty)) { kind = k; mode = "move"; break; }
+    const hit = _raycastTex(e);
+    let kind = null, mode = "move";
+
+    if (hit) {
+      const order = designState.activeLayer === "image" ? ["image", "text"] : ["text", "image"];
+      for (const k of order) {
+        const b = boxes[k];
+        if (!b) continue;
+        if (_nearCorner(b, hit.tx, hit.ty)) { kind = k; mode = "resize"; break; }
+        if (_inBox(b, hit.tx, hit.ty)) { kind = k; mode = "move"; break; }
+      }
+      if (!kind) return; // on the shirt but outside any element → orbit
+    } else {
+      // Fallback: no UV. If the pointer is on the shirt and there's an active
+      // element, move it (the original, proven behaviour) so dragging never dies.
+      if (!_hitsShirt(e)) return;
+      const layer = designState[view];
+      kind = (designState.activeLayer === "image" && layer.image.img) ? "image"
+           : (layer.text.content ? "text" : (layer.image.img ? "image" : null));
+      if (!kind) return;
+      mode = "move";
     }
-    if (!kind) return;                      // bare shirt → orbit
 
     _syncLayerUI(kind);
     _selectedKind = kind;
@@ -1276,7 +1296,8 @@ function bindLogoDrag3D() {
       canvas.style.cursor = "nwse-resize";
     } else {
       _moving = true; _moveObj = obj;
-      _grabOffX = obj.x - hit.tx; _grabOffY = obj.y - hit.ty;
+      _moveBaseX = obj.x; _moveBaseY = obj.y;
+      _startClientX = e.clientX; _startClientY = e.clientY;
       canvas.style.cursor = "grabbing";
     }
     redrawActive();
@@ -1304,18 +1325,16 @@ function bindLogoDrag3D() {
       return;
     }
     if (_moving && _moveObj) {
-      const hit = _raycastTex(e);
-      if (hit) {
-        _moveObj.x = _clampX(hit.tx + _grabOffX);
-        _moveObj.y = _clampY(hit.ty + _grabOffY);
-        redrawActive();
-      }
+      const sc = screenToTexScale();
+      _moveObj.x = _clampX(_moveBaseX + (e.clientX - _startClientX) * sc);
+      _moveObj.y = _clampY(_moveBaseY + (e.clientY - _startClientY) * sc);
+      redrawActive();
       e.preventDefault();
       return;
     }
     // Hover affordance
     const hit = _raycastTex(e);
-    if (!hit) { canvas.style.cursor = ""; return; }
+    if (!hit) { canvas.style.cursor = _hitsShirt(e) && _activeDraggable() ? "grab" : ""; return; }
     const boxes = _boxes[designState.activeView] || {};
     let cursor = "";
     for (const k of ["text", "image"]) {
@@ -1325,6 +1344,7 @@ function bindLogoDrag3D() {
     }
     canvas.style.cursor = cursor;
   }
+
 
   canvas.addEventListener("pointerdown", onDown, true);
   canvas.addEventListener("pointermove", onMove);

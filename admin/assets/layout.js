@@ -101,16 +101,16 @@
             r.textContent = role
             emailEl.insertAdjacentElement('afterend', r)
           }
-          if (role === 'owner') {
-            const nav = sidebar.querySelector('.sidebar-nav')
-            if (nav && !nav.querySelector('[data-team]')) {
-              const a = document.createElement('a')
-              a.href = 'team.html'
-              a.className = 'sidebar-link' + (activePage === 'team' ? ' active' : '')
-              a.setAttribute('data-team', '1')
-              a.innerHTML = '<span class="icon">◈</span>Команда'
-              nav.appendChild(a)
-            }
+          // Every admin can open "Команда" to see the team roster; management
+          // controls inside are owner-only.
+          const nav = sidebar.querySelector('.sidebar-nav')
+          if (nav && !nav.querySelector('[data-team]')) {
+            const a = document.createElement('a')
+            a.href = 'team.html'
+            a.className = 'sidebar-link' + (activePage === 'team' ? ' active' : '')
+            a.setAttribute('data-team', '1')
+            a.innerHTML = '<span class="icon">◈</span>Команда'
+            nav.appendChild(a)
           }
         })
       }
