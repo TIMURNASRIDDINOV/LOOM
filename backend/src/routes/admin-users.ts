@@ -4,7 +4,6 @@ import {
   getAdminUserById,
   updateUserRoleAndStatus,
   updateUserProfile,
-  updateUserPassword,
   getOrdersByUserId,
   getUserActivity,
   insertUserActivity,
@@ -14,11 +13,13 @@ import {
   getUsersWithRole,
   setUserRole,
 } from '../db/queries'
-import { hashPassword } from '../lib/password'
-import { requireAdmin } from '../middleware/requireAdmin'
+import { requireAdmin, requireRole } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
 
 const router = new Hono<AdminEnv>()
+
+// Writes need manager or owner; reads are open to any admin (incl. staff).
+const MANAGER = requireRole('owner', 'manager')
 
 const ALLOWED_ROLES = new Set(['user', 'admin', 'super_admin', 'owner'])
 const ALLOWED_STATUSES = new Set(['active', 'banned'])
@@ -57,7 +58,7 @@ router.get('/users/:id', requireAdmin, async (c) => {
 
 // ─── PATCH /api/admin/users/:id ───────────────────────────────────────────────
 
-router.patch('/users/:id', requireAdmin, async (c) => {
+router.patch('/users/:id', requireAdmin, MANAGER, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -116,7 +117,7 @@ router.patch('/users/:id', requireAdmin, async (c) => {
 
 // ─── PATCH /api/admin/users/:id/role ─────────────────────────────────────────
 
-router.patch('/users/:id/role', requireAdmin, async (c) => {
+router.patch('/users/:id/role', requireAdmin, requireRole('owner'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -166,7 +167,7 @@ router.patch('/users/:id/role', requireAdmin, async (c) => {
 // ─── PATCH /api/admin/users/:id/status ────────────────────────────────────────
 // Explicit status-only endpoint (convenience wrapper over PATCH /users/:id)
 
-router.patch('/users/:id/status', requireAdmin, async (c) => {
+router.patch('/users/:id/status', requireAdmin, MANAGER, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -223,7 +224,7 @@ router.get('/users/:id/activity', requireAdmin, async (c) => {
 
 // ─── POST /api/admin/notifications ───────────────────────────────────────────
 
-router.post('/notifications', requireAdmin, async (c) => {
+router.post('/notifications', requireAdmin, MANAGER, async (c) => {
   let body: unknown
   try { body = await c.req.json() } catch {
     return c.json({ error: 'Invalid JSON' }, 400)
@@ -322,7 +323,7 @@ router.post('/notifications', requireAdmin, async (c) => {
 
 // ─── PATCH /api/admin/users/:id/profile ──────────────────────────────────────
 
-router.patch('/users/:id/profile', requireAdmin, async (c) => {
+router.patch('/users/:id/profile', requireAdmin, MANAGER, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -361,7 +362,7 @@ router.patch('/users/:id/profile', requireAdmin, async (c) => {
 
 // ─── PATCH /api/admin/users/:id/location ─────────────────────────────────────
 
-router.patch('/users/:id/location', requireAdmin, async (c) => {
+router.patch('/users/:id/location', requireAdmin, MANAGER, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -399,34 +400,51 @@ router.patch('/users/:id/location', requireAdmin, async (c) => {
 
 // ─── PATCH /api/admin/users/:id/password ─────────────────────────────────────
 
-router.patch('/users/:id/password', requireAdmin, async (c) => {
+// Trigger a Telegram self-reset for the user. The admin NEVER sees or sets a
+// password — they only ask the user to reset it via the bot.
+router.patch('/users/:id/password', requireAdmin, MANAGER, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
-  let body: unknown
-  try { body = await c.req.json() } catch {
-    return c.json({ error: 'Invalid JSON' }, 400)
-  }
-
-  const { password } = body as Record<string, unknown>
-  if (typeof password !== 'string' || password.length < 6) {
-    return c.json({ error: 'password must be at least 6 characters' }, 400)
-  }
-
   const existing = await getAdminUserById(c.env.DB, id)
   if (!existing) return c.json({ error: 'Not found' }, 404)
+  if (!existing.telegram_user_id) {
+    return c.json({ error: 'У пользователя не привязан Telegram — отправить сброс невозможно.', code: 'no_telegram' }, 422)
+  }
 
-  const hashed = await hashPassword(password)
-  await updateUserPassword(c.env.DB, id, hashed)
+  const botToken = c.env.TELEGRAM_BOT_TOKEN
+  let sent = false
+  let errorDetail: string | null = null
+  if (botToken) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: existing.telegram_user_id,
+          text: '🔐 LOOM: запрошен сброс пароля.\n\nОткройте loomdesign.uz → «Войти» → «Забыли пароль?», введите свой номер и подтвердите его в этом боте, затем задайте новый пароль.',
+        }),
+      })
+      const data = (await res.json()) as { ok: boolean; description?: string }
+      sent = !!data.ok
+      if (!data.ok) errorDetail = data.description ?? 'Telegram error'
+    } catch (err) {
+      errorDetail = err instanceof Error ? err.message : String(err)
+    }
+  } else {
+    errorDetail = 'bot not configured'
+  }
 
-  const adminId = c.get('adminId')
   await insertUserActivity(c.env.DB, {
     user_id: id,
-    action: 'password_reset',
-    metadata: { by_admin_id: adminId },
+    action: 'password_reset_requested',
+    metadata: { by_admin_id: c.get('adminId'), sent },
   })
 
-  return c.json({ ok: true })
+  if (!sent) {
+    return c.json({ error: 'Не удалось отправить сообщение в Telegram: ' + (errorDetail || ''), code: 'send_failed' }, 502)
+  }
+  return c.json({ ok: true, sent: true })
 })
 
 // ─── GET /api/admin/notifications ────────────────────────────────────────────

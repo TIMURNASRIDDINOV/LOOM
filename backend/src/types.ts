@@ -22,7 +22,7 @@ export type UserEnv = {
 // Used by admin-auth middleware and routes
 export type AdminEnv = {
   Bindings: Bindings
-  Variables: { adminId: number }
+  Variables: { adminId: number; adminRole: string }
 }
 
 // Base env — no Variables set (public routes, top-level app)

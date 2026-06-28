@@ -15,11 +15,15 @@ import {
   getVisitorStats,
   getUserById,
   insertNotification,
+  listAdmins,
+  updateAdminRole,
+  deleteAdmin,
+  countAdminsByRole,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { signToken, verifyToken } from '../lib/jwt'
-import { requireAdmin } from '../middleware/requireAdmin'
-import { ORDER_STATUSES } from '../db/schema'
+import { requireAdmin, requireRole } from '../middleware/requireAdmin'
+import { ORDER_STATUSES, ADMIN_ROLES } from '../db/schema'
 import type { AdminEnv, BaseEnv, Bindings } from '../types'
 
 const COOKIE_MAX_AGE = 12 * 60 * 60 // 12 hours in seconds
@@ -61,7 +65,7 @@ setupRouter.post('/setup', async (c) => {
   if (total === 0) {
     // No admins at all — allow creating the first one
     const hash = await hashPassword(password)
-    await createAdmin(c.env.DB, { email: normalizedEmail, password_hash: hash })
+    await createAdmin(c.env.DB, { email: normalizedEmail, password_hash: hash, role: 'owner' })
     return c.json({ ok: true, created: true })
   }
 
@@ -131,7 +135,77 @@ admin.post('/logout', (c) => {
 admin.get('/me', requireAdmin, async (c) => {
   const row = await getAdminById(c.env.DB, c.get('adminId'))
   if (!row) return c.json({ error: 'Not found' }, 404)
-  return c.json({ id: row.id, email: row.email })
+  return c.json({ id: row.id, email: row.email, role: row.role || 'staff' })
+})
+
+// ─── Admin team management (OWNER only) ───────────────────────────────────────
+
+// List all admin accounts.
+admin.get('/admins', requireAdmin, requireRole('owner'), async (c) => {
+  const admins = await listAdmins(c.env.DB)
+  return c.json({ admins })
+})
+
+// Create a new admin account with a role.
+admin.post('/admins', requireAdmin, requireRole('owner'), async (c) => {
+  let body: unknown
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const { email, password, role } = body as Record<string, unknown>
+  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return c.json({ error: 'Введите корректный email' }, 400)
+  }
+  if (typeof password !== 'string' || password.length < 8) {
+    return c.json({ error: 'Пароль должен содержать минимум 8 символов' }, 400)
+  }
+  const r = typeof role === 'string' && (ADMIN_ROLES as readonly string[]).includes(role) ? role : 'staff'
+  if (r === 'owner') return c.json({ error: 'Нельзя создать второго владельца. Сначала передайте роль.' }, 400)
+  const existing = await getAdminByEmail(c.env.DB, email.toLowerCase())
+  if (existing) return c.json({ error: 'Админ с таким email уже существует' }, 409)
+  const hash = await hashPassword(password)
+  const id = await createAdmin(c.env.DB, { email: email.toLowerCase(), password_hash: hash, role: r })
+  return c.json({ ok: true, id, role: r })
+})
+
+// Change an admin's role.
+admin.patch('/admins/:id/role', requireAdmin, requireRole('owner'), async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+  let body: unknown
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const { role } = body as Record<string, unknown>
+  if (typeof role !== 'string' || !(ADMIN_ROLES as readonly string[]).includes(role)) {
+    return c.json({ error: 'Недопустимая роль' }, 400)
+  }
+  const target = await getAdminById(c.env.DB, id)
+  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+
+  // Transfer of ownership: demote the current owner so there is exactly one.
+  if (role === 'owner') {
+    if (id === c.get('adminId')) return c.json({ ok: true, role }) // already owner
+    await updateAdminRole(c.env.DB, c.get('adminId'), 'manager')
+    await updateAdminRole(c.env.DB, id, 'owner')
+    return c.json({ ok: true, role, transferred: true })
+  }
+
+  // Prevent demoting the last owner (would lock everyone out of owner powers).
+  if (target.role === 'owner') {
+    const owners = await countAdminsByRole(c.env.DB, 'owner')
+    if (owners <= 1) return c.json({ error: 'Нельзя снять роль с единственного владельца. Сначала назначьте другого.' }, 400)
+  }
+  await updateAdminRole(c.env.DB, id, role)
+  return c.json({ ok: true, role })
+})
+
+// Delete an admin account.
+admin.delete('/admins/:id', requireAdmin, requireRole('owner'), async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+  if (id === c.get('adminId')) return c.json({ error: 'Нельзя удалить свой аккаунт' }, 400)
+  const target = await getAdminById(c.env.DB, id)
+  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+  if (target.role === 'owner') return c.json({ error: 'Нельзя удалить владельца' }, 400)
+  await deleteAdmin(c.env.DB, id)
+  return c.json({ ok: true })
 })
 
 // ─── GET /api/admin/orders ────────────────────────────────────────────────────

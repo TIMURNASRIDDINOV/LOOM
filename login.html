@@ -77,6 +77,10 @@
         <p class="auth-error" id="passwordError"></p>
       </div>
 
+      <div style="text-align:right;margin:-0.4rem 0 0.7rem">
+        <a href="#" id="forgotLink" style="font-size:0.78rem;color:rgba(255,255,255,0.5);text-decoration:none" data-i18n="auth.forgot">Забыли пароль?</a>
+      </div>
+
       <button type="submit" class="auth-btn" id="submitBtn" data-i18n="auth.loginBtn">Войти</button>
     </form>
 
@@ -86,9 +90,10 @@
   </div>
 
   <script src="assets/config.js?v=2"></script>
-  <script src="assets/i18n.js?v=2"></script>
+  <script src="assets/i18n.js?v=3"></script>
   <script src="assets/auth.js?v=2"></script>
   <script src="assets/login-modal.js"></script>
+  <script src="assets/password-reset.js?v=1"></script>
   <script>
     'use strict';
     (function () {
@@ -98,6 +103,13 @@
       });
 
       const T = (k, fb) => { try { return (window.LOOM_I18N ? window.LOOM_I18N.t(k) : fb) || fb; } catch (e) { return fb; } };
+
+      // Forgot password → Telegram recovery
+      const forgot = document.getElementById('forgotLink');
+      if (forgot) forgot.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (window.LOOM_RESET) window.LOOM_RESET.open();
+      });
 
       // Primary path: verify phone via Telegram
       const tgBtn = document.getElementById('tgAuthBtn');

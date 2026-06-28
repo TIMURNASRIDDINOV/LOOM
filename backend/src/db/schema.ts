@@ -49,13 +49,18 @@ export interface User {
 export interface AuthSession {
   id: string
   phone: string
-  status: string   // pending|verified|failed|expired
+  status: string   // pending|verified|failed|expired|used
   jwt: string | null
   user_id: number | null
   telegram_user_id: number | null
   created_at: number
   expires_at: number
+  purpose: string  // login|reset
 }
+
+// Admin team roles, most→least privileged.
+export const ADMIN_ROLES = ['owner', 'manager', 'staff'] as const
+export type AdminRole = (typeof ADMIN_ROLES)[number]
 
 export interface UserActivity {
   id: number
@@ -94,6 +99,7 @@ export interface Admin {
   email: string
   password_hash: string
   created_at: number
+  role: string  // owner|manager|staff
 }
 
 export interface Order {

@@ -8,10 +8,14 @@ import {
   getPendingAuthSessionByTelegramUser,
   markAuthSessionVerified,
   markAuthSessionFailed,
+  markAuthSessionUsed,
   upsertPhoneUser,
   insertUserActivity,
+  getUserByPhone,
+  updateUserPassword,
 } from '../db/queries'
 import { signToken } from '../lib/jwt'
+import { hashPassword } from '../lib/password'
 import type { BaseEnv } from '../types'
 
 const USER_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  // 30 days
@@ -52,6 +56,8 @@ router.post('/telegram/start', async (c) => {
   if (typeof rawPhone !== 'string' || !rawPhone.trim()) {
     return c.json({ error: 'phone is required' }, 400)
   }
+  // purpose: 'login' (default) or 'reset' (forgot-password recovery)
+  const purpose = (body as Record<string, unknown>).purpose === 'reset' ? 'reset' : 'login'
 
   const phone = normalizePhone(rawPhone.trim())
   if (!isValidE164(phone)) {
@@ -64,26 +70,29 @@ router.post('/telegram/start', async (c) => {
     return c.json({ error: 'Bot not configured' }, 503)
   }
 
-  // Reuse pending session if one exists for this phone
-  const existing = await getActiveAuthSessionByPhone(c.env.DB, phone)
-  if (existing) {
-    return c.json({
-      session_id: existing.id,
-      telegram_deep_link: `https://t.me/${botUsername}?start=${existing.id}`,
-      expires_at: existing.expires_at,
-    })
+  // For login we reuse an active pending session; reset always starts fresh.
+  if (purpose === 'login') {
+    const existing = await getActiveAuthSessionByPhone(c.env.DB, phone)
+    if (existing && existing.purpose === 'login') {
+      return c.json({
+        session_id: existing.id,
+        telegram_deep_link: `https://t.me/${botUsername}?start=${existing.id}`,
+        expires_at: existing.expires_at,
+      })
+    }
   }
 
   // Create new session
   const sessionId = crypto.randomUUID()
   const expiresAt = Date.now() + 10 * 60 * 1000  // 10 minutes
 
-  await createAuthSession(c.env.DB, { id: sessionId, phone, expires_at: expiresAt })
+  await createAuthSession(c.env.DB, { id: sessionId, phone, expires_at: expiresAt, purpose })
 
   return c.json({
     session_id: sessionId,
     telegram_deep_link: `https://t.me/${botUsername}?start=${sessionId}`,
     expires_at: expiresAt,
+    purpose,
   })
 })
 
@@ -113,6 +122,35 @@ router.get('/telegram/status', async (c) => {
   }
 
   return c.json({ status: session.status })
+})
+
+// ─── POST /api/auth/reset-password ────────────────────────────────────────────
+// Sets a new password using a Telegram-VERIFIED reset session (see purpose='reset').
+
+router.post('/reset-password', async (c) => {
+  let body: unknown
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const { session_id, new_password } = body as Record<string, unknown>
+  if (typeof session_id !== 'string' || !session_id) return c.json({ error: 'session_id is required' }, 400)
+  if (typeof new_password !== 'string' || new_password.length < 8) {
+    return c.json({ error: 'Пароль должен содержать минимум 8 символов' }, 400)
+  }
+
+  const session = await getAuthSession(c.env.DB, session_id)
+  if (!session || session.purpose !== 'reset' || session.status !== 'verified' || !session.user_id) {
+    return c.json({ error: 'Сессия недействительна. Запросите сброс заново.' }, 400)
+  }
+  if (Date.now() > session.expires_at) {
+    return c.json({ error: 'Время сессии истекло. Запросите сброс заново.' }, 400)
+  }
+
+  const hash = await hashPassword(new_password)
+  await updateUserPassword(c.env.DB, session.user_id, hash)
+  await markAuthSessionUsed(c.env.DB, session_id) // one-time use
+  await insertUserActivity(c.env.DB, {
+    user_id: session.user_id, action: 'password_reset', metadata: { via: 'telegram' },
+  })
+  return c.json({ ok: true })
 })
 
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────
@@ -210,6 +248,29 @@ webhookRouter.post('/webhook', async (c) => {
         botToken,
         msg.chat.id,
         `❌ Номер телефона не совпадает. Вы ввели ${session.phone}, а поделились ${sharedPhone}. Вернитесь на сайт и введите правильный номер.`,
+      )
+      return c.json({ ok: true })
+    }
+
+    // ── Password recovery: verify ownership, then let the site set a new password ──
+    if (session.purpose === 'reset') {
+      const u = await getUserByPhone(c.env.DB, session.phone)
+      if (!u) {
+        await markAuthSessionFailed(c.env.DB, session.id)
+        await sendTelegramMessage(
+          botToken, msg.chat.id,
+          '❌ Аккаунт с этим номером не найден.', undefined, true,
+        )
+        return c.json({ ok: true })
+      }
+      await markAuthSessionVerified(c.env.DB, session.id, u.id, null) // no JWT — reset only
+      await insertUserActivity(c.env.DB, {
+        user_id: u.id, action: 'password_reset_verified',
+        metadata: { via: 'telegram', telegram_user_id: telegramUserId },
+      })
+      await sendTelegramMessage(
+        botToken, msg.chat.id,
+        '✅ Номер подтверждён. Вернитесь на loomdesign.uz и задайте новый пароль.', undefined, true,
       )
       return c.json({ ok: true })
     }

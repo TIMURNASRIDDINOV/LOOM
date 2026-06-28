@@ -289,3 +289,11 @@ body.has-sidebar {
 :root[data-theme="light"] .badge-shipped   { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
 :root[data-theme="light"] .badge-delivered { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
 :root[data-theme="light"] .badge-cancelled { background: #f4f4f5; color: #52525b; border-color: #d4d4d8; }
+
+/* ── Role-based UI gating (set on <body data-admin-role="..."> by layout.js) ── */
+body[data-admin-role="staff"] .manager-only,
+body[data-admin-role="staff"] .owner-only,
+body[data-admin-role="manager"] .owner-only { display: none !important; }
+body[data-admin-role="staff"] .staff-only { display: block !important; }
+/* Admin role badge in the sidebar */
+.sidebar-role { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 0.2rem; }

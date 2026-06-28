@@ -84,15 +84,43 @@ export async function countAdmins(db: D1Database): Promise<number> {
 
 export async function createAdmin(
   db: D1Database,
-  params: { email: string; password_hash: string },
+  params: { email: string; password_hash: string; role?: string },
 ): Promise<number> {
   return safeQuery('createAdmin', async () => {
     const result = await db
-      .prepare('INSERT INTO admins (email, password_hash, created_at) VALUES (?, ?, ?)')
-      .bind(params.email, params.password_hash, Date.now())
+      .prepare('INSERT INTO admins (email, password_hash, created_at, role) VALUES (?, ?, ?, ?)')
+      .bind(params.email, params.password_hash, Date.now(), params.role ?? 'staff')
       .run()
     return Number(result.meta.last_row_id)
   })
+}
+
+export async function listAdmins(db: D1Database): Promise<Array<{ id: number; email: string; role: string; created_at: number }>> {
+  return safeQuery('listAdmins', async () => {
+    const res = await db
+      .prepare('SELECT id, email, role, created_at FROM admins ORDER BY created_at ASC')
+      .all<{ id: number; email: string; role: string; created_at: number }>()
+    return res.results ?? []
+  }) as Promise<Array<{ id: number; email: string; role: string; created_at: number }>>
+}
+
+export async function updateAdminRole(db: D1Database, id: number, role: string): Promise<void> {
+  return safeQuery('updateAdminRole', async () => {
+    await db.prepare('UPDATE admins SET role = ? WHERE id = ?').bind(role, id).run()
+  })
+}
+
+export async function deleteAdmin(db: D1Database, id: number): Promise<void> {
+  return safeQuery('deleteAdmin', async () => {
+    await db.prepare('DELETE FROM admins WHERE id = ?').bind(id).run()
+  })
+}
+
+export async function countAdminsByRole(db: D1Database, role: string): Promise<number> {
+  return safeQuery('countAdminsByRole', async () => {
+    const r = await db.prepare('SELECT COUNT(*) as c FROM admins WHERE role = ?').bind(role).first<{ c: number }>()
+    return r?.c ?? 0
+  }) as Promise<number>
 }
 
 export async function updateUserProfile(
@@ -532,15 +560,22 @@ export async function getAdminStats(db: D1Database): Promise<AdminStats> {
 
 export async function createAuthSession(
   db: D1Database,
-  params: { id: string; phone: string; expires_at: number },
+  params: { id: string; phone: string; expires_at: number; purpose?: string },
 ): Promise<void> {
   return safeQuery('createAuthSession', async () => {
     await db
       .prepare(
-        'INSERT INTO auth_sessions (id, phone, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO auth_sessions (id, phone, status, created_at, expires_at, purpose) VALUES (?, ?, ?, ?, ?, ?)',
       )
-      .bind(params.id, params.phone, 'pending', Date.now(), params.expires_at)
+      .bind(params.id, params.phone, 'pending', Date.now(), params.expires_at, params.purpose ?? 'login')
       .run()
+  })
+}
+
+// Mark a reset session consumed so a recovery token cannot be replayed.
+export async function markAuthSessionUsed(db: D1Database, id: string): Promise<void> {
+  return safeQuery('markAuthSessionUsed', async () => {
+    await db.prepare("UPDATE auth_sessions SET status = 'used' WHERE id = ?").bind(id).run()
   })
 }
 
@@ -595,7 +630,7 @@ export async function markAuthSessionVerified(
   db: D1Database,
   id: string,
   userId: number,
-  jwt: string,
+  jwt: string | null,
 ): Promise<void> {
   return safeQuery('markAuthSessionVerified', async () => {
     await db

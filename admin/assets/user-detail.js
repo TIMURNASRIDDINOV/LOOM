@@ -34,16 +34,32 @@
       ['Имя', [u.first_name, u.last_name].filter(Boolean).join(' ') || '—'],
       ['Telegram', u.telegram_username ? '@' + u.telegram_username : '—'],
       ['Telegram ID', u.telegram_user_id ? String(u.telegram_user_id) : '—'],
-      ['Статус', u.status],
       ['Заказов', String(u.orders_count ?? 0)],
       ['Потрачено', formatPrice(u.total_spent ?? 0)],
       ['Регистрация', formatDate(u.created_at)],
       ['Последний вход', u.last_login_at ? formatDate(u.last_login_at) : '—'],
     ]
 
+    // Identity header (avatar/initials + name + email + status)
+    const displayName = [u.first_name, u.last_name].filter(Boolean).join(' ')
+      || (u.phone ? formatPhone(u.phone) : u.email) || ('Пользователь #' + u.id)
+    const initials = (displayName || '?').replace(/[^A-Za-zА-Яа-яЁё]/g, '').slice(0, 2).toUpperCase() || '#'
+    const statusHtml = `<span class="badge badge-${u.status === 'banned' ? 'banned' : 'active'}">${u.status === 'banned' ? 'Заблокирован' : 'Активен'}</span>`
+    const tgHtml = u.telegram_user_id ? '<span class="badge" style="color:#229ED9;background:rgba(34,158,217,0.12);border:1px solid rgba(34,158,217,0.3)">Telegram ✓</span>' : ''
+    const ident = document.getElementById('user-identity')
+    if (ident) {
+      ident.innerHTML =
+        (u.avatar_url
+          ? `<img src="${escHtml(u.avatar_url)}" alt="" class="ud-avatar" />`
+          : `<div class="ud-avatar ud-avatar-ph">${escHtml(initials)}</div>`) +
+        `<div style="flex:1;min-width:0">
+           <div class="ud-name">${escHtml(displayName)}</div>
+           <div class="ud-email">${escHtml(u.email || '—')}</div>
+           <div class="ud-badges">${statusHtml}${tgHtml}</div>
+         </div>`
+    }
+
     document.getElementById('user-info').innerHTML =
-      // Role row with badge
-      `<span class="info-label">Роль</span><span class="info-value">${roleBadge(u.role)}</span>` +
       rows.map(([label, val]) => `
         <span class="info-label">${escHtml(label)}</span>
         <span class="info-value">${escHtml(val)}</span>
@@ -56,43 +72,8 @@
     const toggleStatusBtn = document.getElementById('btn-toggle-status')
     toggleStatusBtn.textContent = u.status === 'banned' ? 'Разблокировать' : 'Заблокировать'
     toggleStatusBtn.className = u.status === 'banned'
-      ? 'btn-action'
-      : 'btn-action danger'
-
-    // Role selector dropdown
-    const roleContainer = document.getElementById('role-select-container')
-    if (roleContainer) {
-      roleContainer.innerHTML = `
-        <select id="role-select" style="
-          padding:0.45rem 0.75rem;border-radius:3px;
-          border:0.5px solid var(--btn-border);
-          background:var(--input-bg);color:var(--text);
-          font-family:inherit;font-size:0.8rem;cursor:pointer;outline:none;
-        ">
-          <option value="user"${u.role === 'user' ? ' selected' : ''}>user</option>
-          <option value="admin"${u.role === 'admin' ? ' selected' : ''}>admin</option>
-          <option value="super_admin"${u.role === 'super_admin' ? ' selected' : ''}>super_admin</option>
-          <option value="owner"${u.role === 'owner' ? ' selected' : ''}>owner</option>
-        </select>
-        <button class="btn-action" id="btn-apply-role" style="margin-left:0.4rem">Сохранить роль</button>
-      `
-      document.getElementById('btn-apply-role').addEventListener('click', async () => {
-        const newRole = document.getElementById('role-select').value
-        if (newRole === currentUser.role) return
-        const label = newRole === 'owner' ? 'передать права владельца' : `назначить роль "${newRole}"`
-        if (!confirm(`Вы уверены, что хотите ${label}?`)) return
-        try {
-          await apiJSON(`/api/admin/users/${userId}/role`, {
-            method: 'PATCH',
-            body: JSON.stringify({ role: newRole }),
-            headers: { 'Content-Type': 'application/json' },
-          })
-          location.reload()
-        } catch (err) {
-          alert('Ошибка: ' + err.message)
-        }
-      })
-    }
+      ? 'btn-action manager-only'
+      : 'btn-action danger manager-only'
 
     // Notify button — always visible; hint differs when no Telegram
     const notifyBtn = document.getElementById('btn-notify')
@@ -342,23 +323,25 @@
 
   // ── Reset Password ────────────────────────────────────────────────────────
 
+  // Admin can only TRIGGER a reset — the user sets their own new password via
+  // Telegram. The admin never sees or sets a plaintext password.
   document.getElementById('btn-save-password').addEventListener('click', async () => {
     const result = document.getElementById('password-result')
-    const password = document.getElementById('edit-password').value
-    if (password.length < 6) {
-      result.style.color = 'var(--danger)'; result.textContent = 'Минимум 6 символов'
+    if (currentUser && !currentUser.telegram_user_id) {
+      result.style.color = 'var(--danger)'
+      result.textContent = '⚠ У пользователя не привязан Telegram — отправить сброс невозможно.'
       return
     }
-    if (!confirm('Установить новый пароль для этого пользователя?')) return
-    result.style.color = 'var(--text-muted)'; result.textContent = 'Сохранение…'
+    if (!confirm('Отправить пользователю запрос на сброс пароля через Telegram?')) return
+    result.style.color = 'var(--text-muted)'; result.textContent = 'Отправка…'
     try {
       await apiJSON(`/api/admin/users/${userId}/password`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({}),
       })
-      result.style.color = 'var(--success)'; result.textContent = '✅ Пароль установлен'
-      document.getElementById('edit-password').value = ''
+      result.style.color = 'var(--success)'
+      result.textContent = '✅ Пользователю отправлено сообщение в Telegram для сброса пароля.'
     } catch (err) {
       result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
     }

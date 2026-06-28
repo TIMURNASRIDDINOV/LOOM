@@ -238,7 +238,24 @@
     'auth.viaTelegram':   { uz: 'Telegram orqali davom etish', ru: 'Продолжить через Telegram', en: 'Continue with Telegram' },
     'auth.tgHint':        { uz: 'Telefon raqamingizni Telegram orqali tasdiqlaymiz — tez va parolsiz.', ru: 'Подтвердим ваш номер через Telegram — быстро и без пароля.', en: 'We verify your number via Telegram — fast and password-free.' },
     'auth.orEmail':       { uz: 'yoki email orqali', ru: 'или по email', en: 'or with email' },
-    'order.verifyPhone':  { uz: 'Buyurtma berish uchun raqamingizni Telegram orqali tasdiqlang.', ru: 'Чтобы оформить заказ, подтвердите номер телефона через Telegram.', en: 'Verify your phone via Telegram to place an order.' }
+    'order.verifyPhone':  { uz: 'Buyurtma berish uchun raqamingizni Telegram orqali tasdiqlang.', ru: 'Чтобы оформить заказ, подтвердите номер телефона через Telegram.', en: 'Verify your phone via Telegram to place an order.' },
+
+    // Forgot-password recovery
+    'auth.forgot':     { uz: 'Parolni unutdingizmi?', ru: 'Забыли пароль?', en: 'Forgot password?' },
+    'auth.errPhone':   { uz: 'To‘liq telefon raqamini kiriting', ru: 'Введите полный номер телефона', en: 'Enter the full phone number' },
+    'reset.title':     { uz: 'Kirishni tiklash', ru: 'Восстановление доступа', en: 'Recover access' },
+    'reset.phoneHint': { uz: 'Telefon raqamingizni kiriting — uni Telegramda tasdiqlang, so‘ng yangi parol o‘rnating.', ru: 'Введите номер телефона — подтвердите его в Telegram, затем задайте новый пароль.', en: 'Enter your phone — confirm it in Telegram, then set a new password.' },
+    'reset.waitHint':  { uz: 'Botni oching, «Start» bosing va raqamingizni ulashing. Tasdiqlash kutilmoqda…', ru: 'Откройте бота, нажмите «Старт» и поделитесь номером. Ожидаем подтверждение…', en: 'Open the bot, tap Start and share your number. Waiting for confirmation…' },
+    'reset.openBot':   { uz: 'Telegramni qayta ochish', ru: 'Открыть Telegram ещё раз', en: 'Open Telegram again' },
+    'reset.expired':   { uz: 'Vaqt tugadi. Qaytadan urinib ko‘ring.', ru: 'Время ожидания истекло. Попробуйте снова.', en: 'Timed out. Please try again.' },
+    'reset.notFound':  { uz: 'Akkaunt topilmadi yoki raqam mos kelmadi.', ru: 'Аккаунт не найден или номер не совпал.', en: 'Account not found or the number did not match.' },
+    'reset.verified':  { uz: 'Raqam tasdiqlandi. Yangi parol o‘rnating.', ru: 'Номер подтверждён. Задайте новый пароль.', en: 'Number verified. Set a new password.' },
+    'reset.newPw':     { uz: 'Yangi parol (kamida 8)', ru: 'Новый пароль (мин. 8)', en: 'New password (min. 8)' },
+    'reset.confirmPw': { uz: 'Parolni takrorlang', ru: 'Повторите пароль', en: 'Repeat password' },
+    'reset.setBtn':    { uz: 'Parolni saqlash', ru: 'Сохранить пароль', en: 'Save password' },
+    'reset.mismatch':  { uz: 'Parollar mos kelmadi', ru: 'Пароли не совпадают', en: 'Passwords do not match' },
+    'reset.done':      { uz: 'Parol yangilandi! Endi yangi parol bilan kiring.', ru: 'Пароль обновлён! Теперь войдите с новым паролем.', en: 'Password updated! Sign in with your new password.' },
+    'reset.toLogin':   { uz: 'Kirish', ru: 'Войти', en: 'Sign in' }
   };
 
   // ── Core ──────────────────────────────────────────────────────

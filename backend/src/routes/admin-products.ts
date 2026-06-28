@@ -9,8 +9,11 @@ import {
   countOrdersForProduct,
   AdminProductsFilter,
 } from '../db/queries'
-import { requireAdmin } from '../middleware/requireAdmin'
+import { requireAdmin, requireRole } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
+
+// Product writes require manager or owner (staff is read-only here).
+const MANAGER = requireRole('owner', 'manager')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -110,7 +113,7 @@ router.get('/products/:id', requireAdmin, async (c) => {
 
 // ─── POST /api/admin/products ─────────────────────────────────────────────────
 
-router.post('/products', requireAdmin, async (c) => {
+router.post('/products', requireAdmin, MANAGER, async (c) => {
   let formData: FormData
   try {
     formData = await c.req.formData()
@@ -195,7 +198,7 @@ router.post('/products', requireAdmin, async (c) => {
 
 // ─── PATCH /api/admin/products/:id ───────────────────────────────────────────
 
-router.patch('/products/:id', requireAdmin, async (c) => {
+router.patch('/products/:id', requireAdmin, MANAGER, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -284,7 +287,7 @@ router.patch('/products/:id', requireAdmin, async (c) => {
 // row is kept and archived (active = 0) instead, so order history stays intact.
 // Response: { ok, mode: 'deleted' | 'archived', orders? }
 
-router.delete('/products/:id', requireAdmin, async (c) => {
+router.delete('/products/:id', requireAdmin, MANAGER, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
