@@ -1,0 +1,299 @@
+/* ════════════════════════════════════════════════════════════════════════
+   LOOM Admin — Design tokens & shared chrome
+   Single source of truth for theming. Render-blocking: linked in <head> of
+   every admin page BEFORE the page's own <style>, so the first paint is
+   already in the correct theme (no flash). data-theme is set synchronously
+   by theme-init.js (also in <head>).
+
+   Rules for page styles & JS templates:
+   - Never hardcode a colour. Always reference a --token below.
+   - Light = neutral canvas + white elevated surfaces + subtle shadow
+     (standard back-office convention). Dark = neutral, borders not shadows.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Dark (default fallback if JS is disabled) ───────────────────────────────
+   NOTE: theme selectors are scoped to the ROOT element (:root[data-theme=…]).
+   A bare [data-theme="dark"] would also match the theme-toggle buttons, which
+   carry data-theme attributes of their own — wrongly giving them dark tokens. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg:            #0a0a0a;   /* app canvas                              */
+  --bg-sidebar:    #080808;   /* sidebar                                 */
+  --bg-card:       #0f0f0f;   /* raised surface (lighter = elevated)     */
+  --bg-elevated:   #161616;   /* modals / popovers                       */
+  --bg-subtle:     #0a0a0a;   /* table headers, inset fills              */
+
+  /* Text */
+  --text:          #ffffff;
+  --text-secondary:rgba(255,255,255,0.78);
+  --text-muted:    rgba(255,255,255,0.52);
+  --text-dim:      rgba(255,255,255,0.32);
+
+  /* Borders */
+  --hairline:      rgba(255,255,255,0.10);
+  --hairline2:     rgba(255,255,255,0.06);
+
+  /* Inputs */
+  --input-bg:      rgba(255,255,255,0.05);
+  --input-border:  rgba(255,255,255,0.13);
+  --input-border-focus: rgba(255,255,255,0.40);
+
+  /* Buttons (outline) */
+  --btn-border:        rgba(255,255,255,0.18);
+  --btn-color:         rgba(255,255,255,0.62);
+  --btn-hover:         #ffffff;
+  --btn-hover-border:  rgba(255,255,255,0.42);
+  --logout-bg:         transparent;
+
+  /* Inverted / primary solid button */
+  --invert-bg:     #ffffff;
+  --invert-text:   #111111;
+
+  /* Interactive surfaces */
+  --hover-bg:      rgba(255,255,255,0.04);
+  --link-color:    rgba(255,255,255,0.52);
+  --link-hover:    rgba(255,255,255,0.85);
+  --link-active:   #ffffff;
+  --link-active-bg:rgba(255,255,255,0.05);
+
+  /* Form controls (toggle switches etc.) */
+  --control-track:    rgba(255,255,255,0.12);
+  --control-track-border: rgba(255,255,255,0.16);
+  --control-knob:     rgba(255,255,255,0.55);
+  --control-knob-off: rgba(255,255,255,0.45);
+
+  /* Semantic */
+  --danger:        #f87171;
+  --danger-bg:     rgba(239,68,68,0.14);
+  --danger-border: rgba(239,68,68,0.34);
+  --success:       #4ade80;
+  --success-bg:    rgba(34,197,94,0.14);
+  --success-border:rgba(34,197,94,0.34);
+  --warning:       #facc15;
+  --warning-bg:    rgba(234,179,8,0.14);
+  --warning-border:rgba(234,179,8,0.34);
+
+  /* Elevation */
+  --shadow-card:   none;
+  --shadow-pop:    0 8px 28px rgba(0,0,0,0.55);
+  --focus-ring:    0 0 0 3px rgba(255,255,255,0.08);
+
+  /* Back-compat alias (older pages use --muted) */
+  --muted:         rgba(255,255,255,0.52);
+  --mono:          'DM Mono', monospace;
+}
+
+/* ── Light (neutral zinc — corporate back-office look) ───────────────────── */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces — canvas is light grey, cards are WHITE (raised) */
+  --bg:            #f5f5f6;
+  --bg-sidebar:    #ffffff;
+  --bg-card:       #ffffff;
+  --bg-elevated:   #ffffff;
+  --bg-subtle:     #fafafa;
+
+  /* Text — accessible zinc scale */
+  --text:          #18181b;
+  --text-secondary:#3f3f46;
+  --text-muted:    #71717a;
+  --text-dim:      #a1a1aa;
+
+  /* Borders — solid greys (alpha-black on white reads muddy) */
+  --hairline:      #e4e4e7;
+  --hairline2:     #efeff1;
+
+  /* Inputs */
+  --input-bg:      #ffffff;
+  --input-border:  #d4d4d8;
+  --input-border-focus: #18181b;
+
+  /* Buttons (outline) */
+  --btn-border:        #d4d4d8;
+  --btn-color:         #52525b;
+  --btn-hover:         #18181b;
+  --btn-hover-border:  #a1a1aa;
+  --logout-bg:         transparent;
+
+  /* Inverted / primary solid button */
+  --invert-bg:     #18181b;
+  --invert-text:   #ffffff;
+
+  /* Interactive surfaces */
+  --hover-bg:      #f4f4f5;
+  --link-color:    #52525b;
+  --link-hover:    #18181b;
+  --link-active:   #18181b;
+  --link-active-bg:#f4f4f5;
+
+  /* Form controls */
+  --control-track:    #d4d4d8;
+  --control-track-border: #c4c4c8;
+  --control-knob:     #ffffff;
+  --control-knob-off: #ffffff;
+
+  /* Semantic — darker text for contrast on light fills */
+  --danger:        #dc2626;
+  --danger-bg:     #fef2f2;
+  --danger-border: #fca5a5;
+  --success:       #15803d;
+  --success-bg:    #f0fdf4;
+  --success-border:#86efac;
+  --warning:       #a16207;
+  --warning-bg:    #fefce8;
+  --warning-border:#fde047;
+
+  /* Elevation — subtle shadow is what makes a light surface read as raised */
+  --shadow-card:   0 1px 2px rgba(24,24,27,0.04), 0 1px 3px rgba(24,24,27,0.06);
+  --shadow-pop:    0 10px 30px rgba(24,24,27,0.12);
+  --focus-ring:    0 0 0 3px rgba(24,24,27,0.10);
+
+  /* Back-compat alias */
+  --muted:         #71717a;
+}
+
+/* ── No-flash transition guard ──────────────────────────────────────────────
+   theme-init.js adds .theme-booting before first paint and removes it after,
+   so the initial theme application never animates (the cause of the "blink").
+   User-initiated theme switches afterwards still animate smoothly.           */
+html.theme-booting,
+html.theme-booting * ,
+html.theme-booting *::before,
+html.theme-booting *::after {
+  transition: none !important;
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────── */
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+/* Themed native scrollbars */
+* { scrollbar-color: var(--text-dim) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--hairline);
+  border-radius: 6px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--input-border); }
+
+/* Themed text selection */
+::selection { background: var(--text); color: var(--bg); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Layout chrome (sidebar + theme toggle) — render-blocking so it never flashes
+   ════════════════════════════════════════════════════════════════════════ */
+
+body.has-sidebar {
+  display: flex;
+  flex-direction: row;
+}
+
+.sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--hairline);
+  height: 100vh; position: sticky; top: 0;
+  display: flex; flex-direction: column;
+  padding: 0; overflow-y: auto; z-index: 50;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.sidebar-brand {
+  font-family: var(--mono);
+  font-size: 0.78rem; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--text); padding: 1.5rem 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--hairline2);
+  text-decoration: none; display: block;
+}
+.sidebar-nav { flex: 1; padding: 0.75rem 0; }
+.sidebar-link {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.6rem 1.25rem; font-size: 0.85rem;
+  color: var(--link-color); text-decoration: none;
+  transition: color 0.12s, background 0.12s;
+  border-left: 2px solid transparent;
+}
+.sidebar-link:hover { color: var(--link-hover); background: var(--hover-bg); }
+.sidebar-link.active {
+  color: var(--link-active);
+  border-left-color: var(--link-active);
+  background: var(--link-active-bg);
+}
+.sidebar-link .icon { font-size: 0.9rem; opacity: 0.7; width: 1.1rem; text-align: center; }
+.sidebar-footer {
+  padding: 1rem 1.25rem; border-top: 1px solid var(--hairline2);
+  display: flex; flex-direction: column; gap: 0.4rem;
+}
+.sidebar-email { font-size: 0.72rem; color: var(--text-dim); word-break: break-all; }
+.sidebar-logout {
+  padding: 0.4rem 0.7rem; border: 1px solid var(--btn-border);
+  border-radius: 4px; background: var(--logout-bg); color: var(--btn-color);
+  font-family: inherit; font-size: 0.75rem; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s; text-align: left;
+}
+.sidebar-logout:hover { color: var(--btn-hover); border-color: var(--btn-hover-border); background: var(--hover-bg); }
+
+.main-content { flex: 1; min-width: 0; overflow-y: auto; background: var(--bg); }
+
+/* Theme toggle */
+.theme-toggle-row { display: flex; gap: 0.25rem; margin-bottom: 0.4rem; }
+.theme-btn {
+  flex: 1; padding: 0.32rem 0.2rem; border-radius: 4px;
+  border: 1px solid var(--btn-border); background: transparent;
+  color: var(--btn-color); font-family: inherit; font-size: 0.68rem;
+  cursor: pointer; transition: color 0.12s, border-color 0.12s, background 0.12s; text-align: center;
+}
+.theme-btn:hover { color: var(--btn-hover); border-color: var(--btn-hover-border); }
+.theme-btn.active {
+  color: var(--link-active);
+  border-color: var(--link-active);
+  background: var(--link-active-bg);
+}
+
+/* Hide any legacy top nav if present */
+.nav { display: none !important; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Status badges — rendered by app.js statusBadge() as
+   <span class="badge badge-<status>">…</span>. Tinted per theme for contrast.
+   ════════════════════════════════════════════════════════════════════════ */
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 9999px;
+  font-size: 0.72rem; font-weight: 500; letter-spacing: 0.04em;
+  background: var(--hover-bg); color: var(--text-muted);
+  border: 1px solid var(--hairline); white-space: nowrap;
+}
+
+:root[data-theme="dark"] .badge-new        { background: rgba(59,130,246,0.16);  color: #93c5fd; border-color: rgba(59,130,246,0.40); }
+:root[data-theme="dark"] .badge-confirmed  { background: rgba(234,179,8,0.16);   color: #fde047; border-color: rgba(234,179,8,0.40); }
+:root[data-theme="dark"] .badge-producing  { background: rgba(249,115,22,0.16);  color: #fdba74; border-color: rgba(249,115,22,0.40); }
+:root[data-theme="dark"] .badge-shipped    { background: rgba(168,85,247,0.16);  color: #d8b4fe; border-color: rgba(168,85,247,0.40); }
+:root[data-theme="dark"] .badge-delivered  { background: rgba(34,197,94,0.16);   color: #86efac; border-color: rgba(34,197,94,0.40); }
+:root[data-theme="dark"] .badge-cancelled  { background: rgba(107,114,128,0.18); color: #cbd5e1; border-color: rgba(107,114,128,0.45); }
+
+:root[data-theme="light"] .badge-new       { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+:root[data-theme="light"] .badge-confirmed { background: #fefce8; color: #a16207; border-color: #fde68a; }
+:root[data-theme="light"] .badge-producing { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+:root[data-theme="light"] .badge-shipped   { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
+:root[data-theme="light"] .badge-delivered { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+:root[data-theme="light"] .badge-cancelled { background: #f4f4f5; color: #52525b; border-color: #d4d4d8; }
+
+/* ── Role-based UI gating (set on <body data-admin-role="..."> by layout.js) ── */
+body[data-admin-role="staff"] .manager-only,
+body[data-admin-role="staff"] .owner-only,
+body[data-admin-role="manager"] .owner-only { display: none !important; }
+body[data-admin-role="staff"] .staff-only { display: block !important; }
+/* Admin role badge in the sidebar */
+.sidebar-role { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 0.2rem; }

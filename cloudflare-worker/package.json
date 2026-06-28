@@ -1,0 +1,28 @@
+{
+  "name": "loom-telegram-orders",
+  "version": "2.0.0",
+  "description": "Cloudflare Worker for LOOM T-shirt configurator - sends orders to Telegram",
+  "main": "src/worker.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "deploy:staging": "wrangler deploy --env staging",
+    "tail": "wrangler tail",
+    "secret:token": "wrangler secret put TELEGRAM_BOT_TOKEN",
+    "secret:chat": "wrangler secret put TELEGRAM_CHAT_ID",
+    "secrets": "npm run secret:token && npm run secret:chat"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "telegram-bot",
+    "order-management",
+    "loom"
+  ],
+  "author": "LOOM Team",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
