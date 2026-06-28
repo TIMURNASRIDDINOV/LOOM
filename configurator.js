@@ -14,6 +14,15 @@ const TEX_SIZE = 2048; // Offscreen texture canvas dimensions (2048 for crisp lo
 // Print area in texture UV space (center-chest region, scaled to 2048)
 const PRINT_AREA = { x: 560, y: 360, w: 928, h: 1120 };
 
+// Live bounding boxes (texture-space) of each element, recomputed on every
+// drawTexture() — used for per-element hit testing + resize handles.
+const _boxes = { front: { text: null, image: null }, back: { text: null, image: null } };
+// When true, drawTexture() paints a selection outline + corner handles for the
+// active element. Turned OFF transiently around snapshots/exports so handles
+// never bake into the saved PNG / order preview.
+let _showHandles = true;
+const HANDLE_TEX = 70; // corner-handle grab radius, in texture px (~20 screen px)
+
 // Camera views are finalized by auto-fit after the model loads.
 const CAM_VIEWS = {
   front: { x: 0, y: 0, z: 3.2 },
@@ -345,6 +354,9 @@ function drawTexture(view) {
   ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
   ctx.drawImage(plainTexCanvas, 0, 0, TEX_SIZE, TEX_SIZE);
 
+  // Reset this view's element boxes; they are filled in as each layer draws.
+  _boxes[view] = { text: null, image: null };
+
   // 3. Uploaded image layer
   if (layer.image.img) {
     ctx.save();
@@ -365,6 +377,7 @@ function drawTexture(view) {
       dh,
     );
     ctx.restore();
+    _boxes[view].image = { cx: layer.image.x, cy: layer.image.y, w: dw, h: dh };
   }
 
   // 4. Text layer
@@ -376,6 +389,7 @@ function drawTexture(view) {
     ctx.fillStyle = layer.text.color;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    const _tw = ctx.measureText(layer.text.content).width;
     // Subtle drop-shadow for legibility on light-colored shirts
     ctx.shadowColor = "rgba(0,0,0,0.12)";
     ctx.shadowBlur = 6;
@@ -383,6 +397,12 @@ function drawTexture(view) {
     ctx.shadowOffsetY = 2;
     ctx.fillText(layer.text.content, layer.text.x, layer.text.y);
     ctx.restore();
+    _boxes[view].text = { cx: layer.text.x, cy: layer.text.y, w: Math.max(_tw, 40), h: layer.text.size * 1.25 };
+  }
+
+  // 5. Selection outline + corner handles for the active element (live view only).
+  if (_showHandles && view === designState.activeView) {
+    _drawSelection(ctx, view);
   }
 
   // Signal Three.js to re-upload
@@ -1096,14 +1116,15 @@ function refreshDesignCanvas() {
 
 const _rc = new THREE.Raycaster();
 const _rcMouse = new THREE.Vector2();
-let _logoDragging = false;
-let _dragStartClientX = 0, _dragStartClientY = 0;
-let _dragBaseX = 0, _dragBaseY = 0;
-let _dragObj = null;
+
+// Interaction state for on-shirt move/resize
+let _moving = false, _resizing = false;
+let _moveObj = null, _grabOffX = 0, _grabOffY = 0;
+let _resizeObj = null, _resizeKind = "", _resizeCenter = { x: 0, y: 0 }, _resizeD0 = 1, _resizeStartSize = 0;
+let _selectedKind = null; // 'text' | 'image' | null
 
 /**
- * Returns the design element the on-shirt drag should move: the active layer
- * (text or logo) if it has content, otherwise whichever element exists.
+ * Returns the design element the active layer points at (if it has content).
  */
 function _activeDraggable() {
   const layer = designState[designState.activeView];
@@ -1117,9 +1138,48 @@ function _activeDraggable() {
   return null;
 }
 
-/** Returns true if the mouse/touch event hits any part of the shirt. */
-function _hitsShirt(e) {
-  if (!shirtObject || !renderer || !camera) return false;
+// Which element should show handles for `view`: active layer's element if it
+// has a box, else whichever exists.
+function _activeBoxKind(view) {
+  const b = _boxes[view] || {};
+  const pref = designState.activeLayer;
+  if (pref === "text" && b.text) return "text";
+  if (pref === "image" && b.image) return "image";
+  if (b.image) return "image";
+  if (b.text) return "text";
+  return null;
+}
+
+// Dashed bounding box + 4 round corner handles for the active element.
+function _drawSelection(ctx, view) {
+  const kind = _activeBoxKind(view);
+  const b = kind ? _boxes[view][kind] : null;
+  if (!b) return;
+  const pad = 26;
+  const left = b.cx - b.w / 2 - pad, top = b.cy - b.h / 2 - pad;
+  const w = b.w + pad * 2, h = b.h + pad * 2;
+  ctx.save();
+  ctx.strokeStyle = "rgba(10,132,255,0.9)";
+  ctx.lineWidth = 4;
+  ctx.setLineDash([18, 12]);
+  ctx.strokeRect(left, top, w, h);
+  ctx.setLineDash([]);
+  const r = 17;
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = "rgba(10,132,255,0.95)";
+  ctx.lineWidth = 5;
+  [[left, top], [left + w, top], [left, top + h], [left + w, top + h]].forEach(([x, y]) => {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+// Raycast the pointer onto the shirt and return texture-space coords {tx,ty}, or null.
+function _raycastTex(e) {
+  if (!shirtObject || !renderer || !camera) return null;
   const canvas = renderer.domElement;
   const rect = canvas.getBoundingClientRect();
   const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -1129,74 +1189,147 @@ function _hitsShirt(e) {
   _rc.setFromCamera(_rcMouse, camera);
   const meshes = [];
   shirtObject.traverse((c) => { if (c.isMesh) meshes.push(c); });
-  return _rc.intersectObjects(meshes, false).length > 0;
+  const hits = _rc.intersectObjects(meshes, false);
+  for (const h of hits) {
+    if (h.uv) return { tx: h.uv.x * TEX_SIZE, ty: (1 - h.uv.y) * TEX_SIZE };
+  }
+  return null;
+}
+
+/** Back-compat: any part of the shirt hit? */
+function _hitsShirt(e) { return _raycastTex(e) !== null; }
+
+// ── Box hit helpers (texture space) ─────────────────────────────
+function _boxEdges(b) {
+  const pad = 26;
+  return { l: b.cx - b.w / 2 - pad, r: b.cx + b.w / 2 + pad, t: b.cy - b.h / 2 - pad, b: b.cy + b.h / 2 + pad };
+}
+function _inBox(b, tx, ty) { const p = _boxEdges(b); return tx >= p.l && tx <= p.r && ty >= p.t && ty <= p.b; }
+function _nearCorner(b, tx, ty) {
+  const p = _boxEdges(b);
+  return [[p.l, p.t], [p.r, p.t], [p.l, p.b], [p.r, p.b]].some(
+    ([x, y]) => Math.hypot(tx - x, ty - y) <= HANDLE_TEX,
+  );
+}
+function _clampX(x) { return Math.max(PRINT_AREA.x, Math.min(PRINT_AREA.x + PRINT_AREA.w, x)); }
+function _clampY(y) { return Math.max(PRINT_AREA.y, Math.min(PRINT_AREA.y + PRINT_AREA.h, y)); }
+function _syncSlider(id, dispId, val, suffix) {
+  const s = document.getElementById(id); if (s) s.value = val;
+  const d = document.getElementById(dispId); if (d) d.textContent = val + suffix;
+}
+// Reflect a click-to-select layer change in the design panel UI.
+function _syncLayerUI(kind) {
+  if (designState.activeLayer === kind) return;
+  designState.activeLayer = kind;
+  document.querySelectorAll(".layer-btn").forEach((x) => {
+    const on = x.dataset.layer === kind;
+    x.classList.toggle("active", on);
+    x.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const tc = document.getElementById("design-text-controls");
+  const lc = document.getElementById("design-logo-controls");
+  if (tc) tc.style.display = kind === "text" ? "flex" : "none";
+  if (lc) lc.style.display = kind === "image" ? "flex" : "none";
 }
 
 function bindLogoDrag3D() {
   const canvas = renderer.domElement;
 
-  function texScale() {
-    // Shirt fills ~75% of viewport height; map screen pixels → texture pixels
-    return TEX_SIZE / (canvas.clientHeight * 0.75);
-  }
-
-  // Pointer events unify mouse + touch and live in the SAME event stream as
-  // OrbitControls (which also uses pointer events). We intercept in the capture
-  // phase BEFORE OrbitControls' own pointerdown listener, and — when a logo/text
-  // is being dragged — stop propagation + disable the controls so the camera
-  // does not orbit underneath us. This is the fix for "can't move the logo/text".
-  function onDown(e) {
-    if (e.button != null && e.button !== 0 && e.pointerType === "mouse") return;
-    const d = _activeDraggable();
-    if (!d) return;
-    if (!_hitsShirt(e)) return;
-
-    _logoDragging = true;
-    _dragObj = d;
-    if (controls) controls.enabled = false; // freeze camera while repositioning
-    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-
-    _dragStartClientX = e.clientX;
-    _dragStartClientY = e.clientY;
-    _dragBaseX = d.x;
-    _dragBaseY = d.y;
-
-    canvas.style.cursor = "grabbing";
-    e.stopPropagation();     // keep OrbitControls' bubble-phase pointerdown from firing
-    e.preventDefault();
-  }
-
-  function onMove(e) {
-    if (!_logoDragging || !_dragObj) {
-      // Hover affordance: show a grab cursor over a draggable element
-      if (_activeDraggable() && _hitsShirt(e)) canvas.style.cursor = "grab";
-      else canvas.style.cursor = "";
-      return;
-    }
-    const sc = texScale();
-    const nx = _dragBaseX + (e.clientX - _dragStartClientX) * sc;
-    const ny = _dragBaseY + (e.clientY - _dragStartClientY) * sc;
-    // Clamp into the printable area so the element never leaves the print zone
-    _dragObj.x = Math.max(PRINT_AREA.x, Math.min(PRINT_AREA.x + PRINT_AREA.w, nx));
-    _dragObj.y = Math.max(PRINT_AREA.y, Math.min(PRINT_AREA.y + PRINT_AREA.h, ny));
-    redrawActive();
-    e.preventDefault();
-  }
-
-  function onUp(e) {
-    if (!_logoDragging) return;
-    _logoDragging = false;
-    _dragObj = null;
-    if (controls) controls.enabled = true; // hand control back to the camera
+  function endDrag(e) {
+    if (!_moving && !_resizing) return;
+    _moving = false; _resizing = false; _moveObj = null; _resizeObj = null;
+    if (controls) controls.enabled = true;
     try { if (e && e.pointerId != null) canvas.releasePointerCapture(e.pointerId); } catch (_) {}
     canvas.style.cursor = "";
   }
 
-  // Capture phase → our handler runs before OrbitControls' pointerdown
+  // Capture phase → runs before OrbitControls' pointerdown. We only take over
+  // the gesture (and stop the camera orbiting) when the pointer lands ON an
+  // element's box or a corner handle; clicking bare shirt orbits as normal.
+  function onDown(e) {
+    if (e.button != null && e.button !== 0 && e.pointerType === "mouse") return;
+    const hit = _raycastTex(e);
+    if (!hit) return;                       // off the shirt → orbit
+    const view = designState.activeView;
+    const boxes = _boxes[view] || {};
+    const order = designState.activeLayer === "image" ? ["image", "text"] : ["text", "image"];
+    let kind = null, mode = null;
+    for (const k of order) {
+      const b = boxes[k];
+      if (!b) continue;
+      if (_nearCorner(b, hit.tx, hit.ty)) { kind = k; mode = "resize"; break; }
+      if (_inBox(b, hit.tx, hit.ty)) { kind = k; mode = "move"; break; }
+    }
+    if (!kind) return;                      // bare shirt → orbit
+
+    _syncLayerUI(kind);
+    _selectedKind = kind;
+    const obj = designState[view][kind];
+    if (controls) controls.enabled = false;
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+
+    if (mode === "resize") {
+      _resizing = true; _resizeObj = obj; _resizeKind = kind;
+      _resizeCenter = { x: boxes[kind].cx, y: boxes[kind].cy };
+      _resizeD0 = Math.max(1, Math.hypot(hit.tx - _resizeCenter.x, hit.ty - _resizeCenter.y));
+      _resizeStartSize = kind === "text" ? obj.size : obj.scalePct;
+      canvas.style.cursor = "nwse-resize";
+    } else {
+      _moving = true; _moveObj = obj;
+      _grabOffX = obj.x - hit.tx; _grabOffY = obj.y - hit.ty;
+      canvas.style.cursor = "grabbing";
+    }
+    redrawActive();
+    e.stopPropagation();
+    e.preventDefault();
+  }
+
+  function onMove(e) {
+    if (_resizing && _resizeObj) {
+      const hit = _raycastTex(e);
+      if (hit) {
+        const ratio = Math.max(1, Math.hypot(hit.tx - _resizeCenter.x, hit.ty - _resizeCenter.y)) / _resizeD0;
+        if (_resizeKind === "text") {
+          const ns = Math.round(Math.max(24, Math.min(240, _resizeStartSize * ratio)));
+          _resizeObj.size = ns;
+          _syncSlider("font-size-slider", "font-size-display", ns, "px");
+        } else {
+          const ns = Math.round(Math.max(10, Math.min(200, _resizeStartSize * ratio)));
+          _resizeObj.scalePct = ns;
+          _syncSlider("image-scale-slider", "image-scale-display", ns, "%");
+        }
+        redrawActive();
+      }
+      e.preventDefault();
+      return;
+    }
+    if (_moving && _moveObj) {
+      const hit = _raycastTex(e);
+      if (hit) {
+        _moveObj.x = _clampX(hit.tx + _grabOffX);
+        _moveObj.y = _clampY(hit.ty + _grabOffY);
+        redrawActive();
+      }
+      e.preventDefault();
+      return;
+    }
+    // Hover affordance
+    const hit = _raycastTex(e);
+    if (!hit) { canvas.style.cursor = ""; return; }
+    const boxes = _boxes[designState.activeView] || {};
+    let cursor = "";
+    for (const k of ["text", "image"]) {
+      const b = boxes[k]; if (!b) continue;
+      if (_nearCorner(b, hit.tx, hit.ty)) { cursor = "nwse-resize"; break; }
+      if (_inBox(b, hit.tx, hit.ty)) { cursor = "grab"; }
+    }
+    canvas.style.cursor = cursor;
+  }
+
   canvas.addEventListener("pointerdown", onDown, true);
   canvas.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onUp);
-  canvas.addEventListener("pointercancel", onUp);
+  window.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
   canvas.style.touchAction = "none";
 }
 
@@ -1265,6 +1398,8 @@ function bindLayerSwitch() {
       });
       if (textCtl) textCtl.style.display = layer === "text" ? "flex" : "none";
       if (logoCtl) logoCtl.style.display = layer === "image" ? "flex" : "none";
+      _selectedKind = layer;
+      redrawActive(); // move the selection box to the newly active element
     });
   });
 }
@@ -1822,6 +1957,26 @@ function bindSummaryTab() {
   if (btnOrder) btnOrder.addEventListener("click", () => openOrderModal(false));
 }
 
+/**
+ * Capture renderer.domElement WITHOUT the on-shirt selection handles, then
+ * restore the live (handled) view. Used for every snapshot/export so editing
+ * handles never bake into the saved PNG / order preview.
+ */
+function _snapshotURL(type, quality) {
+  const prev = _showHandles;
+  _showHandles = false;
+  try {
+    drawTexture("front");
+    drawTexture("back");
+    if (renderer && scene && camera) renderer.render(scene, camera);
+    return renderer.domElement.toDataURL(type, quality);
+  } finally {
+    _showHandles = prev;
+    redrawActive();
+    if (renderer && scene && camera) renderer.render(scene, camera);
+  }
+}
+
 function updateSummaryTab() {
   // Take a snapshot of the Three.js renderer
   if (renderer) {
@@ -1838,7 +1993,7 @@ function updateSummaryTab() {
         const sy = (src.height - side) / 2;
         ctx.drawImage(src, sx, sy, side, side, 0, 0, snap.width, snap.height);
       };
-      img.src = renderer.domElement.toDataURL();
+      img.src = _snapshotURL();
     }
   }
 
@@ -1949,7 +2104,7 @@ function bindSaveDesign() {
     if (!renderer) return;
     // Render one extra frame to ensure latest state
     renderer.render(scene, camera);
-    const url = renderer.domElement.toDataURL("image/png");
+    const url = _snapshotURL("image/png");
     const a = document.createElement("a");
     a.href = url;
     a.download = "my-loom-design.png";
@@ -2047,7 +2202,7 @@ function _openOrderModalInner(cartMode) {
         summaryCanvas.height,
       );
     };
-    img.src = renderer.domElement.toDataURL();
+    img.src = _snapshotURL();
   }
 
   // Show the modal
@@ -2490,12 +2645,12 @@ async function handleOrderSubmit(event) {
       camera.position.set(CAM_VIEWS.front.x, CAM_VIEWS.front.y, CAM_VIEWS.front.z);
       controls.update();
       renderer.render(scene, camera);
-      frontScreenshot = renderer.domElement.toDataURL("image/jpeg", 0.85);
+      frontScreenshot = _snapshotURL("image/jpeg", 0.85);
 
       camera.position.set(CAM_VIEWS.back.x, CAM_VIEWS.back.y, CAM_VIEWS.back.z);
       controls.update();
       renderer.render(scene, camera);
-      backScreenshot = renderer.domElement.toDataURL("image/jpeg", 0.85);
+      backScreenshot = _snapshotURL("image/jpeg", 0.85);
 
       camera.position.set(CAM_VIEWS[savedView].x, CAM_VIEWS[savedView].y, CAM_VIEWS[savedView].z);
       controls.update();
