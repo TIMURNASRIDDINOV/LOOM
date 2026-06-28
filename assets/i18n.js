@@ -90,7 +90,7 @@
     'cfg.tabSummary':   { uz: 'Yakun',  ru: 'Итог',   en: 'Summary' },
     'cfg.shirtColor':   { uz: 'Futbolka rangi', ru: 'Цвет футболки', en: 'Shirt color' },
     'cfg.size':         { uz: 'O‘lcham', ru: 'Размер', en: 'Size' },
-    'cfg.dragHint':     { uz: 'Joylashtirish uchun elementni to‘g‘ridan-to‘g‘ri futbolka ustida suring', ru: 'Перетаскивайте элемент прямо на футболке, чтобы разместить его', en: 'Drag the element right on the shirt to position it' },
+    'cfg.dragHint':     { uz: 'Dizaynni suring — ko‘chirish · burchaklar — o‘lcham · doira — burish · bo‘sh joy — futbolkani aylantirish', ru: 'Тяните дизайн — двигать · углы — размер · кружок — поворот · пустое поле — вращать футболку', en: 'Drag the design to move · corners resize · circle rotates · empty area spins the shirt' },
     'cfg.layerText':    { uz: 'Matn',     ru: 'Текст',    en: 'Text' },
     'cfg.layerLogo':    { uz: 'Logotip',  ru: 'Логотип',  en: 'Logo' },
     'cfg.textLabel':    { uz: 'Futbolkadagi matn', ru: 'Текст на футболке', en: 'Text on shirt' },

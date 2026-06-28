@@ -100,6 +100,7 @@ const designState = {
       italic: false,
       x: TEX_SIZE / 2,
       y: TEX_SIZE * 0.35,
+      rotation: 0,
     },
     image: {
       img: null,
@@ -107,6 +108,7 @@ const designState = {
       x: TEX_SIZE / 2,
       y: TEX_SIZE * 0.30,
       scalePct: 100,
+      rotation: 0,
     },
   },
 
@@ -120,6 +122,7 @@ const designState = {
       italic: false,
       x: TEX_SIZE / 2,
       y: TEX_SIZE * 0.35,
+      rotation: 0,
     },
     image: {
       img: null,
@@ -127,6 +130,7 @@ const designState = {
       x: TEX_SIZE / 2,
       y: TEX_SIZE * 0.30,
       scalePct: 100,
+      rotation: 0,
     },
   },
 };
@@ -147,6 +151,10 @@ let shirtMaterials = [];
 let frontPrintMaterials = [];
 let backPrintMaterials = [];
 let plainColorMaterials = [];
+// Front/back body meshes + their extracted (UV → world-position) triangles, used
+// by the 2D editor to map texture coords to screen exactly (no raycasting).
+let frontBodyMeshes = [], backBodyMeshes = [];
+let _meshTris = { front: null, back: null };
 
 
 // Per-view canvas textures
@@ -279,6 +287,9 @@ function onWindowResize() {
 
   // Keep the model framing stable when container size/aspect changes.
   if (shirtObject) fitCameraToObject(shirtObject);
+
+  // Redraw the live overlay after the camera re-frames.
+  if (editMode) drawEditor();
 }
 
 // ================================================================
@@ -370,15 +381,11 @@ function drawTexture(view) {
       (layer.image.scalePct / 100) * ((TEX_SIZE * 0.30) / Math.max(natW, natH));
     const dw = natW * factor;
     const dh = natH * factor;
-    ctx.drawImage(
-      layer.image.img,
-      layer.image.x - dw / 2,
-      layer.image.y - dh / 2,
-      dw,
-      dh,
-    );
+    ctx.translate(layer.image.x, layer.image.y);
+    ctx.rotate(layer.image.rotation || 0);
+    ctx.drawImage(layer.image.img, -dw / 2, -dh / 2, dw, dh);
     ctx.restore();
-    _boxes[view].image = { cx: layer.image.x, cy: layer.image.y, w: dw, h: dh };
+    _boxes[view].image = { cx: layer.image.x, cy: layer.image.y, w: dw, h: dh, rot: layer.image.rotation || 0 };
   }
 
   // 4. Text layer
@@ -396,15 +403,15 @@ function drawTexture(view) {
     ctx.shadowBlur = 6;
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 2;
-    ctx.fillText(layer.text.content, layer.text.x, layer.text.y);
+    ctx.translate(layer.text.x, layer.text.y);
+    ctx.rotate(layer.text.rotation || 0);
+    ctx.fillText(layer.text.content, 0, 0);
     ctx.restore();
-    _boxes[view].text = { cx: layer.text.x, cy: layer.text.y, w: Math.max(_tw, 40), h: layer.text.size * 1.25 };
+    _boxes[view].text = { cx: layer.text.x, cy: layer.text.y, w: Math.max(_tw, 40), h: layer.text.size * 1.25, rot: layer.text.rotation || 0 };
   }
 
-  // 5. Selection outline + corner handles for the active element (live view only).
-  if (_showHandles && view === designState.activeView) {
-    _drawSelection(ctx, view);
-  }
+  // 5. Selection handles are drawn on a separate 2D overlay (see SECTION 9b),
+  //    NOT baked into the texture — so snapshots/exports are always clean.
 
   // Signal Three.js to re-upload
   texture.needsUpdate = true;
@@ -419,6 +426,8 @@ function drawTexture(view) {
 /** Redraw whichever view is currently active. */
 function redrawActive() {
   drawTexture(designState.activeView);
+  // Keep the 2D editor overlay (selection box + handles) in sync with state.
+  if (typeof drawEditor === "function" && editMode) drawEditor();
 }
 
 function updatePlainColorMaterials() {
@@ -552,6 +561,8 @@ function loadShirtModel(glbUrl) {
       frontPrintMaterials = [];
       backPrintMaterials = [];
       plainColorMaterials = [];
+      frontBodyMeshes = [];
+      backBodyMeshes = [];
 
       // Normalize UVs across the whole model to preserve atlas layout
       // and avoid applying the full design on each mesh separately.
@@ -602,8 +613,10 @@ function loadShirtModel(glbUrl) {
 
         if (isFrontBody) {
           frontPrintMaterials.push(mat);
+          frontBodyMeshes.push(child);
         } else if (isBackBody) {
           backPrintMaterials.push(mat);
+          backBodyMeshes.push(child);
         } else {
           plainColorMaterials.push(mat);
         }
@@ -612,12 +625,15 @@ function loadShirtModel(glbUrl) {
       scene.add(object);
       shirtObject = object;
 
-
       // Ensure maps/colors are coherent right after model load.
       applyActiveTexture();
 
       // Auto-fit: normalize size and frame camera to fill ~75% of viewport.
       fitCameraToObject(object);
+
+      // Extract UV→world triangles AFTER the fit (which scales the model), so the
+      // 2D editor's texture↔screen map uses final world positions.
+      buildMeshTris();
 
       // Hide loading overlay
       hideLoadingOverlay();
@@ -863,6 +879,13 @@ function animate() {
 
   controls.update();
   renderer.render(scene, camera);
+  // Keep the 2D handles glued to the design as the shirt orbits — but only redraw
+  // when the camera actually moved (state changes redraw via redrawActive).
+  if (editMode && typeof drawEditor === "function") {
+    const k = camera.position.x.toFixed(2) + "," + camera.position.y.toFixed(2) + "," +
+      camera.position.z.toFixed(2) + "|" + controls.target.x.toFixed(2) + "," + controls.target.y.toFixed(2);
+    if (k !== _lastCamKey) { _lastCamKey = k; drawEditor(); }
+  }
 }
 
 /** Instantly snap camera to front or back position (no lerp). */
@@ -1112,19 +1135,8 @@ function refreshDesignCanvas() {
 })();
 
 // ================================================================
-// SECTION 9b — 3D LOGO DRAG (screen-space delta → texture coords)
+// SECTION 9b — ACTIVE-ELEMENT HELPERS
 // ================================================================
-
-const _rc = new THREE.Raycaster();
-const _rcMouse = new THREE.Vector2();
-
-// Interaction state for on-shirt move/resize
-let _moving = false, _resizing = false;
-let _moveObj = null, _moveBaseX = 0, _moveBaseY = 0, _startClientX = 0, _startClientY = 0;
-let _resizeObj = null, _resizeKind = "", _resizeCenter = { x: 0, y: 0 }, _resizeStartSize = 0;
-// Screen-space anchor for resize (robust: no per-move raycast needed).
-let _resizeCenterScreen = { x: 0, y: 0 }, _resizeStartDistScreen = 1;
-let _selectedKind = null; // 'text' | 'image' | null
 
 /**
  * Returns the design element the active layer points at (if it has content).
@@ -1141,119 +1153,19 @@ function _activeDraggable() {
   return null;
 }
 
-// Which element should show handles for `view`: active layer's element if it
-// has a box, else whichever exists.
-function _activeBoxKind(view) {
-  const b = _boxes[view] || {};
+// The kind ('text' | 'image') of the active, content-bearing element, or null.
+function _activeKind() {
+  const layer = designState[designState.activeView];
+  const hasText = !!(layer.text && layer.text.content);
+  const hasImg = !!(layer.image && layer.image.img);
   const pref = designState.activeLayer;
-  if (pref === "text" && b.text) return "text";
-  if (pref === "image" && b.image) return "image";
-  if (b.image) return "image";
-  if (b.text) return "text";
+  if (pref === "text" && hasText) return "text";
+  if (pref === "image" && hasImg) return "image";
+  if (hasImg) return "image";
+  if (hasText) return "text";
   return null;
 }
 
-// Dashed bounding box + 4 round corner handles for the active element.
-function _drawSelection(ctx, view) {
-  const kind = _activeBoxKind(view);
-  const b = kind ? _boxes[view][kind] : null;
-  if (!b) return;
-  const pad = SEL_PAD;
-  const left = b.cx - b.w / 2 - pad, top = b.cy - b.h / 2 - pad;
-  const w = b.w + pad * 2, h = b.h + pad * 2;
-  ctx.save();
-  ctx.strokeStyle = "rgba(10,132,255,0.9)";
-  ctx.lineWidth = 4;
-  ctx.setLineDash([18, 12]);
-  ctx.strokeRect(left, top, w, h);
-  ctx.setLineDash([]);
-  const r = 22;
-  ctx.fillStyle = "#fff";
-  ctx.strokeStyle = "rgba(10,132,255,0.95)";
-  ctx.lineWidth = 5;
-  [[left, top], [left + w, top], [left, top + h], [left + w, top + h]].forEach(([x, y]) => {
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  });
-  ctx.restore();
-}
-
-// Raycast the pointer onto the shirt and return texture-space coords {tx,ty}, or null.
-function _raycastTex(e) {
-  if (!shirtObject || !renderer || !camera) return null;
-  const canvas = renderer.domElement;
-  const rect = canvas.getBoundingClientRect();
-  const cx = e.touches ? e.touches[0].clientX : e.clientX;
-  const cy = e.touches ? e.touches[0].clientY : e.clientY;
-  _rcMouse.x = ((cx - rect.left) / rect.width) * 2 - 1;
-  _rcMouse.y = -((cy - rect.top) / rect.height) * 2 + 1;
-  _rc.setFromCamera(_rcMouse, camera);
-  const meshes = [];
-  shirtObject.traverse((c) => { if (c.isMesh) meshes.push(c); });
-  const hits = _rc.intersectObjects(meshes, false);
-  for (const h of hits) {
-    if (h.uv) return { tx: h.uv.x * TEX_SIZE, ty: (1 - h.uv.y) * TEX_SIZE };
-  }
-  return null;
-}
-
-/** Back-compat: any part of the shirt hit? */
-function _hitsShirt(e) { return _raycastTex(e) !== null; }
-
-// Inverse of _raycastTex: find the screen position (clientX/clientY) that
-// raycasts closest to texture point (tx,ty). Bounded coarse→fine search around
-// `hint` (the grab pointer). Used ONCE at resize-grab to anchor the element's
-// on-screen center, so the resize itself can run on pure screen-space distance
-// and never depends on the pointer staying over the (curved) shirt mid-drag.
-function _texToScreen(tx, ty, hint) {
-  if (!shirtObject || !renderer || !camera) return null;
-  const canvas = renderer.domElement;
-  const rect = canvas.getBoundingClientRect();
-  const hx = hint ? hint.x : rect.left + rect.width / 2;
-  const hy = hint ? hint.y : rect.top + rect.height / 2;
-  let best = null;
-  for (const [win, step] of [[160, 12], [24, 3]]) {
-    const sx = best ? best.x : hx, sy = best ? best.y : hy;
-    const x0 = Math.max(rect.left, sx - win), x1 = Math.min(rect.left + rect.width, sx + win);
-    const y0 = Math.max(rect.top, sy - win), y1 = Math.min(rect.top + rect.height, sy + win);
-    for (let y = y0; y <= y1; y += step) {
-      for (let x = x0; x <= x1; x += step) {
-        const h = _raycastTex({ clientX: x, clientY: y });
-        if (!h) continue;
-        const d = Math.hypot(h.tx - tx, h.ty - ty);
-        if (!best || d < best.d) best = { d, x, y };
-      }
-    }
-  }
-  return best; // {x,y,d} or null
-}
-
-// ── Box hit helpers (texture space) ─────────────────────────────
-// HIT padding is generous (a comfortable, touch-friendly grab margin around the
-// element) and intentionally LARGER than the drawn selection outline (pad 26).
-function _boxEdges(b) {
-  const pad = 95;
-  return { l: b.cx - b.w / 2 - pad, r: b.cx + b.w / 2 + pad, t: b.cy - b.h / 2 - pad, b: b.cy + b.h / 2 + pad };
-}
-function _inBox(b, tx, ty) { const p = _boxEdges(b); return tx >= p.l && tx <= p.r && ty >= p.t && ty <= p.b; }
-// Corner handles sit at the DRAWN selection box (SEL_PAD), so the grab zone is
-// centred exactly on what the user sees — clicking a visible handle resizes.
-function _cornerPts(b) {
-  const p = SEL_PAD;
-  const l = b.cx - b.w / 2 - p, r = b.cx + b.w / 2 + p;
-  const t = b.cy - b.h / 2 - p, bot = b.cy + b.h / 2 + p;
-  return [[l, t], [r, t], [l, bot], [r, bot]];
-}
-function _nearCorner(b, tx, ty) {
-  // Cap the grab radius to a fraction of the centre→corner distance so the box
-  // centre always stays a MOVE zone — even for small elements whose corners
-  // would otherwise overlap in the middle.
-  const half = 0.5 * Math.hypot(b.w + SEL_PAD * 2, b.h + SEL_PAD * 2);
-  const rad = Math.min(HANDLE_TEX, half * 0.6);
-  return _cornerPts(b).some(([x, y]) => Math.hypot(tx - x, ty - y) <= rad);
-}
 function _clampX(x) { return Math.max(PRINT_AREA.x, Math.min(PRINT_AREA.x + PRINT_AREA.w, x)); }
 function _clampY(y) { return Math.max(PRINT_AREA.y, Math.min(PRINT_AREA.y + PRINT_AREA.h, y)); }
 function _syncSlider(id, dispId, val, suffix) {
@@ -1275,127 +1187,567 @@ function _syncLayerUI(kind) {
   if (lc) lc.style.display = kind === "image" ? "flex" : "none";
 }
 
-function bindLogoDrag3D() {
-  const canvas = renderer.domElement;
+// ================================================================
+// 2D TRANSFORM EDITOR  (flat overlay, decoupled from 3D preview)
+// ----------------------------------------------------------------
+// Best-practice apparel-customizer model (virtualthreads / Nike By You):
+// editing happens on a 2D overlay whose handles are projected LIVE from the
+// shirt mesh, so they stay glued to the design at ANY camera angle. Dragging the
+// design moves/scales/rotates it; dragging empty shirt ORBITS the product (the
+// camera is never locked). The design bakes to the 3D texture via drawTexture so
+// the preview stays exact. The "3D / Редактор" chip just shows/hides handles.
 
-  function endDrag(e) {
-    if (!_moving && !_resizing) return;
-    _moving = false; _resizing = false; _moveObj = null; _resizeObj = null;
-    if (controls) controls.enabled = true;
-    try { if (e && e.pointerId != null) canvas.releasePointerCapture(e.pointerId); } catch (_) {}
-    canvas.style.cursor = "";
-  }
+let editMode = false;          // design handles shown + editable (orbit still allowed)
+let designTabActive = false;   // Design tab currently open
+let _ov = null, _ovCtx = null; // overlay canvas + 2d context (pointer-events: none)
+let _stage = null;             // #three-container (hosts pointer capture + cursor)
+let _editScale = 1;            // texture px per screen px (avg) — nudge/snap units
+let _gesture = null;           // active move/scale/rotate gesture
+let _pinch = null;             // active two-finger pinch
+let _ui = null;                // last-drawn handle positions (page coords) for hit-testing
+let _lastCamKey = "";          // camera pose hash → redraw handles only when it moves
+const _pointers = new Map();   // pointerId -> {x,y} (only while an edit gesture is active)
 
-  function screenToTexScale() {
-    // Shirt fills ~75% of viewport height; screen px → texture px (for the move fallback)
-    return TEX_SIZE / (canvas.clientHeight * 0.75);
-  }
+const HANDLE_R = 7;            // drawn handle half-size (screen px)
+const ROTATE_OFFSET = 34;      // rotate handle distance above the box (screen px)
 
-  // Capture phase → runs before OrbitControls' pointerdown. We take over the
-  // gesture (and stop the camera orbiting) when the pointer lands ON an element
-  // (precise via UV box, or — if UV is unavailable — the active element while
-  // over the shirt). Clicking bare shirt orbits as normal. The MOVE itself uses
-  // a robust screen-delta so it works even when UV hit-testing is flaky.
-  function onDown(e) {
-    if (e.button != null && e.button !== 0 && e.pointerType === "mouse") return;
-    const view = designState.activeView;
-    const boxes = _boxes[view] || {};
-    const hit = _raycastTex(e);
-    let kind = null, mode = "move";
+function _coarsePointer() {
+  return !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+}
 
-    if (hit) {
-      const order = designState.activeLayer === "image" ? ["image", "text"] : ["text", "image"];
-      for (const k of order) {
-        const b = boxes[k];
-        if (!b) continue;
-        if (_nearCorner(b, hit.tx, hit.ty)) { kind = k; mode = "resize"; break; }
-        if (_inBox(b, hit.tx, hit.ty)) { kind = k; mode = "move"; break; }
+// ── Exact texture↔screen via mesh projection (no raycasting) ────
+// Collect the front/back body geometry as (UV, world-position) triangles, ONCE
+// after load. Texture→screen then = find the triangle whose UV contains the
+// point, barycentric-interpolate its world position, and camera.project() it.
+// Exact (same UVs the bake uses) and fast.
+const _UV_BN = 28; // UV bucket grid resolution for fast triangle lookup
+function buildMeshTris() {
+  if (shirtObject) shirtObject.updateMatrixWorld(true);
+  const build = (meshes) => {
+    const out = [];
+    const tmp = new THREE.Vector3();
+    for (const m of meshes) {
+      const g = m.geometry;
+      if (!g || !g.attributes || !g.attributes.position || !g.attributes.uv) continue;
+      const pos = g.attributes.position, uv = g.attributes.uv;
+      const idx = g.index ? g.index.array : null;
+      const count = idx ? idx.length : pos.count;
+      const W = (k) => { tmp.set(pos.getX(k), pos.getY(k), pos.getZ(k)).applyMatrix4(m.matrixWorld); return { x: tmp.x, y: tmp.y, z: tmp.z }; };
+      for (let t = 0; t + 2 < count; t += 3) {
+        const i0 = idx ? idx[t] : t, i1 = idx ? idx[t + 1] : t + 1, i2 = idx ? idx[t + 2] : t + 2;
+        out.push({
+          ua: uv.getX(i0), va: uv.getY(i0), pa: W(i0),
+          ub: uv.getX(i1), vb: uv.getY(i1), pb: W(i1),
+          uc: uv.getX(i2), vc: uv.getY(i2), pc: W(i2),
+        });
       }
-      if (!kind) return; // on the shirt but outside any element → orbit
-    } else {
-      // Fallback: no UV. If the pointer is on the shirt and there's an active
-      // element, move it (the original, proven behaviour) so dragging never dies.
-      if (!_hitsShirt(e)) return;
-      const layer = designState[view];
-      kind = (designState.activeLayer === "image" && layer.image.img) ? "image"
-           : (layer.text.content ? "text" : (layer.image.img ? "image" : null));
-      if (!kind) return;
-      mode = "move";
     }
+    return out;
+  };
+  // UV-space bucket index: each tri added to every bucket its UV bbox overlaps,
+  // so texToScreenMesh only tests a handful of candidates (per-frame friendly).
+  const index = (tris) => {
+    const BN = _UV_BN, buckets = new Array(BN * BN);
+    const clampB = (n) => Math.max(0, Math.min(BN - 1, n | 0));
+    for (const t of tris) {
+      const u0 = Math.min(t.ua, t.ub, t.uc), u1 = Math.max(t.ua, t.ub, t.uc);
+      const v0 = Math.min(t.va, t.vb, t.vc), v1 = Math.max(t.va, t.vb, t.vc);
+      const bi0 = clampB(u0 * BN), bi1 = clampB(u1 * BN);
+      const bj0 = clampB(v0 * BN), bj1 = clampB(v1 * BN);
+      for (let bj = bj0; bj <= bj1; bj++) for (let bi = bi0; bi <= bi1; bi++) {
+        (buckets[bj * BN + bi] || (buckets[bj * BN + bi] = [])).push(t);
+      }
+    }
+    return { bn: BN, buckets, all: tris };
+  };
+  _meshTris = {
+    front: index(build(frontBodyMeshes)),
+    back: index(build(backBodyMeshes)),
+  };
+}
 
-    _syncLayerUI(kind);
-    _selectedKind = kind;
-    const obj = designState[view][kind];
-    if (controls) controls.enabled = false;
-    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+const _projV = (typeof THREE !== "undefined") ? new THREE.Vector3() : null;
+// texture px → screen (page) px, exact via the active face's mesh triangles.
+function texToScreenMesh(tx, ty) {
+  const m = _meshTris[designState.activeView];
+  if (!m || !m.all.length || !camera || !renderer) return null;
+  const u = tx / TEX_SIZE, v = ty / TEX_SIZE; // textures use flipY=false → v = ty/TEX
+  const BN = m.bn;
+  const bi = Math.max(0, Math.min(BN - 1, (u * BN) | 0));
+  const bj = Math.max(0, Math.min(BN - 1, (v * BN) | 0));
+  const cand = m.buckets[bj * BN + bi];
+  const test = (list) => {
+    let bt = null, bwa = 0, bwb = 0, bwc = 0, bestPen = Infinity;
+    for (const t of list) {
+      const v0x = t.ub - t.ua, v0y = t.vb - t.va;
+      const v1x = t.uc - t.ua, v1y = t.vc - t.va;
+      const den = v0x * v1y - v1x * v0y;
+      if (den === 0) continue;
+      const v2x = u - t.ua, v2y = v - t.va;
+      const wb = (v2x * v1y - v1x * v2y) / den;
+      const wc = (v0x * v2y - v2x * v0y) / den;
+      const wa = 1 - wb - wc;
+      if (wa >= -1e-4 && wb >= -1e-4 && wc >= -1e-4) return { bt: t, bwa: wa, bwb: wb, bwc: wc, pen: 0 };
+      const pen = (wa < 0 ? -wa : 0) + (wb < 0 ? -wb : 0) + (wc < 0 ? -wc : 0);
+      if (pen < bestPen) { bestPen = pen; bt = t; bwa = wa; bwb = wb; bwc = wc; }
+    }
+    return bt ? { bt, bwa, bwb, bwc, pen: bestPen } : null;
+  };
+  let r = cand && cand.length ? test(cand) : null;
+  if (!r || r.pen > 0.02) { const r2 = test(m.all); if (r2 && (!r || r2.pen < r.pen)) r = r2; } // fallback
+  if (!r) return null;
+  _projV.set(
+    r.bt.pa.x * r.bwa + r.bt.pb.x * r.bwb + r.bt.pc.x * r.bwc,
+    r.bt.pa.y * r.bwa + r.bt.pb.y * r.bwb + r.bt.pc.y * r.bwc,
+    r.bt.pa.z * r.bwa + r.bt.pb.z * r.bwb + r.bt.pc.z * r.bwc,
+  ).project(camera);
+  const rect = renderer.domElement.getBoundingClientRect();
+  return {
+    x: rect.left + (_projV.x + 1) / 2 * rect.width,
+    y: rect.top + (1 - _projV.y) / 2 * rect.height,
+  };
+}
 
-    if (mode === "resize") {
-      _resizing = true; _resizeObj = obj; _resizeKind = kind;
-      _resizeCenter = { x: boxes[kind].cx, y: boxes[kind].cy };
-      _resizeStartSize = kind === "text" ? obj.size : obj.scalePct;
-      // Anchor the element's on-screen centre once, then drive resize purely from
-      // the pointer's SCREEN distance to it — so dragging a corner outward (off
-      // the shirt) keeps resizing instead of dying when the raycast misses.
-      const cs = _texToScreen(_resizeCenter.x, _resizeCenter.y, { x: e.clientX, y: e.clientY });
-      _resizeCenterScreen = cs ? { x: cs.x, y: cs.y } : { x: e.clientX, y: e.clientY };
-      _resizeStartDistScreen = Math.max(12, Math.hypot(e.clientX - _resizeCenterScreen.x, e.clientY - _resizeCenterScreen.y));
-      canvas.style.cursor = "nwse-resize";
+// ── Print-area → screen mapping ─────────────────────────────────
+// Direct, exact, camera-live projection (texToScreenMesh). Because it tracks the
+// CURRENT camera, the editor overlay stays glued to the design even while the
+// user orbits the shirt — no cached grid to go stale, no camera lock needed.
+function texToScreenPA(tx, ty) { return texToScreenMesh(tx, ty); }
+
+// texture px per screen px at the print-area centre, for the live camera —
+// used for snap thresholds and keyboard nudge. Recomputed cheaply on demand.
+function _updateEditScale() {
+  const pa = PRINT_AREA;
+  const a = texToScreenMesh(pa.x + pa.w / 2, pa.y + pa.h / 2);
+  const b = texToScreenMesh(pa.x + pa.w / 2 + 100, pa.y + pa.h / 2);
+  const c = texToScreenMesh(pa.x + pa.w / 2, pa.y + pa.h / 2 + 100);
+  if (!a) return;
+  const sx = b ? 100 / Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)) : _editScale;
+  const sy = c ? 100 / Math.max(1, Math.hypot(c.x - a.x, c.y - a.y)) : _editScale;
+  _editScale = (sx + sy) / 2;
+}
+// Convert a SCREEN-space drag delta to a TEXTURE-space delta at point (tx,ty),
+// using the LOCAL forward Jacobian (∂screen/∂tex). Robust everywhere the forward
+// map is accurate — unlike a global inverse, it can't pick the wrong cell where
+// the warped grid folds near the garment's curved edges. Used by the move drag.
+function _screenToTexDelta(tx, ty, dsx, dsy) {
+  const eps = 4;
+  const p = texToScreenPA(tx, ty);
+  const px = texToScreenPA(tx + eps, ty), py = texToScreenPA(tx, ty + eps);
+  if (!p || !px || !py) return { dtx: 0, dty: 0 };
+  const Jxx = (px.x - p.x) / eps, Jyx = (px.y - p.y) / eps; // ∂screen/∂tx
+  const Jxy = (py.x - p.x) / eps, Jyy = (py.y - p.y) / eps; // ∂screen/∂ty
+  const det = Jxx * Jyy - Jxy * Jyx || 1e-6;
+  return {
+    dtx: (Jyy * dsx - Jxy * dsy) / det,
+    dty: (-Jyx * dsx + Jxx * dsy) / det,
+  };
+}
+
+// The active element's 4 box corners (TL,TR,BR,BL) in TEXTURE space, rotated.
+function _elementBoxTex(kind) {
+  const box = _boxes[designState.activeView] && _boxes[designState.activeView][kind];
+  if (!box) return null;
+  const rot = box.rot || 0;
+  const cs = Math.cos(rot), sn = Math.sin(rot);
+  const hw = box.w / 2, hh = box.h / 2;
+  const pts = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([dx, dy]) => ({
+    tx: box.cx + dx * cs - dy * sn,
+    ty: box.cy + dx * sn + dy * cs,
+  }));
+  return { cx: box.cx, cy: box.cy, rot, pts };
+}
+
+function _boxQuadPage(kind) {
+  const b = _elementBoxTex(kind);
+  if (!b) return null;
+  const pts = b.pts.map((p) => texToScreenMesh(p.tx, p.ty));
+  return pts.every(Boolean) ? pts : null;
+}
+
+function _pointInQuad(px, py, q) {
+  let inside = false;
+  for (let i = 0, j = 3; i < 4; j = i++) {
+    const xi = q[i].x, yi = q[i].y, xj = q[j].x, yj = q[j].y;
+    if (((yi > py) !== (yj > py)) &&
+        (px < ((xj - xi) * (py - yi)) / ((yj - yi) || 1e-6) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+// Is there a (non-active) element under the pointer? Return its kind for select.
+function _otherKindAt(px, py) {
+  const cur = _activeKind();
+  for (const k of ["text", "image"]) {
+    if (k === cur) continue;
+    const layer = designState[designState.activeView][k];
+    const has = k === "text" ? !!layer.content : !!layer.img;
+    if (!has) continue;
+    const q = _boxQuadPage(k);
+    if (q && _pointInQuad(px, py, q)) return k;
+  }
+  return null;
+}
+
+// ── Overlay rendering (screen space) ────────────────────────────
+function drawEditor() {
+  if (!_ov || !_ovCtx) return;
+  const rect = _ov.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const wantW = Math.round(rect.width * dpr), wantH = Math.round(rect.height * dpr);
+  if (_ov.width !== wantW || _ov.height !== wantH) { _ov.width = wantW; _ov.height = wantH; }
+  const ctx = _ovCtx;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  _ui = null;
+  const ready = _meshTris[designState.activeView] && _meshTris[designState.activeView].all.length;
+  if (!editMode || !ready) return;
+  _updateEditScale();
+  const toL = (p) => ({ x: p.x - rect.left, y: p.y - rect.top }); // page → canvas-local
+
+  // Print-area guide — sample its border live via mesh projection (follows orbit)
+  const pa = PRINT_AREA, SEG = 10;
+  const edge = [];
+  for (let i = 0; i <= SEG; i++) edge.push([pa.x + (i / SEG) * pa.w, pa.y]);
+  for (let i = 1; i <= SEG; i++) edge.push([pa.x + pa.w, pa.y + (i / SEG) * pa.h]);
+  for (let i = SEG - 1; i >= 0; i--) edge.push([pa.x + (i / SEG) * pa.w, pa.y + pa.h]);
+  for (let i = SEG - 1; i >= 1; i--) edge.push([pa.x, pa.y + (i / SEG) * pa.h]);
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 1; ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  let started = false;
+  for (const [tx, ty] of edge) {
+    const s = texToScreenMesh(tx, ty); if (!s) continue;
+    const l = toL(s); started ? ctx.lineTo(l.x, l.y) : (ctx.moveTo(l.x, l.y), started = true);
+  }
+  ctx.closePath(); ctx.stroke();
+  ctx.restore();
+
+  // Active-element selection box + handles
+  const kind = _activeKind();
+  const box = kind ? _elementBoxTex(kind) : null;
+  if (box) {
+    const cornersPage = box.pts.map((p) => texToScreenMesh(p.tx, p.ty)); // TL,TR,BR,BL
+    if (cornersPage.some((p) => !p)) return; // box partly off the visible mesh
+    const scr = cornersPage.map(toL);
+    const topMid = { x: (scr[0].x + scr[1].x) / 2, y: (scr[0].y + scr[1].y) / 2 };
+    const botMid = { x: (scr[2].x + scr[3].x) / 2, y: (scr[2].y + scr[3].y) / 2 };
+    let nx = topMid.x - botMid.x, ny = topMid.y - botMid.y;
+    const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+    const rotL = { x: topMid.x + nx * ROTATE_OFFSET, y: topMid.y + ny * ROTATE_OFFSET };
+
+    ctx.save();
+    // border
+    ctx.strokeStyle = "rgba(10,132,255,0.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(scr[0].x, scr[0].y);
+    for (let i = 1; i < 4; i++) ctx.lineTo(scr[i].x, scr[i].y);
+    ctx.closePath(); ctx.stroke();
+    // rotate stem
+    ctx.beginPath(); ctx.moveTo(topMid.x, topMid.y); ctx.lineTo(rotL.x, rotL.y); ctx.stroke();
+    // corner handles
+    const drawSq = (p) => {
+      ctx.beginPath();
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = "rgba(10,132,255,0.95)";
+      ctx.lineWidth = 2;
+      ctx.rect(p.x - HANDLE_R, p.y - HANDLE_R, HANDLE_R * 2, HANDLE_R * 2);
+      ctx.fill(); ctx.stroke();
+    };
+    scr.forEach(drawSq);
+    // rotate handle (circle)
+    ctx.beginPath();
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "rgba(10,132,255,0.95)";
+    ctx.lineWidth = 2;
+    ctx.arc(rotL.x, rotL.y, HANDLE_R, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    _ui = { corners: cornersPage, rotate: { x: rotL.x + rect.left, y: rotL.y + rect.top } };
+  }
+
+  // Center snap guides (while moving)
+  if (_gesture && (_gesture.snapX || _gesture.snapY)) {
+    const c = toL(texToScreenPA(PRINT_AREA.x + PRINT_AREA.w / 2, PRINT_AREA.y + PRINT_AREA.h / 2));
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,90,90,0.85)";
+    ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+    if (_gesture.snapX) { ctx.beginPath(); ctx.moveTo(c.x, 0); ctx.lineTo(c.x, rect.height); ctx.stroke(); }
+    if (_gesture.snapY) { ctx.beginPath(); ctx.moveTo(0, c.y); ctx.lineTo(rect.width, c.y); ctx.stroke(); }
+    ctx.restore();
+  }
+}
+
+// ── Hit testing (page coords) ───────────────────────────────────
+function _hitTest(px, py) {
+  if (!_ui) return null;
+  const R = _coarsePointer() ? 24 : 16;
+  if (Math.hypot(px - _ui.rotate.x, py - _ui.rotate.y) <= R) return { type: "rotate" };
+  for (let i = 0; i < 4; i++) {
+    const c = _ui.corners[i];
+    if (Math.hypot(px - c.x, py - c.y) <= R) return { type: "scale", corner: i };
+  }
+  if (_pointInQuad(px, py, _ui.corners)) return { type: "move" };
+  return null;
+}
+
+function _normAngle(a) { // → (-π, π]
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a <= -Math.PI) a += Math.PI * 2;
+  return a;
+}
+
+// ── Pointer handlers ────────────────────────────────────────────
+// Attached to #three-container in CAPTURE phase, so we see the gesture before
+// OrbitControls (on the canvas below). We only take it over — disabling orbit and
+// stopping propagation — when it lands on the design or a handle. Otherwise the
+// event flows through to OrbitControls and the user ORBITS the shirt.
+function _onEdPointerDown(e) {
+  if (!editMode) return;
+  if (e.pointerType === "mouse" && e.button != null && e.button !== 0) return;
+  // Second finger during an active edit gesture → pinch (scale + rotate)
+  if (_gesture && _pointers.size >= 1) {
+    _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (_pointers.size >= 2) { e.preventDefault(); e.stopPropagation(); _startPinch(); }
+    return;
+  }
+  let hit = _activeKind() ? _hitTest(e.clientX, e.clientY) : null;
+  if (!hit) {
+    const other = _otherKindAt(e.clientX, e.clientY);
+    if (other) { _syncLayerUI(other); drawEditor(); hit = { type: "move" }; }
+  }
+  if (!hit) return; // empty shirt/background → let OrbitControls orbit
+  // TAKE OVER this gesture: suppress orbit, capture the pointer.
+  e.preventDefault(); e.stopPropagation();
+  if (controls) controls.enabled = false;
+  _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) {}
+  const kind = _activeKind();
+  const el = designState[designState.activeView][kind];
+  const center = texToScreenMesh(el.x, el.y) || { x: e.clientX, y: e.clientY };
+  if (hit.type === "move") {
+    _gesture = { type: "move", lastX: e.clientX, lastY: e.clientY, rawX: el.x, rawY: el.y };
+  } else if (hit.type === "scale") {
+    const d0 = Math.hypot(e.clientX - center.x, e.clientY - center.y);
+    _gesture = { type: "scale", d0: Math.max(8, d0), startSize: kind === "text" ? el.size : el.scalePct };
+  } else if (hit.type === "rotate") {
+    const a0 = Math.atan2(e.clientY - center.y, e.clientX - center.x);
+    _gesture = { type: "rotate", a0, startRot: el.rotation || 0 };
+  }
+}
+
+function _onEdPointerMove(e) {
+  if (_pointers.has(e.pointerId)) _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (!editMode) return;
+  if (_pinch) { _updatePinch(); e.preventDefault(); return; }
+  if (!_gesture) { _updateHoverCursor(e); return; }
+  const kind = _activeKind();
+  if (!kind) return;
+  const el = designState[designState.activeView][kind];
+
+  if (_gesture.type === "move") {
+    // Accumulate the UNSNAPPED position so centre-snap magnetism never pins the
+    // element (it starts at centre-X); snap only adjusts the displayed value.
+    const d = _screenToTexDelta(_gesture.rawX, _gesture.rawY, e.clientX - _gesture.lastX, e.clientY - _gesture.lastY);
+    _gesture.lastX = e.clientX; _gesture.lastY = e.clientY;
+    _gesture.rawX = _clampX(_gesture.rawX + d.dtx);
+    _gesture.rawY = _clampY(_gesture.rawY + d.dty);
+    let nx = _gesture.rawX, ny = _gesture.rawY;
+    const cxp = PRINT_AREA.x + PRINT_AREA.w / 2, cyp = PRINT_AREA.y + PRINT_AREA.h / 2;
+    const thr = 8 * _editScale;
+    _gesture.snapX = !e.ctrlKey && Math.abs(nx - cxp) < thr;
+    _gesture.snapY = !e.ctrlKey && Math.abs(ny - cyp) < thr;
+    if (_gesture.snapX) nx = cxp;
+    if (_gesture.snapY) ny = cyp;
+    el.x = nx; el.y = ny;
+    redrawActive();
+  } else if (_gesture.type === "scale") {
+    const center = texToScreenPA(el.x, el.y);
+    const ratio = Math.hypot(e.clientX - center.x, e.clientY - center.y) / _gesture.d0;
+    if (kind === "text") {
+      el.size = Math.round(Math.max(24, Math.min(240, _gesture.startSize * ratio)));
+      _syncSlider("font-size-slider", "font-size-display", el.size, "px");
     } else {
-      _moving = true; _moveObj = obj;
-      _moveBaseX = obj.x; _moveBaseY = obj.y;
-      _startClientX = e.clientX; _startClientY = e.clientY;
-      canvas.style.cursor = "grabbing";
+      el.scalePct = Math.round(Math.max(10, Math.min(200, _gesture.startSize * ratio)));
+      _syncSlider("image-scale-slider", "image-scale-display", el.scalePct, "%");
     }
     redrawActive();
-    e.stopPropagation();
-    e.preventDefault();
-  }
-
-  function onMove(e) {
-    if (_resizing && _resizeObj) {
-      // Pure screen-space ratio — works even when the pointer leaves the shirt.
-      const dist = Math.hypot(e.clientX - _resizeCenterScreen.x, e.clientY - _resizeCenterScreen.y);
-      const ratio = dist / _resizeStartDistScreen;
-      if (_resizeKind === "text") {
-        const ns = Math.round(Math.max(24, Math.min(240, _resizeStartSize * ratio)));
-        _resizeObj.size = ns;
-        _syncSlider("font-size-slider", "font-size-display", ns, "px");
-      } else {
-        const ns = Math.round(Math.max(10, Math.min(200, _resizeStartSize * ratio)));
-        _resizeObj.scalePct = ns;
-        _syncSlider("image-scale-slider", "image-scale-display", ns, "%");
+  } else if (_gesture.type === "rotate") {
+    const center = texToScreenPA(el.x, el.y);
+    const a = Math.atan2(e.clientY - center.y, e.clientX - center.x);
+    let rot = _gesture.startRot + (a - _gesture.a0);
+    if (e.shiftKey) {
+      const s = Math.PI / 12; rot = Math.round(rot / s) * s; // 15° steps
+    } else {
+      for (const s of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        if (Math.abs(_normAngle(rot - s)) < (4 * Math.PI) / 180) { rot = s; break; }
       }
-      redrawActive();
-      e.preventDefault();
-      return;
     }
-    if (_moving && _moveObj) {
-      const sc = screenToTexScale();
-      _moveObj.x = _clampX(_moveBaseX + (e.clientX - _startClientX) * sc);
-      _moveObj.y = _clampY(_moveBaseY + (e.clientY - _startClientY) * sc);
-      redrawActive();
-      e.preventDefault();
-      return;
-    }
-    // Hover affordance
-    const hit = _raycastTex(e);
-    if (!hit) { canvas.style.cursor = _hitsShirt(e) && _activeDraggable() ? "grab" : ""; return; }
-    const boxes = _boxes[designState.activeView] || {};
-    let cursor = "";
-    for (const k of ["text", "image"]) {
-      const b = boxes[k]; if (!b) continue;
-      if (_nearCorner(b, hit.tx, hit.ty)) { cursor = "nwse-resize"; break; }
-      if (_inBox(b, hit.tx, hit.ty)) { cursor = "grab"; }
-    }
-    canvas.style.cursor = cursor;
+    el.rotation = rot;
+    redrawActive();
   }
+  e.preventDefault();
+}
 
+function _onEdPointerUp(e) {
+  if (!_pointers.has(e.pointerId)) return; // wasn't an edit gesture (was orbiting)
+  _pointers.delete(e.pointerId);
+  if (_pinch && _pointers.size < 2) _pinch = null;
+  if (_pointers.size === 0) {
+    _gesture = null;
+    if (controls && editMode) controls.enabled = true; // restore orbit after the edit
+    drawEditor();
+  }
+  try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
+}
 
-  canvas.addEventListener("pointerdown", onDown, true);
-  canvas.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", endDrag);
-  canvas.addEventListener("pointercancel", endDrag);
-  canvas.style.touchAction = "none";
+function _updateHoverCursor(e) {
+  if (!_stage) return;
+  let hit = _activeKind() ? _hitTest(e.clientX, e.clientY) : null;
+  if (!hit && _otherKindAt(e.clientX, e.clientY)) hit = { type: "move" };
+  // No design hit → leave it to OrbitControls' grab cursor (empty = orbit).
+  _stage.style.cursor = !hit ? ""
+    : hit.type === "rotate" ? "grab"
+    : hit.type === "scale" ? "nwse-resize" : "move";
+}
+
+// ── Two-finger pinch (scale + rotate) ───────────────────────────
+function _startPinch() {
+  const kind = _activeKind();
+  if (!kind) return;
+  const el = designState[designState.activeView][kind];
+  const pts = [..._pointers.values()];
+  const d0 = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  const a0 = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+  _pinch = { d0: Math.max(8, d0), a0, startSize: kind === "text" ? el.size : el.scalePct, startRot: el.rotation || 0 };
+  _gesture = null;
+}
+function _updatePinch() {
+  const kind = _activeKind();
+  if (!kind || !_pinch) return;
+  const el = designState[designState.activeView][kind];
+  const pts = [..._pointers.values()];
+  if (pts.length < 2) return;
+  const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  const a = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+  const ratio = d / _pinch.d0;
+  if (kind === "text") {
+    el.size = Math.round(Math.max(24, Math.min(240, _pinch.startSize * ratio)));
+    _syncSlider("font-size-slider", "font-size-display", el.size, "px");
+  } else {
+    el.scalePct = Math.round(Math.max(10, Math.min(200, _pinch.startSize * ratio)));
+    _syncSlider("image-scale-slider", "image-scale-display", el.scalePct, "%");
+  }
+  el.rotation = _pinch.startRot + (a - _pinch.a0);
+  redrawActive();
+}
+
+// ── Keyboard (nudge / delete) ───────────────────────────────────
+function _onEdKeyDown(e) {
+  if (!editMode) return;
+  const ae = document.activeElement;
+  if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  const kind = _activeKind();
+  if (!kind) return;
+  const el = designState[designState.activeView][kind];
+  const step = (e.shiftKey ? 10 : 1) * _editScale;
+  if (e.key === "ArrowLeft") el.x = _clampX(el.x - step);
+  else if (e.key === "ArrowRight") el.x = _clampX(el.x + step);
+  else if (e.key === "ArrowUp") el.y = _clampY(el.y - step);
+  else if (e.key === "ArrowDown") el.y = _clampY(el.y + step);
+  else if (e.key === "Delete" || e.key === "Backspace") { _deleteActiveElement(); e.preventDefault(); return; }
+  else return;
+  e.preventDefault();
+  redrawActive();
+}
+
+function _deleteActiveElement() {
+  const view = designState.activeView;
+  const kind = _activeKind();
+  if (!kind) return;
+  if (kind === "text") {
+    designState[view].text.content = "";
+    const ti = document.getElementById("text-content-input");
+    if (ti) ti.value = "";
+  } else {
+    designState[view].image.img = null;
+    designState[view].image.name = "";
+    uploadedFileData[view] = null;
+    const ic = document.getElementById("image-controls");
+    if (ic) ic.style.display = "none";
+  }
+  redrawActive();
+}
+
+// ── Edit / preview (handles on/off) ─────────────────────────────
+// Orbit is allowed in BOTH states; the chip only toggles handle visibility.
+function _updatePreviewChip() {
+  const chip = document.getElementById("btn-toggle-preview");
+  if (!chip) return;
+  chip.classList.toggle("active", !editMode);
+  const lbl = chip.querySelector(".chip-label");
+  if (lbl) lbl.textContent = editMode ? "Скрыть рамку" : "Редактор";
+}
+
+function enterEditMode() {
+  editMode = true;
+  if (controls) controls.enabled = true; // orbit stays available while editing
+  if (_ov) _ov.style.display = "block";
+  drawEditor();
+  _updatePreviewChip();
+}
+
+function enterPreviewMode() {
+  editMode = false;
+  if (controls) controls.enabled = true;
+  if (_ov) _ov.style.display = "none";
+  if (_stage) _stage.style.cursor = "";
+  drawEditor();
+  _updatePreviewChip();
+}
+
+function togglePreview() {
+  if (!designTabActive) return;
+  if (editMode) enterPreviewMode(); else enterEditMode();
+}
+
+// Called by the tab navigation when the Design tab opens/closes.
+function setDesignEditing(active) {
+  designTabActive = active;
+  const chip = document.getElementById("btn-toggle-preview");
+  if (chip) chip.style.display = active ? "inline-flex" : "none";
+  if (active) {
+    // Start face-on for a clean placing view; the user can orbit freely after.
+    setCameraView(designState.activeView);
+    enterEditMode();
+  } else {
+    enterPreviewMode();
+  }
+}
+
+function initDesignEditor() {
+  const container = document.getElementById("three-container");
+  if (!container) return;
+  _stage = container;
+  _ov = document.createElement("canvas");
+  _ov.id = "editor-canvas";
+  // pointer-events:none → empty-area drags fall through to OrbitControls (orbit).
+  _ov.style.cssText =
+    "position:absolute;inset:0;width:100%;height:100%;z-index:10;display:none;pointer-events:none;";
+  container.appendChild(_ov);
+  _ovCtx = _ov.getContext("2d");
+  // Capture phase on the container → we see the gesture before OrbitControls and
+  // only steal it (stopPropagation) when it lands on the design/handles.
+  container.addEventListener("pointerdown", _onEdPointerDown, true);
+  window.addEventListener("pointermove", _onEdPointerMove);
+  window.addEventListener("pointerup", _onEdPointerUp);
+  window.addEventListener("pointercancel", _onEdPointerUp);
+  window.addEventListener("keydown", _onEdKeyDown);
+  const chip = document.getElementById("btn-toggle-preview");
+  if (chip) chip.addEventListener("click", togglePreview);
 }
 
 // ================================================================
@@ -1411,7 +1763,7 @@ function initUI() {
   bindColorControls();
   bindTextControls();
   bindImageControls();
-  bindLogoDrag3D();
+  initDesignEditor();
   bindSummaryTab();
   bindSaveDesign();
   bindOrderModal();
@@ -1513,12 +1865,12 @@ function _buildDesignJson() {
     shirtColor: designState.shirtColor,
     size: selectedSize,
     front: {
-      text: { content: front.text.content, font: front.text.font, size: front.text.size, color: front.text.color, bold: front.text.bold, italic: front.text.italic },
-      image: { name: front.image.name, scalePct: front.image.scalePct },
+      text: { content: front.text.content, font: front.text.font, size: front.text.size, color: front.text.color, bold: front.text.bold, italic: front.text.italic, x: front.text.x, y: front.text.y, rotation: front.text.rotation || 0 },
+      image: { name: front.image.name, scalePct: front.image.scalePct, x: front.image.x, y: front.image.y, rotation: front.image.rotation || 0 },
     },
     back: {
-      text: { content: back.text.content, font: back.text.font },
-      image: { name: back.image.name, scalePct: back.image.scalePct },
+      text: { content: back.text.content, font: back.text.font, size: back.text.size, color: back.text.color, bold: back.text.bold, italic: back.text.italic, x: back.text.x, y: back.text.y, rotation: back.text.rotation || 0 },
+      image: { name: back.image.name, scalePct: back.image.scalePct, x: back.image.x, y: back.image.y, rotation: back.image.rotation || 0 },
     },
   });
 }
@@ -1753,8 +2105,8 @@ function bindTabNav() {
         else tc.style.display = "none";
       });
 
-      // Refresh design preview when the design tab is shown
-      if (target === "design") refreshDesignCanvas();
+      // Enter the flat 2D edit mode on the Design tab; leave it elsewhere.
+      setDesignEditing(target === "design");
 
       // Update summary when that tab opens
       if (target === "summary") updateSummaryTab();
@@ -1793,6 +2145,9 @@ function switchView(view, activeBtn, inactiveBtn) {
 
   // Refresh the design preview
   refreshDesignCanvas();
+
+  // Re-pin the live overlay to the new face.
+  if (editMode) drawEditor();
 }
 
 // ================================================================
@@ -1983,6 +2338,9 @@ function handleImageFile(file) {
       layer.scalePct = 100;
       layer.x = TEX_SIZE / 2;
       layer.y = TEX_SIZE * 0.30;
+      layer.rotation = 0;
+      // Make sure the logo layer is the active selection when freshly added.
+      if (typeof _syncLayerUI === "function") _syncLayerUI("image");
 
       // Store original file data per view for order submission
       uploadedFileData[designState.activeView] = {
@@ -2092,6 +2450,7 @@ function resetDesign() {
       italic: false,
       x: TEX_SIZE / 2,
       y: TEX_SIZE * 0.35,
+      rotation: 0,
     };
     designState[v].image = {
       img: null,
@@ -2099,6 +2458,7 @@ function resetDesign() {
       x: TEX_SIZE / 2,
       y: TEX_SIZE * 0.30,
       scalePct: 100,
+      rotation: 0,
     };
   });
 
