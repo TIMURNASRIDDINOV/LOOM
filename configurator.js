@@ -21,7 +21,8 @@ const _boxes = { front: { text: null, image: null }, back: { text: null, image: 
 // active element. Turned OFF transiently around snapshots/exports so handles
 // never bake into the saved PNG / order preview.
 let _showHandles = true;
-const HANDLE_TEX = 70; // corner-handle grab radius, in texture px (~20 screen px)
+const HANDLE_TEX = 90; // corner-handle grab radius, in texture px (comfortable target)
+const SEL_PAD = 26;    // gap between element and the drawn selection box / handles
 
 // Camera views are finalized by auto-fit after the model loads.
 const CAM_VIEWS = {
@@ -1120,7 +1121,9 @@ const _rcMouse = new THREE.Vector2();
 // Interaction state for on-shirt move/resize
 let _moving = false, _resizing = false;
 let _moveObj = null, _moveBaseX = 0, _moveBaseY = 0, _startClientX = 0, _startClientY = 0;
-let _resizeObj = null, _resizeKind = "", _resizeCenter = { x: 0, y: 0 }, _resizeD0 = 1, _resizeStartSize = 0;
+let _resizeObj = null, _resizeKind = "", _resizeCenter = { x: 0, y: 0 }, _resizeStartSize = 0;
+// Screen-space anchor for resize (robust: no per-move raycast needed).
+let _resizeCenterScreen = { x: 0, y: 0 }, _resizeStartDistScreen = 1;
 let _selectedKind = null; // 'text' | 'image' | null
 
 /**
@@ -1155,7 +1158,7 @@ function _drawSelection(ctx, view) {
   const kind = _activeBoxKind(view);
   const b = kind ? _boxes[view][kind] : null;
   if (!b) return;
-  const pad = 26;
+  const pad = SEL_PAD;
   const left = b.cx - b.w / 2 - pad, top = b.cy - b.h / 2 - pad;
   const w = b.w + pad * 2, h = b.h + pad * 2;
   ctx.save();
@@ -1164,7 +1167,7 @@ function _drawSelection(ctx, view) {
   ctx.setLineDash([18, 12]);
   ctx.strokeRect(left, top, w, h);
   ctx.setLineDash([]);
-  const r = 17;
+  const r = 22;
   ctx.fillStyle = "#fff";
   ctx.strokeStyle = "rgba(10,132,255,0.95)";
   ctx.lineWidth = 5;
@@ -1199,6 +1202,34 @@ function _raycastTex(e) {
 /** Back-compat: any part of the shirt hit? */
 function _hitsShirt(e) { return _raycastTex(e) !== null; }
 
+// Inverse of _raycastTex: find the screen position (clientX/clientY) that
+// raycasts closest to texture point (tx,ty). Bounded coarse→fine search around
+// `hint` (the grab pointer). Used ONCE at resize-grab to anchor the element's
+// on-screen center, so the resize itself can run on pure screen-space distance
+// and never depends on the pointer staying over the (curved) shirt mid-drag.
+function _texToScreen(tx, ty, hint) {
+  if (!shirtObject || !renderer || !camera) return null;
+  const canvas = renderer.domElement;
+  const rect = canvas.getBoundingClientRect();
+  const hx = hint ? hint.x : rect.left + rect.width / 2;
+  const hy = hint ? hint.y : rect.top + rect.height / 2;
+  let best = null;
+  for (const [win, step] of [[160, 12], [24, 3]]) {
+    const sx = best ? best.x : hx, sy = best ? best.y : hy;
+    const x0 = Math.max(rect.left, sx - win), x1 = Math.min(rect.left + rect.width, sx + win);
+    const y0 = Math.max(rect.top, sy - win), y1 = Math.min(rect.top + rect.height, sy + win);
+    for (let y = y0; y <= y1; y += step) {
+      for (let x = x0; x <= x1; x += step) {
+        const h = _raycastTex({ clientX: x, clientY: y });
+        if (!h) continue;
+        const d = Math.hypot(h.tx - tx, h.ty - ty);
+        if (!best || d < best.d) best = { d, x, y };
+      }
+    }
+  }
+  return best; // {x,y,d} or null
+}
+
 // ── Box hit helpers (texture space) ─────────────────────────────
 // HIT padding is generous (a comfortable, touch-friendly grab margin around the
 // element) and intentionally LARGER than the drawn selection outline (pad 26).
@@ -1207,11 +1238,21 @@ function _boxEdges(b) {
   return { l: b.cx - b.w / 2 - pad, r: b.cx + b.w / 2 + pad, t: b.cy - b.h / 2 - pad, b: b.cy + b.h / 2 + pad };
 }
 function _inBox(b, tx, ty) { const p = _boxEdges(b); return tx >= p.l && tx <= p.r && ty >= p.t && ty <= p.b; }
+// Corner handles sit at the DRAWN selection box (SEL_PAD), so the grab zone is
+// centred exactly on what the user sees — clicking a visible handle resizes.
+function _cornerPts(b) {
+  const p = SEL_PAD;
+  const l = b.cx - b.w / 2 - p, r = b.cx + b.w / 2 + p;
+  const t = b.cy - b.h / 2 - p, bot = b.cy + b.h / 2 + p;
+  return [[l, t], [r, t], [l, bot], [r, bot]];
+}
 function _nearCorner(b, tx, ty) {
-  const p = _boxEdges(b);
-  return [[p.l, p.t], [p.r, p.t], [p.l, p.b], [p.r, p.b]].some(
-    ([x, y]) => Math.hypot(tx - x, ty - y) <= HANDLE_TEX,
-  );
+  // Cap the grab radius to a fraction of the centre→corner distance so the box
+  // centre always stays a MOVE zone — even for small elements whose corners
+  // would otherwise overlap in the middle.
+  const half = 0.5 * Math.hypot(b.w + SEL_PAD * 2, b.h + SEL_PAD * 2);
+  const rad = Math.min(HANDLE_TEX, half * 0.6);
+  return _cornerPts(b).some(([x, y]) => Math.hypot(tx - x, ty - y) <= rad);
 }
 function _clampX(x) { return Math.max(PRINT_AREA.x, Math.min(PRINT_AREA.x + PRINT_AREA.w, x)); }
 function _clampY(y) { return Math.max(PRINT_AREA.y, Math.min(PRINT_AREA.y + PRINT_AREA.h, y)); }
@@ -1291,8 +1332,13 @@ function bindLogoDrag3D() {
     if (mode === "resize") {
       _resizing = true; _resizeObj = obj; _resizeKind = kind;
       _resizeCenter = { x: boxes[kind].cx, y: boxes[kind].cy };
-      _resizeD0 = Math.max(1, Math.hypot(hit.tx - _resizeCenter.x, hit.ty - _resizeCenter.y));
       _resizeStartSize = kind === "text" ? obj.size : obj.scalePct;
+      // Anchor the element's on-screen centre once, then drive resize purely from
+      // the pointer's SCREEN distance to it — so dragging a corner outward (off
+      // the shirt) keeps resizing instead of dying when the raycast misses.
+      const cs = _texToScreen(_resizeCenter.x, _resizeCenter.y, { x: e.clientX, y: e.clientY });
+      _resizeCenterScreen = cs ? { x: cs.x, y: cs.y } : { x: e.clientX, y: e.clientY };
+      _resizeStartDistScreen = Math.max(12, Math.hypot(e.clientX - _resizeCenterScreen.x, e.clientY - _resizeCenterScreen.y));
       canvas.style.cursor = "nwse-resize";
     } else {
       _moving = true; _moveObj = obj;
@@ -1307,20 +1353,19 @@ function bindLogoDrag3D() {
 
   function onMove(e) {
     if (_resizing && _resizeObj) {
-      const hit = _raycastTex(e);
-      if (hit) {
-        const ratio = Math.max(1, Math.hypot(hit.tx - _resizeCenter.x, hit.ty - _resizeCenter.y)) / _resizeD0;
-        if (_resizeKind === "text") {
-          const ns = Math.round(Math.max(24, Math.min(240, _resizeStartSize * ratio)));
-          _resizeObj.size = ns;
-          _syncSlider("font-size-slider", "font-size-display", ns, "px");
-        } else {
-          const ns = Math.round(Math.max(10, Math.min(200, _resizeStartSize * ratio)));
-          _resizeObj.scalePct = ns;
-          _syncSlider("image-scale-slider", "image-scale-display", ns, "%");
-        }
-        redrawActive();
+      // Pure screen-space ratio — works even when the pointer leaves the shirt.
+      const dist = Math.hypot(e.clientX - _resizeCenterScreen.x, e.clientY - _resizeCenterScreen.y);
+      const ratio = dist / _resizeStartDistScreen;
+      if (_resizeKind === "text") {
+        const ns = Math.round(Math.max(24, Math.min(240, _resizeStartSize * ratio)));
+        _resizeObj.size = ns;
+        _syncSlider("font-size-slider", "font-size-display", ns, "px");
+      } else {
+        const ns = Math.round(Math.max(10, Math.min(200, _resizeStartSize * ratio)));
+        _resizeObj.scalePct = ns;
+        _syncSlider("image-scale-slider", "image-scale-display", ns, "%");
       }
+      redrawActive();
       e.preventDefault();
       return;
     }
