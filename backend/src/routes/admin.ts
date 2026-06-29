@@ -11,6 +11,7 @@ import {
   getOrderStatusLog,
   getOrderItemsByOrderId,
   updateOrderStatus,
+  setOrderProofApproval,
   insertOrderStatusLog,
   getVisitorStats,
   getUserById,
@@ -232,17 +233,56 @@ admin.get('/orders/:id', requireAdmin, async (c) => {
 
   const statusLog = await getOrderStatusLog(c.env.DB, id)
 
-  // Build logo URL for admin media route (served by worker, requires admin cookie)
-  const logoUrl = order.logo_key ? `/api/admin/media/${order.logo_key}` : null
+  // Build admin media URLs (served by the worker, requires the admin cookie).
+  const mediaUrl = (key: unknown) => (typeof key === 'string' && key ? `/api/admin/media/${key}` : null)
+  const proofUrls = (row: Record<string, unknown>) => ({
+    logoUrl: mediaUrl(row.logo_key),
+    backLogoUrl: mediaUrl(row.back_logo_key),
+    frontPrintUrl: mediaUrl(row.front_print_key),
+    backPrintUrl: mediaUrl(row.back_print_key),
+    frontMockupUrl: mediaUrl(row.front_mockup_key),
+    backMockupUrl: mediaUrl(row.back_mockup_key),
+    modelUrl: mediaUrl(row.model_key),
+  })
 
-  // Multi-item orders (cart checkout): attach line items with per-item logo URLs
+  // Multi-item orders (cart checkout): attach line items with per-item media URLs
   const rawItems = await getOrderItemsByOrderId(c.env.DB, id)
-  const items = rawItems.map((it) => ({
-    ...it,
-    logoUrl: it.logo_key ? `/api/admin/media/${it.logo_key}` : null,
-  }))
+  const items = rawItems.map((it) => ({ ...it, ...proofUrls(it) }))
 
-  return c.json({ ...order, statusLog, logoUrl, items })
+  // Surface who approved the production proof (admin id → email).
+  let approvedBy: { id: number; email: string } | null = null
+  if (order.proof_approved_by) {
+    const a = await getAdminById(c.env.DB, order.proof_approved_by)
+    if (a) approvedBy = { id: a.id, email: a.email }
+  }
+
+  return c.json({ ...order, statusLog, ...proofUrls(order as unknown as Record<string, unknown>), approvedBy, items })
+})
+
+// ─── POST /api/admin/orders/:id/approve  (owner/manager) ──────────────────────
+// Mark / unmark the production proof as approved. Approval gates status → producing.
+
+admin.post('/orders/:id/approve', requireAdmin, requireRole('owner', 'manager'), async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  const order = await getOrderById(c.env.DB, id)
+  if (!order) return c.json({ error: 'Not found' }, 404)
+
+  let approved = true
+  try {
+    const body = (await c.req.json()) as Record<string, unknown>
+    if (typeof body.approved === 'boolean') approved = body.approved
+  } catch { /* default: approve */ }
+
+  await setOrderProofApproval(c.env.DB, id, approved ? c.get('adminId') : null)
+
+  let approvedBy: { id: number; email: string } | null = null
+  if (approved) {
+    const a = await getAdminById(c.env.DB, c.get('adminId'))
+    if (a) approvedBy = { id: a.id, email: a.email }
+  }
+  return c.json({ ok: true, approved, approvedAt: approved ? Date.now() : null, approvedBy })
 })
 
 // ─── PATCH /api/admin/orders/:id/status ──────────────────────────────────────
@@ -268,6 +308,16 @@ admin.patch('/orders/:id/status', requireAdmin, async (c) => {
 
   const order = await getOrderById(c.env.DB, id)
   if (!order) return c.json({ error: 'Not found' }, 404)
+
+  // Production gate: the design proof must be approved before an order can advance
+  // to production or beyond. Approving is an owner/manager action (see /approve).
+  const GATED_STATUSES = ['producing', 'shipped', 'delivered']
+  if (GATED_STATUSES.includes(status) && !order.proof_approved_at) {
+    return c.json(
+      { error: 'Сначала подтвердите макет («Макет проверен»), затем переводите заказ в производство.', code: 'proof_not_approved' },
+      409,
+    )
+  }
 
   await updateOrderStatus(c.env.DB, id, status)
   await insertOrderStatusLog(c.env.DB, {

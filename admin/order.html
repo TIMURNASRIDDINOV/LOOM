@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Заказ — LOOM Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&family=Pacifico&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/theme.css?v=6" />
   <script src="assets/theme-init.js?v=6"></script>
   <style>
@@ -57,6 +57,56 @@
 
     .loading-msg { text-align: center; padding: 3rem 1.5rem; color: var(--text-dim); font-size: 0.875rem; }
     .error-msg { color: var(--danger); font-size: 0.875rem; text-align: center; padding: 2rem; }
+
+    /* ── Production sheet (design proof / print review) ───────────────── */
+    .ps-design { padding: 1rem 0 0.25rem; border-top: 0.5px solid var(--hairline2); }
+    .ps-design:first-of-type { border-top: none; padding-top: 0; }
+    .ps-design-title { font-size: 0.85rem; font-weight: 500; color: var(--text); margin: 0 0 0.85rem; }
+    .ps-views { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 560px) { .ps-views { grid-template-columns: 1fr; } }
+    .ps-view-h { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.5rem; }
+    .ps-figure { margin: 0 0 0.85rem; }
+    .ps-figcap { font-size: 0.68rem; color: var(--text-dim); margin: 0.3rem 0 0; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    /* Checkerboard so transparent print art reads clearly */
+    .ps-print-wrap { position: relative; border: 0.5px solid var(--hairline); border-radius: 4px; overflow: hidden;
+      background-color: #e9e9ee;
+      background-image: linear-gradient(45deg,#cfcfd6 25%,transparent 25%),linear-gradient(-45deg,#cfcfd6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#cfcfd6 75%),linear-gradient(-45deg,transparent 75%,#cfcfd6 75%);
+      background-size: 16px 16px; background-position: 0 0,0 8px,8px -8px,-8px 0; aspect-ratio: 928 / 1120; display: flex; }
+    .ps-print-wrap img, .ps-print-wrap canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .ps-mockup { width: 100%; border: 0.5px solid var(--hairline); border-radius: 4px; background: var(--hover-bg); display: block; aspect-ratio: 1 / 1; object-fit: contain; }
+
+    /* Interactive 3D review model */
+    .ps-viewer-card { margin-bottom: 1.25rem; }
+    .ps-viewer-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 0.6rem; }
+    .ps-viewer-title { font-size: 0.78rem; font-weight: 500; color: var(--text); margin: 0; }
+    .ps-viewer { position: relative; width: 100%; aspect-ratio: 4 / 3; border: 0.5px solid var(--hairline); border-radius: 6px; overflow: hidden;
+      background: radial-gradient(120% 120% at 50% 20%, var(--hover-bg) 0%, var(--bg-card) 70%); cursor: grab; }
+    .ps-viewer:active { cursor: grabbing; }
+    .ps-viewer canvas { display: block; width: 100% !important; height: 100% !important; }
+    .ps-viewer-hint { position: absolute; left: 10px; bottom: 8px; font-size: 0.66rem; color: var(--text-dim); pointer-events: none; background: color-mix(in srgb, var(--bg-card) 60%, transparent); padding: 1px 7px; border-radius: 999px; }
+    .ps-viewer-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; color: var(--text-dim); }
+    .ps-recon-note { font-size: 0.66rem; color: var(--warning, #d97706); background: color-mix(in srgb, var(--warning, #d97706) 12%, transparent); border-radius: 3px; padding: 2px 6px; }
+    .ps-empty { font-size: 0.74rem; color: var(--text-dim); padding: 1rem; text-align: center; border: 0.5px dashed var(--hairline); border-radius: 4px; }
+    .ps-dl { font-size: 0.68rem; color: var(--accent, #6366f1); text-decoration: none; border: 0.5px solid var(--input-border); border-radius: 3px; padding: 1px 7px; white-space: nowrap; }
+    .ps-dl:hover { border-color: var(--btn-hover-border); }
+
+    .ps-spec { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.78rem; }
+    .ps-spec th { text-align: left; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; padding: 0.4rem 0.6rem 0.4rem 0; border-bottom: 0.5px solid var(--hairline); }
+    .ps-spec td { padding: 0.4rem 0.6rem 0.4rem 0; border-bottom: 0.5px solid var(--hairline2); vertical-align: top; color: var(--text-secondary); }
+    .ps-spec td:first-child { color: var(--text-muted); white-space: nowrap; }
+    .ps-spec .mono { font-family: var(--mono); font-size: 0.74rem; }
+    .ps-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--input-border); vertical-align: middle; margin-right: 5px; }
+
+    /* Approval card */
+    .ps-approved { color: #16a34a; font-weight: 500; }
+    .ps-pending { color: var(--warning, #d97706); font-weight: 500; }
+    .btn-approve { width: 100%; padding: 0.7rem; border-radius: 3px; border: 0.5px solid var(--btn-border); background: var(--hover-bg); color: var(--text); font-family: inherit; font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-top: 0.75rem; }
+    .btn-approve:hover:not(:disabled) { border-color: var(--btn-hover-border); }
+    .btn-approve:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* Default-hidden so it never flashes before the role loads; revealed for privileged roles. */
+    .owner-manager-only { display: none; }
+    body[data-admin-role="owner"] .owner-manager-only,
+    body[data-admin-role="manager"] .owner-manager-only { display: block; }
   </style>
 </head>
 <body>
@@ -87,6 +137,11 @@
           </div>
 
           <div class="card">
+            <p class="card-title">Производственный лист</p>
+            <div id="production-sheet"></div>
+          </div>
+
+          <div class="card" id="design-summary-card">
             <p class="card-title">Дизайн</p>
             <div class="design-row"><span class="design-label">Цвет</span><span class="design-value" id="design-color"></span></div>
             <div class="design-row"><span class="design-label">Размер</span><span class="design-value" id="design-size"></span></div>
@@ -104,6 +159,13 @@
         </div>
 
         <div>
+          <div class="card" id="approval-card">
+            <p class="card-title">Производство</p>
+            <div id="approval-state" style="font-size:0.84rem;line-height:1.6"></div>
+            <button id="btn-approve" class="btn-approve owner-manager-only">Макет проверен — в производство</button>
+            <p class="owner-manager-only" style="font-size:0.7rem;color:var(--text-dim);margin:0.6rem 0 0">Заказ нельзя перевести в «Производство», пока макет не подтверждён.</p>
+          </div>
+
           <div class="card">
             <p class="card-title">Статус</p>
             <label class="form-label" for="status-select">Новый статус</label>
@@ -129,9 +191,14 @@
     </div>
   </main>
 
+  <!-- Three.js for the interactive 3D review model (same version as the configurator) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
   <script src="assets/app.js?v=6"></script>
   <script src="assets/layout.js?v=7"></script>
   <script>LOOM_LAYOUT.init('orders')</script>
-  <script src="assets/order-detail.js?v=6"></script>
+  <script src="assets/order-detail.js?v=9"></script>
 </body>
 </html>

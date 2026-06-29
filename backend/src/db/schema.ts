@@ -117,6 +117,16 @@ export interface Order {
   status: OrderStatus
   created_at: number
   updated_at: number
+  // Added in migration 0009 — production proofs + print artwork + approval
+  front_print_key: string | null
+  back_print_key: string | null
+  front_mockup_key: string | null
+  back_mockup_key: string | null
+  back_logo_key: string | null
+  proof_approved_at: number | null
+  proof_approved_by: number | null
+  // Added in migration 0010 — interactive 3D review model (.glb)
+  model_key: string | null
 }
 
 export interface OrderStatusLog {

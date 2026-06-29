@@ -4,9 +4,10 @@ const ALLOWED_CONTENT_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/svg+xml': 'svg',
+  'model/gltf-binary': 'glb', // textured 3D review model exported by the configurator
 }
 
-const MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_SIZE_BYTES = 15 * 1024 * 1024 // 15 MB — fits 2048² print-artwork PNGs
 
 export function validateUpload(
   contentType: string,
@@ -14,7 +15,7 @@ export function validateUpload(
 ): { ok: true; ext: string } | { ok: false; error: string } {
   const ext = ALLOWED_CONTENT_TYPES[contentType]
   if (!ext) return { ok: false, error: 'Content-Type must be image/png, image/jpeg, or image/svg+xml' }
-  if (size > MAX_SIZE_BYTES) return { ok: false, error: 'File must be ≤ 5 MB' }
+  if (size > MAX_SIZE_BYTES) return { ok: false, error: 'File must be ≤ 15 MB' }
   if (size <= 0) return { ok: false, error: 'Invalid file size' }
   return { ok: true, ext }
 }

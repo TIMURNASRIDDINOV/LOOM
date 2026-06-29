@@ -197,6 +197,14 @@ export async function createOrder(
     design_json: string
     logo_key: string | null
     total_price: number
+    // Migration 0009 — optional production proofs / print artwork
+    front_print_key?: string | null
+    back_print_key?: string | null
+    front_mockup_key?: string | null
+    back_mockup_key?: string | null
+    back_logo_key?: string | null
+    // Migration 0010 — interactive 3D review model
+    model_key?: string | null
   },
 ): Promise<number> {
   return safeQuery('createOrder', async () => {
@@ -205,8 +213,9 @@ export async function createOrder(
       .prepare(
         `INSERT INTO orders
            (user_id, product_id, customer_name, customer_phone, address, coordinates,
-            comment, design_json, logo_key, total_price, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)`,
+            comment, design_json, logo_key, total_price, status, created_at, updated_at,
+            front_print_key, back_print_key, front_mockup_key, back_mockup_key, back_logo_key, model_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         params.user_id,
@@ -221,9 +230,29 @@ export async function createOrder(
         params.total_price,
         now,
         now,
+        params.front_print_key ?? null,
+        params.back_print_key ?? null,
+        params.front_mockup_key ?? null,
+        params.back_mockup_key ?? null,
+        params.back_logo_key ?? null,
+        params.model_key ?? null,
       )
       .run()
     return Number(result.meta.last_row_id)
+  })
+}
+
+// Mark an order's design proof as approved/cleared for production (migration 0009).
+export async function setOrderProofApproval(
+  db: D1Database,
+  id: number,
+  adminId: number | null,
+): Promise<void> {
+  return safeQuery('setOrderProofApproval', async () => {
+    await db
+      .prepare('UPDATE orders SET proof_approved_at = ?, proof_approved_by = ?, updated_at = ? WHERE id = ?')
+      .bind(adminId == null ? null : Date.now(), adminId, Date.now(), id)
+      .run()
   })
 }
 
@@ -1211,6 +1240,24 @@ export interface CartItem {
   quantity: number
   created_at: number
   updated_at: number
+  // Migration 0009 — production proofs / print artwork captured at add-to-cart time
+  front_print_key: string | null
+  back_print_key: string | null
+  front_mockup_key: string | null
+  back_mockup_key: string | null
+  back_logo_key: string | null
+  // Migration 0010 — interactive 3D review model (.glb)
+  model_key: string | null
+}
+
+// Shared shape of the optional proof/print keys carried on cart_items / order_items / orders.
+export interface ProofKeys {
+  front_print_key?: string | null
+  back_print_key?: string | null
+  front_mockup_key?: string | null
+  back_mockup_key?: string | null
+  back_logo_key?: string | null
+  model_key?: string | null
 }
 
 export async function getCartItems(db: D1Database, userId: number): Promise<CartItem[]> {
@@ -1231,16 +1278,22 @@ export async function getCartItemById(db: D1Database, id: number): Promise<CartI
 
 export async function addCartItem(
   db: D1Database,
-  p: { user_id: number; product_id: number | null; design_json: string; logo_key: string | null; unit_price: number; quantity: number },
+  p: { user_id: number; product_id: number | null; design_json: string; logo_key: string | null; unit_price: number; quantity: number } & ProofKeys,
 ): Promise<number> {
   return safeQuery('addCartItem', async () => {
     const now = Date.now()
     const res = await db
       .prepare(
-        `INSERT INTO cart_items (user_id, product_id, design_json, logo_key, unit_price, quantity, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO cart_items
+           (user_id, product_id, design_json, logo_key, unit_price, quantity, created_at, updated_at,
+            front_print_key, back_print_key, front_mockup_key, back_mockup_key, back_logo_key, model_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(p.user_id, p.product_id, p.design_json, p.logo_key, p.unit_price, p.quantity, now, now)
+      .bind(
+        p.user_id, p.product_id, p.design_json, p.logo_key, p.unit_price, p.quantity, now, now,
+        p.front_print_key ?? null, p.back_print_key ?? null,
+        p.front_mockup_key ?? null, p.back_mockup_key ?? null, p.back_logo_key ?? null, p.model_key ?? null,
+      )
       .run()
     return Number(res.meta.last_row_id)
   })
@@ -1269,15 +1322,21 @@ export async function clearCart(db: D1Database, userId: number): Promise<void> {
 
 export async function createOrderItem(
   db: D1Database,
-  p: { order_id: number; product_id: number | null; product_name: string | null; design_json: string; logo_key: string | null; unit_price: number; quantity: number },
+  p: { order_id: number; product_id: number | null; product_name: string | null; design_json: string; logo_key: string | null; unit_price: number; quantity: number } & ProofKeys,
 ): Promise<number> {
   return safeQuery('createOrderItem', async () => {
     const res = await db
       .prepare(
-        `INSERT INTO order_items (order_id, product_id, product_name, design_json, logo_key, unit_price, quantity, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO order_items
+           (order_id, product_id, product_name, design_json, logo_key, unit_price, quantity, created_at,
+            front_print_key, back_print_key, front_mockup_key, back_mockup_key, back_logo_key, model_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(p.order_id, p.product_id, p.product_name, p.design_json, p.logo_key, p.unit_price, p.quantity, Date.now())
+      .bind(
+        p.order_id, p.product_id, p.product_name, p.design_json, p.logo_key, p.unit_price, p.quantity, Date.now(),
+        p.front_print_key ?? null, p.back_print_key ?? null,
+        p.front_mockup_key ?? null, p.back_mockup_key ?? null, p.back_logo_key ?? null, p.model_key ?? null,
+      )
       .run()
     return Number(res.meta.last_row_id)
   })

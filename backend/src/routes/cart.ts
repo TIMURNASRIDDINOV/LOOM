@@ -55,6 +55,13 @@ router.post('/', async (c) => {
     logo_key: typeof b.logoKey === 'string' ? b.logoKey : null,
     unit_price: b.unitPrice,
     quantity,
+    // Proofs are captured while the design is live (here); copied to order_items at checkout.
+    front_print_key: typeof b.frontPrintKey === 'string' ? b.frontPrintKey : null,
+    back_print_key: typeof b.backPrintKey === 'string' ? b.backPrintKey : null,
+    front_mockup_key: typeof b.frontMockupKey === 'string' ? b.frontMockupKey : null,
+    back_mockup_key: typeof b.backMockupKey === 'string' ? b.backMockupKey : null,
+    back_logo_key: typeof b.backLogoKey === 'string' ? b.backLogoKey : null,
+    model_key: typeof b.modelKey === 'string' ? b.modelKey : null,
   })
 
   const items = await getCartItems(c.env.DB, c.get('userId'))
@@ -149,6 +156,12 @@ router.post('/checkout', async (c) => {
       logo_key: it.logo_key,
       unit_price: it.unit_price,
       quantity: it.quantity,
+      front_print_key: it.front_print_key,
+      back_print_key: it.back_print_key,
+      front_mockup_key: it.front_mockup_key,
+      back_mockup_key: it.back_mockup_key,
+      back_logo_key: it.back_logo_key,
+      model_key: it.model_key,
     })
   }
 

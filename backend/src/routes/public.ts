@@ -136,6 +136,12 @@ pub.post('/orders', async (c) => {
     design_json: b.designJson as string,
     logo_key: typeof b.logoKey === 'string' ? b.logoKey : null,
     total_price: b.totalPrice as number,
+    front_print_key: typeof b.frontPrintKey === 'string' ? b.frontPrintKey : null,
+    back_print_key: typeof b.backPrintKey === 'string' ? b.backPrintKey : null,
+    front_mockup_key: typeof b.frontMockupKey === 'string' ? b.frontMockupKey : null,
+    back_mockup_key: typeof b.backMockupKey === 'string' ? b.backMockupKey : null,
+    back_logo_key: typeof b.backLogoKey === 'string' ? b.backLogoKey : null,
+    model_key: typeof b.modelKey === 'string' ? b.modelKey : null,
   })
 
   // Send Telegram notification without blocking the response
@@ -164,7 +170,8 @@ pub.post('/orders', async (c) => {
 
 pub.post('/uploads', async (c) => {
   const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
-  if (await isRateLimited(c.env.RATE_LIMIT, `uploads:${ip}`, 10, 60)) {
+  // An order now uploads up to 6 assets (2 prints + 2 mockups + 2 logos), so allow 30/min.
+  if (await isRateLimited(c.env.RATE_LIMIT, `uploads:${ip}`, 30, 60)) {
     return c.json({ error: 'Too many uploads. Please wait a minute before trying again.' }, 429)
   }
 

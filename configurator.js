@@ -1874,21 +1874,131 @@ function _buildDesignJson() {
     },
   });
 }
-async function _uploadCurrentLogo() {
-  const logoFile = uploadedFileData.front || uploadedFileData.back;
-  if (!logoFile || !logoFile.base64) return null;
+// Generic R2 upload from any data URL (logo, flat print PNG, 3D mockup JPEG).
+// Returns the R2 key, or null on any failure (non-fatal — proofs are best-effort).
+async function _uploadDataUrl(dataUrl, filename) {
+  if (!dataUrl) return null;
   try {
-    const [header, b64] = logoFile.base64.split(",");
+    const [header, b64] = dataUrl.split(",");
     const mime = header.match(/:(.*?);/)?.[1] || "image/png";
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const fd = new FormData();
-    fd.append("file", new File([new Blob([bytes], { type: mime })], logoFile.name || "logo.png", { type: mime }));
+    fd.append("file", new File([new Blob([bytes], { type: mime })], filename || "asset.png", { type: mime }));
     const up = await fetch(getApiBase() + "/api/uploads", { method: "POST", body: fd });
     if (up.ok) return (await up.json()).key || null;
   } catch (e) { /* non-fatal */ }
   return null;
+}
+
+// Upload the uploaded logo file for ONE view (front/back), or null if none.
+function _uploadLogoFor(view) {
+  const f = uploadedFileData[view];
+  return (f && f.base64) ? _uploadDataUrl(f.base64, f.name || view + "-logo.png") : Promise.resolve(null);
+}
+
+function _viewHasContent(view) {
+  const l = designState[view];
+  return !!(l && (l.text.content || l.image.img));
+}
+
+// Render the PRINT master for a view: ONLY the artwork (logo + text), cropped to
+// the print area, on a TRANSPARENT background, shadow-free, at PRINT_SCALE× the
+// texture resolution. This is the file a print shop reproduces. Uses the exact
+// same geometry as drawTexture() so the placement matches the preview pixel-for-pixel.
+// Returns a PNG data URL, or null if the view is empty.
+const PRINT_SCALE = 3; // 928×1120 → 2784×3360 px (~235 dpi at 30×40 cm)
+function _renderPrintCanvas(view) {
+  if (!_viewHasContent(view)) return null;
+  const layer = designState[view];
+  const c = document.createElement("canvas");
+  c.width = PRINT_AREA.w * PRINT_SCALE;
+  c.height = PRINT_AREA.h * PRINT_SCALE;
+  const ctx = c.getContext("2d");
+  ctx.scale(PRINT_SCALE, PRINT_SCALE);
+  ctx.translate(-PRINT_AREA.x, -PRINT_AREA.y); // texture coords → print-area-local
+
+  if (layer.image.img) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    const natW = layer.image.img.naturalWidth || layer.image.img.width;
+    const natH = layer.image.img.naturalHeight || layer.image.img.height;
+    const factor = (layer.image.scalePct / 100) * ((TEX_SIZE * 0.30) / Math.max(natW, natH));
+    const dw = natW * factor, dh = natH * factor;
+    ctx.translate(layer.image.x, layer.image.y);
+    ctx.rotate(layer.image.rotation || 0);
+    ctx.drawImage(layer.image.img, -dw / 2, -dh / 2, dw, dh);
+    ctx.restore();
+  }
+  if (layer.text.content) {
+    ctx.save();
+    const weight = layer.text.bold ? "bold" : "normal";
+    const style = layer.text.italic ? "italic" : "normal";
+    ctx.font = `${style} ${weight} ${layer.text.size}px "${layer.text.font}"`;
+    ctx.fillStyle = layer.text.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.translate(layer.text.x, layer.text.y);
+    ctx.rotate(layer.text.rotation || 0);
+    ctx.fillText(layer.text.content, 0, 0);
+    ctx.restore();
+  }
+  return c.toDataURL("image/png");
+}
+
+// Capture production proofs for the current design: shadow-free flat print PNGs +
+// 3D garment mockups (JPEG). Uploads them and returns R2 keys + the mockup data
+// URLs (so the Telegram worker payload can reuse them without re-rendering).
+async function captureProofs() {
+  const active = { front: _viewHasContent("front"), back: _viewHasContent("back") };
+
+  // Flat print masters (artwork-only, transparent, hi-res) for non-empty views.
+  const printData = {
+    front: active.front ? _renderPrintCanvas("front") : null,
+    back: active.back ? _renderPrintCanvas("back") : null,
+  };
+
+  // 3D mockups — _snapshotURL captures the CURRENT camera, so choreograph it per view.
+  const mockData = { front: null, back: null };
+  if (renderer && camera && controls && scene) {
+    // Snapshot the user's ACTUAL live view — addToCart leaves them editing, so we
+    // must restore the exact camera/orbit afterwards, not snap to a canned preset.
+    const camPos = camera.position.clone();
+    const camTgt = controls.target.clone();
+    drawTexture("front");
+    drawTexture("back");
+    applyActiveTexture();
+    ["front", "back"].forEach((v) => {
+      camera.position.set(CAM_VIEWS[v].x, CAM_VIEWS[v].y, CAM_VIEWS[v].z);
+      controls.update();
+      renderer.render(scene, camera);
+      mockData[v] = _snapshotURL("image/jpeg", 0.85);
+    });
+    camera.position.copy(camPos);
+    controls.target.copy(camTgt);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  // Interactive 3D review model — the exact textured garment, baked, for the admin.
+  const glbDataUrl = await captureGLB();
+
+  // Upload everything in parallel. Mockups upload only for active views (a blank
+  // side's plain-garment render isn't worth storing); prints already gated above.
+  const [frontPrintKey, backPrintKey, frontMockupKey, backMockupKey, modelKey] = await Promise.all([
+    printData.front ? _uploadDataUrl(printData.front, "front-print.png") : null,
+    printData.back ? _uploadDataUrl(printData.back, "back-print.png") : null,
+    active.front && mockData.front ? _uploadDataUrl(mockData.front, "front-mockup.jpg") : null,
+    active.back && mockData.back ? _uploadDataUrl(mockData.back, "back-mockup.jpg") : null,
+    glbDataUrl ? _uploadDataUrl(glbDataUrl, "model.glb") : null,
+  ]);
+
+  return {
+    frontPrintKey, backPrintKey, frontMockupKey, backMockupKey, modelKey,
+    frontMockupData: mockData.front, backMockupData: mockData.back,
+  };
 }
 async function addToCart() {
   // Account-bound cart → require login first
@@ -1903,7 +2013,9 @@ async function addToCart() {
   const btn = document.getElementById("btn-add-to-cart");
   if (btn) btn.disabled = true;
   try {
-    const logoKey = await _uploadCurrentLogo();
+    // Capture proofs NOW — the design is only live here; it's gone by checkout.
+    const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    const proofs = await captureProofs();
     const designJson = _buildDesignJson();
     const res = await fetch(getApiBase() + "/api/cart", {
       method: "POST",
@@ -1913,6 +2025,12 @@ async function addToCart() {
         productId: currentProduct ? currentProduct.id : null,
         designJson,
         logoKey,
+        backLogoKey,
+        frontPrintKey: proofs.frontPrintKey,
+        backPrintKey: proofs.backPrintKey,
+        frontMockupKey: proofs.frontMockupKey,
+        backMockupKey: proofs.backMockupKey,
+        modelKey: proofs.modelKey,
         unitPrice: currentProduct ? currentProduct.price : 150000,
         quantity: 1,
       }),
@@ -2924,27 +3042,38 @@ function validateLocation() {
   return true;
 }
 
+// Export the textured garment as a binary glTF (.glb) data URL — the EXACT model
+// the customer designed (baked textures), for the admin's interactive 3D review +
+// download. Exports just shirtObject (no lights/camera). Best-effort: resolves null
+// on any failure so it never blocks an order.
 async function captureGLB() {
   return new Promise((resolve) => {
-    if (!scene || typeof THREE.GLTFExporter === "undefined") {
-      resolve(null);
-      return;
-    }
-    drawTexture("front");
-    drawTexture("back");
-    if (renderer) renderer.render(scene, camera);
-
-    const exporter = new THREE.GLTFExporter();
-    exporter.parse(
-      scene,
-      (glb) => {
-        const bytes = new Uint8Array(glb);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        resolve("data:model/gltf-binary;base64," + btoa(binary));
-      },
-      { binary: true, embedImages: true },
-    );
+    if (!shirtObject || typeof THREE.GLTFExporter === "undefined") { resolve(null); return; }
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    try {
+      drawTexture("front");
+      drawTexture("back");
+      const exporter = new THREE.GLTFExporter();
+      // Safety net — never hang the order flow if serialization stalls.
+      setTimeout(() => finish(null), 20000);
+      exporter.parse(
+        shirtObject,
+        (glb) => {
+          try {
+            const bytes = new Uint8Array(glb);
+            // Chunked base64 (avoids call-stack limits + slow per-char concat on MBs).
+            let binary = "";
+            const CH = 0x8000;
+            for (let i = 0; i < bytes.length; i += CH) {
+              binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+            }
+            finish("data:model/gltf-binary;base64," + btoa(binary));
+          } catch (e) { finish(null); }
+        },
+        { binary: true, embedImages: true },
+      );
+    } catch (e) { finish(null); }
   });
 }
 
@@ -3019,83 +3148,25 @@ async function handleOrderSubmit(event) {
       return;
     }
 
-    // ── 1. Upload logo to R2 if present ───────────────────────────────────
-    let logoKey = null;
-    const logoFile = uploadedFileData.front || uploadedFileData.back;
-    if (logoFile && logoFile.base64) {
-      try {
-        // Convert base64 data URL to Blob
-        const [header, b64] = logoFile.base64.split(",");
-        const mime = header.match(/:(.*?);/)?.[1] || "image/png";
-        const byteChars = atob(b64);
-        const bytes = new Uint8Array(byteChars.length);
-        for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
-        const blob = new Blob([bytes], { type: mime });
-
-        const fd = new FormData();
-        fd.append("file", new File([blob], logoFile.name || "logo.png", { type: mime }));
-
-        const uploadRes = await fetch(getApiBase() + "/api/uploads", {
-          method: "POST",
-          body: fd,
-        });
-        if (!uploadRes.ok) {
-          showToast("Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.", "error");
-          btn.disabled = false;
-          if (txt) txt.style.display = "block";
-          if (loader) loader.style.display = "none";
-          return;
-        }
-        const uploadData = await uploadRes.json();
-        logoKey = uploadData.key || null;
-      } catch (uploadErr) {
-        console.error("Logo upload failed:", uploadErr);
-        showToast("Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.", "error");
-        btn.disabled = false;
-        if (txt) txt.style.display = "block";
-        if (loader) loader.style.display = "none";
-        return;
-      }
+    // ── 1. Upload both logos to R2 (front + back, independently) ──────────
+    const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    if ((uploadedFileData.front?.base64 && !logoKey) || (uploadedFileData.back?.base64 && !backLogoKey)) {
+      showToast("Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.", "error");
+      btn.disabled = false;
+      if (txt) txt.style.display = "block";
+      if (loader) loader.style.display = "none";
+      return;
     }
 
-    // ── 2. Capture screenshots for Telegram (kept for worker notification) ─
-    let frontScreenshot = null;
-    let backScreenshot = null;
-    if (renderer) {
-      const savedView = designState.activeView;
-      drawTexture("front");
-      drawTexture("back");
-      applyActiveTexture();
+    // ── 2. Capture production proofs: shadow-free print masters + 3D mockups.
+    //      Persisted with the order so the admin can reprint the EXACT artwork.
+    //      Mockup data URLs are reused for the Telegram notification below.
+    const proofs = await captureProofs();
+    const frontScreenshot = proofs.frontMockupData;
+    const backScreenshot = proofs.backMockupData;
 
-      camera.position.set(CAM_VIEWS.front.x, CAM_VIEWS.front.y, CAM_VIEWS.front.z);
-      controls.update();
-      renderer.render(scene, camera);
-      frontScreenshot = _snapshotURL("image/jpeg", 0.85);
-
-      camera.position.set(CAM_VIEWS.back.x, CAM_VIEWS.back.y, CAM_VIEWS.back.z);
-      controls.update();
-      renderer.render(scene, camera);
-      backScreenshot = _snapshotURL("image/jpeg", 0.85);
-
-      camera.position.set(CAM_VIEWS[savedView].x, CAM_VIEWS[savedView].y, CAM_VIEWS[savedView].z);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-
-    // ── 3. Build design JSON ───────────────────────────────────────────────
-    const front = designState.front;
-    const designJson = JSON.stringify({
-      shirtColor: designState.shirtColor,
-      size: selectedSize,
-      front: {
-        text: { content: front.text.content, font: front.text.font, size: front.text.size, color: front.text.color, bold: front.text.bold, italic: front.text.italic },
-        image: { name: front.image.name, scalePct: front.image.scalePct },
-      },
-      back: {
-        text: { content: designState.back.text.content, font: designState.back.text.font },
-        image: { name: designState.back.image.name, scalePct: designState.back.image.scalePct },
-      },
-    });
+    // ── 3. Build FULL design JSON (placement, rotation, both views) ────────
+    const designJson = _buildDesignJson();
 
     // ── 4. POST /api/orders ────────────────────────────────────────────────
     const totalPrice = currentProduct ? currentProduct.price : 150000;
@@ -3113,6 +3184,12 @@ async function handleOrderSubmit(event) {
       comment: comment || null,
       designJson,
       logoKey,
+      backLogoKey,
+      frontPrintKey: proofs.frontPrintKey,
+      backPrintKey: proofs.backPrintKey,
+      frontMockupKey: proofs.frontMockupKey,
+      backMockupKey: proofs.backMockupKey,
+      modelKey: proofs.modelKey,
       totalPrice,
       productId: currentProduct ? currentProduct.id : null,
     };
