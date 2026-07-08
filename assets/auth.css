@@ -1,7 +1,7 @@
 /* ============================================================
-   LOOM — Shared auth styles
+   LOOM — Shared auth styles (light editorial system)
    Used by: login.html, register.html, account.html
-   And nav auth slot on all pages.
+   And the nav auth slot on all pages (markup from auth.js).
 ============================================================ */
 
 /* ── Nav auth slot ─────────────────────────────────────────── */
@@ -9,14 +9,15 @@
 @media (max-width: 767px) { .auth-nav-slot { display: none !important; } }
 
 .auth-nav-link {
-  color: rgba(255,255,255,0.55);
+  color: var(--ink-55, rgba(19,19,17,0.55));
   text-decoration: none;
   font-size: 0.78rem;
+  font-weight: 500;
   letter-spacing: 0.06em;
   transition: color 200ms;
   white-space: nowrap;
 }
-.auth-nav-link:hover { color: #fff; }
+.auth-nav-link:hover { color: var(--accent-deep, #d63a2f); }
 
 /* ── Dropdown ─────────────────────────────────────────────── */
 .auth-dropdown { position: relative; }
@@ -24,11 +25,11 @@
 .auth-dropdown-btn {
   display: inline-flex; align-items: center; gap: 0.5rem;
   background: transparent; border: none; cursor: pointer;
-  color: rgba(255,255,255,0.8); font-family: inherit;
+  color: var(--ink-70, rgba(19,19,17,0.7)); font-family: inherit;
   font-size: 0.78rem; letter-spacing: 0.04em;
   padding: 0.3rem 0; transition: color 150ms;
 }
-.auth-dropdown-btn:hover { color: #fff; }
+.auth-dropdown-btn:hover { color: var(--ink, #131311); }
 .auth-dropdown-caret { flex-shrink: 0; transition: transform 200ms; opacity: 0.6; }
 .auth-dropdown-btn[aria-expanded=true] .auth-dropdown-caret { transform: rotate(180deg); }
 
@@ -36,144 +37,146 @@
 .auth-nav-avatar {
   width: 28px; height: 28px; border-radius: 50%;
   object-fit: cover;
-  border: 1.5px solid rgba(255,255,255,0.25);
+  border: 1.5px solid var(--line, rgba(19,19,17,0.16));
   display: block; flex-shrink: 0;
 }
 .auth-nav-initials {
   width: 28px; height: 28px; border-radius: 50%;
-  background: rgba(255,255,255,0.12);
-  border: 1.5px solid rgba(255,255,255,0.2);
+  background: var(--paper-2, #ebe8e1);
+  border: 1.5px solid var(--line, rgba(19,19,17,0.16));
   display: flex; align-items: center; justify-content: center;
   font-size: 0.65rem; font-weight: 600; letter-spacing: 0.04em;
-  color: rgba(255,255,255,0.8); flex-shrink: 0; user-select: none;
+  color: var(--ink-70, rgba(19,19,17,0.7)); flex-shrink: 0; user-select: none;
 }
 
 .auth-dropdown-menu {
   display: none;
   position: fixed; right: 1.75rem; top: 64px;
-  background: #111; border: 0.5px solid rgba(255,255,255,0.12);
-  border-radius: 6px; padding: 0.35rem 0;
+  background: var(--paper-3, #fff); border: 1px solid var(--line, rgba(19,19,17,0.16));
+  border-radius: var(--radius, 2px); padding: 0.35rem 0;
   min-width: 180px; z-index: 9999;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+  box-shadow: 0 14px 40px rgba(19, 19, 17, 0.14);
 }
 .auth-dropdown-menu.open { display: block; }
 
 .auth-dropdown-item {
   display: block; width: 100%;
   padding: 0.55rem 1rem;
-  color: rgba(255,255,255,0.65); text-decoration: none;
+  color: var(--ink-55, rgba(19,19,17,0.55)); text-decoration: none;
   font-size: 0.82rem; font-family: inherit;
   background: transparent; border: none; cursor: pointer;
   text-align: left; transition: background 150ms, color 150ms;
   white-space: nowrap;
 }
-.auth-dropdown-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.auth-dropdown-item:hover { background: var(--paper-2, #ebe8e1); color: var(--ink, #131311); }
 
 /* ── Auth page layout ─────────────────────────────────────── */
 .auth-page {
   min-height: 100vh;
   display: flex; align-items: center; justify-content: center;
   padding: 2rem 1.25rem;
-  background: #0a0a0a;
+  background: var(--paper, #f4f2ed);
+  color: var(--ink, #131311);
 }
 
 .auth-card {
   width: 100%; max-width: 420px;
-  background: #0f0f0f;
-  border: 0.5px solid rgba(255,255,255,0.08);
-  border-radius: 6px;
+  background: var(--paper-3, #fff);
+  border: 1px solid var(--line, rgba(19,19,17,0.16));
+  border-radius: var(--radius, 2px);
   padding: 2.5rem 2rem;
 }
 
 .auth-logo {
   display: block;
-  font-family: 'DM Mono', monospace;
-  font-size: 0.85rem; letter-spacing: 0.22em;
-  text-transform: uppercase; color: #fff;
+  font-family: var(--font-display, sans-serif);
+  font-size: 1rem; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink, #131311);
   text-decoration: none; text-align: center;
   margin-bottom: 2rem;
 }
 
 .auth-title {
-  font-size: 1.3rem; font-weight: 300;
+  font-family: var(--font-display, sans-serif);
+  font-size: 1.4rem; font-weight: 600;
   letter-spacing: -0.02em;
-  color: #fff; margin: 0 0 0.4rem;
+  color: var(--ink, #131311); margin: 0 0 0.4rem;
   text-align: center;
 }
 
 .auth-subtitle {
-  font-size: 0.82rem; color: rgba(255,255,255,0.4);
-  text-align: center; margin: 0 0 1.75rem; font-weight: 300;
+  font-size: 0.82rem; color: var(--ink-55, rgba(19,19,17,0.55));
+  text-align: center; margin: 0 0 1.75rem;
 }
 
 /* ── Form fields ──────────────────────────────────────────── */
 .auth-field { margin-bottom: 1rem; }
 .auth-label {
-  display: block; font-size: 0.78rem;
-  color: rgba(255,255,255,0.55); margin-bottom: 0.4rem;
+  display: block; font-size: 0.78rem; font-weight: 500;
+  color: var(--ink-55, rgba(19,19,17,0.55)); margin-bottom: 0.4rem;
 }
 
 .auth-input {
   width: 100%; padding: 0.75rem 1rem;
-  border-radius: 4px;
-  border: 0.5px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.05);
-  color: #fff; font-family: inherit; font-size: 0.9rem;
+  border-radius: var(--radius, 2px);
+  border: 1px solid var(--line, rgba(19,19,17,0.16));
+  background: var(--paper, #f4f2ed);
+  color: var(--ink, #131311); font-family: inherit; font-size: 0.9rem;
   outline: none; transition: border-color 200ms, box-shadow 200ms;
 }
-.auth-input::placeholder { color: rgba(255,255,255,0.25); }
+.auth-input::placeholder { color: var(--ink-38, rgba(19,19,17,0.38)); }
 .auth-input:focus {
-  border-color: rgba(255,255,255,0.4);
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.05);
+  border-color: var(--ink, #131311);
+  box-shadow: 0 0 0 3px var(--accent-tint, rgba(252,80,68,0.08));
 }
-.auth-input.error { border-color: rgba(239,68,68,0.6); }
+.auth-input.error { border-color: var(--accent, #fc5044); }
 
 .auth-error {
-  color: #ef4444; font-size: 0.78rem;
+  color: var(--accent-deep, #d63a2f); font-size: 0.78rem;
   margin-top: 0.35rem; min-height: 1em;
 }
 
 /* ── Submit button ─────────────────────────────────────────── */
 .auth-btn {
   width: 100%; padding: 0.85rem;
-  border-radius: 2px;
-  border: 1px solid #fff;
-  background: #fff; color: #111;
+  border-radius: var(--radius, 2px);
+  border: 1px solid var(--ink, #131311);
+  background: var(--ink, #131311); color: var(--paper, #f4f2ed);
   font-family: inherit; font-size: 0.8rem;
-  font-weight: 500; letter-spacing: 0.1em;
+  font-weight: 600; letter-spacing: 0.1em;
   text-transform: uppercase; cursor: pointer;
   margin-top: 0.5rem;
-  transition: background 0.2s, color 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
-.auth-btn:hover:not(:disabled) { background: transparent; color: #fff; }
+.auth-btn:hover:not(:disabled) { background: var(--accent, #fc5044); border-color: var(--accent, #fc5044); color: #fff; }
 .auth-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Footer links ──────────────────────────────────────────── */
 .auth-footer {
   margin-top: 1.25rem; text-align: center;
-  font-size: 0.8rem; color: rgba(255,255,255,0.35);
+  font-size: 0.8rem; color: var(--ink-38, rgba(19,19,17,0.38));
 }
 .auth-footer a {
-  color: rgba(255,255,255,0.65); text-decoration: none;
+  color: var(--ink-70, rgba(19,19,17,0.7)); text-decoration: none;
   transition: color 150ms;
 }
-.auth-footer a:hover { color: #fff; }
+.auth-footer a:hover { color: var(--accent-deep, #d63a2f); }
 
 /* ── Global error banner ───────────────────────────────────── */
 .auth-banner {
   padding: 0.65rem 0.9rem;
-  border-radius: 3px; margin-bottom: 1rem;
+  border-radius: var(--radius, 2px); margin-bottom: 1rem;
   font-size: 0.82rem; text-align: center;
   display: none;
 }
-.auth-banner.error { background: rgba(239,68,68,0.12); color: #f87171; border: 0.5px solid rgba(239,68,68,0.3); display: block; }
-.auth-banner.success { background: rgba(34,197,94,0.12); color: #4ade80; border: 0.5px solid rgba(34,197,94,0.3); display: block; }
+.auth-banner.error { background: rgba(214, 58, 47, 0.08); color: #b3271e; border: 1px solid rgba(214, 58, 47, 0.3); display: block; }
+.auth-banner.success { background: rgba(22, 133, 62, 0.08); color: #15803d; border: 1px solid rgba(22, 133, 62, 0.3); display: block; }
 
-/* ── Account page ─────────────────────────────────────────── */
+/* ── Account page (legacy classes kept for account.js) ────── */
 .account-page {
   min-height: 100vh;
-  background: #0a0a0a; color: #fff;
-  font-family: 'DM Sans', sans-serif;
+  background: var(--paper, #f4f2ed); color: var(--ink, #131311);
+  font-family: var(--font-body, sans-serif);
   padding-top: 4rem;
 }
 
@@ -183,30 +186,32 @@
 }
 
 .account-title {
-  font-size: 1.5rem; font-weight: 300;
+  font-family: var(--font-display, sans-serif);
+  font-size: 1.5rem; font-weight: 600;
   letter-spacing: -0.02em; margin: 0 0 2rem;
 }
 
 .account-card {
-  background: #0f0f0f;
-  border: 0.5px solid rgba(255,255,255,0.08);
-  border-radius: 4px; padding: 1.5rem;
+  background: var(--paper-3, #fff);
+  border: 1px solid var(--line, rgba(19,19,17,0.16));
+  border-radius: var(--radius, 2px); padding: 1.5rem;
   margin-bottom: 1.25rem;
 }
 .account-card-title {
-  font-size: 0.72rem; font-weight: 500;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: rgba(255,255,255,0.45); margin: 0 0 1.1rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem; font-weight: 500;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-38, rgba(19,19,17,0.38)); margin: 0 0 1.1rem;
 }
 
 .profile-row {
   display: flex; gap: 0.75rem;
   padding: 0.5rem 0;
-  border-bottom: 0.5px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--line-soft, rgba(19,19,17,0.09));
 }
 .profile-row:last-child { border-bottom: none; }
 .profile-label {
-  font-size: 0.78rem; color: rgba(255,255,255,0.4);
+  font-size: 0.78rem; color: var(--ink-55, rgba(19,19,17,0.55));
   min-width: 100px; flex-shrink: 0;
 }
 .profile-value { font-size: 0.875rem; word-break: break-all; }
@@ -217,17 +222,18 @@
   padding: 0.6rem 0.75rem;
   text-align: left; font-size: 0.68rem; font-weight: 500;
   letter-spacing: 0.08em; text-transform: uppercase;
-  color: rgba(255,255,255,0.4);
-  border-bottom: 0.5px solid rgba(255,255,255,0.06);
+  color: var(--ink-38, rgba(19,19,17,0.38));
+  border-bottom: 1px solid var(--line, rgba(19,19,17,0.16));
+  font-family: var(--font-mono, monospace);
 }
 .orders-table td {
   padding: 0.7rem 0.75rem;
   font-size: 0.83rem;
-  border-bottom: 0.5px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--line-soft, rgba(19,19,17,0.09));
   vertical-align: middle;
 }
 .orders-table tr:last-child td { border-bottom: none; }
-.orders-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.orders-table tbody tr:hover td { background: rgba(19, 19, 17, 0.02); }
 
 .account-nav {
   display: flex; align-items: center;
@@ -235,21 +241,21 @@
   margin-bottom: 2rem;
 }
 .account-nav-logo {
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-mono, monospace);
   font-size: 0.85rem; letter-spacing: 0.2em;
-  text-transform: uppercase; color: #fff;
+  text-transform: uppercase; color: var(--ink, #131311);
   text-decoration: none;
 }
 .account-logout {
   padding: 0.4rem 0.9rem;
-  border: 0.5px solid rgba(255,255,255,0.2);
-  border-radius: 3px; background: transparent;
-  color: rgba(255,255,255,0.55); font-family: inherit;
+  border: 1px solid var(--line, rgba(19,19,17,0.16));
+  border-radius: var(--radius, 2px); background: transparent;
+  color: var(--ink-55, rgba(19,19,17,0.55)); font-family: inherit;
   font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
 }
-.account-logout:hover { color: #fff; border-color: rgba(255,255,255,0.45); }
+.account-logout:hover { color: var(--ink, #131311); border-color: var(--ink, #131311); }
 
-/* ── Order status badge (reuse in account page) ───────────── */
+/* ── Order status badge ────────────────────────────────────── */
 .status-badge {
   display: inline-block;
   padding: 2px 8px; border-radius: 9999px;

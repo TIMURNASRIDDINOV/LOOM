@@ -1,0 +1,488 @@
+/* ================================================================
+   LOOM — Design system (light editorial)
+   Single source of truth: tokens, base, shared components.
+   Loaded by every customer page. Page-specific styles stay inline
+   on each page but must only use these tokens.
+
+   Layers in this file:
+   1. Tokens        4. Buttons & links     7. Footer
+   2. Base          5. Sections & type     8. Loader / veil / reveal
+   3. Utilities     6. Cards & marquee     9. Forms   10. Reduced motion
+================================================================ */
+
+/* ── 1. Tokens ─────────────────────────────────────────────── */
+:root {
+  /* Canvas & ink */
+  --paper: #f4f2ed;              /* warm off-white canvas */
+  --paper-2: #ebe8e1;            /* recessed surfaces (image tiles, table heads) */
+  --paper-3: #ffffff;            /* raised surfaces (cards, panels, menus) */
+  --ink: #131311;                /* near-black text */
+  --ink-70: rgba(19, 19, 17, 0.70);
+  --ink-55: rgba(19, 19, 17, 0.55);
+  --ink-38: rgba(19, 19, 17, 0.38);
+  --line: rgba(19, 19, 17, 0.16);      /* hairlines */
+  --line-soft: rgba(19, 19, 17, 0.09);
+
+  /* Accent — disciplined: links, hovers, active states, key CTAs */
+  --accent: #fc5044;
+  --accent-deep: #d63a2f;        /* small text on paper needs the deeper cut */
+  --accent-tint: rgba(252, 80, 68, 0.08);
+
+  /* Inverted (ink) sections */
+  --on-ink: #f4f2ed;
+  --on-ink-55: rgba(244, 242, 237, 0.55);
+  --on-ink-line: rgba(244, 242, 237, 0.16);
+
+  /* Type — full Cyrillic support (DM Sans had none; RU fell back to system) */
+  --font-display: 'Inter Tight', 'Inter', -apple-system, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SF Mono', monospace;
+
+  --text-display: clamp(2.9rem, 8.6vw, 7.25rem);   /* hero */
+  --text-h2: clamp(2.1rem, 5vw, 4.4rem);           /* section titles */
+  --text-h3: clamp(1.15rem, 1.8vw, 1.5rem);
+  --text-body: 1rem;
+  --text-sm: 0.86rem;
+  --text-label: 0.68rem;                            /* mono eyebrows */
+
+  /* Layout */
+  --max-w: 1360px;
+  --gutter: clamp(1.25rem, 4vw, 2.75rem);
+  --sect-y: clamp(4.5rem, 10vw, 8rem);
+  --nav-h: 64px;
+  --radius: 2px;                                    /* sharp, editorial */
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);       /* expo-ish decel */
+  --ease-inout: cubic-bezier(0.77, 0, 0.18, 1);
+  --dur-fast: 0.22s;
+  --dur: 0.5s;
+  --dur-slow: 0.9s;
+}
+
+/* ── 2. Base ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.6;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* FOUC guard — assets/boot.js adds .motion-hold before first paint when an
+   intro/transition will cover the page; motion.js (or its failsafe) lifts it */
+html.motion-hold body { opacity: 0; }
+
+a { color: inherit; text-decoration: none; }
+img, video { max-width: 100%; display: block; }
+button { font-family: inherit; cursor: pointer; }
+h1, h2, h3, h4, p, ul, figure { margin: 0; }
+
+::selection { background: var(--accent); color: var(--paper); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ── 3. Utilities ──────────────────────────────────────────── */
+.container {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+
+.hairline { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+/* ── 4. Buttons & links ────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1.9rem;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-radius: var(--radius);
+  border: 1px solid var(--ink);
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn--solid { background: var(--ink); color: var(--paper); }
+.btn--solid:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn--outline { background: transparent; color: var(--ink); }
+.btn--outline:hover { background: var(--ink); color: var(--paper); }
+/* on inverted sections */
+.btn--on-ink { border-color: var(--on-ink); color: var(--on-ink); background: transparent; }
+.btn--on-ink:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Inline arrow link — accent on hover */
+.link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-55);
+  transition: color var(--dur-fast) ease, gap var(--dur-fast) var(--ease-out);
+}
+.link-arrow:hover { color: var(--accent-deep); gap: 0.65rem; }
+
+/* ── 5. Sections & type ────────────────────────────────────── */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 400;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-38);
+}
+
+.display {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: 700;
+  line-height: 0.96;
+  letter-spacing: -0.035em;
+}
+
+.h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+}
+
+/* The brand "/" — one of the few standing accent marks */
+.slash { color: var(--accent); }
+
+.sect { padding: var(--sect-y) 0; }
+.sect--ink { background: var(--ink); color: var(--on-ink); }
+
+/* Section header row: eyebrow left, meta/link right, rule underneath */
+.sect-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: clamp(2rem, 5vw, 3.5rem);
+}
+
+/* ── 6. Cards & marquee ────────────────────────────────────── */
+/* Editorial product card: hairline column grid, image tile, mono meta */
+.pcard {
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1.25rem, 2.4vw, 2rem);
+  border-right: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  background: transparent;
+  transition: background var(--dur-fast) ease;
+}
+.pcard:hover { background: rgba(255, 255, 255, 0.55); }
+
+.pcard__media {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  margin-bottom: 1.4rem;
+}
+.pcard__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.pcard:hover .pcard__media img { transform: scale(1.05); }
+
+/* accent arrow chip slides in on hover */
+.pcard__go {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  transform: translateY(102%);
+  transition: transform var(--dur) var(--ease-out);
+}
+.pcard:hover .pcard__go { transform: translateY(0); }
+.pcard__go svg { width: 17px; height: 17px; }
+
+.pcard__tag {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-38);
+  margin-bottom: 0.55rem;
+}
+.pcard__name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.45rem;
+}
+.pcard__desc {
+  font-size: var(--text-sm);
+  color: var(--ink-55);
+  line-height: 1.55;
+  margin-bottom: 1.4rem;
+}
+.pcard__foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.pcard__price {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-70);
+}
+
+.color-dots { display: flex; gap: 4px; align-items: center; }
+.color-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  border: 1px solid var(--line); flex-shrink: 0;
+}
+
+/* Marquee — content duplicated by motion.js for a seamless loop */
+.marquee {
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 0.9rem 0;
+  white-space: nowrap;
+}
+.marquee__track {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3rem;
+  padding-right: 3rem;
+  will-change: transform;
+  animation: marquee-scroll var(--marquee-dur, 28s) linear infinite;
+}
+.marquee__item {
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 2.2vw, 1.7rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.marquee__item--mono {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-38);
+}
+.marquee__dot { color: var(--accent); }
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ── 7. Footer (markup injected by assets/layout.js) ───────── */
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: clamp(3rem, 6vw, 4.5rem) 0 2rem;
+  background: var(--paper);
+}
+.site-footer__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin-bottom: clamp(2.5rem, 6vw, 4rem);
+}
+.site-footer__brand {
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 7vw, 5.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.site-footer__brand .slash { margin-left: 0.06em; }
+.site-footer__cols { display: flex; gap: clamp(2rem, 6vw, 5.5rem); flex-wrap: wrap; }
+.site-footer__heading {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-38);
+  margin-bottom: 0.9rem;
+}
+.site-footer__links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.site-footer__links a {
+  font-size: var(--text-sm);
+  color: var(--ink-70);
+  transition: color var(--dur-fast) ease;
+}
+.site-footer__links a:hover { color: var(--accent-deep); }
+.site-footer__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-38);
+}
+
+/* ── 8. Loader / veil / reveal (built by assets/motion.js) ─── */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loader__brand {
+  position: absolute;
+  top: 1.4rem;
+  left: var(--gutter);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.loader__frame {
+  width: min(46vw, 250px);
+  aspect-ratio: 1;
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.loader__frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+}
+.loader__frame img.on { opacity: 1; }
+.loader__count {
+  position: absolute;
+  right: var(--gutter);
+  bottom: 1rem;
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 14vw, 9rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.loader__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: left;
+  transform: scaleX(0);
+  background: var(--accent);
+}
+
+/* Page-transition veil */
+.veil {
+  position: fixed;
+  inset: -2vh 0;            /* bleed avoids hairline gaps mid-animation */
+  z-index: 950;
+  background: var(--ink);
+  transform: translateY(102%);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.veil__mark {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--on-ink-55);
+}
+
+/* Masked line reveals: masks are wrapped AROUND [data-i18n] nodes by
+   motion.js, so language switching never destroys the structure */
+.mask-line { display: block; overflow: hidden; }
+.mask-line > * { display: block; }
+
+/* ── 9. Forms (shared look for account/auth/order fields) ──── */
+.f-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ink-55);
+  margin-bottom: 0.4rem;
+}
+.f-input {
+  width: 100%;
+  padding: 0.72rem 0.95rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+.f-input::placeholder { color: var(--ink-38); }
+.f-input:focus { border-color: var(--ink); box-shadow: 0 0 0 3px var(--accent-tint); }
+
+/* ── 10. Reduced motion — instant, readable, calm ──────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .marquee__track { animation: none; transform: none; }
+  .pcard__go { transform: none; }
+  html.motion-hold body { opacity: 1; }
+}

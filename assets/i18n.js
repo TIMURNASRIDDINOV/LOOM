@@ -74,6 +74,13 @@
     // ===== Footer =====
     'footer.contact':  { uz: 'Aloqa',  ru: 'Контакты',  en: 'Contact' },
     'footer.location': { uz: 'Toshkent, O‘zbekiston', ru: 'Ташкент, Узбекистан', en: 'Tashkent, Uzbekistan' },
+    'footer.navTitle':    { uz: 'Sahifalar', ru: 'Навигация', en: 'Navigate' },
+    'footer.socialTitle': { uz: 'Aloqa',     ru: 'Связь',     en: 'Connect' },
+
+    // ===== Marquee (redesign) =====
+    'marquee.a': { uz: 'Tasavvuringizdagini kiying', ru: 'Носи то, что ты придумал', en: 'Wear what you imagine' },
+    'marquee.b': { uz: 'Kiyish uchun yaratilgan',    ru: 'Создано, чтобы носить',    en: 'Made to be worn' },
+    'marquee.c': { uz: 'O‘z dizayningiz. 3D’da',     ru: 'Твой дизайн. В 3D',        en: 'Your design. In 3D' },
 
     // ===== Catalog =====
     'catalog.heroTitle':    { uz: 'Kolleksiyamizni kashf eting', ru: 'Исследуйте нашу коллекцию', en: 'Explore our collection' },
