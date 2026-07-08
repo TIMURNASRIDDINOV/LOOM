@@ -64,6 +64,7 @@
 
   function runIntro(done) {
     try { sessionStorage.setItem(INTRO_KEY, '1'); } catch (e) {}
+    window.scrollTo(0, 0); /* the intro always reveals from the top */
 
     var el = document.createElement('div');
     el.className = 'loader';

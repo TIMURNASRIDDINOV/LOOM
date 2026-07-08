@@ -32,12 +32,12 @@
       const card = document.createElement('div')
       card.className = 'product-card product-card--skeleton'
       card.innerHTML = `
-        <div class="product-card__image-container" style="background:rgba(255,255,255,0.04)">
-          <div style="width:100%;height:100%;background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite"></div>
+        <div class="product-card__image-container" style="background:rgba(19,19,17,0.04)">
+          <div style="width:100%;height:100%;background:linear-gradient(90deg,rgba(19,19,17,0.04) 25%,rgba(19,19,17,0.09) 50%,rgba(19,19,17,0.04) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite"></div>
         </div>
         <div class="product-card__content">
-          <div style="height:18px;background:rgba(255,255,255,0.07);border-radius:2px;margin-bottom:0.5rem;animation:shimmer 1.4s infinite"></div>
-          <div style="height:14px;width:60%;background:rgba(255,255,255,0.05);border-radius:2px;animation:shimmer 1.4s infinite"></div>
+          <div style="height:18px;background:rgba(19,19,17,0.08);border-radius:2px;margin-bottom:0.5rem;animation:shimmer 1.4s infinite"></div>
+          <div style="height:14px;width:60%;background:rgba(19,19,17,0.05);border-radius:2px;animation:shimmer 1.4s infinite"></div>
         </div>
       `
       grid.appendChild(card)
@@ -56,12 +56,12 @@
   // ── Error state ───────────────────────────────────────────────────────────
   function renderError(container, onRetry) {
     const wrap = document.createElement('div')
-    wrap.style.cssText = 'text-align:center;padding:4rem 1.5rem;color:rgba(255,255,255,0.45)'
+    wrap.style.cssText = 'text-align:center;padding:4rem 1.5rem;color:rgba(19,19,17,0.55)'
     wrap.innerHTML = `
       <p style="margin-bottom:1rem">${T('catalog.loadError', 'Не удалось загрузить каталог.')}</p>
       <button id="catalog-retry" style="
-        padding:0.65rem 1.4rem;border:1px solid rgba(255,255,255,0.4);
-        background:transparent;color:#fff;border-radius:2px;font-family:inherit;
+        padding:0.65rem 1.4rem;border:1px solid rgba(19,19,17,0.85);
+        background:transparent;color:rgba(19,19,17,0.85);border-radius:2px;font-family:inherit;
         font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;
         transition:background 0.2s">Повторить</button>
     `
@@ -236,7 +236,7 @@
       container.innerHTML = ''
 
       if (!products.length) {
-        container.innerHTML = '<p style="text-align:center;color:rgba(255,255,255,0.4);padding:3rem">Каталог пуст.</p>'
+        container.innerHTML = '<p style="text-align:center;color:rgba(19,19,17,0.4);padding:3rem">Каталог пуст.</p>'
         return
       }
 

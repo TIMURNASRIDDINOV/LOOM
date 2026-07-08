@@ -73,7 +73,7 @@
       .stage-chip:hover { border-color: var(--text); }
       .stage-chip svg { width: 15px; height: 15px; flex-shrink: 0; }
       .chip-garment { top: 84px; right: 24px; }
-      .chip-reset   { top: 84px; left: 24px; }
+      .chip-reset   { bottom: 24px; left: 24px; }
       .chip-save    { bottom: 24px; right: 24px; }
       .chip-preview { top: 84px; left: 50%; transform: translateX(-50%); }
       .chip-preview.active { background: var(--text); color: #fff; border-color: var(--text); }
@@ -420,10 +420,9 @@
         .studio { height: auto; min-height: 0; overflow: visible; display: flex; flex-direction: column; }
         #three-container { position: relative; inset: auto; height: 56vh; min-height: 360px; }
         .loading-overlay { inset: 64px 0 auto 0; height: 56vh; }
-        .chip-garment { top: 80px; }
-        .chip-reset { top: 80px; }
-        .chip-save { top: 80px; bottom: auto; right: 24px; }
-        .chip-garment { right: 24px; }
+        .chip-garment { top: 80px; right: 24px; }
+        .chip-reset { top: 80px; bottom: auto; left: 24px; }
+        .chip-save { top: 132px; bottom: auto; right: 24px; } /* stacked under garment chip */
         .studio-panel {
           position: relative; top: auto; left: auto; width: 100%; max-width: 100%;
           max-height: none; border-radius: 0; margin-top: -2px;
