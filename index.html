@@ -4,846 +4,410 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LOOM — Custom Apparel</title>
+  <meta name="description" content="Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану." />
 
+  <!-- Fonts: full Cyrillic coverage (Inter Tight / Inter / IBM Plex Mono) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700;9..40,900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/auth.css" />
-  <link rel="stylesheet" href="assets/nav.css?v=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Design system -->
+  <link rel="stylesheet" href="assets/theme.css?v=1" />
+  <link rel="stylesheet" href="assets/nav.css?v=2" />
+  <link rel="stylesheet" href="assets/auth.css?v=3" />
+
+  <!-- Pre-paint guard (must be synchronous, before first render) -->
+  <script src="assets/boot.js?v=1"></script>
 
   <style>
     /* ============================================================
-       RESET & BASE
+       HOME — page-specific layout. Colors/type/motion come from
+       theme.css tokens only.
     ============================================================ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html {
-      scroll-behavior: smooth;
-      font-size: 16px;
-    }
-
-    body {
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      background: #0a0a0a;
-      color: #fff;
-      overflow-x: hidden;
-    }
-
-    a { text-decoration: none; color: inherit; }
-    img { max-width: 100%; display: block; }
-    button { font-family: inherit; cursor: pointer; }
-
-    :root {
-      --mono: 'DM Mono', 'Courier New', monospace;
-      --ease: cubic-bezier(0.4, 0, 0.2, 1);
-      --w100: rgba(255,255,255,1);
-      --w80:  rgba(255,255,255,0.8);
-      --w50:  rgba(255,255,255,0.5);
-      --w35:  rgba(255,255,255,0.35);
-      --w12:  rgba(255,255,255,0.12);
-      --w07:  rgba(255,255,255,0.07);
-    }
-
-    /* ============================================================
-       FIXED BACKGROUND — stays still while everything scrolls over
-       Using position:fixed div instead of background-attachment:fixed
-       for full iOS Safari compatibility.
-    ============================================================ */
-    .fixed-bg {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 0;
-      background: url('images/backgroundphoto.jpg') center / cover no-repeat;
-    }
-
-    /* ============================================================
-       SCENE — transparent sections that let the fixed bg show through
-       OPAQUE — sections that fully cover the fixed bg
-    ============================================================ */
-    .scene {
-      position: relative;
-      z-index: 1;
-    }
-
-    .opaque {
-      position: relative;
-      z-index: 1;
-    }
-
-    /* ============================================================
-       SCROLL REVEAL
-    ============================================================ */
-    .fade-up {
-      opacity: 0;
-      transform: translateY(28px);
-      transition: opacity 0.72s var(--ease), transform 0.72s var(--ease);
-    }
-    .fade-up.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .fade-up[data-delay="1"] { transition-delay: 0.1s; }
-    .fade-up[data-delay="2"] { transition-delay: 0.22s; }
-    .fade-up[data-delay="3"] { transition-delay: 0.34s; }
-    .fade-up[data-delay="4"] { transition-delay: 0.46s; }
-
-    /* ============================================================
-       BUTTONS
-    ============================================================ */
-    .btn-outline {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.4rem;
-      padding: 0.85rem 1.9rem;
-      font-family: inherit;
-      font-size: 0.78rem;
-      font-weight: 500;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: #fff;
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.65);
-      transition: background 0.3s var(--ease), color 0.3s var(--ease), border-color 0.3s var(--ease);
-      white-space: nowrap;
-    }
-    .btn-outline:hover {
-      background: #fff;
-      color: #0a0a0a;
-      border-color: #fff;
-    }
-
-    .btn-fill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.4rem;
-      padding: 0.85rem 1.9rem;
-      font-family: inherit;
-      font-size: 0.78rem;
-      font-weight: 500;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: #0a0a0a;
-      background: #fff;
-      border: 1px solid #fff;
-      transition: background 0.3s var(--ease), color 0.3s var(--ease);
-      white-space: nowrap;
-    }
-    .btn-fill:hover {
-      background: transparent;
-      color: #fff;
-    }
-
-
-    /* ============================================================
-       SCENE 1 — HERO
-       Content anchored to bottom-left, gradient darkens from bottom.
-    ============================================================ */
+    /* ── Hero ──────────────────────────────────────────────── */
     .hero {
-      min-height: 100vh;
-      display: flex;
-      align-items: flex-end;
-      padding: 0 1.75rem 4.5rem;
-    }
-
-    .hero__overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      background: linear-gradient(
-        to top,
-        rgba(0,0,0,0.92) 0%,
-        rgba(0,0,0,0.32) 48%,
-        transparent 100%
-      );
-    }
-
-    .hero__content {
-      position: relative;
-      z-index: 2;
-      max-width: 1280px;
-      width: 100%;
-      margin: 0 auto;
-    }
-
-    .hero__eyebrow {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      font-weight: 400;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      color: var(--w35);
-      margin-bottom: 1.6rem;
-    }
-
-    .hero__title {
+      min-height: 100svh;
       display: flex;
       flex-direction: column;
-      gap: 0.05em;
-      font-size: clamp(3.2rem, 9vw, 7.5rem);
-      font-weight: 700;
-      line-height: 0.93;
-      letter-spacing: -0.03em;
-      margin-bottom: 1.6rem;
+      justify-content: flex-end;
+      padding-top: var(--nav-h);
+      position: relative;
     }
-    .hero__title .line-dim { color: rgba(255,255,255,0.28); }
-
+    .hero__grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+      gap: clamp(2rem, 5vw, 4rem);
+      align-items: end;
+      padding-bottom: clamp(2rem, 5vw, 3.5rem);
+    }
+    .hero__eyebrow { margin-bottom: 1.6rem; }
+    .hero__title { margin-bottom: 1.6rem; }
+    .hero__title .line { display: block; }
     .hero__subtitle {
-      font-size: clamp(0.88rem, 1.1vw, 1rem);
-      font-weight: 300;
-      color: var(--w50);
-      max-width: 420px;
+      font-size: clamp(0.95rem, 1.15vw, 1.05rem);
+      color: var(--ink-55);
+      max-width: 430px;
       line-height: 1.65;
-      margin-bottom: 2.5rem;
+      margin-bottom: 2.4rem;
     }
+    .hero__btns { display: flex; gap: 0.85rem; flex-wrap: wrap; }
 
-    .hero__btns {
+    /* right column: looping product video in a framed tile */
+    .hero__media { display: flex; flex-direction: column; gap: 0.7rem; }
+    .hero__video {
+      background: #fff;
+      border: 1px solid var(--line);
+      aspect-ratio: 4 / 5;
+      overflow: hidden;
+    }
+    .hero__video video { width: 100%; height: 100%; object-fit: cover; }
+    .hero__media-caption {
       display: flex;
-      gap: 0.85rem;
-      flex-wrap: wrap;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.64rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-38);
     }
 
-    /* ============================================================
-       STATS STRIP — opaque, covers bg
-    ============================================================ */
-    .stats {
-      background: #0f0f0f;
-      border-top: 1px solid var(--w07);
-      border-bottom: 1px solid var(--w07);
+    /* bottom meta row pinned under the grid */
+    .hero__meta {
+      border-top: 1px solid var(--line);
+      padding: 0.85rem 0;
+    }
+    .hero__meta-inner {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.64rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-38);
     }
 
+    @media (max-width: 860px) {
+      .hero__grid { grid-template-columns: 1fr; align-items: start; }
+      .hero__media { max-width: 300px; }
+      .hero__meta-inner span:nth-child(2) { display: none; }
+    }
+
+    /* ── Stats strip ───────────────────────────────────────── */
+    .stats { border-bottom: 1px solid var(--line); }
     .stats__inner {
-      max-width: 1280px;
-      margin: 0 auto;
       display: grid;
       grid-template-columns: repeat(4, 1fr);
     }
-
     .stats__item {
-      padding: 2.2rem 1.75rem;
-      border-right: 1px solid var(--w07);
+      padding: 2rem var(--gutter) 2rem 0;
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
     }
-    .stats__item:last-child { border-right: none; }
-
+    .stats__item + .stats__item { padding-left: var(--gutter); border-left: 1px solid var(--line-soft); }
     .stats__num {
-      font-family: var(--mono);
-      font-size: clamp(1.7rem, 2.6vw, 2.4rem);
-      font-weight: 500;
-      color: #fff;
+      font-family: var(--font-display);
+      font-size: clamp(1.9rem, 3vw, 2.8rem);
+      font-weight: 700;
       letter-spacing: -0.02em;
       line-height: 1;
     }
-
     .stats__label {
-      font-family: var(--mono);
+      font-family: var(--font-mono);
       font-size: 0.62rem;
-      font-weight: 400;
       letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: var(--w35);
+      color: var(--ink-38);
     }
-
     @media (max-width: 600px) {
       .stats__inner { grid-template-columns: repeat(2, 1fr); }
-      .stats__item { border-bottom: 1px solid var(--w07); }
-      .stats__item:nth-child(2n) { border-right: none; }
-      .stats__item:nth-last-child(-n+2) { border-bottom: none; }
+      .stats__item { border-top: 1px solid var(--line-soft); }
+      .stats__item:nth-child(-n+2) { border-top: none; }
+      .stats__item:nth-child(3) { padding-left: 0; border-left: none; }
     }
 
-    /* ============================================================
-       SCENE 2 — PRODUCT SPOTLIGHT
-       Left gradient, content pinned left, bg photo visible on right.
-    ============================================================ */
-    .spotlight {
-      min-height: 100vh;
-      display: flex;
+    /* ── Product grid (3 editorial cards) ──────────────────── */
+    .product-grid3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-left: 1px solid var(--line-soft);
+      border-top: 1px solid var(--line-soft);
+    }
+    @media (max-width: 960px) { .product-grid3 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 620px) { .product-grid3 { grid-template-columns: 1fr; } }
+
+    /* ── Spotlight ─────────────────────────────────────────── */
+    .spotlight__grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: clamp(2.5rem, 6vw, 5.5rem);
       align-items: center;
     }
-
-    .spotlight__overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      background: linear-gradient(
-        to right,
-        rgba(0,0,0,0.93) 0%,
-        rgba(0,0,0,0.58) 42%,
-        rgba(0,0,0,0.12) 68%,
-        transparent 85%
-      );
+    .spotlight__photo {
+      background: #fff;
+      border: 1px solid var(--line);
+      aspect-ratio: 4 / 5;
+      overflow: hidden;
     }
-
-    .spotlight__body {
-      position: relative;
-      z-index: 2;
-      max-width: 1280px;
-      width: 100%;
-      margin: 0 auto;
-      padding: 7rem 1.75rem;
-    }
-
-    .spotlight__inner {
-      max-width: 460px;
-    }
-
-    .spotlight__eyebrow {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      font-weight: 400;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      color: var(--w35);
-      margin-bottom: 1.4rem;
-    }
-
-    .spotlight__title {
-      display: flex;
-      flex-direction: column;
-      gap: 0.04em;
-      font-size: clamp(2.6rem, 6vw, 5.8rem);
-      font-weight: 700;
-      line-height: 0.9;
-      letter-spacing: -0.03em;
-      margin-bottom: 2rem;
-      color: #fff;
-    }
-
+    .spotlight__photo img { width: 100%; height: 100%; object-fit: contain; }
+    .spotlight__eyebrow { margin-bottom: 1.3rem; display: block; }
+    .spotlight__title { margin-bottom: 1.8rem; }
+    .spotlight__title .line { display: block; }
     .spotlight__details {
       display: flex;
       flex-direction: column;
-      gap: 0.6rem;
-      margin-bottom: 2.8rem;
+      gap: 0.55rem;
+      margin-bottom: 2.4rem;
     }
-
     .spotlight__detail {
-      font-family: var(--mono);
-      font-size: 0.75rem;
-      color: var(--w50);
-      letter-spacing: 0.06em;
-    }
-    .spotlight__detail strong {
-      color: var(--w80);
-      font-weight: 500;
-    }
-
-    /* ============================================================
-       PRODUCT GRID — opaque, covers bg
-    ============================================================ */
-    .products-section {
-      background: #0b0b0b;
-      padding: 5rem 1.75rem 6rem;
-    }
-
-    .products-section__inner {
-      max-width: 1280px;
-      margin: 0 auto;
-    }
-
-    .products-section__header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-bottom: 1.6rem;
-      border-bottom: 1px solid var(--w07);
-    }
-
-    .products-section__label {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
-      color: var(--w35);
-    }
-
-    .products-section__view-all {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      color: var(--w35);
-      transition: color 200ms ease;
-    }
-    .products-section__view-all:hover { color: #fff; }
-
-    .product-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-    }
-
-    .product-card {
-      padding: 2.8rem 2.2rem 2.2rem;
-      border-right: 1px solid var(--w07);
-      border-bottom: 1px solid var(--w07);
-      transition: background 280ms var(--ease);
-    }
-    .product-card:nth-child(3n) { border-right: none; }
-    .product-card:hover { background: rgba(255,255,255,0.025); }
-    .product-card:hover .product-card__icon svg { transform: scale(1.07); }
-
-    .product-card__icon {
-      width: 60px;
-      height: 60px;
-      margin-bottom: 2rem;
-      color: var(--w35);
-    }
-    .product-card__icon svg {
-      width: 100%;
-      height: 100%;
-      transition: transform 300ms var(--ease);
-    }
-
-    .product-card__tag {
-      font-family: var(--mono);
-      font-size: 0.6rem;
-      font-weight: 400;
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
-      color: var(--w35);
-      margin-bottom: 0.6rem;
-    }
-
-    .product-card__name {
-      font-size: 1.05rem;
-      font-weight: 600;
-      color: #fff;
-      letter-spacing: -0.01em;
-      margin-bottom: 0.55rem;
-    }
-
-    .product-card__desc {
-      font-size: 0.82rem;
-      font-weight: 300;
-      color: var(--w50);
-      line-height: 1.55;
-      margin-bottom: 1.8rem;
-    }
-
-    .product-card__footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-    }
-
-    .product-card__price {
-      font-family: var(--mono);
+      font-family: var(--font-mono);
       font-size: 0.78rem;
-      color: var(--w80);
+      color: var(--ink-55);
       letter-spacing: 0.04em;
     }
-
-    .color-dots {
-      display: flex;
-      gap: 4px;
-      align-items: center;
-    }
-    .color-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      border: 1px solid rgba(255,255,255,0.18);
-      flex-shrink: 0;
+    .spotlight__detail strong { color: var(--ink); font-weight: 500; }
+    @media (max-width: 860px) {
+      .spotlight__grid { grid-template-columns: 1fr; }
+      .spotlight__photo { max-width: 440px; }
     }
 
-    @media (max-width: 767px) {
-      .product-grid { grid-template-columns: 1fr; }
-      .product-card { border-right: none; }
-    }
-    @media (min-width: 768px) and (max-width: 1023px) {
-      .product-grid { grid-template-columns: repeat(2, 1fr); }
-      .product-card:nth-child(3n) { border-right: 1px solid var(--w07); }
-      .product-card:nth-child(2n) { border-right: none; }
-    }
-
-    /* ============================================================
-       SCENE 3 — CTA
-       Background visible, centered content.
-    ============================================================ */
-    .cta-scene {
-      min-height: 60vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .cta-scene__overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      background: rgba(0,0,0,0.72);
-    }
-
-    .cta-scene__body {
-      position: relative;
-      z-index: 2;
-      text-align: center;
-      padding: 5rem 1.75rem;
-      max-width: 680px;
-      width: 100%;
-    }
-
-    .cta-scene__title {
-      display: flex;
-      flex-direction: column;
-      gap: 0.04em;
-      font-size: clamp(2.2rem, 5.5vw, 4.5rem);
-      font-weight: 700;
-      line-height: 0.92;
-      letter-spacing: -0.03em;
-      margin-bottom: 1.4rem;
-      align-items: center;
-    }
-    .cta-scene__title .line-dim { color: rgba(255,255,255,0.28); }
-
-    .cta-scene__subtitle {
-      font-size: clamp(0.88rem, 1.1vw, 1rem);
-      font-weight: 300;
-      color: var(--w50);
-      max-width: 400px;
-      margin: 0 auto 2.6rem;
+    /* ── CTA (inverted ink block) ──────────────────────────── */
+    .cta { text-align: center; }
+    .cta__title { margin-bottom: 1.3rem; }
+    .cta__title .line { display: block; }
+    .cta__subtitle {
+      color: var(--on-ink-55);
+      max-width: 420px;
+      margin: 0 auto 2.5rem;
       line-height: 1.65;
-    }
-
-    /* ============================================================
-       FOOTER — opaque
-    ============================================================ */
-    .footer {
-      background: #080808;
-      border-top: 1px solid var(--w07);
-      padding: 2rem 1.75rem;
-    }
-
-    .footer__inner {
-      max-width: 1280px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-
-    .footer__copy {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      color: var(--w35);
-    }
-
-    .footer__links {
-      display: flex;
-      gap: 1.75rem;
-      align-items: center;
-    }
-
-    .footer__link {
-      font-size: 0.78rem;
-      font-weight: 300;
-      color: var(--w35);
-      transition: color 200ms ease;
-    }
-    .footer__link:hover { color: #fff; }
-
-    .footer__location {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      color: var(--w35);
-    }
-
-    @media (max-width: 640px) {
-      .footer__inner { flex-direction: column; align-items: flex-start; }
+      font-size: clamp(0.9rem, 1.1vw, 1rem);
     }
   </style>
 </head>
-<body>
+<body data-page="home" data-preloader>
+  <!-- Header + footer are injected by assets/layout.js -->
 
   <!-- ============================================================
-       FIXED BACKGROUND — never moves
+       HERO
   ============================================================ -->
-  <div class="fixed-bg" aria-hidden="true"></div>
+  <section class="hero">
+    <div class="container hero__grid">
+      <div class="hero__main">
+        <p class="hero__eyebrow eyebrow" data-reveal>LOOM<span class="slash">/</span> Custom Apparel — Tashkent</p>
 
-  <!-- ============================================================
-       NAV
-  ============================================================ -->
-  <nav class="nav">
-    <div class="nav-content">
-      <a href="index.html" class="nav-brand">LOOM</a>
-      <div class="nav-links">
-        <a href="index.html" class="nav-link active" data-i18n="nav.home">Главная</a>
-        <a href="catalog.html" class="nav-link" data-i18n="nav.catalog">Каталог</a>
-        <a href="configurator.html" class="nav-link" data-i18n="nav.configure">Кастомизация</a>
+        <h1 class="hero__title display" data-reveal="mask">
+          <span class="line"><span data-i18n="hero.t1">Носи</span> <span class="slash">/</span></span>
+          <span class="line" data-i18n="hero.t2">то, что ты</span>
+          <span class="line" data-i18n="hero.t3">придумал.</span>
+        </h1>
+
+        <p class="hero__subtitle" data-reveal data-delay="0.15" data-i18n="hero.subtitle">
+          Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану.
+        </p>
+
+        <div class="hero__btns" data-reveal data-delay="0.25">
+          <a href="configurator.html" class="btn btn--solid magnetic" data-i18n="hero.start">Создать дизайн</a>
+          <a href="catalog.html" class="btn btn--outline magnetic" data-i18n="hero.catalog">Смотреть каталог</a>
+        </div>
       </div>
-      <div class="nav-right">
-        <div class="lang-switcher-mount"></div>
-        <div class="auth-nav-slot"></div>
-        <button class="nav-hamburger" id="menuToggle" aria-label="Menu" aria-expanded="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
-      </div>
+
+      <figure class="hero__media" data-reveal data-delay="0.35">
+        <div class="hero__video">
+          <video src="images/tshirtgif.mp4" autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video>
+        </div>
+        <figcaption class="hero__media-caption">
+          <span>Apparel · 01</span>
+          <span>3D Preview</span>
+        </figcaption>
+      </figure>
     </div>
-  </nav>
 
-  <!-- Mobile menu -->
-  <div class="mobile-backdrop" id="mobileBackdrop"></div>
-  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
-    <div class="mobile-menu-header">
-      <span class="mobile-menu-brand">LOOM</span>
-      <button class="mobile-menu-close" id="menuClose" aria-label="Close menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="mobile-menu-links">
-      <a href="index.html" class="mobile-menu-link active" data-i18n="nav.home">Главная</a>
-      <a href="catalog.html" class="mobile-menu-link" data-i18n="nav.catalog">Каталог</a>
-      <a href="configurator.html" class="mobile-menu-link" data-i18n="nav.configure">Кастомизация</a>
-      <a href="account.html" class="mobile-menu-link" id="mobile-account-link" data-i18n="nav.account">Личный кабинет</a>
-      <a href="configurator.html" class="mobile-menu-link mobile-menu-link--cta" data-i18n="nav.start">Создать дизайн</a>
-    </div>
-    <div class="mobile-lang">
-      <span class="mobile-lang-label" data-i18n="nav.language">Язык</span>
-      <div class="lang-switcher-mount"></div>
-    </div>
-  </div>
-
-  <!-- ============================================================
-       SCENE 1 — HERO
-       Fixed bg shows through overlay. Text anchored bottom-left.
-  ============================================================ -->
-  <section class="scene hero">
-    <div class="hero__overlay" aria-hidden="true"></div>
-
-    <div class="hero__content">
-      <h1 class="hero__title fade-up" data-delay="1">
-        <span data-i18n="hero.t1">Носи /</span>
-        <span class="line-dim" data-i18n="hero.t2">то, что ты</span>
-        <span data-i18n="hero.t3">придумал.</span>
-      </h1>
-
-      <p class="hero__subtitle fade-up" data-delay="2" data-i18n="hero.subtitle">
-        Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану.
-      </p>
-
-      <div class="hero__btns fade-up" data-delay="3">
-        <a href="configurator.html" class="btn-outline" data-i18n="hero.start">Создать дизайн</a>
-        <a href="catalog.html" class="btn-fill" data-i18n="hero.catalog">Смотреть каталог</a>
+    <div class="hero__meta">
+      <div class="container hero__meta-inner">
+        <span>© 2026</span>
+        <span data-i18n="marquee.b">Создано, чтобы носить</span>
+        <span>loomdesign.uz</span>
       </div>
     </div>
   </section>
 
   <!-- ============================================================
-       STATS STRIP — opaque, covers background
+       MARQUEE (content duplicated by motion.js)
   ============================================================ -->
-  <div class="stats opaque">
-    <div class="stats__inner">
-      <div class="stats__item fade-up">
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee__track">
+      <span class="marquee__item" data-i18n="marquee.a">Носи то, что ты придумал</span>
+      <span class="marquee__item marquee__dot">/</span>
+      <span class="marquee__item--mono">LOOM © 2026</span>
+      <span class="marquee__item" data-i18n="marquee.b">Создано, чтобы носить</span>
+      <span class="marquee__item marquee__dot">/</span>
+      <span class="marquee__item--mono">Tashkent, UZ</span>
+      <span class="marquee__item" data-i18n="marquee.c">Твой дизайн. В 3D</span>
+      <span class="marquee__item marquee__dot">/</span>
+      <span class="marquee__item--mono">Apparel · 01—09</span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       STATS
+  ============================================================ -->
+  <section class="stats">
+    <div class="container stats__inner" data-stagger>
+      <div class="stats__item">
         <span class="stats__num">9</span>
         <span class="stats__label" data-i18n="stats.products">Товаров</span>
       </div>
-      <div class="stats__item fade-up" data-delay="1">
+      <div class="stats__item">
         <span class="stats__num">5</span>
         <span class="stats__label" data-i18n="stats.colors">Цветов</span>
       </div>
-      <div class="stats__item fade-up" data-delay="2">
+      <div class="stats__item">
         <span class="stats__num">3D</span>
         <span class="stats__label" data-i18n="stats.preview">Просмотр</span>
       </div>
-      <div class="stats__item fade-up" data-delay="3">
+      <div class="stats__item">
         <span class="stats__num">UZ</span>
         <span class="stats__label" data-i18n="stats.shipping">Доставка</span>
       </div>
     </div>
-  </div>
-
-  <!-- ============================================================
-       SCENE 2 — PRODUCT SPOTLIGHT
-       Fixed bg shows on right. Content on left behind gradient.
-  ============================================================ -->
-  <section class="scene spotlight">
-    <div class="spotlight__overlay" aria-hidden="true"></div>
-
-    <div class="spotlight__body">
-      <div class="spotlight__inner">
-        <p class="spotlight__eyebrow fade-up" data-i18n="spot.eyebrow">Хит продаж</p>
-
-        <h2 class="spotlight__title fade-up" data-delay="1">
-          <span data-i18n="spot.t1">Классическая /</span>
-          <span data-i18n="spot.t2">футболка.</span>
-        </h2>
-
-        <div class="spotlight__details fade-up" data-delay="2">
-          <p class="spotlight__detail" data-i18n-html="spot.d1"><strong>100% хлопок</strong> · Унисекс крой</p>
-          <p class="spotlight__detail" data-i18n-html="spot.d2"><strong>5 базовых цветов</strong> · от 89 000 сум</p>
-        </div>
-
-        <a href="configurator.html" class="btn-outline fade-up" data-delay="3" data-i18n="spot.customize">Настроить эту</a>
-      </div>
-    </div>
   </section>
 
   <!-- ============================================================
-       PRODUCT GRID — opaque, covers background
+       PRODUCTS — editorial cards with real photos
   ============================================================ -->
-  <section class="products-section opaque">
-    <div class="products-section__inner">
-
-      <div class="products-section__header fade-up">
-        <span class="products-section__label" data-i18n="prod.sectionLabel">Товары</span>
-        <a href="catalog.html" class="products-section__view-all" data-i18n="prod.viewAll">Смотреть все →</a>
+  <section class="sect">
+    <div class="container">
+      <div class="sect-head" data-reveal>
+        <span class="eyebrow" data-i18n="prod.sectionLabel">Товары</span>
+        <a href="catalog.html" class="link-arrow"><span data-i18n="prod.viewAll">Смотреть все →</span></a>
       </div>
 
-      <div class="product-grid">
+      <div class="product-grid3" data-stagger>
 
-        <!-- T-Shirt -->
-        <article class="product-card fade-up" data-delay="1">
-          <div class="product-card__icon">
-            <svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M27 11 C23 14 16 18 8 24 L18 32 L18 70 L62 70 L62 32 L72 24 C64 18 57 14 53 11"/>
-              <path d="M27 11 Q30 20 40 20 Q50 20 53 11"/>
-            </svg>
+        <a href="configurator.html" class="pcard">
+          <div class="pcard__media">
+            <img src="products/tshirt_regular_white_001.jpg" alt="Классическая футболка" loading="lazy" />
+            <span class="pcard__go" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+            </span>
           </div>
-          <p class="product-card__tag">Apparel · 01</p>
-          <h3 class="product-card__name" data-i18n="prod.t1.name">Классическая футболка</h3>
-          <p class="product-card__desc" data-i18n="prod.t1.desc">100% премиальный хлопок, унисекс крой, свободный фасон. Идеальный холст для вашего дизайна.</p>
-          <div class="product-card__footer">
-            <span class="product-card__price">89,000 UZS</span>
-            <div class="color-dots">
+          <p class="pcard__tag">Apparel · 01</p>
+          <h3 class="pcard__name" data-i18n="prod.t1.name">Классическая футболка</h3>
+          <p class="pcard__desc" data-i18n="prod.t1.desc">100% премиальный хлопок, унисекс крой, свободный фасон. Идеальный холст для вашего дизайна.</p>
+          <div class="pcard__foot">
+            <span class="pcard__price">89,000 UZS</span>
+            <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
               <span class="color-dot" style="background:#e2d9cc"></span>
               <span class="color-dot" style="background:#9ba3af"></span>
               <span class="color-dot" style="background:#2b3e5e"></span>
-            </div>
+            </span>
           </div>
-        </article>
+        </a>
 
-        <!-- Hoodie -->
-        <article class="product-card fade-up" data-delay="2">
-          <div class="product-card__icon">
-            <svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M29 11 Q34 9 40 9 Q46 9 51 11"/>
-              <path d="M29 11 Q25 19 21 23 L8 29 L15 44 L22 40 L22 71 L58 71 L58 40 L65 44 L72 29 L59 23 Q55 19 51 11"/>
-              <path d="M29 11 Q32 18 36 19.5 Q38 20 40 20 Q42 20 44 19.5 Q48 18 51 11"/>
-              <line x1="34" y1="51" x2="46" y2="51"/>
-            </svg>
+        <a href="configurator.html" class="pcard">
+          <div class="pcard__media">
+            <img src="products/hoodie_regular_white_001.jpg" alt="Тёплое худи" loading="lazy" />
+            <span class="pcard__go" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+            </span>
           </div>
-          <p class="product-card__tag">Apparel · 02</p>
-          <h3 class="product-card__name" data-i18n="prod.t2.name">Тёплое худи</h3>
-          <p class="product-card__desc" data-i18n="prod.t2.desc">Премиальная ткань с начёсом, двухслойный капюшон, свободный силуэт на все сезоны.</p>
-          <div class="product-card__footer">
-            <span class="product-card__price">189,000 UZS</span>
-            <div class="color-dots">
+          <p class="pcard__tag">Apparel · 02</p>
+          <h3 class="pcard__name" data-i18n="prod.t2.name">Тёплое худи</h3>
+          <p class="pcard__desc" data-i18n="prod.t2.desc">Премиальная ткань с начёсом, двухслойный капюшон, свободный силуэт на все сезоны.</p>
+          <div class="pcard__foot">
+            <span class="pcard__price">189,000 UZS</span>
+            <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
               <span class="color-dot" style="background:#8b7355"></span>
               <span class="color-dot" style="background:#4d6642"></span>
-            </div>
+            </span>
           </div>
-        </article>
+        </a>
 
-        <!-- Polo -->
-        <article class="product-card fade-up" data-delay="3">
-          <div class="product-card__icon">
-            <svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M27 11 C21 15 13 20 8 25 L18 31 L18 71 L62 71 L62 31 L72 25 C67 20 59 15 53 11"/>
-              <path d="M27 11 L30 12 L34 23 L40 26 L46 23 L50 12 L53 11"/>
-              <line x1="37" y1="17" x2="43" y2="17"/>
-              <line x1="36" y1="21" x2="44" y2="21"/>
-            </svg>
+        <a href="configurator.html" class="pcard">
+          <div class="pcard__media">
+            <img src="products/polo_regular_white_001.jpg" alt="Поло" loading="lazy" />
+            <span class="pcard__go" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+            </span>
           </div>
-          <p class="product-card__tag">Apparel · 03</p>
-          <h3 class="product-card__name" data-i18n="prod.t3.name">Поло</h3>
-          <p class="product-card__desc" data-i18n="prod.t3.desc">Хлопок пике, структурированный воротник, чистые линии. Smart casual без усилий.</p>
-          <div class="product-card__footer">
-            <span class="product-card__price">129,000 UZS</span>
-            <div class="color-dots">
+          <p class="pcard__tag">Apparel · 03</p>
+          <h3 class="pcard__name" data-i18n="prod.t3.name">Поло</h3>
+          <p class="pcard__desc" data-i18n="prod.t3.desc">Хлопок пике, структурированный воротник, чистые линии. Smart casual без усилий.</p>
+          <div class="pcard__foot">
+            <span class="pcard__price">129,000 UZS</span>
+            <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
               <span class="color-dot" style="background:#d0c4b2"></span>
-            </div>
+            </span>
           </div>
-        </article>
+        </a>
 
       </div>
     </div>
   </section>
 
   <!-- ============================================================
-       SCENE 3 — CTA
-       Fixed bg shows through overlay. Centered content.
+       SPOTLIGHT — best seller
   ============================================================ -->
-  <section class="scene cta-scene">
-    <div class="cta-scene__overlay" aria-hidden="true"></div>
+  <section class="sect" style="padding-top: 0;">
+    <div class="container spotlight__grid">
+      <figure class="spotlight__photo" data-reveal>
+        <img src="products/tshirt_regular_white_001.jpg" alt="Классическая футболка LOOM" loading="lazy" />
+      </figure>
 
-    <div class="cta-scene__body">
-      <h2 class="cta-scene__title fade-up">
-        <span data-i18n="cta.t1">Твой дизайн.</span>
-        <span class="line-dim" data-i18n="cta.t2">Твои правила.</span>
+      <div>
+        <span class="spotlight__eyebrow eyebrow" data-reveal data-i18n="spot.eyebrow">Хит продаж</span>
+        <h2 class="spotlight__title h2" data-reveal="mask">
+          <span class="line"><span data-i18n="spot.t1">Классическая</span> <span class="slash">/</span></span>
+          <span class="line" data-i18n="spot.t2">футболка.</span>
+        </h2>
+        <div class="spotlight__details" data-reveal data-delay="0.1">
+          <p class="spotlight__detail" data-i18n-html="spot.d1"><strong>100% хлопок</strong> · Унисекс крой</p>
+          <p class="spotlight__detail" data-i18n-html="spot.d2"><strong>5 базовых цветов</strong> · от 89 000 сум</p>
+        </div>
+        <a href="configurator.html" class="btn btn--outline magnetic" data-reveal data-delay="0.2" data-i18n="spot.customize">Настроить эту</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       CTA — inverted ink block
+  ============================================================ -->
+  <section class="sect sect--ink cta">
+    <div class="container">
+      <h2 class="cta__title h2" data-reveal="mask">
+        <span class="line" data-i18n="cta.t1">Твой дизайн.</span>
+        <span class="line" data-i18n="cta.t2">Твои правила.</span>
       </h2>
-
-      <p class="cta-scene__subtitle fade-up" data-delay="1" data-i18n="cta.subtitle">
+      <p class="cta__subtitle" data-reveal data-i18n="cta.subtitle">
         Начните с чистого холста. Добавьте текст, загрузите изображение, выберите цвета.
       </p>
-
-      <a href="configurator.html" class="btn-outline fade-up" data-delay="2" data-i18n="cta.open">Открыть конфигуратор →</a>
+      <a href="configurator.html" class="btn btn--on-ink magnetic" data-reveal data-delay="0.15" data-i18n="cta.open">Открыть конфигуратор →</a>
     </div>
   </section>
 
   <!-- ============================================================
-       FOOTER — opaque
+       Scripts — motion libs via CDN (no build step), then shared JS
   ============================================================ -->
-  <footer class="footer opaque" id="about">
-    <div class="footer__inner">
-      <p class="footer__copy">© 2026 LOOM — loomdesign.uz</p>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
 
-      <div class="footer__links">
-        <a
-          href="https://www.instagram.com/loom_uz?igsh=MTI3OWxzNTloZTNvdw%3D%3D&utm_source=qr"
-          class="footer__link"
-          target="_blank"
-          rel="noopener noreferrer"
-        >Instagram</a>
-        <a href="" class="footer__link" target="_blank" rel="noopener noreferrer">Telegram</a>
-        <a href="mailto:loom.uzbekistan@gmail.com" class="footer__link" data-i18n="footer.contact">Контакты</a>
-      </div>
-
-      <p class="footer__location" data-i18n="footer.location">Ташкент, Узбекистан</p>
-    </div>
-  </footer>
-
-  <!-- ============================================================
-       JS — Mobile nav + Scroll reveal
-  ============================================================ -->
   <script src="assets/config.js?v=2"></script>
-  <script src="assets/i18n.js?v=3"></script>
+  <script src="assets/layout.js?v=1"></script>
+  <script src="assets/i18n.js?v=5"></script>
   <script src="assets/auth.js?v=2"></script>
   <script src="assets/nav.js?v=1"></script>
+  <script src="assets/motion.js?v=1"></script>
   <script src="assets/track.js"></script>
   <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
-
-  <script>
-    // ── Scroll reveal ────────────────────────────────────────────
-    (function () {
-      const observer = new IntersectionObserver(
-        entries => entries.forEach(e => {
-          if (e.isIntersecting) {
-            e.target.classList.add('visible');
-            observer.unobserve(e.target);
-          }
-        }),
-        { threshold: 0.12 }
-      );
-      document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
-    })();
-  </script>
-
 </body>
 </html>

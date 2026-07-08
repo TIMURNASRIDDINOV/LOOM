@@ -34,7 +34,8 @@
     'nav.language':   { uz: 'Til',         ru: 'Язык',           en: 'Language' },
 
     // ===== Home — hero =====
-    'hero.t1':       { uz: 'Tasavvuringizdagini', ru: 'Носи /',          en: 'Wear /' },
+    /* the accent "/" is markup now (see index.html), not part of the string */
+    'hero.t1':       { uz: 'Tasavvuringizdagini', ru: 'Носи',            en: 'Wear' },
     'hero.t2':       { uz: 'kiyimga',             ru: 'то, что ты',       en: 'what you' },
     'hero.t3':       { uz: 'aylantiring.',        ru: 'придумал.',        en: 'imagine.' },
     'hero.subtitle': { uz: 'O‘z kiyimingizni o‘zingiz yarating. Uni 3D’da ko‘ring. O‘zbekiston bo‘ylab yetkazib beramiz.', ru: 'Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану.', en: 'Design your own clothes. See them in 3D. Order to your door anywhere in Uzbekistan.' },
@@ -49,7 +50,7 @@
 
     // ===== Home — spotlight =====
     'spot.eyebrow':  { uz: 'Eng ommabop',  ru: 'Хит продаж',    en: 'Best seller' },
-    'spot.t1':       { uz: 'Klassik /',    ru: 'Классическая /', en: 'Classic /' },
+    'spot.t1':       { uz: 'Klassik',      ru: 'Классическая',   en: 'Classic' },
     'spot.t2':       { uz: 'futbolka.',    ru: 'футболка.',      en: 'T-shirt.' },
     'spot.d1':       { uz: '<strong>100% paxta</strong> · Uniseks bichim', ru: '<strong>100% хлопок</strong> · Унисекс крой', en: '<strong>100% cotton</strong> · Unisex cut' },
     'spot.d2':       { uz: '<strong>5 ta asosiy rang</strong> · 89 000 so‘mdan', ru: '<strong>5 базовых цветов</strong> · от 89 000 сум', en: '<strong>5 base colors</strong> · From 89,000 UZS' },
