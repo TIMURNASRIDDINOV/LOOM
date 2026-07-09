@@ -95,40 +95,6 @@
       .hero__meta-inner span:nth-child(2) { display: none; }
     }
 
-    /* ── Stats strip ───────────────────────────────────────── */
-    .stats { border-bottom: 1px solid var(--line); }
-    .stats__inner {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-    }
-    .stats__item {
-      padding: 2rem var(--gutter) 2rem 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-    }
-    .stats__item + .stats__item { padding-left: var(--gutter); border-left: 1px solid var(--line-soft); }
-    .stats__num {
-      font-family: var(--font-display);
-      font-size: clamp(1.9rem, 3vw, 2.8rem);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1;
-    }
-    .stats__label {
-      font-family: var(--font-mono);
-      font-size: 0.62rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--ink-38);
-    }
-    @media (max-width: 600px) {
-      .stats__inner { grid-template-columns: repeat(2, 1fr); }
-      .stats__item { border-top: 1px solid var(--line-soft); }
-      .stats__item:nth-child(-n+2) { border-top: none; }
-      .stats__item:nth-child(3) { padding-left: 0; border-left: none; }
-    }
-
     /* ── Product grid (3 editorial cards) ──────────────────── */
     .product-grid3 {
       display: grid;
@@ -253,30 +219,6 @@
       <span class="marquee__item--mono">Apparel · 01—09</span>
     </div>
   </div>
-
-  <!-- ============================================================
-       STATS
-  ============================================================ -->
-  <section class="stats">
-    <div class="container stats__inner" data-stagger>
-      <div class="stats__item">
-        <span class="stats__num">9</span>
-        <span class="stats__label" data-i18n="stats.products">Товаров</span>
-      </div>
-      <div class="stats__item">
-        <span class="stats__num">5</span>
-        <span class="stats__label" data-i18n="stats.colors">Цветов</span>
-      </div>
-      <div class="stats__item">
-        <span class="stats__num">3D</span>
-        <span class="stats__label" data-i18n="stats.preview">Просмотр</span>
-      </div>
-      <div class="stats__item">
-        <span class="stats__num">UZ</span>
-        <span class="stats__label" data-i18n="stats.shipping">Доставка</span>
-      </div>
-    </div>
-  </section>
 
   <!-- ============================================================
        PRODUCTS — editorial cards with real photos
