@@ -43,10 +43,12 @@
   justify-content: center;
   margin-bottom: 1.4rem;
 }
+/* cover the whole tile — the photos' own studio-gray backdrop otherwise
+   shows as a seamed box against the white tile */
 .product-grid .product-card__image {
-  width: 88%;
-  height: 88%;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   object-position: center;
   transition: transform var(--dur-slow) var(--ease-out);
 }

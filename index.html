@@ -151,8 +151,11 @@
       border: 1px solid var(--line);
       aspect-ratio: 4 / 5;
       overflow: hidden;
+      max-width: min(520px, 100%);   /* keep the frame from towering past the text column */
+      justify-self: center;
+      width: 100%;
     }
-    .spotlight__photo img { width: 100%; height: 100%; object-fit: contain; }
+    .spotlight__photo img { width: 100%; height: 100%; object-fit: cover; }
     .spotlight__eyebrow { margin-bottom: 1.3rem; display: block; }
     .spotlight__title { margin-bottom: 1.8rem; }
     .spotlight__title .line { display: block; }

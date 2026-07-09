@@ -24,7 +24,6 @@
   window.__loomMotionBound = true;
 
   var INTRO_KEY = 'loom_intro_v1';
-  var VEIL_KEY = 'loom_veil';
   var doc = document.documentElement;
 
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -109,31 +108,11 @@
     tl.to(el, { yPercent: -100, duration: 0.65, ease: 'expo.inOut' }, 1.95);
   }
 
-  /* ── Page-transition veil ────────────────────────────────── */
-  function buildVeil() {
-    var v = document.createElement('div');
-    v.className = 'veil';
-    v.setAttribute('aria-hidden', 'true');
-    v.innerHTML = '<span class="veil__mark">LOOM<span class="slash" style="color:var(--accent)">/</span></span>';
-    document.body.appendChild(v);
-    return v;
-  }
-
-  function initTransitions(veil) {
+  /* ── Page transitions: a fast fade-out, nothing more.
+     (A full-screen cover panel read as a bug — removed.) ────── */
+  function initTransitions() {
     if (reduced || !hasGSAP) return;
 
-    /* arriving from another page: veil starts covering, then lifts */
-    var arriving = false;
-    try { arriving = !!sessionStorage.getItem(VEIL_KEY); } catch (e) {}
-    if (arriving) {
-      try { sessionStorage.removeItem(VEIL_KEY); } catch (e) {}
-      gsap.set(veil, { yPercent: -102 });
-      gsap.set(veil, { yPercent: 0 });
-      release();
-      gsap.to(veil, { yPercent: -102, duration: 0.6, ease: 'expo.inOut', delay: 0.08 });
-    }
-
-    /* leaving: cover, then navigate */
     document.addEventListener('click', function (e) {
       if (e.defaultPrevented || e.button !== 0) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -146,17 +125,15 @@
       if (url.pathname === location.pathname && url.hash) return; /* same-page anchor */
 
       e.preventDefault();
-      try { sessionStorage.setItem(VEIL_KEY, '1'); } catch (err) {}
-      gsap.set(veil, { yPercent: 102 });
-      gsap.to(veil, {
-        yPercent: 0, duration: 0.45, ease: 'expo.inOut',
+      gsap.to(document.body, {
+        opacity: 0, duration: 0.16, ease: 'power1.out',
         onComplete: function () { location.href = url.href; }
       });
     });
 
-    /* bfcache restore: never leave a stuck veil */
+    /* bfcache restore: never come back faded out */
     window.addEventListener('pageshow', function (e) {
-      if (e.persisted) { gsap.set(veil, { yPercent: 102 }); release(); }
+      if (e.persisted) { gsap.set(document.body, { opacity: 1 }); release(); }
     });
   }
 
@@ -179,14 +156,23 @@
 
   function revealNow(targets, opts) {
     gsap.fromTo(targets,
-      { yPercent: opts.mask ? 112 : 0, y: opts.mask ? 0 : 26, opacity: opts.mask ? 1 : 0 },
+      { yPercent: opts.mask ? 130 : 0, y: opts.mask ? 0 : 26, opacity: opts.mask ? 1 : 0 },
       {
         yPercent: 0, y: 0, opacity: 1,
         duration: opts.mask ? 0.95 : 0.8,
         ease: 'expo.out',
         stagger: opts.stagger || 0,
         delay: opts.delay || 0,
-        clearProps: 'transform,opacity'
+        clearProps: 'transform,opacity',
+        onComplete: function () {
+          /* drop the clipping once revealed — overflow:hidden would keep
+             shaving Cyrillic descenders (р, у, д) off the settled text */
+          targets.forEach(function (t) {
+            if (t.parentElement && t.parentElement.classList.contains('mask-line')) {
+              t.parentElement.style.overflow = 'visible';
+            }
+          });
+        }
       });
   }
 
@@ -205,7 +191,7 @@
     if (rect.top < window.innerHeight * 0.9) {
       revealNow(targets, opts);
     } else if (hasST) {
-      gsap.set(targets, mask ? { yPercent: 112 } : { y: 26, opacity: 0 });
+      gsap.set(targets, mask ? { yPercent: 130 } : { y: 26, opacity: 0 });
       ScrollTrigger.create({
         trigger: el, start: 'top 88%', once: true,
         onEnter: function () { revealNow(targets, { mask: mask, stagger: opts.stagger }); }
@@ -295,7 +281,7 @@
     initMarquees();
     initMagnetic();
 
-    var veil = (!reduced && hasGSAP) ? buildVeil() : null;
+    initTransitions();
 
     if (wantsIntro()) {
       /* postpone hero reveal until the loader lifts */
@@ -310,9 +296,7 @@
         });
         initReveals();
       });
-      if (veil) initTransitions(veil);
     } else {
-      if (veil) initTransitions(veil);
       release();
       initReveals();
     }

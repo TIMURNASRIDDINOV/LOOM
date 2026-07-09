@@ -49,12 +49,12 @@
       }
       body { background: var(--bg); color: var(--text); min-height: 100vh; }
 
-      /* ── Studio stage: light cyclorama, vignette at the edges ── */
+      /* ── Studio stage: soft, low-contrast warm backdrop ──────── */
       .studio {
         position: relative; padding-top: 64px;
         height: 100vh; min-height: 640px; overflow: hidden;
         background:
-          radial-gradient(120% 90% at 50% 38%, #ffffff 0%, #efede7 45%, #e0ddd4 75%, #d5d2c8 100%);
+          radial-gradient(140% 110% at 50% 32%, #fbfaf6 0%, #f3f1eb 55%, #ebe8e0 100%);
       }
       #three-container { position: absolute; inset: 64px 0 0 0; width: 100%; }
       #three-container canvas { display: block; }
@@ -97,7 +97,7 @@
       .loading-overlay {
         position: absolute; inset: 64px 0 0 0; z-index: 40;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
-        background: radial-gradient(120% 90% at 50% 40%, #ffffff 0%, #eceae3 70%);
+        background: radial-gradient(140% 110% at 50% 32%, #fbfaf6 0%, #f0eee7 70%);
         transition: opacity 0.5s ease;
       }
       .loading-overlay.hidden { opacity: 0; pointer-events: none; }

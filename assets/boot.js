@@ -9,9 +9,8 @@
 (function () {
   try {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    var inTransition = !!sessionStorage.getItem('loom_veil');
     var wantsIntro = !sessionStorage.getItem('loom_intro_v1');
-    if (wantsIntro || inTransition) {
+    if (wantsIntro) {
       document.documentElement.classList.add('motion-hold');
       setTimeout(function () {
         document.documentElement.classList.remove('motion-hold');
