@@ -125,7 +125,7 @@
     'cfg.addToCart':    { uz: 'Savatga',  ru: 'В корзину', en: 'Add to cart' },
     'cfg.buyNow':       { uz: 'Hozir sotib olish', ru: 'Купить сейчас', en: 'Buy now' },
     'cfg.cartTitle':    { uz: 'Savatcha', ru: 'Корзина',  en: 'Cart' },
-    'cfg.cartEmpty':    { uz: 'Savatcha bo‘sh', ru: 'Корзина пуста', en: 'Your cart is empty' },
+    'cfg.cartEmpty':    { uz: 'Bo‘sh. Bittayam narsa yo‘qmi?', ru: 'Пусто. Даже одной вещи нет?', en: 'Empty. Not even one thing?' },
     'cfg.checkout':     { uz: 'Buyurtma berish', ru: 'Оформить заказ', en: 'Checkout' },
     'cfg.viewFront':    { uz: 'Old',      ru: 'Перед',    en: 'Front' },
     'cfg.viewBack':     { uz: 'Orqa',     ru: 'Зад',      en: 'Back' },

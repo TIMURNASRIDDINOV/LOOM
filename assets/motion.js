@@ -108,11 +108,31 @@
     tl.to(el, { yPercent: -100, duration: 0.65, ease: 'expo.inOut' }, 1.95);
   }
 
-  /* ── Page transitions: a fast fade-out, nothing more.
-     (A full-screen cover panel read as a bug — removed.) ────── */
+  /* ── Page transitions: accent curtain wipe (reference-style).
+     Leaving: a red curtain wipes UP from the bottom (clip-path),
+     then the browser navigates. Arriving: boot.js pre-painted the
+     cover via html.page-covered::after, and we wipe it off through
+     the top. Both legs ~0.5s, eased. ─────────────────────────── */
+  var WIPE_KEY = 'loom_wipe';
+
   function initTransitions() {
     if (reduced || !hasGSAP) return;
 
+    /* arrival leg — the cover is already painted; lift it */
+    if (doc.classList.contains('page-covered')) {
+      release();
+      /* double-rAF: let the first frame paint fully covered */
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          doc.classList.add('page-reveal');
+          setTimeout(function () {
+            doc.classList.remove('page-covered', 'page-reveal');
+          }, 700);
+        });
+      });
+    }
+
+    /* leave leg */
     document.addEventListener('click', function (e) {
       if (e.defaultPrevented || e.button !== 0) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -125,15 +145,28 @@
       if (url.pathname === location.pathname && url.hash) return; /* same-page anchor */
 
       e.preventDefault();
-      gsap.to(document.body, {
-        opacity: 0, duration: 0.16, ease: 'power1.out',
+      var w = document.createElement('div');
+      w.className = 'wipe';
+      w.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(w);
+      try { sessionStorage.setItem(WIPE_KEY, '1'); } catch (err) {}
+      gsap.set(w, { clipPath: 'inset(100% 0% 0% 0%)' });
+      gsap.to(w, {
+        clipPath: 'inset(0% 0% 0% 0%)',
+        duration: 0.5,
+        ease: 'power2.in',
         onComplete: function () { location.href = url.href; }
       });
     });
 
-    /* bfcache restore: never come back faded out */
+    /* bfcache restore: never come back covered */
     window.addEventListener('pageshow', function (e) {
-      if (e.persisted) { gsap.set(document.body, { opacity: 1 }); release(); }
+      if (e.persisted) {
+        document.querySelectorAll('.wipe').forEach(function (el) { el.remove(); });
+        doc.classList.remove('page-covered', 'page-reveal');
+        try { sessionStorage.removeItem(WIPE_KEY); } catch (err) {}
+        release();
+      }
     });
   }
 
@@ -264,9 +297,10 @@
   }
 
   /* ── Custom cursor (pointer: fine only) ──────────────────── */
-  /* Accent dot that lags the pointer; becomes a ring over links,
-     an ink "→" badge over product cards. Native cursor returns on
-     text fields and maps. Opt out per page: <body data-no-cursor>. */
+  /* Reference-style: the NATIVE cursor stays visible; a small accent
+     dot trails behind it, grows over interactive elements, and fades
+     out when the pointer is idle or leaves the window. Native-only
+     zones: text fields, maps. Opt out per page: <body data-no-cursor>. */
   function initCursor() {
     if (reduced || !hasGSAP) return;
     if (!window.matchMedia('(pointer: fine)').matches) return;
@@ -275,38 +309,41 @@
     var c = document.createElement('div');
     c.className = 'cursor';
     c.setAttribute('aria-hidden', 'true');
-    c.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>';
     document.body.appendChild(c);
-    doc.classList.add('has-cursor');
 
-    gsap.set(c, { xPercent: -50, yPercent: -50, scale: 0.3 });
-    var xTo = gsap.quickTo(c, 'x', { duration: 0.16, ease: 'power3.out' });
-    var yTo = gsap.quickTo(c, 'y', { duration: 0.16, ease: 'power3.out' });
+    gsap.set(c, { xPercent: -50, yPercent: -50, scale: 0.34 });
+    /* the lag is the point — the dot visibly follows behind the pointer */
+    var xTo = gsap.quickTo(c, 'x', { duration: 0.35, ease: 'power3.out' });
+    var yTo = gsap.quickTo(c, 'y', { duration: 0.35, ease: 'power3.out' });
     var sTo = gsap.quickTo(c, 'scale', { duration: 0.25, ease: 'power3.out' });
 
+    var idleTimer = null;
     document.addEventListener('mousemove', function (e) {
       c.classList.add('cursor--on');
+      c.classList.remove('cursor--idle');
       xTo(e.clientX); yTo(e.clientY);
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(function () { c.classList.add('cursor--idle'); }, 1800);
     }, { passive: true });
 
     document.addEventListener('mouseover', function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
-      /* text fields & maps keep the native cursor */
+      /* text fields & maps: follower gets out of the way */
       if (t.closest('input, textarea, select, .leaflet-container, [data-cursor="native"]')) {
         c.classList.add('cursor--hide');
         return;
       }
       c.classList.remove('cursor--hide');
       if (t.closest('.pcard, .product-card__image-container')) {
-        c.classList.add('cursor--card'); c.classList.remove('cursor--link');
+        c.classList.add('cursor--grow');
         sTo(1);
       } else if (t.closest('a, button, [role="button"], label')) {
-        c.classList.add('cursor--link'); c.classList.remove('cursor--card');
-        sTo(0.95);
+        c.classList.add('cursor--grow');
+        sTo(0.8);
       } else {
-        c.classList.remove('cursor--link', 'cursor--card');
-        sTo(0.3);
+        c.classList.remove('cursor--grow');
+        sTo(0.34);
       }
     });
 
@@ -358,8 +395,12 @@
     }
   }
 
-  /* release() must always run, even with no GSAP or reduced motion */
-  if (reduced || !hasGSAP) release();
+  /* release() must always run, even with no GSAP or reduced motion —
+     and a pre-painted transition cover must never stick around */
+  if (reduced || !hasGSAP) {
+    release();
+    doc.classList.remove('page-covered', 'page-reveal');
+  }
 
   if (document.readyState === 'loading') {
     /* registered after i18n.js's own listener → runs after translations apply */

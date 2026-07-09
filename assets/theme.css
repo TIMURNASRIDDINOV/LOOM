@@ -527,52 +527,55 @@ html[lang="uz"] .display {
 .f-input::placeholder { color: var(--ink-38); }
 .f-input:focus { border-color: var(--ink); box-shadow: 0 0 0 3px var(--accent-tint); }
 
-/* ── Custom cursor (element built by motion.js on pointer-fine) ── */
-html.has-cursor,
-html.has-cursor * { cursor: none !important; }
-/* text fields & maps keep their native, functional cursors */
-html.has-cursor input,
-html.has-cursor textarea,
-html.has-cursor select,
-html.has-cursor .leaflet-container,
-html.has-cursor .leaflet-container * { cursor: auto !important; }
-
+/* ── Custom cursor follower (built by motion.js on pointer-fine) ──
+   Reference-style: the native cursor stays; this accent dot trails
+   behind it, grows translucent over interactive elements, and fades
+   when the pointer idles. */
 .cursor {
   position: fixed;
   top: 0;
   left: 0;
-  width: 42px;
-  height: 42px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--accent);
-  border: 1.5px solid transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 10010;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.2s ease, background 0.25s ease, border-color 0.25s ease;
+  transition: opacity 0.25s ease, background 0.25s ease;
 }
 .cursor--on { opacity: 1; }
+.cursor--idle,
 .cursor--hide { opacity: 0 !important; }
-.cursor svg {
-  width: 17px;
-  height: 17px;
-  color: var(--on-ink);
-  opacity: 0;
-  transform: scale(0.5);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+.cursor--grow { background: rgba(252, 80, 68, 0.55); }
+
+/* ── Page-transition curtain (reference-style red wipe) ─────── */
+/* leave leg: element created by motion.js, animated with clip-path */
+.wipe {
+  position: fixed;
+  inset: 0;
+  z-index: 985;
+  background: var(--accent);
+  pointer-events: none;
+  clip-path: inset(100% 0 0 0);
+  will-change: clip-path;
 }
-/* over links/buttons: accent ring around the pointer */
-.cursor--link {
-  background: rgba(252, 80, 68, 0.12);
-  border-color: var(--accent);
+/* arrival leg: painted before first render via boot.js class */
+html.page-covered::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 985;
+  background: var(--accent);
+  pointer-events: none;
 }
-/* over product cards: accent badge with the arrow
-   (accent, not ink — the hover tile behind it IS ink) */
-.cursor--card { background: var(--accent); }
-.cursor--card svg { opacity: 1; transform: scale(1); }
+html.page-reveal::after {
+  animation: loom-wipe-out 0.55s cubic-bezier(0.77, 0, 0.18, 1) both;
+}
+@keyframes loom-wipe-out {
+  from { clip-path: inset(0 0 0 0); }
+  to   { clip-path: inset(0 0 100% 0); }
+}
 
 /* ── 10. Reduced motion — instant, readable, calm ──────────── */
 @media (prefers-reduced-motion: reduce) {
@@ -585,4 +588,6 @@ html.has-cursor .leaflet-container * { cursor: auto !important; }
   .marquee__track { animation: none; transform: none; }
   .pcard__go { transform: none; }
   html.motion-hold body { opacity: 1; }
+  html.page-covered::after { content: none; }
+  .wipe, .cursor { display: none; }
 }

@@ -2076,7 +2076,7 @@ function renderCart() {
     const meta = [s.color, s.size, s.text ? "«" + _esc(s.text) + "»" : "", s.hasLogo ? CT("cfg.layerLogo", "Логотип") : "", (it.quantity > 1 ? "×" + it.quantity : "")].filter(Boolean).join(" · ");
     return `
       <div class="cart-item">
-        <div class="cart-item-thumb" style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.3)">
+        <div class="cart-item-thumb" style="display:flex;align-items:center;justify-content:center;color:rgba(19,19,17,0.35)">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
         </div>
         <div class="cart-item-info">
