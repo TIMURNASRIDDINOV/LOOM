@@ -256,7 +256,9 @@ html[lang="uz"] .display {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: top; /* portrait shots in a square tile: crop legs, never heads */
   transform: scale(1.06);
+  transform-origin: top center;
   transition: transform var(--dur-slow) var(--ease-out);
 }
 .pcard:hover .pcard__media-alt img,
