@@ -263,6 +263,57 @@
     });
   }
 
+  /* ── Custom cursor (pointer: fine only) ──────────────────── */
+  /* Accent dot that lags the pointer; becomes a ring over links,
+     an ink "→" badge over product cards. Native cursor returns on
+     text fields and maps. Opt out per page: <body data-no-cursor>. */
+  function initCursor() {
+    if (reduced || !hasGSAP) return;
+    if (!window.matchMedia('(pointer: fine)').matches) return;
+    if (document.body.hasAttribute('data-no-cursor')) return;
+
+    var c = document.createElement('div');
+    c.className = 'cursor';
+    c.setAttribute('aria-hidden', 'true');
+    c.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>';
+    document.body.appendChild(c);
+    doc.classList.add('has-cursor');
+
+    gsap.set(c, { xPercent: -50, yPercent: -50, scale: 0.3 });
+    var xTo = gsap.quickTo(c, 'x', { duration: 0.16, ease: 'power3.out' });
+    var yTo = gsap.quickTo(c, 'y', { duration: 0.16, ease: 'power3.out' });
+    var sTo = gsap.quickTo(c, 'scale', { duration: 0.25, ease: 'power3.out' });
+
+    document.addEventListener('mousemove', function (e) {
+      c.classList.add('cursor--on');
+      xTo(e.clientX); yTo(e.clientY);
+    }, { passive: true });
+
+    document.addEventListener('mouseover', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      /* text fields & maps keep the native cursor */
+      if (t.closest('input, textarea, select, .leaflet-container, [data-cursor="native"]')) {
+        c.classList.add('cursor--hide');
+        return;
+      }
+      c.classList.remove('cursor--hide');
+      if (t.closest('.pcard, .product-card__image-container')) {
+        c.classList.add('cursor--card'); c.classList.remove('cursor--link');
+        sTo(1);
+      } else if (t.closest('a, button, [role="button"], label')) {
+        c.classList.add('cursor--link'); c.classList.remove('cursor--card');
+        sTo(0.95);
+      } else {
+        c.classList.remove('cursor--link', 'cursor--card');
+        sTo(0.3);
+      }
+    });
+
+    doc.addEventListener('mouseleave', function () { c.classList.add('cursor--hide'); });
+    doc.addEventListener('mouseenter', function () { c.classList.remove('cursor--hide'); });
+  }
+
   /* ── Magnetic hover (pointer: fine only) ─────────────────── */
   function initMagnetic() {
     if (reduced || !hasGSAP) return;
@@ -284,6 +335,7 @@
     initLenis();
     initMarquees();
     initMagnetic();
+    initCursor();
 
     initTransitions();
 

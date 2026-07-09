@@ -228,8 +228,51 @@ html[lang="uz"] .display {
 }
 .pcard:hover .pcard__media img { transform: scale(1.05); }
 
+/* Hover image-swap. No second photo shot yet, so the "back" is a
+   styled ink tile carrying the product name — drop an <img> into
+   .pcard__media-alt later to swap to a real photo. */
+.pcard__media-alt {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.2rem;
+  text-align: center;
+  background: var(--ink);
+  color: var(--on-ink);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease-out);
+}
+.pcard:hover .pcard__media-alt,
+.product-card:hover .pcard__media-alt { opacity: 1; }
+.pcard__alt-tag {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--on-ink-55);
+}
+.pcard__alt-name {
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 1.8vw, 1.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.pcard__alt-slash {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 /* accent arrow chip slides in on hover */
 .pcard__go {
+  z-index: 2;
   position: absolute;
   right: 0;
   bottom: 0;
@@ -469,6 +512,53 @@ html[lang="uz"] .display {
 }
 .f-input::placeholder { color: var(--ink-38); }
 .f-input:focus { border-color: var(--ink); box-shadow: 0 0 0 3px var(--accent-tint); }
+
+/* ── Custom cursor (element built by motion.js on pointer-fine) ── */
+html.has-cursor,
+html.has-cursor * { cursor: none !important; }
+/* text fields & maps keep their native, functional cursors */
+html.has-cursor input,
+html.has-cursor textarea,
+html.has-cursor select,
+html.has-cursor .leaflet-container,
+html.has-cursor .leaflet-container * { cursor: auto !important; }
+
+.cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1.5px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10010;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.25s ease, border-color 0.25s ease;
+}
+.cursor--on { opacity: 1; }
+.cursor--hide { opacity: 0 !important; }
+.cursor svg {
+  width: 17px;
+  height: 17px;
+  color: var(--on-ink);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+/* over links/buttons: accent ring around the pointer */
+.cursor--link {
+  background: rgba(252, 80, 68, 0.12);
+  border-color: var(--accent);
+}
+/* over product cards: accent badge with the arrow
+   (accent, not ink — the hover tile behind it IS ink) */
+.cursor--card { background: var(--accent); }
+.cursor--card svg { opacity: 1; transform: scale(1); }
 
 /* ── 10. Reduced motion — instant, readable, calm ──────────── */
 @media (prefers-reduced-motion: reduce) {

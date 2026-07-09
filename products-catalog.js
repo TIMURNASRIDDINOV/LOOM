@@ -86,12 +86,37 @@
       img.className = 'product-card__image'
       img.onerror = function () {
         this.style.display = 'none'
-        imageContainer.style.background = 'rgba(255,255,255,0.04)'
+        imageContainer.style.background = 'rgba(19,19,17,0.04)'
       }
       imageContainer.appendChild(img)
     } else {
-      imageContainer.style.background = 'rgba(255,255,255,0.04)'
+      imageContainer.style.background = 'rgba(19,19,17,0.04)'
     }
+
+    // Hover swap: no second photo in the API yet, so the "back" is a
+    // styled ink tile with the product name (classes from theme.css).
+    // When a hover image exists, drop it in here instead.
+    const alt = document.createElement('div')
+    alt.className = 'pcard__media-alt'
+    alt.setAttribute('aria-hidden', 'true')
+    const altTag = document.createElement('span')
+    altTag.className = 'pcard__alt-tag'
+    altTag.textContent = 'Apparel'
+    const altName = document.createElement('span')
+    altName.className = 'pcard__alt-name'
+    altName.textContent = product.name_ru
+    const altSlash = document.createElement('span')
+    altSlash.className = 'pcard__alt-slash'
+    altSlash.textContent = '/'
+    alt.appendChild(altTag)
+    alt.appendChild(altName)
+    alt.appendChild(altSlash)
+    imageContainer.appendChild(alt)
+
+    // the image tile navigates like the button does
+    imageContainer.addEventListener('click', () => {
+      window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
+    })
 
     const content = document.createElement('div')
     content.className = 'product-card__content'
