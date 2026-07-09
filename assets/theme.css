@@ -249,6 +249,18 @@ html[lang="uz"] .display {
 }
 .pcard:hover .pcard__media-alt,
 .product-card:hover .pcard__media-alt { opacity: 1; }
+/* real second photo (when present) fills the tile; slight settle-in */
+.pcard__media-alt img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.06);
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.pcard:hover .pcard__media-alt img,
+.product-card:hover .pcard__media-alt img { transform: scale(1); }
 .pcard__alt-tag {
   font-family: var(--font-mono);
   font-size: 0.6rem;
