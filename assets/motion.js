@@ -242,17 +242,21 @@
     if (hasST) ScrollTrigger.refresh();
   };
 
-  /* ── Marquee: duplicate content until track ≥ 2× viewport ── */
+  /* ── Marquee ─────────────────────────────────────────────── */
   function initMarquees() {
     document.querySelectorAll('.marquee__track').forEach(function (track) {
       if (track.dataset.marqueeDone) return;
       track.dataset.marqueeDone = '1';
+      /* fill to ≥ 1× viewport, then mirror the whole thing once — the
+         two identical halves make the -50% keyframe loop seamless
+         (an odd number of copies would visibly jump at each restart) */
       var original = track.innerHTML;
       var safety = 0;
-      while (track.scrollWidth < window.innerWidth * 2 && safety < 12) {
+      while (track.scrollWidth < window.innerWidth && safety < 12) {
         track.innerHTML += original;
         safety++;
       }
+      track.innerHTML += track.innerHTML;
       /* constant speed regardless of content length (~90 px/s) */
       var dur = Math.max(14, Math.round(track.scrollWidth / 2 / 90));
       track.style.setProperty('--marquee-dur', dur + 's');
@@ -312,6 +316,9 @@
     init();
   }
 
-  /* absolute failsafe */
-  window.addEventListener('load', release);
+  /* absolute failsafe + recalc scroll-trigger positions once images load */
+  window.addEventListener('load', function () {
+    release();
+    if (hasST && !reduced) ScrollTrigger.refresh();
+  });
 })();

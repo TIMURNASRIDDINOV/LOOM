@@ -418,7 +418,7 @@
       document.getElementById('notif-next-btn').disabled = to >= total
       document.getElementById('notif-pagination').style.display = total > NOTIF_LIMIT ? 'flex' : 'none'
     } catch {
-      listEl.innerHTML = '<p class="notif-empty" style="color:#f87171">Не удалось загрузить уведомления.</p>'
+      listEl.innerHTML = '<p class="notif-empty" style="color:#d6382d">Не удалось загрузить уведомления.</p>'
     }
   }
 
