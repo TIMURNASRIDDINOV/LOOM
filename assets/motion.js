@@ -114,12 +114,19 @@
      cover via html.page-covered::after, and we wipe it off through
      the top. Both legs ~0.5s, eased. ─────────────────────────── */
   var WIPE_KEY = 'loom_wipe';
+  var activeWipe = null; /* leave-leg state: { el, tween, cancelled } */
 
   function initTransitions() {
     if (reduced || !hasGSAP) return;
 
     /* arrival leg — the cover is already painted; lift it */
     if (doc.classList.contains('page-covered')) {
+      /* we own the cleanup now — stop boot.js's blunt failsafe from
+         yanking the cover away mid-animation on slow (cold-CDN) loads */
+      if (window.__loomCoverFailsafe) {
+        clearTimeout(window.__loomCoverFailsafe);
+        window.__loomCoverFailsafe = null;
+      }
       release();
       /* double-rAF: let the first frame paint fully covered */
       requestAnimationFrame(function () {
@@ -150,18 +157,36 @@
       w.setAttribute('aria-hidden', 'true');
       document.body.appendChild(w);
       try { sessionStorage.setItem(WIPE_KEY, '1'); } catch (err) {}
+      var state = { el: w, cancelled: false };
       gsap.set(w, { clipPath: 'inset(100% 0% 0% 0%)' });
-      gsap.to(w, {
+      state.tween = gsap.to(w, {
         clipPath: 'inset(0% 0% 0% 0%)',
         duration: 0.5,
         ease: 'power2.in',
-        onComplete: function () { location.href = url.href; }
+        onComplete: function () {
+          if (state.cancelled) return;
+          location.href = url.href;
+          /* if the navigation never happens (Esc / stop button /
+             offline), do not leave the page under an opaque curtain */
+          setTimeout(function () {
+            state.cancelled = true;
+            w.remove();
+            try { sessionStorage.removeItem(WIPE_KEY); } catch (err) {}
+          }, 3000);
+        }
       });
+      activeWipe = state;
     });
 
-    /* bfcache restore: never come back covered */
+    /* bfcache restore: never come back covered, and kill the frozen
+       tween — otherwise its onComplete re-fires and force-navigates */
     window.addEventListener('pageshow', function (e) {
       if (e.persisted) {
+        if (activeWipe) {
+          activeWipe.cancelled = true;
+          if (activeWipe.tween) activeWipe.tween.kill();
+          activeWipe = null;
+        }
         document.querySelectorAll('.wipe').forEach(function (el) { el.remove(); });
         doc.classList.remove('page-covered', 'page-reveal');
         try { sessionStorage.removeItem(WIPE_KEY); } catch (err) {}
@@ -317,16 +342,31 @@
     var yTo = gsap.quickTo(c, 'y', { duration: 0.35, ease: 'power3.out' });
     var sTo = gsap.quickTo(c, 'scale', { duration: 0.25, ease: 'power3.out' });
 
+    /* Pointer events, capture phase:
+       - compat mouse events are suppressed while canvas tools
+         (OrbitControls / decal editor) preventDefault their drags;
+         pointermove is not, and capture beats stopPropagation
+       - pointerType filter keeps touch taps on hybrid laptops from
+         summoning a phantom dot */
     var idleTimer = null;
-    document.addEventListener('mousemove', function (e) {
+    var firstMove = true;
+    document.addEventListener('pointermove', function (e) {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      if (firstMove) {
+        /* appear where the pointer already is — no streak from 0,0 */
+        firstMove = false;
+        gsap.set(c, { x: e.clientX, y: e.clientY });
+      } else {
+        xTo(e.clientX); yTo(e.clientY);
+      }
       c.classList.add('cursor--on');
       c.classList.remove('cursor--idle');
-      xTo(e.clientX); yTo(e.clientY);
       clearTimeout(idleTimer);
       idleTimer = setTimeout(function () { c.classList.add('cursor--idle'); }, 1800);
-    }, { passive: true });
+    }, { passive: true, capture: true });
 
-    document.addEventListener('mouseover', function (e) {
+    document.addEventListener('pointerover', function (e) {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
       var t = e.target;
       if (!t || !t.closest) return;
       /* text fields & maps: follower gets out of the way */
@@ -345,10 +385,12 @@
         c.classList.remove('cursor--grow');
         sTo(0.34);
       }
-    });
+    }, { capture: true });
 
+    /* window re-entry: the next pointerover re-evaluates hide state,
+       so no unconditional un-hide here (it would expose the dot over
+       a text field the pointer lands on) */
     doc.addEventListener('mouseleave', function () { c.classList.add('cursor--hide'); });
-    doc.addEventListener('mouseenter', function () { c.classList.remove('cursor--hide'); });
   }
 
   /* ── Magnetic hover (pointer: fine only) ─────────────────── */

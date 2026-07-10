@@ -16,14 +16,23 @@
 ================================================================ */
 (function () {
   try {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     var d = document.documentElement;
 
-    /* 1. arriving mid-wipe */
+    /* consume the wipe flag unconditionally — a mid-session
+       reduced-motion toggle must not strand it for the whole session */
+    var hadWipe = false;
     if (sessionStorage.getItem('loom_wipe')) {
       sessionStorage.removeItem('loom_wipe');
+      hadWipe = true;
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    /* 1. arriving mid-wipe: paint the cover before first render.
+       motion.js clears this failsafe when it takes over the reveal. */
+    if (hadWipe) {
       d.classList.add('page-covered');
-      setTimeout(function () {
+      window.__loomCoverFailsafe = setTimeout(function () {
         d.classList.remove('page-covered', 'page-reveal');
       }, 1900);
     }
