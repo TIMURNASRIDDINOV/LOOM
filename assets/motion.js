@@ -9,7 +9,6 @@
    · Fade-up reveals                   [data-reveal]
    · Staggered grid entrances          [data-stagger]
    · Seamless marquee                  .marquee
-   · Magnetic hover on CTAs            .magnetic
 
    Progressive enhancement rules:
    - Content is NEVER hidden by CSS; initial states are set from JS
@@ -478,27 +477,10 @@
     doc.addEventListener('mouseleave', function () { c.classList.add('cursor--hide'); });
   }
 
-  /* ── Magnetic hover (pointer: fine only) ─────────────────── */
-  function initMagnetic() {
-    if (reduced || !hasGSAP) return;
-    if (!window.matchMedia('(pointer: fine)').matches) return;
-    document.querySelectorAll('.magnetic').forEach(function (el) {
-      var xTo = gsap.quickTo(el, 'x', { duration: 0.35, ease: 'power3.out' });
-      var yTo = gsap.quickTo(el, 'y', { duration: 0.35, ease: 'power3.out' });
-      el.addEventListener('mousemove', function (e) {
-        var r = el.getBoundingClientRect();
-        xTo((e.clientX - (r.left + r.width / 2)) * 0.3);
-        yTo((e.clientY - (r.top + r.height / 2)) * 0.3);
-      });
-      el.addEventListener('mouseleave', function () { xTo(0); yTo(0); });
-    });
-  }
-
   /* ── Boot ────────────────────────────────────────────────── */
   function init() {
     initLenis();
     initMarquees();
-    initMagnetic();
     initCursor();
     initCardMedia();
 
