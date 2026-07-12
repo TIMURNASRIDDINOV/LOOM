@@ -35,7 +35,7 @@
 
     // ===== Home — hero =====
     /* the accent "/" is markup now (see index.html), not part of the string */
-    'hero.t1':       { uz: 'Tasavvuringizdagini', ru: 'Носи',            en: 'Wear' },
+    'hero.t1':       { uz: 'Tasavvurni',          ru: 'Носи',            en: 'Wear' },
     'hero.t2':       { uz: 'kiyimga',             ru: 'то, что ты',       en: 'what you' },
     'hero.t3':       { uz: 'aylantiring.',        ru: 'придумал.',        en: 'imagine.' },
     'hero.subtitle': { uz: 'O‘z kiyimingizni o‘zingiz yarating. Uni 3D’da ko‘ring. O‘zbekiston bo‘ylab yetkazib beramiz.', ru: 'Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану.', en: 'Design your own clothes. See them in 3D. Order to your door anywhere in Uzbekistan.' },

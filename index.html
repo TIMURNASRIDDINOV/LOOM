@@ -257,7 +257,7 @@
           <h3 class="pcard__name" data-i18n="prod.t1.name">Классическая футболка</h3>
           <p class="pcard__desc" data-i18n="prod.t1.desc">100% премиальный хлопок, унисекс крой, свободный фасон. Идеальный холст для вашего дизайна.</p>
           <div class="pcard__foot">
-            <span class="pcard__price">89,000 UZS</span>
+            <span class="pcard__price" data-price="150000">150 000 сум</span>
             <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
@@ -282,7 +282,7 @@
           <h3 class="pcard__name" data-i18n="prod.t2.name">Тёплое худи</h3>
           <p class="pcard__desc" data-i18n="prod.t2.desc">Премиальная ткань с начёсом, двухслойный капюшон, свободный силуэт на все сезоны.</p>
           <div class="pcard__foot">
-            <span class="pcard__price">189,000 UZS</span>
+            <span class="pcard__price" data-price="280000">280 000 сум</span>
             <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
@@ -306,7 +306,7 @@
           <h3 class="pcard__name" data-i18n="prod.t3.name">Поло</h3>
           <p class="pcard__desc" data-i18n="prod.t3.desc">Хлопок пике, структурированный воротник, чистые линии. Smart casual без усилий.</p>
           <div class="pcard__foot">
-            <span class="pcard__price">129,000 UZS</span>
+            <span class="pcard__price" data-price="180000">180 000 сум</span>
             <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
@@ -368,11 +368,25 @@
 
   <script src="assets/config.js?v=2"></script>
   <script src="assets/layout.js?v=2"></script>
-  <script src="assets/i18n.js?v=7"></script>
+  <script src="assets/i18n.js?v=8"></script>
   <script src="assets/auth.js?v=3"></script>
   <script src="assets/nav.js?v=2"></script>
   <script src="assets/motion.js?v=7"></script>
   <script src="assets/track.js"></script>
   <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
+  <!-- Featured-product prices: format like the catalog (grouped + localized
+       currency) and re-format when the language changes. -->
+  <script>
+    (function () {
+      function fmtPrices() {
+        if (!window.LOOM_I18N) return;
+        document.querySelectorAll('.pcard__price[data-price]').forEach(function (el) {
+          el.textContent = window.LOOM_I18N.formatPrice(el.getAttribute('data-price'));
+        });
+      }
+      fmtPrices();
+      window.addEventListener('loom:langchange', fmtPrices);
+    })();
+  </script>
 </body>
 </html>
