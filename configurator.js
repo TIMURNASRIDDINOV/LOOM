@@ -180,14 +180,16 @@ document.addEventListener("DOMContentLoaded", async function () {
   initThreeJS();
   initCanvasTextures();
 
-  // Load product from ?slug= param, then load its GLB (or fallback)
-  await loadProductFromSlug();
-
+  // UI + render loop first — nothing in them depends on the product,
+  // and a slow /api/products response must not leave dead controls
   initUI();
   animate();
 
   // Auth nav
   if (window.LOOM_AUTH) window.LOOM_AUTH.renderAuthNav();
+
+  // Load product from ?slug= param, then load its GLB (or fallback)
+  await loadProductFromSlug();
 });
 
 // ================================================================
@@ -214,7 +216,9 @@ function initThreeJS() {
     preserveDrawingBuffer: true,
     alpha: true,
   });
-  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  // DPR capped at 2 — 3x phone screens quadruple the fill cost for
+  // no visible gain on fabric
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
@@ -274,21 +278,28 @@ function setupLighting() {
   scene.add(fill);
 }
 
+let _lastResizeW = 0;
+let _lastResizeH = 0;
+
 function onWindowResize() {
   const container = document.getElementById("three-container");
   if (!container || !renderer || !camera) return;
   const w = container.clientWidth;
   const h = container.clientHeight;
   if (w === 0 || h === 0) return;
+  // iOS fires resize every time the URL bar collapses mid-scroll —
+  // bail early so the camera never snaps while the user is browsing
+  if (w === _lastResizeW && h === _lastResizeH) return;
+  _lastResizeW = w;
+  _lastResizeH = h;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(w, h, false);
 
-  // Keep the model framing stable when container size/aspect changes.
-  if (shirtObject) fitCameraToObject(shirtObject);
-
-  // Redraw the live overlay after the camera re-frames.
+  // Redraw the live overlay for the new size. The camera itself is
+  // NOT re-fit here: fitCameraToObject() hard-resets the user's orbit
+  // angle and zoom, which read as a jarring jump on every viewport tweak.
   if (editMode) drawEditor();
 }
 
@@ -430,6 +441,22 @@ function redrawActive() {
   if (typeof drawEditor === "function" && editMode) drawEditor();
 }
 
+/**
+ * Frame-coalesced redraw for high-frequency gesture paths (drag /
+ * scale / rotate / pinch). pointermove fires at up to 120Hz on
+ * ProMotion phones and every redrawActive() re-uploads a 2048px
+ * texture + regenerates mipmaps — one redraw per frame is enough.
+ */
+let _redrawQueued = false;
+function scheduleRedraw() {
+  if (_redrawQueued) return;
+  _redrawQueued = true;
+  requestAnimationFrame(() => {
+    _redrawQueued = false;
+    redrawActive();
+  });
+}
+
 function updatePlainColorMaterials() {
   plainColorMaterials.forEach((m) => {
     m.map = plainTexture;
@@ -519,7 +546,11 @@ async function loadProductFromSlug() {
 
   if (slug) {
     try {
-      const res = await fetch(getApiBase() + "/api/products/" + encodeURIComponent(slug));
+      // 5s cap — on a stalled mobile connection the default model must
+      // still appear instead of an endless spinner
+      const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      if (ctrl) setTimeout(() => ctrl.abort(), 5000);
+      const res = await fetch(getApiBase() + "/api/products/" + encodeURIComponent(slug), ctrl ? { signal: ctrl.signal } : undefined);
       if (res.ok) {
         const product = await res.json();
         currentProduct = product;
@@ -1563,7 +1594,7 @@ function _onEdPointerMove(e) {
     if (_gesture.snapX) nx = cxp;
     if (_gesture.snapY) ny = cyp;
     el.x = nx; el.y = ny;
-    redrawActive();
+    scheduleRedraw();
   } else if (_gesture.type === "scale") {
     const center = texToScreenPA(el.x, el.y);
     const ratio = Math.hypot(e.clientX - center.x, e.clientY - center.y) / _gesture.d0;
@@ -1574,7 +1605,7 @@ function _onEdPointerMove(e) {
       el.scalePct = Math.round(Math.max(10, Math.min(200, _gesture.startSize * ratio)));
       _syncSlider("image-scale-slider", "image-scale-display", el.scalePct, "%");
     }
-    redrawActive();
+    scheduleRedraw();
   } else if (_gesture.type === "rotate") {
     const center = texToScreenPA(el.x, el.y);
     const a = Math.atan2(e.clientY - center.y, e.clientX - center.x);
@@ -1587,7 +1618,7 @@ function _onEdPointerMove(e) {
       }
     }
     el.rotation = rot;
-    redrawActive();
+    scheduleRedraw();
   }
   e.preventDefault();
 }
@@ -1642,7 +1673,7 @@ function _updatePinch() {
     _syncSlider("image-scale-slider", "image-scale-display", el.scalePct, "%");
   }
   el.rotation = _pinch.startRot + (a - _pinch.a0);
-  redrawActive();
+  scheduleRedraw();
 }
 
 // ── Keyboard (nudge / delete) ───────────────────────────────────
@@ -2011,7 +2042,16 @@ async function addToCart() {
   if (!user) { showToast(CT("cfg.toastLoginCart", "Войдите, чтобы добавить в корзину"), "error"); return; }
 
   const btn = document.getElementById("btn-add-to-cart");
-  if (btn) btn.disabled = true;
+  const orderBtn = document.getElementById("btn-place-order");
+  // proofs + uploads take seconds on mobile — the button must say so
+  const btnLabel = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML =
+      '<svg class="spinner" width="17" height="17" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg>' +
+      '<span>' + _esc(CT("cfg.preparing", "Готовим макеты…")) + '</span>';
+  }
+  if (orderBtn) orderBtn.disabled = true;
   try {
     // Capture proofs NOW — the design is only live here; it's gone by checkout.
     const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
@@ -2045,7 +2085,8 @@ async function addToCart() {
   } catch (e) {
     showToast("Ошибка сети", "error");
   } finally {
-    if (btn) btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
+    if (orderBtn) orderBtn.disabled = false;
   }
 }
 async function removeFromCart(id) {
@@ -2094,21 +2135,49 @@ function renderCart() {
   if (totalEl) totalEl.textContent = fmt(cartState.total || 0);
   if (foot) foot.style.display = "flex";
 }
+let _cartScrollY = 0;
 function openCartDrawer() {
-  document.getElementById("cartDrawer")?.classList.add("active");
+  const drawer = document.getElementById("cartDrawer");
+  if (!drawer || drawer.classList.contains("active")) return;
+  drawer.classList.add("active");
   document.getElementById("cartBackdrop")?.classList.add("active");
   document.body.classList.add("menu-open");
+  // iOS ignores overflow:hidden for touch scroll — fix the body instead
+  _cartScrollY = window.scrollY || 0;
+  document.body.style.position = "fixed";
+  document.body.style.top = -_cartScrollY + "px";
+  document.body.style.left = "0";
+  document.body.style.right = "0";
+  document.body.style.width = "100%";
+  // Android back button closes the full-screen bag instead of leaving the site
+  try { history.pushState({ loomBag: 1 }, ""); } catch (e) {}
 }
 async function openCart() {
   await loadCart();
   renderCart();
   openCartDrawer();
 }
-function closeCart() {
-  document.getElementById("cartDrawer")?.classList.remove("active");
+function closeCart(fromPopstate) {
+  const drawer = document.getElementById("cartDrawer");
+  if (!drawer || !drawer.classList.contains("active")) return;
+  drawer.classList.remove("active");
   document.getElementById("cartBackdrop")?.classList.remove("active");
   document.body.classList.remove("menu-open");
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.left = "";
+  document.body.style.right = "";
+  document.body.style.width = "";
+  window.scrollTo(0, _cartScrollY);
+  // consume the history entry pushed on open (unless Back triggered us)
+  if (!fromPopstate && history.state && history.state.loomBag) {
+    try { history.back(); } catch (e) {}
+  }
 }
+window.addEventListener("popstate", () => {
+  const drawer = document.getElementById("cartDrawer");
+  if (drawer && drawer.classList.contains("active")) closeCart(true);
+});
 function bindCart() {
   document.getElementById("navCartBtn")?.addEventListener("click", openCart);
   document.getElementById("cartClose")?.addEventListener("click", closeCart);
@@ -2333,7 +2402,7 @@ function bindTextControls() {
 
   textIn.addEventListener("input", () => {
     getTxt().content = textIn.value;
-    redrawActive();
+    scheduleRedraw(); // coalesce — fast typing must not re-upload per keystroke
   });
 
   fontSel.addEventListener("change", () => {
@@ -2346,13 +2415,13 @@ function bindTextControls() {
     const sz = parseInt(sizeSldr.value);
     getTxt().size = sz;
     sizeDisp.textContent = sz + "px";
-    redrawActive();
+    scheduleRedraw();
   });
 
   colorPkr.addEventListener("input", () => {
     getTxt().color = colorPkr.value;
     colorLbl.textContent = colorPkr.value.toUpperCase();
-    redrawActive();
+    scheduleRedraw();
   });
 
   btnBold.addEventListener("click", () => {
@@ -2424,7 +2493,7 @@ function bindImageControls() {
     const pct = parseInt(scaleSldr.value);
     designState[designState.activeView].image.scalePct = pct;
     scaleDisp.textContent = pct + "%";
-    redrawActive();
+    scheduleRedraw();
   });
 
   btnRmImg.addEventListener("click", () => {
@@ -2446,12 +2515,35 @@ function handleImageFile(file) {
     return;
   }
 
+  if (file.size > 15 * 1024 * 1024) {
+    showToast("Файл слишком большой (макс. 15 МБ)", "error");
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
+      // Downscale phone-camera photos: the texture canvas is 2048px, so
+      // anything larger only makes every redraw (and the order upload)
+      // pay for pixels that can never be seen
+      let finalImg = img;
+      let finalData = e.target.result;
+      const maxDim = Math.max(img.naturalWidth || 0, img.naturalHeight || 0);
+      if (maxDim > TEX_SIZE && file.type !== "image/svg+xml") {
+        const k = TEX_SIZE / maxDim;
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * k);
+        c.height = Math.round(img.naturalHeight * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        finalData = c.toDataURL(file.type === "image/jpeg" ? "image/jpeg" : "image/png", 0.92);
+        finalImg = new Image();
+        finalImg.src = finalData;
+      }
+
+      const apply = () => {
       const layer = designState[designState.activeView].image;
-      layer.img = img;
+      layer.img = finalImg;
       layer.name = file.name;
       layer.scalePct = 100;
       layer.x = TEX_SIZE / 2;
@@ -2460,9 +2552,9 @@ function handleImageFile(file) {
       // Make sure the logo layer is the active selection when freshly added.
       if (typeof _syncLayerUI === "function") _syncLayerUI("image");
 
-      // Store original file data per view for order submission
+      // Store (possibly downscaled) file data per view for order submission
       uploadedFileData[designState.activeView] = {
-        base64: e.target.result,
+        base64: finalData,
         name: file.name,
         type: file.type,
         size: file.size,
@@ -2480,6 +2572,10 @@ function handleImageFile(file) {
       }
 
       redrawActive();
+      }; // apply()
+
+      if (finalImg === img) apply();
+      else finalImg.onload = apply;
     };
     img.src = e.target.result;
   };
@@ -2770,10 +2866,14 @@ function _openOrderModalInner(cartMode) {
       });
     }
 
-    setTimeout(() => {
-      const ni = document.getElementById("nameInput");
-      if (ni) ni.focus();
-    }, 350);
+    // desktop only — on phones autofocus pops the keyboard over the
+    // order summary before the user has even seen it
+    if (window.matchMedia("(pointer: fine)").matches) {
+      setTimeout(() => {
+        const ni = document.getElementById("nameInput");
+        if (ni) ni.focus();
+      }, 350);
+    }
   }
 
   // Store design config in modal for submission
@@ -2894,12 +2994,19 @@ function bindOrderModal() {
     }
   });
 
-  // Phone formatting
+  // Phone formatting — caret-preserving: rewriting the value throws the
+  // caret to the end, which makes mid-string edits on mobile a fight
   const phone = document.getElementById("phoneInput");
   if (phone) {
     phone.value = "+998";
     phone.addEventListener("input", function (e) {
-      let v = e.target.value.replace(/\D/g, "");
+      const el = e.target;
+      const before = el.value;
+      const caret = el.selectionStart == null ? before.length : el.selectionStart;
+      // digits left of the caret (ignoring the +998 prefix) survive the reformat
+      let digitsLeft = before.slice(0, caret).replace(/\D/g, "").replace(/^998/, "").length;
+
+      let v = before.replace(/\D/g, "");
       if (v.startsWith("998")) v = v.slice(3);
       v = v.slice(0, 9);
       let fmt = "+998";
@@ -2907,7 +3014,15 @@ function bindOrderModal() {
       if (v.length > 2) fmt += " " + v.slice(2, 5);
       if (v.length > 5) fmt += "-" + v.slice(5, 7);
       if (v.length > 7) fmt += "-" + v.slice(7, 9);
-      e.target.value = fmt;
+      el.value = fmt;
+
+      // place the caret after the same digit it followed before
+      let pos = 4; // just after "+998"
+      while (digitsLeft > 0 && pos < fmt.length) {
+        pos++;
+        if (/\d/.test(fmt[pos - 1])) digitsLeft--;
+      }
+      try { el.setSelectionRange(pos, pos); } catch (err) { /* type=tel quirk — harmless */ }
     });
   }
 
@@ -2966,6 +3081,22 @@ function initYandexMap() {
     } catch (e) {}
   }
 
+  // Lazy-load the Yandex Maps API on first use — the static <script>
+  // used to cost every configurator visitor the full payload up front
+  if (typeof ymaps === "undefined") {
+    if (window.__loomYmapsLoading) return;
+    window.__loomYmapsLoading = true;
+    const s = document.createElement("script");
+    s.src = "https://api-maps.yandex.ru/2.1/?apikey=&lang=ru_RU";
+    s.onload = () => { window.__loomYmapsLoading = false; _createYandexMap(); };
+    s.onerror = () => { window.__loomYmapsLoading = false; };
+    document.head.appendChild(s);
+    return;
+  }
+  _createYandexMap();
+}
+
+function _createYandexMap() {
   if (typeof ymaps === "undefined") return;
   ymaps.ready(() => {
     const map = new ymaps.Map("map", {
@@ -3268,7 +3399,9 @@ function showToast(message, type = "success") {
   const bg = type === "success" ? "#10b981" : "#ef4444";
 
   toast.style.cssText = `
-    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
+    transform:translateX(-50%) translateY(20px);
+    width:max-content; max-width:calc(100vw - 32px); text-align:center;
     background:${bg}; color:#fff; padding:14px 24px; border-radius:12px;
     font-family:'Inter',-apple-system,sans-serif; font-size:.95rem; font-weight:500;
     box-shadow:0 8px 30px rgba(0,0,0,.2); display:flex; align-items:center; gap:10px;

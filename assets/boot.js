@@ -33,7 +33,12 @@
     if (hadWipe) {
       d.classList.add('page-covered');
       window.__loomCoverFailsafe = setTimeout(function () {
-        d.classList.remove('page-covered', 'page-reveal');
+        /* recover through the same wipe-out animation instead of a
+           hard snap (cover simply vanishing reads as a glitch) */
+        d.classList.add('page-reveal');
+        setTimeout(function () {
+          d.classList.remove('page-covered', 'page-reveal');
+        }, 600);
       }, 1900);
     }
 

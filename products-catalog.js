@@ -60,10 +60,10 @@
     wrap.innerHTML = `
       <p style="margin-bottom:1rem">${T('catalog.loadError', 'Не удалось загрузить каталог.')}</p>
       <button id="catalog-retry" style="
-        padding:0.65rem 1.4rem;border:1px solid rgba(19,19,17,0.85);
+        padding:0.85rem 1.6rem;border:1px solid rgba(19,19,17,0.85);
         background:transparent;color:rgba(19,19,17,0.85);border-radius:2px;font-family:inherit;
         font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;
-        transition:background 0.2s">Повторить</button>
+        transition:background 0.2s">${T('catalog.retry', 'Повторить')}</button>
     `
     container.appendChild(wrap)
     container.querySelector('#catalog-retry').addEventListener('click', onRetry)
@@ -81,6 +81,8 @@
 
     if (product.thumbnail_url) {
       const img = document.createElement('img')
+      img.loading = 'lazy'
+      img.decoding = 'async'
       img.src = product.thumbnail_url
       img.alt = product.name_ru
       img.className = 'product-card__image'
@@ -113,8 +115,11 @@
     alt.appendChild(altSlash)
     imageContainer.appendChild(alt)
 
-    // the image tile navigates like the button does
-    imageContainer.addEventListener('click', () => {
+    // the whole card navigates — on phones the title/price area is the
+    // natural tap zone, not just the image tile
+    card.style.cursor = 'pointer'
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.customize-btn')) return // the button navigates itself
       window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
     })
 
@@ -238,6 +243,26 @@
   }
 
   // ── Main fetch & render ───────────────────────────────────────────────────
+  let productsCache = null
+
+  function renderFrom(container, products, isIndexPage) {
+    container.innerHTML = ''
+
+    if (!products.length) {
+      container.innerHTML = `<p style="text-align:center;color:rgba(19,19,17,0.4);padding:3rem">${T('catalog.empty', 'Каталог пуст.')}</p>`
+      return
+    }
+
+    if (isIndexPage) {
+      renderCarousel(container, products)
+    } else {
+      renderGrid(container, products)
+    }
+
+    // Trigger reveal animations on newly rendered cards
+    if (window._initReveal) window._initReveal()
+  }
+
   async function renderProducts() {
     const container = document.getElementById('product-list-root')
     if (!container) return
@@ -249,6 +274,13 @@
       window.location.pathname === '/' ||
       window.location.pathname.endsWith('/')
 
+    // Language switch: re-render labels/prices from cache — no
+    // skeleton flash, no repeat network round-trip
+    if (productsCache) {
+      renderFrom(container, productsCache, isIndexPage)
+      return
+    }
+
     // Show skeletons while loading
     renderSkeletons(container, isIndexPage ? 3 : 6)
 
@@ -257,22 +289,9 @@
       if (!res.ok) throw new Error('HTTP ' + res.status)
       const data = await res.json()
       const products = data.products || []
+      productsCache = products
 
-      container.innerHTML = ''
-
-      if (!products.length) {
-        container.innerHTML = '<p style="text-align:center;color:rgba(19,19,17,0.4);padding:3rem">Каталог пуст.</p>'
-        return
-      }
-
-      if (isIndexPage) {
-        renderCarousel(container, products)
-      } else {
-        renderGrid(container, products)
-      }
-
-      // Trigger reveal animations on newly rendered cards
-      if (window._initReveal) window._initReveal()
+      renderFrom(container, products, isIndexPage)
 
     } catch (err) {
       console.error('Catalog fetch failed:', err)

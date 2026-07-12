@@ -29,6 +29,11 @@
   transition: background var(--dur-fast) ease;
 }
 .product-grid .product-card:hover { background: rgba(255, 255, 255, 0.55); }
+@media (hover: none) {
+  .product-grid .product-card:hover { background: transparent; }
+  .product-grid .product-card { transition: transform 150ms var(--ease-out), background 150ms ease; }
+  .product-grid .product-card:active { background: rgba(255, 255, 255, 0.55); transform: scale(0.985); }
+}
 
 /* Image tile */
 .product-grid .product-card__image-container {
@@ -53,6 +58,9 @@
   transition: transform var(--dur-slow) var(--ease-out);
 }
 .product-grid .product-card:hover .product-card__image { transform: scale(1.05); }
+@media (hover: none) {
+  .product-grid .product-card:hover .product-card__image { transform: none; }
+}
 
 /* Content */
 .product-grid .product-card__content {
@@ -112,6 +120,20 @@
   border-color: var(--accent);
   color: #fff;
 }
+@media (hover: none) {
+  .product-card .customize-btn.btn-primary:hover {
+    background: transparent;
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+  .customize-btn { transition: transform 150ms var(--ease-out), background var(--dur-fast) ease, color var(--dur-fast) ease, border-color var(--dur-fast) ease; }
+  .product-card .customize-btn.btn-primary:active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    transform: scale(0.97);
+  }
+}
 .product-card .customize-btn.btn-disabled {
   background: var(--paper-2);
   color: var(--ink-38);
@@ -134,7 +156,15 @@
   .product-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 640px) {
-  .product-grid { grid-template-columns: 1fr; }
+  .product-grid { grid-template-columns: 1fr; border-left: none; }
+  /* phone composition: full-bleed portrait image, name + price only */
+  .product-grid .product-card { padding: 1.4rem 0 1.6rem; border-right: none; }
+  .product-grid .product-card__image-container { aspect-ratio: 4 / 5; margin-bottom: 1rem; }
+  .product-grid .product-card__description { display: none; }
+  .product-grid .product-card__title { font-size: 1.25rem; }
+  /* the whole card is tappable (products-catalog.js) — the button is
+     a labelled affordance, taller for thumbs */
+  .customize-btn { padding: 1rem 1.25rem; }
 }
 
 /* ── Featured carousel (only if a page renders product-list-root

@@ -38,6 +38,9 @@
           '<a href="configurator.html" class="nav-link' + act('configurator') + '" data-i18n="nav.configure">Кастомизация</a>' +
         '</div>' +
         '<div class="nav-right">' +
+          /* mobile-only pill (nav.css) — the configurator CTA must live in
+             the one persistent surface phones have */
+          '<a href="configurator.html" class="nav-cta" data-i18n="nav.start">Создать дизайн</a>' +
           cartBtn +
           '<div class="lang-switcher-mount"></div>' +
           '<div class="auth-nav-slot"></div>' +
@@ -63,6 +66,7 @@
         '<a href="account.html" class="mobile-menu-link' + act('account') + '" id="mobile-account-link" data-i18n="nav.account">Личный кабинет</a>' +
         '<a href="configurator.html" class="mobile-menu-link mobile-menu-link--cta" data-i18n="nav.start">Создать дизайн</a>' +
       '</div>' +
+      '<div class="mobile-auth-slot"></div>' + /* login state / logout — filled by auth.js */
       '<div class="mobile-lang">' +
         '<span class="mobile-lang-label" data-i18n="nav.language">Язык</span>' +
         '<div class="lang-switcher-mount"></div>' +
@@ -88,7 +92,7 @@
               '<p class="site-footer__heading" data-i18n="footer.socialTitle">Связь</p>' +
               '<ul class="site-footer__links">' +
                 '<li><a href="https://www.instagram.com/loom_uz?igsh=MTI3OWxzNTloZTNvdw%3D%3D&utm_source=qr" target="_blank" rel="noopener noreferrer">Instagram</a></li>' +
-                '<li><a href="" target="_blank" rel="noopener noreferrer">Telegram</a></li>' + /* TODO: real TG link (was empty on the old site too) */
+                '<li><a href="https://t.me/looom_design_bot" target="_blank" rel="noopener noreferrer">Telegram</a></li>' +
                 '<li><a href="mailto:loom.uzbekistan@gmail.com" data-i18n="footer.contact">Контакты</a></li>' +
               '</ul>' +
             '</div>' +

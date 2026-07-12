@@ -18,6 +18,18 @@
   border-bottom: 1px solid var(--line, rgba(19,19,17,0.16));
   overflow: visible;
 }
+/* cheaper compositing on phones: more opaque paper, lighter blur */
+@media (max-width: 767px) {
+  .nav {
+    background: rgba(244, 242, 237, 0.94);
+    backdrop-filter: blur(8px) saturate(120%);
+    -webkit-backdrop-filter: blur(8px) saturate(120%);
+  }
+  .nav-content {
+    padding-left: max(var(--gutter, 1.25rem), env(safe-area-inset-left));
+    padding-right: max(var(--gutter, 1.25rem), env(safe-area-inset-right));
+  }
+}
 .nav-content {
   max-width: var(--max-w, 1360px); margin: 0 auto; height: var(--nav-h, 64px);
   padding: 0 var(--gutter, 1.75rem);
@@ -64,7 +76,14 @@
   transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }
 .nav-cta:hover { background: var(--accent, #fc5044); color: #fff; border-color: var(--accent, #fc5044); }
-@media (max-width: 767px) { .nav-cta { display: none; } }
+/* mobile-only: the compact pill keeps the product CTA in the one
+   persistent surface phones have. Desktop keeps its link row as-is. */
+@media (min-width: 768px) { .nav-cta { display: none; } }
+@media (max-width: 767px) {
+  .nav-cta { padding: 0.5rem 0.8rem; font-size: 0.64rem; letter-spacing: 0.1em; }
+  body[data-page="configurator"] .nav-cta,
+  body[data-page="account"] .nav-cta { display: none; }
+}
 
 /* Cart button (configurator) */
 .nav-cart-btn {
@@ -107,9 +126,12 @@
 .lang-menu.open { display: block; }
 .lang-option {
   display: block; width: 100%; text-align: left;
-  padding: 0.5rem 1rem; background: transparent; border: none; cursor: pointer;
+  padding: 0.65rem 1rem; background: transparent; border: none; cursor: pointer;
   color: var(--ink-55, rgba(19,19,17,0.55)); font-family: inherit; font-size: 0.82rem;
   transition: background 150ms, color 150ms; white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .lang-btn { min-height: 44px; padding: 0.5rem 0.4rem; }
 }
 .lang-option:hover { background: var(--paper-2, #ebe8e1); color: var(--ink, #131311); }
 .lang-option.active { color: var(--accent-deep, #d63a2f); }
@@ -120,7 +142,8 @@
 /* ── Hamburger ───────────────────────────────────────────────── */
 .nav-hamburger {
   display: none; align-items: center; justify-content: center;
-  width: 40px; height: 40px; background: transparent; border: none; cursor: pointer;
+  width: 44px; height: 44px; margin-right: -8px;
+  background: transparent; border: none; cursor: pointer;
   color: var(--ink, #131311); -webkit-tap-highlight-color: transparent; z-index: 210; padding: 0;
 }
 .nav-hamburger svg { width: 22px; height: 22px; }
@@ -129,20 +152,21 @@
   .nav-hamburger { display: flex; }
 }
 
-/* ── Mobile slide-over menu ──────────────────────────────────── */
+/* ── Mobile menu — full-screen, editorial ────────────────────── */
 .mobile-backdrop {
-  position: fixed; inset: 0; background: rgba(19, 19, 17, 0.32);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  position: fixed; inset: 0; background: rgba(19, 19, 17, 0.4);
   z-index: 250; opacity: 0; visibility: hidden;
   transition: opacity 200ms ease, visibility 200ms ease;
+  touch-action: none;
 }
 .mobile-backdrop.active { opacity: 1; visibility: visible; }
 .mobile-menu {
-  position: fixed; top: 0; right: 0; width: 300px; max-width: 82vw; height: 100%;
+  position: fixed; top: 0; right: 0; width: 100%; height: 100%;
   background: var(--paper, #f4f2ed);
-  border-left: 1px solid var(--line, rgba(19,19,17,0.16)); z-index: 300;
-  transform: translateX(100%); transition: transform 300ms var(--ease-out, ease);
+  z-index: 300;
+  transform: translateX(100%); transition: transform 550ms var(--ease-inout, cubic-bezier(0.77, 0, 0.18, 1));
   display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .mobile-menu.active { transform: translateX(0); }
 .mobile-menu-header {
@@ -155,29 +179,53 @@
   letter-spacing: 0.14em; color: var(--ink, #131311); text-transform: uppercase;
 }
 .mobile-menu-close {
-  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  margin-right: -10px;
   background: transparent; border: none; cursor: pointer; color: var(--ink-55, rgba(19,19,17,0.55));
   border-radius: var(--radius, 2px); transition: color 200ms ease; padding: 0;
 }
-.mobile-menu-close:hover { color: var(--ink, #131311); }
-.mobile-menu-close svg { width: 20px; height: 20px; }
-.mobile-menu-links { display: flex; flex-direction: column; padding: 0.5rem 0; flex: 1; }
-.mobile-menu-link {
-  display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.5rem;
-  color: var(--ink-70, rgba(19,19,17,0.7)); text-decoration: none;
-  font-weight: 500; font-size: 0.9rem;
-  border-bottom: 1px solid var(--line-soft, rgba(19,19,17,0.09));
-  transition: color 200ms ease, background 200ms ease;
+.mobile-menu-close:hover, .mobile-menu-close:active { color: var(--ink, #131311); }
+.mobile-menu-close svg { width: 22px; height: 22px; }
+.mobile-menu-links {
+  display: flex; flex-direction: column; padding: 1.5rem 0 0; flex: 1;
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  counter-reset: mlink;
 }
-.mobile-menu-link:hover { background: rgba(19, 19, 17, 0.03); color: var(--ink, #131311); }
+/* nav links as display type — on mobile the menu IS the navigation */
+.mobile-menu-link {
+  display: flex; align-items: baseline; gap: 0.85rem; padding: 0.55rem 1.5rem;
+  color: var(--ink, #131311); text-decoration: none;
+  font-family: var(--font-display, sans-serif);
+  font-size: clamp(1.9rem, 9vw, 2.5rem); font-weight: 700;
+  letter-spacing: -0.03em; line-height: 1.1;
+  opacity: 0; transform: translateY(24px);
+  transition: opacity 350ms var(--ease-out, ease), transform 500ms var(--ease-out, ease), color 200ms ease;
+}
+.mobile-menu-link:not(.mobile-menu-link--cta)::before {
+  counter-increment: mlink;
+  content: '0' counter(mlink);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem; font-weight: 400; letter-spacing: 0.2em;
+  color: var(--ink-38, rgba(19,19,17,0.38));
+}
+.mobile-menu.active .mobile-menu-link { opacity: 1; transform: none; }
+.mobile-menu.active .mobile-menu-link:nth-child(1) { transition-delay: 80ms; }
+.mobile-menu.active .mobile-menu-link:nth-child(2) { transition-delay: 140ms; }
+.mobile-menu.active .mobile-menu-link:nth-child(3) { transition-delay: 200ms; }
+.mobile-menu.active .mobile-menu-link:nth-child(4) { transition-delay: 260ms; }
+.mobile-menu.active .mobile-menu-link:nth-child(5) { transition-delay: 320ms; }
+.mobile-menu.active .mobile-menu-link:nth-child(6) { transition-delay: 380ms; }
+.mobile-menu-link:active { color: var(--accent-deep, #d63a2f); }
 .mobile-menu-link.active { color: var(--accent-deep, #d63a2f); }
-.mobile-menu-link svg { width: 18px; height: 18px; opacity: 0.7; }
+.mobile-menu-link svg { display: none; }
 .mobile-menu-link--cta {
-  margin: 1.1rem 1.5rem 0; border: 1px solid var(--ink, #131311); border-radius: var(--radius, 2px);
-  justify-content: center; text-transform: uppercase; font-size: 0.75rem;
+  margin: 1.6rem 1.5rem 0; padding: 1rem 1.5rem;
+  border: 1px solid var(--ink, #131311); border-radius: var(--radius, 2px);
+  justify-content: center; align-items: center; text-transform: uppercase;
+  font-family: var(--font-body, sans-serif); font-size: 0.75rem;
   letter-spacing: 0.12em; font-weight: 600; color: var(--ink, #131311);
 }
-.mobile-menu-link--cta:hover { background: var(--ink, #131311); color: var(--paper, #f4f2ed); }
+.mobile-menu-link--cta:active { background: var(--ink, #131311); color: var(--paper, #f4f2ed); }
 .mobile-menu-link--cta.active { color: var(--ink, #131311); }
 
 /* Language row inside the mobile menu */
@@ -197,7 +245,7 @@
 }
 .mobile-lang .lang-option {
   flex: 1; text-align: center; border: 1px solid var(--line, rgba(19,19,17,0.16));
-  border-radius: var(--radius, 2px); padding: 0.5rem 0; font-size: 0.78rem;
+  border-radius: var(--radius, 2px); padding: 0.75rem 0; font-size: 0.78rem;
 }
 .mobile-lang .lang-option.active {
   background: var(--ink, #131311); color: var(--paper, #f4f2ed); border-color: var(--ink, #131311);

@@ -73,8 +73,9 @@
 /* ── Auth page layout ─────────────────────────────────────── */
 .auth-page {
   min-height: 100vh;
+  min-height: 100svh; /* iOS dynamic toolbars */
   display: flex; align-items: center; justify-content: center;
-  padding: 2rem 1.25rem;
+  padding: 2rem 1.25rem calc(2rem + env(safe-area-inset-bottom));
   background: var(--paper, #f4f2ed);
   color: var(--ink, #131311);
 }
@@ -130,6 +131,10 @@
   box-shadow: 0 0 0 3px var(--accent-tint, rgba(252,80,68,0.08));
 }
 .auth-input.error { border-color: var(--accent, #fc5044); }
+/* below 16px iOS Safari zoom-jumps the page on focus */
+@media (max-width: 767px) {
+  .auth-input { font-size: 1rem; }
+}
 
 .auth-error {
   color: var(--accent-deep, #d63a2f); font-size: 0.78rem;
@@ -161,6 +166,44 @@
   transition: color 150ms;
 }
 .auth-footer a:hover { color: var(--accent-deep, #d63a2f); }
+/* inline links need a thumb-sized hit area */
+.auth-footer a, .auth-back, #forgotLink {
+  display: inline-flex; align-items: center;
+  min-height: 44px;
+}
+
+/* ── Mobile-menu auth row (markup from auth.js) ────────────── */
+.mobile-auth-slot {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--line-soft, rgba(19,19,17,0.09));
+}
+.mobile-auth-login {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 44px;
+  font-size: 0.9rem; font-weight: 500; color: var(--ink, #131311);
+  text-decoration: none;
+}
+.mobile-auth-login:active { color: var(--accent-deep, #d63a2f); }
+.mobile-auth-user {
+  display: flex; align-items: center; gap: 0.75rem;
+  min-height: 44px;
+}
+.mobile-auth-user > a {
+  display: flex; align-items: center; gap: 0.75rem; flex: 1;
+  color: var(--ink, #131311); font-size: 0.9rem; font-weight: 500;
+  text-decoration: none; min-width: 0;
+}
+.mobile-auth-user > a span:last-child {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mobile-auth-logout {
+  flex-shrink: 0;
+  padding: 0.6rem 1rem;
+  background: transparent; border: 1px solid var(--line, rgba(19,19,17,0.16));
+  border-radius: var(--radius, 2px); cursor: pointer;
+  color: var(--ink-55, rgba(19,19,17,0.55)); font-family: inherit; font-size: 0.78rem;
+}
+.mobile-auth-logout:active { color: var(--ink, #131311); border-color: var(--ink, #131311); }
 
 /* ── Global error banner ───────────────────────────────────── */
 .auth-banner {
@@ -175,6 +218,7 @@
 /* ── Account page (legacy classes kept for account.js) ────── */
 .account-page {
   min-height: 100vh;
+  min-height: 100svh;
   background: var(--paper, #f4f2ed); color: var(--ink, #131311);
   font-family: var(--font-body, sans-serif);
   padding-top: 4rem;

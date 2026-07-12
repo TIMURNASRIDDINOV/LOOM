@@ -14,6 +14,9 @@
   transition: opacity 0.2s;
 }
 .loom-modal-backdrop.visible { opacity: 1; }
+/* the page behind must not scroll-chain while the modal is up */
+.loom-modal-backdrop { overscroll-behavior: contain; }
+body.loom-modal-open { overflow: hidden; }
 
 .loom-modal {
   background: var(--paper-3, #fff);
@@ -22,6 +25,8 @@
   padding: 2rem 1.75rem;
   width: 100%;
   max-width: 380px;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
   font-family: var(--font-body, sans-serif);
   color: var(--ink, #131311);
   position: relative;
@@ -33,18 +38,23 @@
 
 .loom-modal__close {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--ink-38, rgba(19,19,17,0.38));
   font-size: 1.1rem;
   cursor: pointer;
   line-height: 1;
-  padding: 0.25rem;
+  padding: 0;
   transition: color 0.15s;
 }
-.loom-modal__close:hover { color: var(--ink, #131311); }
+.loom-modal__close:hover, .loom-modal__close:active { color: var(--ink, #131311); }
 
 .loom-modal__title {
   font-family: var(--font-display, sans-serif);
@@ -93,7 +103,7 @@
   outline: none;
   color: var(--ink, #131311);
   font-family: var(--font-mono, monospace);
-  font-size: 0.9rem;
+  font-size: 1rem; /* ≥16px: no iOS zoom-on-focus */
   min-width: 0;
 }
 .loom-modal__phone-input::placeholder { color: var(--ink-38, rgba(19,19,17,0.38)); }
@@ -150,18 +160,24 @@
   line-height: 1.5;
 }
 
+/* Primary CTA look — mobile browsers block the automatic window.open
+   (it fires after an await), so this link IS the way into Telegram */
 .loom-modal__tg-link {
-  display: inline-block;
+  display: block;
   margin-bottom: 1.25rem;
-  padding: 0.65rem 1.25rem;
-  border: 1px solid var(--line, rgba(19,19,17,0.16));
+  padding: 0.85rem 1.25rem;
+  background: #2aabee; /* Telegram brand */
+  border: 1px solid #2aabee;
   border-radius: var(--radius, 2px);
-  color: var(--ink-70, rgba(19,19,17,0.7));
+  color: #fff;
   text-decoration: none;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
   transition: all 0.15s;
 }
-.loom-modal__tg-link:hover { border-color: var(--ink, #131311); color: var(--ink, #131311); }
+.loom-modal__tg-link:hover { background: #1e96d6; border-color: #1e96d6; color: #fff; }
+.loom-modal__tg-link:active { transform: scale(0.98); }
 
 .loom-modal__timeout-bar {
   height: 2px;

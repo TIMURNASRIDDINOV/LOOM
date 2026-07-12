@@ -107,6 +107,7 @@
   function close(reason) {
     if (!backdrop) return
     cleanup()
+    document.body.classList.remove('loom-modal-open')
     backdrop.classList.remove('visible')
     setTimeout(() => {
       if (backdrop && backdrop.parentNode) backdrop.parentNode.removeChild(backdrop)
@@ -133,6 +134,7 @@
     }
 
     backdrop = buildModal()
+    document.body.classList.add('loom-modal-open')
 
     // Wire close button
     document.getElementById('loom-modal-close').addEventListener('click', () => close(new Error('cancelled')))
@@ -209,7 +211,9 @@
       showStep('waiting')
       document.getElementById('loom-tg-link').href = deepLink
 
-      // Open Telegram automatically
+      // Best-effort auto-open: mobile browsers block window.open after
+      // an await (outside the tap gesture) — the styled loom-tg-link
+      // above is the real path into Telegram there
       window.open(deepLink, '_blank', 'noopener')
 
       startPolling(data.expires_at)

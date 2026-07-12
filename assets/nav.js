@@ -20,17 +20,36 @@
     var backdrop = document.getElementById('mobileBackdrop');
     if (!toggle || !menu) return;
 
+    /* iOS Safari ignores body{overflow:hidden} for touch scrolling —
+       the reliable lock is position:fixed with the scroll offset
+       baked in, restored on close */
+    var lockY = 0;
     function open() {
+      lockY = window.scrollY || 0;
       menu.classList.add('active');
       if (backdrop) backdrop.classList.add('active');
       document.body.classList.add('menu-open');
+      document.body.style.position = 'fixed';
+      document.body.style.top = -lockY + 'px';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.width = '100%';
+      if (window.LOOM_LENIS) window.LOOM_LENIS.stop();
       toggle.setAttribute('aria-expanded', 'true');
       menu.setAttribute('aria-hidden', 'false');
     }
     function close() {
+      if (!menu.classList.contains('active')) return;
       menu.classList.remove('active');
       if (backdrop) backdrop.classList.remove('active');
       document.body.classList.remove('menu-open');
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+      window.scrollTo(0, lockY);
+      if (window.LOOM_LENIS) window.LOOM_LENIS.start();
       toggle.setAttribute('aria-expanded', 'false');
       menu.setAttribute('aria-hidden', 'true');
     }
@@ -41,11 +60,11 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') close();
     });
-    menu.querySelectorAll('.mobile-menu-link').forEach(function (l) {
-      l.addEventListener('click', function () {
-        // keep menu open only for the language row; nav links close it
-        if (!l.closest('.mobile-lang')) close();
-      });
+    // delegate: also covers links rendered later (auth.js mobile row);
+    // language buttons are <button>s and keep the menu open
+    menu.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (a && !a.closest('.mobile-lang')) close();
     });
     window.addEventListener('resize', function () {
       if (window.innerWidth >= 768) close();

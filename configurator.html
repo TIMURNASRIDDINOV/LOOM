@@ -2,22 +2,22 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>LOOM — 3D Конфигуратор футболок</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Pacifico&display=swap" rel="stylesheet" />
 
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Design system -->
-    <link rel="stylesheet" href="assets/theme.css?v=6" />
-    <link rel="stylesheet" href="assets/nav.css?v=2" />
-    <link rel="stylesheet" href="assets/auth.css?v=3" />
-    <link rel="stylesheet" href="assets/login-modal.css?v=2" />
-    <script src="assets/boot.js?v=4"></script>
+    <link rel="stylesheet" href="assets/theme.css?v=7" />
+    <link rel="stylesheet" href="assets/nav.css?v=3" />
+    <link rel="stylesheet" href="assets/auth.css?v=4" />
+    <link rel="stylesheet" href="assets/login-modal.css?v=3" />
+    <script src="assets/boot.js?v=5"></script>
 
     <style>
       /* ============================================================
@@ -52,12 +52,16 @@
       /* ── Studio stage: soft, low-contrast warm backdrop ──────── */
       .studio {
         position: relative; padding-top: 64px;
-        height: 100vh; min-height: 640px; overflow: hidden;
+        height: 100vh; height: 100dvh; min-height: 640px; overflow: hidden;
         background:
           radial-gradient(140% 110% at 50% 32%, #fbfaf6 0%, #f3f1eb 55%, #ebe8e0 100%);
       }
-      #three-container { position: absolute; inset: 64px 0 0 0; width: 100%; }
-      #three-container canvas { display: block; }
+      /* touch-action:none — decal drags / pinches must reach the
+         pointer-event editor, not become page scroll (which fires
+         pointercancel mid-gesture on mobile) */
+      #three-container { position: absolute; inset: 64px 0 0 0; width: 100%; touch-action: none; }
+      /* CSS always tracks the container; resize only updates the buffer */
+      #three-container canvas { display: block; width: 100% !important; height: 100% !important; }
 
       /* Floating stage chips */
       .stage-chip {
@@ -320,7 +324,8 @@
       .cart-head .mobile-menu-close svg { width: 30px; height: 30px; }
 
       .cart-body {
-        flex: 1; overflow-y: auto;
+        flex: 1; overflow-y: auto; overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
         max-width: 1360px; width: 100%; margin: 0 auto;
         padding: 1rem clamp(1.25rem, 4vw, 2.75rem);
         display: flex; flex-direction: column; gap: 0;
@@ -363,7 +368,7 @@
       .cart-foot {
         flex-shrink: 0;
         max-width: 1360px; width: 100%; margin: 0 auto;
-        padding: 1rem clamp(1.25rem, 4vw, 2.75rem) clamp(1.5rem, 4vw, 2.5rem);
+        padding: 1rem clamp(1.25rem, 4vw, 2.75rem) calc(clamp(1.5rem, 4vw, 2.5rem) + env(safe-area-inset-bottom));
         border-top: 1px solid var(--hairline);
         display: flex; flex-direction: column; gap: 0.5rem;
       }
@@ -390,7 +395,9 @@
       .modal-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; animation: fadeIn 0.3s var(--ease); }
       .modal-backdrop { position: absolute; inset: 0; background: rgba(19,19,17,0.45); backdrop-filter: blur(8px); }
       .modal-card {
-        position: relative; width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto;
+        /* min(…, 100%) — a flex-centered child taller than the overlay
+           overflows off the top with no way to scroll to it on iOS */
+        position: relative; width: 100%; max-width: 540px; max-height: min(90dvh, 100%); overflow-y: auto; overscroll-behavior: contain;
         background: #fff; border: 1px solid var(--hairline);
         border-radius: 2px; padding: 2rem; animation: scaleIn 0.3s var(--ease); color: var(--text);
         box-shadow: 0 30px 80px rgba(19,19,17,0.18);
@@ -485,19 +492,59 @@
       /* ── Mobile: panel becomes a bottom sheet ────────────────── */
       @media (max-width: 900px) {
         .studio { height: auto; min-height: 0; overflow: visible; display: flex; flex-direction: column; }
-        #three-container { position: relative; inset: auto; height: 56vh; min-height: 360px; }
-        .loading-overlay { inset: 64px 0 auto 0; height: 56vh; }
+        #three-container { position: relative; inset: auto; height: 56vh; height: 56dvh; min-height: 360px; }
+        .loading-overlay { inset: 64px 0 auto 0; height: 56vh; height: 56dvh; }
         .chip-garment { top: 80px; right: 24px; }
         .chip-reset { top: 80px; bottom: auto; left: 24px; }
         .chip-save { top: 132px; bottom: auto; right: 24px; } /* stacked under garment chip */
+        .chip-preview { top: 132px; left: 24px; transform: none; } /* under reset — centered it collided with the garment chip */
         .studio-panel {
           position: relative; top: auto; left: auto; width: 100%; max-width: 100%;
           max-height: none; border-radius: 0; margin-top: -2px;
           backdrop-filter: none; background: var(--bg);
           border-left: none; border-right: none; box-shadow: none;
         }
-        .view-toggle { bottom: auto; top: calc(56vh - 52px); }
+        /* .studio's 64px padding-top offsets everything absolute in it */
+        .view-toggle { bottom: auto; top: calc(64px + 56dvh - 52px); }
+
+        /* price + buy CTAs pin to the viewport while the long panel scrolls */
+        .panel-foot {
+          position: sticky; bottom: 0; z-index: 40;
+          background: var(--bg);
+          padding-bottom: calc(1.05rem + env(safe-area-inset-bottom));
+        }
+
+        /* ≥16px inputs: iOS Safari zoom-jumps on focus below that */
+        .form-input, .form-select, .order-form .form-input { font-size: 16px; }
+
+        /* thumb-sized controls */
+        .view-btn { padding: 0.65rem 1.3rem; }
+        .tab-btn { padding: 0.75rem 0.4rem; }
+        .size-btn { padding: 0.65rem 0.85rem; min-width: 44px; }
+        .layer-btn { padding: 0.7rem 0.4rem; }
+        .style-toggle-btn { padding: 0.65rem 1rem; }
+        .btn-ghost, .btn-danger-outline { padding: 0.7rem 0.75rem; }
+        .toggle-btn { padding: 0.85rem 1rem; }
+        .cart-item-remove { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; }
       }
+      @media (pointer: coarse) {
+        .slider { height: 6px; }
+        .slider::-webkit-slider-thumb { width: 26px; height: 26px; }
+        .slider::-moz-range-thumb { width: 26px; height: 26px; }
+      }
+
+      /* Order modal as a bottom sheet on phones */
+      @media (max-width: 640px) {
+        .form-row { grid-template-columns: 1fr; }
+        .modal-overlay { align-items: flex-end; padding: 0; }
+        .modal-card {
+          max-width: 100%; max-height: 94dvh;
+          border-radius: 8px 8px 0 0;
+          padding: 1.5rem 1.25rem calc(1.75rem + env(safe-area-inset-bottom));
+          animation: sheetIn 0.32s var(--ease);
+        }
+      }
+      @keyframes sheetIn { from { opacity: 0.6; transform: translateY(48px); } to { opacity: 1; transform: translateY(0); } }
 
     </style>
   </head>
@@ -776,18 +823,18 @@
           <div class="form-row">
             <div class="form-field">
               <label for="nameInput" class="form-label"><span data-i18n="order.name">Имя</span> <span class="required">*</span></label>
-              <input type="text" id="nameInput" class="form-input" placeholder="Введите ваше имя" data-i18n-attr="placeholder:order.namePh" required minlength="2" maxlength="50" aria-required="true" />
+              <input type="text" id="nameInput" class="form-input" name="given-name" autocomplete="given-name" placeholder="Введите ваше имя" data-i18n-attr="placeholder:order.namePh" required minlength="2" maxlength="50" aria-required="true" />
               <span class="field-error" id="nameError"></span>
               <span class="field-success" style="display:none">✓</span>
             </div>
             <div class="form-field">
               <label for="surnameInput" class="form-label" data-i18n="order.surname">Фамилия</label>
-              <input type="text" id="surnameInput" class="form-input" placeholder="Необязательно" data-i18n-attr="placeholder:order.optional" maxlength="50" />
+              <input type="text" id="surnameInput" class="form-input" name="family-name" autocomplete="family-name" placeholder="Необязательно" data-i18n-attr="placeholder:order.optional" maxlength="50" />
             </div>
           </div>
           <div class="form-field">
             <label for="phoneInput" class="form-label"><span data-i18n="order.phone">Телефон</span> <span class="required">*</span></label>
-            <input type="tel" id="phoneInput" class="form-input" placeholder="+998 90 123-45-67" required aria-required="true" />
+            <input type="tel" id="phoneInput" class="form-input" name="tel" autocomplete="tel" placeholder="+998 90 123-45-67" required aria-required="true" />
             <span class="field-error" id="phoneError"></span>
             <span class="field-success" style="display:none">✓</span>
           </div>
@@ -823,7 +870,7 @@
               <p class="map-coords" id="mapCoords">Координаты: 41.2995, 69.2401</p>
             </div>
             <div id="addressContainer" class="address-container">
-              <textarea id="addressInput" class="form-input" rows="2" placeholder="Ташкент, улица Амира Темура, дом 10" data-i18n-attr="placeholder:order.addressPh"></textarea>
+              <textarea id="addressInput" class="form-input" rows="2" name="street-address" autocomplete="street-address" placeholder="Ташкент, улица Амира Темура, дом 10" data-i18n-attr="placeholder:order.addressPh"></textarea>
             </div>
             </div><!-- /newLocationWrap -->
             <span class="field-error" id="locationError"></span>
@@ -845,8 +892,7 @@
       <span data-i18n="order.success">Заказ успешно оформлен!</span>
     </div>
 
-    <!-- Yandex Maps -->
-    <script src="https://api-maps.yandex.ru/2.1/?apikey=&lang=ru_RU" type="text/javascript"></script>
+    <!-- Yandex Maps loads lazily from configurator.js when the map is first opened -->
     <!-- Three.js -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -857,13 +903,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <!-- Config + Auth -->
     <script src="assets/config.js?v=2"></script>
-    <script src="assets/layout.js?v=1"></script>
-    <script src="assets/i18n.js?v=6"></script>
-    <script src="assets/auth.js?v=2"></script>
-    <script src="assets/login-modal.js"></script>
-    <script src="assets/motion.js?v=5"></script>
+    <script src="assets/layout.js?v=2"></script>
+    <script src="assets/i18n.js?v=7"></script>
+    <script src="assets/auth.js?v=3"></script>
+    <script src="assets/login-modal.js?v=2"></script>
+    <script src="assets/motion.js?v=6"></script>
     <script src="assets/track.js"></script>
     <!-- Main configurator logic -->
-    <script src="configurator.js?v=15"></script>
+    <script src="configurator.js?v=16"></script>
   </body>
 </html>

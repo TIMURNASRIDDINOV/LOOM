@@ -101,7 +101,19 @@
       user.avatar_url = data.avatar_url
       renderAvatar(user)
     } catch (err) {
-      alert('Ошибка загрузки: ' + err.message)
+      // inline message instead of a native alert()
+      let errEl = document.getElementById('avatar-err')
+      if (!errEl) {
+        errEl = document.createElement('span')
+        errEl.id = 'avatar-err'
+        errEl.className = 'msg-err'
+        const meta = document.querySelector('.avatar-meta')
+        if (meta) meta.appendChild(errEl)
+      }
+      if (errEl) {
+        errEl.textContent = 'Ошибка загрузки: ' + err.message
+        setTimeout(() => { errEl.textContent = '' }, 6000)
+      }
     } finally {
       btn.disabled = false
       e.target.value = ''

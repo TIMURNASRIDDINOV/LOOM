@@ -100,11 +100,41 @@
     catch (e) { return fallback }
   }
 
+  // Mobile menu row — on phones the nav slot is hidden, so this is the
+  // ONLY visible login state (and the only way to log out) on mobile
+  function renderMobileAuth(user) {
+    const slot = document.querySelector('.mobile-auth-slot')
+    if (!slot) return
+
+    if (!user) {
+      slot.innerHTML = `
+        <a href="login.html" class="mobile-auth-login">
+          <span>${esc(L('nav.login', 'Войти'))}</span>
+          <span aria-hidden="true">→</span>
+        </a>`
+      return
+    }
+
+    const displayName = user.name ? user.name.split(' ')[0] : user.email.split('@')[0]
+    const initials = displayName.slice(0, 2).toUpperCase()
+    const avatarHtml = user.avatar_url
+      ? `<img class="auth-nav-avatar" src="${esc(user.avatar_url)}" alt="" />`
+      : `<span class="auth-nav-initials" aria-hidden="true">${esc(initials)}</span>`
+
+    slot.innerHTML = `
+      <div class="mobile-auth-user">
+        <a href="account.html">${avatarHtml}<span>${esc(displayName)}</span></a>
+        <button class="mobile-auth-logout" type="button">${esc(L('nav.logout', 'Выйти'))}</button>
+      </div>`
+    slot.querySelector('.mobile-auth-logout').addEventListener('click', logout)
+  }
+
   async function renderAuthNav() {
     const slots = document.querySelectorAll('.auth-nav-slot')
-    if (!slots.length) return
-
     const user = await getCurrentUser()
+
+    renderMobileAuth(user)
+    if (!slots.length) return
 
     slots.forEach(slot => {
       if (!user) {

@@ -88,6 +88,8 @@
     'catalog.heroSubtitle': { uz: 'Interaktiv 3D ko‘rinish', ru: 'Интерактивный 3D просмотр модели', en: 'Interactive 3D model preview' },
     'catalog.customize':    { uz: 'Dizaynni sozlash', ru: 'Настроить дизайн', en: 'Customize design' },
     'catalog.loadError':    { uz: 'Katalogni yuklab bo‘lmadi.', ru: 'Не удалось загрузить каталог.', en: 'Failed to load the catalog.' },
+    'catalog.retry':        { uz: 'Qayta urinish', ru: 'Повторить', en: 'Retry' },
+    'catalog.empty':        { uz: 'Katalog bo‘sh.', ru: 'Каталог пуст.', en: 'The catalog is empty.' },
     'catalog.soon':         { uz: 'Tez orada', ru: 'Скоро', en: 'Coming soon' },
 
     // ===== Configurator — panel =====
@@ -136,6 +138,7 @@
     'cfg.colorWhite':   { uz: 'Oq',       ru: 'Белый',    en: 'White' },
     'cfg.colorBlack':   { uz: 'Qora',     ru: 'Чёрный',   en: 'Black' },
     'cfg.toastAddedCart':  { uz: 'Savatga qo‘shildi', ru: 'Добавлено в корзину', en: 'Added to cart' },
+    'cfg.preparing':       { uz: 'Maketlar tayyorlanmoqda…', ru: 'Готовим макеты…', en: 'Preparing proofs…' },
     'cfg.toastLoginCart':  { uz: 'Savatga qo‘shish uchun tizimga kiring', ru: 'Войдите, чтобы добавить в корзину', en: 'Sign in to add to cart' },
     'cfg.toastAddError':   { uz: 'Qo‘shishda xatolik', ru: 'Ошибка добавления', en: 'Could not add item' },
 

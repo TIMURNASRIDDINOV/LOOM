@@ -66,6 +66,9 @@
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  /* clip (not hidden): kills sideways wiggle without creating a scroll
+     container that would break position: sticky descendants */
+  overflow-x: clip;
 }
 
 body {
@@ -87,6 +90,12 @@ html.motion-hold body { opacity: 0; }
 a { color: inherit; text-decoration: none; }
 img, video { max-width: 100%; display: block; }
 button { font-family: inherit; cursor: pointer; }
+/* one consistent touch layer: no gray Android flash, no 350ms
+   double-tap-zoom delay on interactive elements */
+a, button, [role="button"], label, summary {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
 h1, h2, h3, h4, p, ul, figure { margin: 0; }
 
 ::selection { background: var(--accent); color: var(--paper); }
@@ -145,6 +154,9 @@ h1, h2, h3, h4, p, ul, figure { margin: 0; }
   letter-spacing: 0.08em;
   color: var(--ink-55);
   transition: color var(--dur-fast) ease, gap var(--dur-fast) var(--ease-out);
+  /* ~44px touch target without moving the baseline */
+  padding: 0.8rem 0;
+  margin: -0.8rem 0;
 }
 .link-arrow:hover { color: var(--accent-deep); gap: 0.65rem; }
 
@@ -362,7 +374,8 @@ html[lang="uz"] .display {
 }
 .marquee__item {
   font-family: var(--font-display);
-  font-size: clamp(1.1rem, 2.2vw, 1.7rem);
+  /* 5.5vw keeps the strip confident on phones; still caps at 1.7rem */
+  font-size: clamp(1.35rem, 5.5vw, 1.7rem);
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -526,6 +539,10 @@ html[lang="uz"] .display {
 }
 .f-input::placeholder { color: var(--ink-38); }
 .f-input:focus { border-color: var(--ink); box-shadow: 0 0 0 3px var(--accent-tint); }
+/* below 16px iOS Safari zoom-jumps the page on focus */
+@media (max-width: 767px) {
+  .f-input { font-size: 1rem; }
+}
 
 /* ── Custom cursor follower (built by motion.js on pointer-fine) ──
    Reference-style: the native cursor stays; this accent dot trails
@@ -575,6 +592,72 @@ html.page-reveal::after {
 @keyframes loom-wipe-out {
   from { clip-path: inset(0 0 0 0); }
   to   { clip-path: inset(0 0 100% 0); }
+}
+
+/* ── 9.5 Touch & small-screen adaptations ──────────────────── */
+/* Touch devices: hover choreography never fires meaningfully (iOS
+   applies sticky :hover on the first tap — the card flashes its alt
+   state under the page wipe). Neutralize it and answer touch with
+   instant pressed states instead. */
+@media (hover: none) {
+  .pcard:hover { background: transparent; }
+  .pcard:hover .pcard__media img { transform: none; }
+  .pcard:hover .pcard__media-alt,
+  .product-card:hover .pcard__media-alt { opacity: 0; }
+  .pcard:hover .pcard__media-alt img,
+  .product-card:hover .pcard__media-alt img { transform: scale(1.06); }
+  .btn--solid:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .btn--outline:hover { background: transparent; color: var(--ink); }
+  .btn--on-ink:hover { background: transparent; border-color: var(--on-ink); color: var(--on-ink); }
+  .link-arrow:hover { color: var(--ink-55); gap: 0.4rem; }
+
+  /* the arrow chip is a dead hover reveal on touch — show it, smaller */
+  .pcard__go { transform: none; width: 36px; height: 36px; }
+
+  /* pressed states: instant (<100ms) response reads premium on touch */
+  .btn { transition: transform 150ms var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
+  .btn:active { transform: scale(0.97); }
+  .btn--solid:active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn--outline:active { background: var(--ink); color: var(--paper); }
+  .btn--on-ink:active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pcard { transition: transform 150ms var(--ease-out), background 150ms ease; }
+  .pcard:active { background: rgba(255, 255, 255, 0.55); transform: scale(0.985); }
+  .link-arrow:active { color: var(--accent-deep); }
+  .site-footer__links a:active { color: var(--accent-deep); }
+
+  /* JS-driven in-view crossfade replaces the hover image swap (only
+     applied to tiles that carry a real second photo) */
+  .pcard__media-alt { transition: opacity 0.7s var(--ease-out); }
+  .pcard__media.swap .pcard__media-alt { opacity: 1 !important; }
+  .pcard__media.swap .pcard__media-alt img { transform: scale(1) !important; }
+}
+
+/* Editorial card, phone composition: full-bleed portrait image,
+   tag / name / price only — the sentence belongs on desktop */
+@media (max-width: 620px) {
+  .product-grid3 { border-left: none; }
+  .pcard { padding: 1.4rem 0 1.6rem; border-right: none; }
+  .pcard__media { aspect-ratio: 4 / 5; margin-bottom: 1rem; }
+  .pcard__desc { display: none; }
+  .pcard__name { font-size: 1.25rem; }
+  .pcard__foot { margin-top: 0.1rem; }
+
+  /* micro-type legibility floor (~11px) */
+  :root { --text-label: 0.7rem; }
+  .pcard__tag { font-size: 0.68rem; }
+  .pcard__alt-tag { font-size: 0.66rem; }
+
+  /* footer: full-width wordmark, even two-column links, stacked legal */
+  .site-footer__brand { font-size: clamp(3.4rem, 19vw, 5.5rem); width: 100%; }
+  .site-footer__top { flex-direction: column; gap: 2.2rem; }
+  .site-footer__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; width: 100%; }
+  .site-footer__links a { padding: 0.2rem 0; display: inline-block; }
+  .site-footer__bottom { flex-direction: column; align-items: flex-start; gap: 0.4rem; }
+}
+
+/* Page wipe: tighter on touch — every tap pays this toll */
+@media (pointer: coarse) {
+  html.page-reveal::after { animation-duration: 0.38s; }
 }
 
 /* ── 10. Reduced motion — instant, readable, calm ──────────── */

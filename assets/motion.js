@@ -27,6 +27,7 @@
   var doc = document.documentElement;
 
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var coarse = window.matchMedia('(pointer: coarse)').matches;
   var hasGSAP = typeof window.gsap !== 'undefined';
   var hasST = hasGSAP && typeof window.ScrollTrigger !== 'undefined';
 
@@ -38,6 +39,9 @@
   function initLenis() {
     if (reduced || !hasGSAP || typeof window.Lenis === 'undefined') return;
     if (document.body.hasAttribute('data-no-smooth')) return;
+    /* touch scrolling is already native momentum — Lenis would only
+       add a permanent per-frame rAF tax (and lagSmoothing(0) globally) */
+    if (!window.matchMedia('(pointer: fine)').matches) return;
     var lenis = new Lenis({ lerp: 0.11, wheelMultiplier: 1 });
     lenis.on('scroll', function () { if (hasST) ScrollTrigger.update(); });
     gsap.ticker.add(function (t) { lenis.raf(t * 1000); });
@@ -68,11 +72,13 @@
     var el = document.createElement('div');
     el.className = 'loader';
     el.setAttribute('aria-hidden', 'true');
+    /* phones: fewer frames, less data, shorter hold — same choreography */
+    var frames = coarse ? LOADER_IMAGES.slice(0, 4) : LOADER_IMAGES;
     el.innerHTML =
       '<span class="loader__brand">LOOM<span class="slash">/</span></span>' +
       '<div class="loader__frame">' +
-      LOADER_IMAGES.map(function (src, i) {
-        return '<img src="' + src + '" alt="" ' + (i ? 'loading="eager"' : '') + (i === 0 ? ' class="on"' : '') + '>';
+      frames.map(function (src, i) {
+        return '<img src="' + src + '" alt="" decoding="async"' + (i === 0 ? ' class="on"' : '') + '>';
       }).join('') +
       '</div>' +
       '<span class="loader__count">000</span>' +
@@ -97,15 +103,16 @@
         done();
       }
     });
+    var D = coarse ? 1.1 : 1.7; /* count duration — mobile waits less */
     tl.to(count, {
-      v: 100, duration: 1.7, ease: 'power2.inOut',
+      v: 100, duration: D, ease: 'power2.inOut',
       onUpdate: function () {
         countEl.textContent = String(Math.round(count.v)).padStart(3, '0');
       }
     }, 0);
-    tl.to(el.querySelector('.loader__bar'), { scaleX: 1, duration: 1.7, ease: 'power2.inOut' }, 0);
-    tl.to(el.querySelector('.loader__frame'), { opacity: 0, y: -14, duration: 0.3, ease: 'power2.in' }, 1.75);
-    tl.to(el, { yPercent: -100, duration: 0.65, ease: 'expo.inOut' }, 1.95);
+    tl.to(el.querySelector('.loader__bar'), { scaleX: 1, duration: D, ease: 'power2.inOut' }, 0);
+    tl.to(el.querySelector('.loader__frame'), { opacity: 0, y: -14, duration: 0.3, ease: 'power2.in' }, D + 0.05);
+    tl.to(el, { yPercent: -100, duration: 0.65, ease: 'expo.inOut' }, D + 0.25);
   }
 
   /* ── Page transitions: accent curtain wipe (reference-style).
@@ -132,9 +139,10 @@
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
           doc.classList.add('page-reveal');
+          /* theme.css shortens the reveal to 0.38s on coarse pointers */
           setTimeout(function () {
             doc.classList.remove('page-covered', 'page-reveal');
-          }, 700);
+          }, coarse ? 450 : 700);
         });
       });
     }
@@ -161,8 +169,10 @@
       gsap.set(w, { clipPath: 'inset(100% 0% 0% 0%)' });
       state.tween = gsap.to(w, {
         clipPath: 'inset(0% 0% 0% 0%)',
-        duration: 0.5,
-        ease: 'power2.in',
+        /* every tap pays this toll before the request even starts —
+           keep it snappy on touch */
+        duration: coarse ? 0.28 : 0.5,
+        ease: coarse ? 'power1.in' : 'power2.in',
         onComplete: function () {
           if (state.cancelled) return;
           location.href = url.href;
@@ -172,7 +182,7 @@
             state.cancelled = true;
             w.remove();
             try { sessionStorage.removeItem(WIPE_KEY); } catch (err) {}
-          }, 3000);
+          }, coarse ? 1500 : 3000);
         }
       });
       activeWipe = state;
@@ -264,7 +274,18 @@
     group.dataset.staggerBound = '1';
     var kids = Array.prototype.slice.call(group.children);
     if (!kids.length) return;
-    if (hasST && group.getBoundingClientRect().top > window.innerHeight * 0.92) {
+    /* narrow screens collapse grids to one column ~3 viewports tall —
+       one group trigger would run cards long before they are seen;
+       give each row its own entrance instead */
+    if (hasST && window.matchMedia('(max-width: 640px)').matches) {
+      gsap.set(kids, { y: 30, opacity: 0 });
+      ScrollTrigger.batch(kids, {
+        start: 'top 92%', once: true,
+        onEnter: function (batch) {
+          gsap.to(batch, { y: 0, opacity: 1, duration: 0.6, ease: 'expo.out', stagger: 0.07, clearProps: 'transform,opacity' });
+        }
+      });
+    } else if (hasST && group.getBoundingClientRect().top > window.innerHeight * 0.92) {
       gsap.set(kids, { y: 30, opacity: 0 });
       ScrollTrigger.create({
         trigger: group, start: 'top 86%', once: true,
@@ -287,6 +308,7 @@
   /* Catalog cards render after an API fetch — this hook re-scans.
      (products-catalog.js already calls window._initReveal.) */
   window._initReveal = function () {
+    initCardMedia(); /* re-scan API-rendered cards for second photos */
     if (reduced || !hasGSAP) return;
     document.querySelectorAll('[data-stagger]').forEach(function (g) {
       delete g.dataset.staggerBound;
@@ -294,8 +316,22 @@
     document.querySelectorAll('.product-grid').forEach(function (grid) {
       if (grid.dataset.staggerBound) return;
       grid.dataset.staggerBound = '1';
-      gsap.fromTo(grid.children, { y: 26, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.7, ease: 'expo.out', stagger: 0.06, clearProps: 'transform,opacity' });
+      var kids = Array.prototype.slice.call(grid.children);
+      if (!kids.length) return;
+      if (hasST) {
+        /* per-row entrances — animating the whole grid at once plays
+           most cards offscreen (especially in the 1-col mobile layout) */
+        gsap.set(kids, { y: 26, opacity: 0 });
+        ScrollTrigger.batch(kids, {
+          start: 'top 92%', once: true,
+          onEnter: function (batch) {
+            gsap.to(batch, { y: 0, opacity: 1, duration: 0.7, ease: 'expo.out', stagger: 0.06, clearProps: 'transform,opacity' });
+          }
+        });
+      } else {
+        gsap.fromTo(kids, { y: 26, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.7, ease: 'expo.out', stagger: 0.06, clearProps: 'transform,opacity' });
+      }
     });
     if (hasST) ScrollTrigger.refresh();
   };
@@ -318,6 +354,55 @@
       /* constant speed regardless of content length (~90 px/s) */
       var dur = Math.max(14, Math.round(track.scrollWidth / 2 / 90));
       track.style.setProperty('--marquee-dur', dur + 's');
+    });
+    /* don't burn frames while offscreen */
+    if ('IntersectionObserver' in window) {
+      var mio = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          var t = en.target.querySelector('.marquee__track');
+          if (t) t.style.animationPlayState = en.isIntersecting ? 'running' : 'paused';
+        });
+      });
+      document.querySelectorAll('.marquee').forEach(function (m) { mio.observe(m); });
+    }
+  }
+
+  /* ── Product-card second photo ───────────────────────────────
+     Markup ships <img data-src> so the bytes are only spent where
+     they can be seen. Hover-capable: hydrate for the hover swap.
+     Touch: hydrate lazily near the viewport, then crossfade to the
+     on-model shot after a beat (theme.css .swap, hover:none only). */
+  function initCardMedia() {
+    var hoverable = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (hoverable) {
+      document.querySelectorAll('.pcard__media-alt img[data-src]').forEach(function (img) {
+        img.loading = 'lazy'; img.decoding = 'async';
+        img.src = img.dataset.src; img.removeAttribute('data-src');
+      });
+      return;
+    }
+    if (reduced || !('IntersectionObserver' in window)) return;
+    if (!window.__loomSwapIO) {
+      window.__loomSwapIO = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          var media = en.target;
+          if (en.isIntersecting) {
+            var img = media.querySelector('.pcard__media-alt img[data-src]');
+            if (img) { img.decoding = 'async'; img.src = img.dataset.src; img.removeAttribute('data-src'); }
+            media.__swapTimer = setTimeout(function () { media.classList.add('swap'); }, 1600);
+          } else {
+            clearTimeout(media.__swapTimer);
+            media.classList.remove('swap');
+          }
+        });
+      }, { threshold: 0.65 });
+    }
+    document.querySelectorAll('.pcard__media, .product-card__image-container').forEach(function (media) {
+      if (media.dataset.swapBound) return;
+      /* only tiles that actually carry a second photo */
+      if (!media.querySelector('.pcard__media-alt img')) return;
+      media.dataset.swapBound = '1';
+      window.__loomSwapIO.observe(media);
     });
   }
 
@@ -415,6 +500,7 @@
     initMarquees();
     initMagnetic();
     initCursor();
+    initCardMedia();
 
     initTransitions();
 

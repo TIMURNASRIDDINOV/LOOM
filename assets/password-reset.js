@@ -42,7 +42,7 @@
   function phoneStep(err) {
     step(
       '<p class="lr-sub">' + T('reset.phoneHint', 'Введите номер телефона — подтвердите его в Telegram, затем задайте новый пароль.') + '</p>' +
-      '<div class="lr-phone"><span class="lr-cc">+998</span><input id="lr-phone" class="lr-input" inputmode="numeric" placeholder="90 123 45 67" /></div>' +
+      '<div class="lr-phone"><span class="lr-cc">+998</span><input id="lr-phone" class="lr-input" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="90 123 45 67" /></div>' +
       (err ? '<p class="lr-err">' + err + '</p>' : '<p class="lr-err"></p>') +
       '<button id="lr-start" class="lr-btn lr-btn-tg">' + T('auth.viaTelegram', 'Продолжить через Telegram') + '</button>'
     );
@@ -137,14 +137,14 @@
   css.textContent =
     '.lr-overlay{position:fixed;inset:0;z-index:5000;background:rgba(19,19,17,0.45);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:1.25rem}' +
     '.lr-card{width:100%;max-width:380px;background:#fff;border:1px solid rgba(19,19,17,0.16);border-radius:2px;padding:1.75rem;position:relative;font-family:"Inter",-apple-system,sans-serif;color:#131311;box-shadow:0 30px 80px rgba(19,19,17,0.18)}' +
-    '.lr-close{position:absolute;top:0.6rem;right:0.8rem;background:none;border:none;color:rgba(19,19,17,0.38);font-size:1.5rem;cursor:pointer;line-height:1}' +
+    '.lr-close{position:absolute;top:0.2rem;right:0.2rem;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:rgba(19,19,17,0.38);font-size:1.5rem;cursor:pointer;line-height:1;padding:0}' +
     '.lr-close:hover{color:#131311}' +
     '.lr-title{color:#131311;font-size:1.15rem;font-weight:600;margin:0 0 0.4rem}' +
     '.lr-sub{color:rgba(19,19,17,0.55);font-size:0.85rem;line-height:1.5;margin:0 0 1rem}' +
     '.lr-ok{color:#15803d}' +
     '.lr-phone{display:flex;gap:0.5rem;align-items:stretch}' +
     '.lr-cc{display:flex;align-items:center;padding:0 0.75rem;border:1px solid rgba(19,19,17,0.16);border-radius:2px;background:#f4f2ed;color:rgba(19,19,17,0.7);font-size:0.9rem}' +
-    '.lr-input{width:100%;padding:0.7rem 0.9rem;border-radius:2px;border:1px solid rgba(19,19,17,0.16);background:#f4f2ed;color:#131311;font-family:inherit;font-size:0.9rem;outline:none}' +
+    '.lr-input{width:100%;padding:0.7rem 0.9rem;border-radius:2px;border:1px solid rgba(19,19,17,0.16);background:#f4f2ed;color:#131311;font-family:inherit;font-size:1rem;outline:none}' + /* ≥16px: no iOS zoom */
     '.lr-input:focus{border-color:#131311}' +
     '.lr-err{color:#d6382d;font-size:0.78rem;min-height:1em;margin:0.5rem 0}' +
     '.lr-btn{width:100%;padding:0.8rem;border-radius:2px;border:1px solid #131311;background:#131311;color:#fff;font-family:inherit;font-size:0.8rem;font-weight:600;letter-spacing:0.04em;cursor:pointer;margin-top:0.6rem}' +
