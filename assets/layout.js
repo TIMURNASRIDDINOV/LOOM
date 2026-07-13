@@ -28,6 +28,13 @@
       '</button>'
     : '';
 
+  /* light/dark dots — clicks handled by boot.js ([data-theme-set]) */
+  var themeDots =
+    '<div class="theme-dots" role="group" aria-label="Theme">' +
+      '<button class="theme-dot theme-dot--light" data-theme-set="light" aria-label="Light theme"></button>' +
+      '<button class="theme-dot theme-dot--dark" data-theme-set="dark" aria-label="Dark theme"></button>' +
+    '</div>';
+
   var header =
     '<nav class="nav">' +
       '<div class="nav-content">' +
@@ -42,6 +49,7 @@
              the one persistent surface phones have */
           '<a href="configurator.html" class="nav-cta" data-i18n="nav.start">Создать дизайн</a>' +
           cartBtn +
+          themeDots +
           '<div class="lang-switcher-mount"></div>' +
           '<div class="auth-nav-slot"></div>' +
           '<button class="nav-hamburger" id="menuToggle" aria-label="Menu" aria-expanded="false">' +
@@ -67,6 +75,10 @@
         '<a href="configurator.html" class="mobile-menu-link mobile-menu-link--cta" data-i18n="nav.start">Создать дизайн</a>' +
       '</div>' +
       '<div class="mobile-auth-slot"></div>' + /* login state / logout — filled by auth.js */
+      '<div class="mobile-theme">' +
+        '<span class="mobile-theme-label" data-i18n="nav.theme">Тема</span>' +
+        themeDots +
+      '</div>' +
       '<div class="mobile-lang">' +
         '<span class="mobile-lang-label" data-i18n="nav.language">Язык</span>' +
         '<div class="lang-switcher-mount"></div>' +

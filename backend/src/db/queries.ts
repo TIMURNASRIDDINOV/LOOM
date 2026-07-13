@@ -205,6 +205,11 @@ export async function createOrder(
     back_logo_key?: string | null
     // Migration 0010 — interactive 3D review model
     model_key?: string | null
+    // Migration 0011 — payment + structured address
+    payment_method?: string | null
+    address_lat?: number | null
+    address_lng?: number | null
+    address_details?: string | null
   },
 ): Promise<number> {
   return safeQuery('createOrder', async () => {
@@ -214,8 +219,9 @@ export async function createOrder(
         `INSERT INTO orders
            (user_id, product_id, customer_name, customer_phone, address, coordinates,
             comment, design_json, logo_key, total_price, status, created_at, updated_at,
-            front_print_key, back_print_key, front_mockup_key, back_mockup_key, back_logo_key, model_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)`,
+            front_print_key, back_print_key, front_mockup_key, back_mockup_key, back_logo_key, model_key,
+            payment_method, address_lat, address_lng, address_details)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         params.user_id,
@@ -236,9 +242,32 @@ export async function createOrder(
         params.back_mockup_key ?? null,
         params.back_logo_key ?? null,
         params.model_key ?? null,
+        params.payment_method ?? 'cod',
+        params.address_lat ?? null,
+        params.address_lng ?? null,
+        params.address_details ?? null,
       )
       .run()
     return Number(result.meta.last_row_id)
+  })
+}
+
+// Migration 0011 — flip payment state independently of fulfillment status.
+// Called by payment-provider webhooks (see routes/payments.ts).
+export async function setOrderPaymentStatus(
+  db: D1Database,
+  orderId: number,
+  status: 'unpaid' | 'pending' | 'paid' | 'refunded' | 'failed',
+  providerRef?: string | null,
+): Promise<void> {
+  return safeQuery('setOrderPaymentStatus', async () => {
+    await db
+      .prepare(
+        `UPDATE orders SET payment_status = ?, payment_provider_ref = COALESCE(?, payment_provider_ref),
+           paid_at = CASE WHEN ? = 'paid' THEN ? ELSE paid_at END, updated_at = ? WHERE id = ?`,
+      )
+      .bind(status, providerRef ?? null, status, Date.now(), Date.now(), orderId)
+      .run()
   })
 }
 

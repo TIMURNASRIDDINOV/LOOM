@@ -119,7 +119,7 @@
     // natural tap zone, not just the image tile
     card.style.cursor = 'pointer'
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.customize-btn')) return // the button navigates itself
+      if (e.target.closest('.customize-btn, .quick-sizes')) return // buttons handle themselves
       window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
     })
 
@@ -150,10 +150,62 @@
     })
 
     actions.appendChild(btn)
+
+    // ── Quick add-to-bag: plain garment, size chosen inline ────────
+    // (custom designs go through the configurator; this is the
+    // "just give me the tee" path, reference-style)
+    const bagBtn = document.createElement('button')
+    bagBtn.className = 'customize-btn bag-btn'
+    bagBtn.type = 'button'
+    bagBtn.textContent = T('cfg.addToCart', 'В корзину')
+    bagBtn.setAttribute('aria-expanded', 'false')
+
+    const sizeRow = document.createElement('div')
+    sizeRow.className = 'quick-sizes'
+    sizeRow.setAttribute('role', 'group')
+    sizeRow.setAttribute('aria-label', T('cart.size', 'Размер'))
+    ;['XS', 'S', 'M', 'L', 'XL', 'XXL'].forEach(sz => {
+      const b = document.createElement('button')
+      b.className = 'quick-size-btn'
+      b.type = 'button'
+      b.textContent = sz
+      b.addEventListener('click', async () => {
+        if (!window.LOOM_CART) return
+        try {
+          if (window.LOOM_LOGIN_MODAL) await window.LOOM_LOGIN_MODAL.requireAuth()
+        } catch (e) { return } // login cancelled
+        b.disabled = true
+        try {
+          await window.LOOM_CART.add({
+            productId: product.id,
+            designJson: JSON.stringify({ plain: true, shirtColor: '#FFFFFF', size: sz }),
+            unitPrice: product.price,
+            quantity: 1,
+          })
+          window.LOOM_CART.toast(T('cart.added', 'Добавлено в корзину') + ' · ' + sz)
+          sizeRow.classList.remove('open')
+          bagBtn.setAttribute('aria-expanded', 'false')
+        } catch (err) {
+          window.LOOM_CART.toast(err.message || T('cfg.toastAddError', 'Ошибка добавления'), 'error')
+        } finally {
+          b.disabled = false
+        }
+      })
+      sizeRow.appendChild(b)
+    })
+
+    bagBtn.addEventListener('click', () => {
+      const open = !sizeRow.classList.contains('open')
+      sizeRow.classList.toggle('open', open)
+      bagBtn.setAttribute('aria-expanded', String(open))
+    })
+
+    actions.appendChild(bagBtn)
     content.appendChild(title)
     content.appendChild(desc)
     content.appendChild(priceDiv)
     content.appendChild(actions)
+    content.appendChild(sizeRow)
     card.appendChild(imageContainer)
     card.appendChild(content)
 

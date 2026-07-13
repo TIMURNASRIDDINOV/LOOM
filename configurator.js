@@ -188,9 +188,118 @@ document.addEventListener("DOMContentLoaded", async function () {
   // Auth nav
   if (window.LOOM_AUTH) window.LOOM_AUTH.renderAuthNav();
 
+  // Editing a bag item? Resolve its product slug BEFORE the product load,
+  // then re-apply the saved design once textures are ready.
+  const editItem = await prepareCartEdit();
+
   // Load product from ?slug= param, then load its GLB (or fallback)
   await loadProductFromSlug();
+
+  if (editItem) applyCartEditDesign(editItem);
 });
+
+// ── Edit-from-cart (configurator.html?item=ID) ──────────────────
+// Fetches the caller's cart item, points ?slug at its product, and later
+// rehydrates designState (text layers + logo pixels via the ownership-checked
+// /api/cart/:id/file/* routes).
+async function prepareCartEdit() {
+  const qs = new URLSearchParams(location.search);
+  const id = parseInt(qs.get("item") || "", 10);
+  if (!id) return null;
+  try {
+    const res = await fetch(getApiBase() + "/api/cart/" + id, { headers: _authHeaders(false), credentials: "include" });
+    if (!res.ok) return null;
+    const item = await res.json();
+    window.__loomEditingCartItem = item.id;
+    // resolve slug so loadProductFromSlug pulls the right GLB + price
+    if (item.product_id && !qs.get("slug")) {
+      try {
+        const pr = await fetch(getApiBase() + "/api/products");
+        if (pr.ok) {
+          const products = await pr.json();
+          const p = (products || []).find((x) => x.id === item.product_id);
+          if (p && p.slug) {
+            const url = new URL(location.href);
+            url.searchParams.set("slug", p.slug);
+            history.replaceState(null, "", url.toString());
+          }
+        }
+      } catch (e) { /* default model is an acceptable fallback */ }
+    }
+    return item;
+  } catch (e) { return null; }
+}
+
+async function applyCartEditDesign(item) {
+  let d = {};
+  try { d = JSON.parse(item.design_json || "{}"); } catch (e) { return; }
+
+  if (d.shirtColor) selectShirtColor(d.shirtColor, null);
+  if (d.size) {
+    selectedSize = d.size;
+    document.querySelectorAll(".size-btn").forEach((b) =>
+      b.classList.toggle("active", b.dataset.size === d.size));
+  }
+
+  for (const view of ["front", "back"]) {
+    const srcL = d[view];
+    if (!srcL) continue;
+    const dst = designState[view];
+    if (srcL.text && srcL.text.content) {
+      Object.assign(dst.text, {
+        content: srcL.text.content,
+        font: srcL.text.font || dst.text.font,
+        size: srcL.text.size || dst.text.size,
+        color: srcL.text.color || dst.text.color,
+        bold: !!srcL.text.bold,
+        italic: !!srcL.text.italic,
+        x: srcL.text.x != null ? srcL.text.x : dst.text.x,
+        y: srcL.text.y != null ? srcL.text.y : dst.text.y,
+        rotation: srcL.text.rotation || 0,
+      });
+    }
+    if (srcL.image && srcL.image.name) {
+      const field = view === "front" ? "logo" : "back-logo";
+      try {
+        const fr = await fetch(getApiBase() + "/api/cart/" + item.id + "/file/" + field, {
+          headers: _authHeaders(false), credentials: "include",
+        });
+        if (fr.ok) {
+          const blob = await fr.blob();
+          const dataUrl = await new Promise((resolve) => {
+            const R = new FileReader();
+            R.onload = () => resolve(R.result);
+            R.readAsDataURL(blob);
+          });
+          await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => { dst.image.img = img; resolve(); };
+            img.onerror = resolve;
+            img.src = dataUrl;
+          });
+          dst.image.name = srcL.image.name;
+          dst.image.scalePct = srcL.image.scalePct || 100;
+          dst.image.x = srcL.image.x != null ? srcL.image.x : dst.image.x;
+          dst.image.y = srcL.image.y != null ? srcL.image.y : dst.image.y;
+          dst.image.rotation = srcL.image.rotation || 0;
+          uploadedFileData[view] = { base64: dataUrl, name: srcL.image.name, type: blob.type, size: blob.size };
+        }
+      } catch (e) { /* logo fetch failed — text still rehydrates */ }
+    }
+  }
+
+  // reflect the active view's text in the panel controls
+  const t = designState[designState.activeView].text;
+  const textIn = document.getElementById("text-content-input");
+  if (textIn) textIn.value = t.content;
+  const imgCtrl = document.getElementById("image-controls");
+  if (imgCtrl && designState[designState.activeView].image.img) imgCtrl.style.display = "flex";
+
+  drawTexture("front");
+  drawTexture("back");
+  if (typeof applyActiveTexture === "function") applyActiveTexture();
+  showToast(CT("cfg.editingFromCart", "Редактируем товар из корзины — сохранится при добавлении"));
+}
 
 // ================================================================
 // SECTION 5 — THREE.JS SETUP
@@ -1855,7 +1964,8 @@ function bindLayerSwitch() {
 // ================================================================
 // SECTION 10b — CART (Phase 2: account-bound cart + multi-item checkout)
 // ================================================================
-let cartState = { items: [], total: 0 };
+// Cart state/UI live in the shared module (assets/cart.js → window.LOOM_CART).
+// This file only BUILDS payloads (design json, proofs) and hands them over.
 
 function _esc(s) {
   return String(s == null ? "" : s)
@@ -1867,28 +1977,6 @@ function _authHeaders(json) {
   const token = window.LOOM_AUTH && window.LOOM_AUTH.getToken && window.LOOM_AUTH.getToken();
   if (token) h["Authorization"] = "Bearer " + token;
   return h;
-}
-function updateCartCount() {
-  const n = (cartState.items || []).reduce((s, i) => s + (i.quantity || 1), 0);
-  const el = document.getElementById("cartCount");
-  if (el) { el.textContent = n; el.classList.toggle("show", n > 0); }
-}
-async function loadCart() {
-  try {
-    const res = await fetch(getApiBase() + "/api/cart", { headers: _authHeaders(false), credentials: "include" });
-    cartState = res.ok ? await res.json() : { items: [], total: 0 };
-  } catch { cartState = { items: [], total: 0 }; }
-  updateCartCount();
-  return cartState;
-}
-function _summarizeDesign(designJson) {
-  let d = {};
-  try { d = JSON.parse(designJson || "{}"); } catch { d = {}; }
-  const color = d.shirtColor ? getColorName(d.shirtColor) : "";
-  const size = d.size || "";
-  const text = (d.front && d.front.text && d.front.text.content) || d.text || "";
-  const hasLogo = !!(d.front && d.front.image && d.front.image.name);
-  return { color, size, text, hasLogo };
 }
 function _buildDesignJson() {
   const front = designState.front, back = designState.back;
@@ -2031,7 +2119,8 @@ async function captureProofs() {
     frontMockupData: mockData.front, backMockupData: mockData.back,
   };
 }
-async function addToCart() {
+async function addToCart(opts) {
+  opts = opts || {}; // { openDrawer=true } — buyNow() passes false and navigates itself
   // Account-bound cart → require login first
   let user = null;
   try {
@@ -2057,11 +2146,8 @@ async function addToCart() {
     const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
     const proofs = await captureProofs();
     const designJson = _buildDesignJson();
-    const res = await fetch(getApiBase() + "/api/cart", {
-      method: "POST",
-      headers: _authHeaders(true),
-      credentials: "include",
-      body: JSON.stringify({
+    try {
+      await window.LOOM_CART.add({
         productId: currentProduct ? currentProduct.id : null,
         designJson,
         logoKey,
@@ -2073,122 +2159,45 @@ async function addToCart() {
         modelKey: proofs.modelKey,
         unitPrice: currentProduct ? currentProduct.price : 150000,
         quantity: 1,
-      }),
-    });
-    if (res.status === 401) { showToast(CT("cfg.toastLoginCart", "Войдите, чтобы добавить в корзину"), "error"); return; }
-    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.error || CT("cfg.toastAddError", "Ошибка добавления"), "error"); return; }
-    cartState = await res.json();
-    updateCartCount();
-    renderCart();
-    showToast(CT("cfg.toastAddedCart", "Добавлено в корзину"));
-    openCartDrawer();
+      });
+    } catch (err) {
+      if (err && err.status === 401) showToast(CT("cfg.toastLoginCart", "Войдите, чтобы добавить в корзину"), "error");
+      else showToast(err.message || CT("cfg.toastAddError", "Ошибка добавления"), "error");
+      return false;
+    }
+    // Editing a bag item? The new row replaced it — drop the old one.
+    if (window.__loomEditingCartItem) {
+      await window.LOOM_CART.remove(window.__loomEditingCartItem);
+      window.__loomEditingCartItem = null;
+      try {
+        const url = new URL(location.href);
+        url.searchParams.delete("item");
+        history.replaceState(null, "", url.toString());
+      } catch (e) { /* cosmetic */ }
+      showToast(CT("cfg.toastCartUpdated", "Корзина обновлена"));
+    } else {
+      showToast(CT("cfg.toastAddedCart", "Добавлено в корзину"));
+    }
+    if (opts.openDrawer !== false) window.LOOM_CART.open();
+    return true;
   } catch (e) {
     showToast("Ошибка сети", "error");
+    return false;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
     if (orderBtn) orderBtn.disabled = false;
   }
 }
-async function removeFromCart(id) {
-  try {
-    const res = await fetch(getApiBase() + "/api/cart/" + encodeURIComponent(id), {
-      method: "DELETE", headers: _authHeaders(false), credentials: "include",
-    });
-    if (res.ok) cartState = await res.json();
-  } catch (e) { /* ignore */ }
-  updateCartCount();
-  renderCart();
+
+// "Купить сейчас" — Amazon-style buy-now: add the live design to the bag,
+// then jump straight to checkout (skipping the drawer).
+async function buyNow() {
+  const ok = await addToCart({ openDrawer: false });
+  if (ok) location.href = "checkout.html";
 }
-function renderCart() {
-  const body = document.getElementById("cartBody");
-  const foot = document.getElementById("cartFoot");
-  const totalEl = document.getElementById("cartTotal");
-  if (!body) return;
-  const items = cartState.items || [];
-  const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n);
-  if (!items.length) {
-    body.innerHTML = '<p class="cart-empty">' + _esc(CT("cfg.cartEmpty", "Корзина пуста")) + '</p>';
-    if (foot) foot.style.display = "none";
-    return;
-  }
-  const cur = CT("cfg.currency", "сум");
-  body.innerHTML = items.map((it) => {
-    const s = _summarizeDesign(it.design_json);
-    const meta = [s.color, s.size, s.text ? "«" + _esc(s.text) + "»" : "", s.hasLogo ? CT("cfg.layerLogo", "Логотип") : "", (it.quantity > 1 ? "×" + it.quantity : "")].filter(Boolean).join(" · ");
-    return `
-      <div class="cart-item">
-        <div class="cart-item-thumb" style="display:flex;align-items:center;justify-content:center;color:rgba(19,19,17,0.35)">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
-        </div>
-        <div class="cart-item-info">
-          <span class="cart-item-name">${_esc(it.product_name || "Футболка")}</span>
-          <span class="cart-item-meta">${meta}</span>
-          <span class="cart-item-price">${fmt(it.unit_price * (it.quantity || 1))} ${cur}</span>
-        </div>
-        <button class="cart-item-remove" data-id="${it.id}" aria-label="Удалить">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-      </div>`;
-  }).join("");
-  body.querySelectorAll(".cart-item-remove").forEach((b) =>
-    b.addEventListener("click", () => removeFromCart(b.dataset.id)));
-  if (totalEl) totalEl.textContent = fmt(cartState.total || 0);
-  if (foot) foot.style.display = "flex";
-}
-let _cartScrollY = 0;
-function openCartDrawer() {
-  const drawer = document.getElementById("cartDrawer");
-  if (!drawer || drawer.classList.contains("active")) return;
-  drawer.classList.add("active");
-  document.getElementById("cartBackdrop")?.classList.add("active");
-  document.body.classList.add("menu-open");
-  // iOS ignores overflow:hidden for touch scroll — fix the body instead
-  _cartScrollY = window.scrollY || 0;
-  document.body.style.position = "fixed";
-  document.body.style.top = -_cartScrollY + "px";
-  document.body.style.left = "0";
-  document.body.style.right = "0";
-  document.body.style.width = "100%";
-  // Android back button closes the full-screen bag instead of leaving the site
-  try { history.pushState({ loomBag: 1 }, ""); } catch (e) {}
-}
-async function openCart() {
-  await loadCart();
-  renderCart();
-  openCartDrawer();
-}
-function closeCart(fromPopstate) {
-  const drawer = document.getElementById("cartDrawer");
-  if (!drawer || !drawer.classList.contains("active")) return;
-  drawer.classList.remove("active");
-  document.getElementById("cartBackdrop")?.classList.remove("active");
-  document.body.classList.remove("menu-open");
-  document.body.style.position = "";
-  document.body.style.top = "";
-  document.body.style.left = "";
-  document.body.style.right = "";
-  document.body.style.width = "";
-  window.scrollTo(0, _cartScrollY);
-  // consume the history entry pushed on open (unless Back triggered us)
-  if (!fromPopstate && history.state && history.state.loomBag) {
-    try { history.back(); } catch (e) {}
-  }
-}
-window.addEventListener("popstate", () => {
-  const drawer = document.getElementById("cartDrawer");
-  if (drawer && drawer.classList.contains("active")) closeCart(true);
-});
 function bindCart() {
-  document.getElementById("navCartBtn")?.addEventListener("click", openCart);
-  document.getElementById("cartClose")?.addEventListener("click", closeCart);
-  document.getElementById("cartBackdrop")?.addEventListener("click", closeCart);
-  document.getElementById("btn-add-to-cart")?.addEventListener("click", addToCart);
-  document.getElementById("cartCheckoutBtn")?.addEventListener("click", () => {
-    if (!cartState.items || !cartState.items.length) { showToast("Корзина пуста"); return; }
-    closeCart();
-    openOrderModal(true); // open checkout in cart mode
-  });
-  loadCart();
+  // drawer, badge, checkout handoff → assets/cart.js; we only own "add"
+  document.getElementById("btn-add-to-cart")?.addEventListener("click", () => addToCart());
 }
 
 // ----------------------------------------------------------------
@@ -2591,7 +2600,7 @@ function bindSummaryTab() {
   const btnOrder = document.getElementById("btn-place-order");
 
   if (btnReset) btnReset.addEventListener("click", resetDesign);
-  if (btnOrder) btnOrder.addEventListener("click", () => openOrderModal(false));
+  if (btnOrder) btnOrder.addEventListener("click", buyNow);
 }
 
 /**
@@ -2978,7 +2987,7 @@ function bindOrderModal() {
   // Trigger from Summary tab's "Заказать" button (already wired in bindSummaryTab)
   // Also keep legacy order-btn if it exists anywhere
   const legacyBtn = document.getElementById("order-btn");
-  if (legacyBtn) legacyBtn.addEventListener("click", () => openOrderModal(false));
+  if (legacyBtn) legacyBtn.addEventListener("click", buyNow);
 
   const close = document.getElementById("modalClose");
   const backdrop = document.getElementById("modalBackdrop");
@@ -3396,15 +3405,15 @@ function showToast(message, type = "success") {
 
   const toast = document.createElement("div");
   toast.id = "loom-toast";
-  const bg = type === "success" ? "#10b981" : "#ef4444";
+  const bg = type === "success" ? "var(--ok)" : "var(--danger)";
 
   toast.style.cssText = `
     position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
     transform:translateX(-50%) translateY(20px);
     width:max-content; max-width:calc(100vw - 32px); text-align:center;
-    background:${bg}; color:#fff; padding:14px 24px; border-radius:12px;
-    font-family:'Inter',-apple-system,sans-serif; font-size:.95rem; font-weight:500;
-    box-shadow:0 8px 30px rgba(0,0,0,.2); display:flex; align-items:center; gap:10px;
+    background:${bg}; color:var(--on-accent); padding:14px 24px; border-radius:12px;
+    font-family:var(--font-body); font-size:.95rem; font-weight:500;
+    box-shadow:var(--menu-shadow); display:flex; align-items:center; gap:10px;
     z-index:10001; opacity:0; transition:opacity .3s ease,transform .3s ease;
     pointer-events:none;
   `;

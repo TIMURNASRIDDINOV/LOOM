@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4f2ed" />
+  <title>LOOM — Оформление заказа</title>
+  <meta name="robots" content="noindex" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Design system -->
+  <link rel="stylesheet" href="assets/theme.css?v=8" />
+  <link rel="stylesheet" href="assets/nav.css?v=4" />
+  <link rel="stylesheet" href="assets/auth.css?v=5" />
+  <link rel="stylesheet" href="assets/login-modal.css?v=4" />
+  <!-- Leaflet (address map) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="assets/boot.js?v=6"></script>
+
+  <style>
+    /* ============================================================
+       CHECKOUT — serious, corporate-grade flow on theme.css tokens
+    ============================================================ */
+    .co-wrap {
+      max-width: var(--max-w); margin: 0 auto;
+      padding: calc(var(--nav-h) + clamp(2rem, 5vw, 3.5rem)) var(--gutter) var(--sect-y);
+    }
+    .co-title { margin-bottom: clamp(1.6rem, 4vw, 2.6rem); }
+    .co-grid {
+      display: grid; grid-template-columns: minmax(0, 1fr) 400px;
+      gap: clamp(1.5rem, 4vw, 3.5rem); align-items: start;
+    }
+    @media (max-width: 960px) { .co-grid { grid-template-columns: 1fr; } }
+
+    /* numbered sections */
+    .co-section { border-top: 1px solid var(--line); padding: 1.4rem 0 1.8rem; }
+    .co-section-head { display: flex; align-items: baseline; gap: 0.8rem; margin-bottom: 1.1rem; }
+    .co-step {
+      font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.2em;
+      color: var(--accent-deep);
+    }
+    .co-section-title {
+      font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em;
+    }
+    .co-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+    @media (max-width: 560px) { .co-row { grid-template-columns: 1fr; } }
+    .co-field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.9rem; }
+    .co-err { font-size: 0.74rem; color: var(--danger); min-height: 1em; }
+
+    .co-verified {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.74rem; color: var(--ok); font-weight: 500;
+    }
+    .co-warn {
+      display: flex; gap: 0.6rem; align-items: flex-start;
+      padding: 0.75rem 0.9rem; border-radius: var(--radius);
+      background: var(--warn-tint); border: 1px solid var(--warn);
+      color: var(--ink-70); font-size: 0.82rem; margin-top: 0.5rem;
+    }
+
+    /* saved address chips */
+    .co-saved { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.9rem; }
+    .co-saved-chip {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.55rem 0.9rem; border-radius: var(--radius);
+      border: 1px solid var(--line); background: var(--field-bg); color: var(--ink-70);
+      font-family: var(--font-body); font-size: 0.8rem; cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease;
+      max-width: 100%;
+    }
+    .co-saved-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .co-saved-chip:hover, .co-saved-chip.active { border-color: var(--accent); color: var(--ink); }
+    .co-saved-chip svg { flex-shrink: 0; color: var(--accent-deep); }
+
+    .co-details { margin-top: 0.9rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; }
+    @media (max-width: 560px) { .co-details { grid-template-columns: repeat(2, 1fr); } }
+
+    /* payment tiles */
+    .co-pay { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    @media (max-width: 560px) { .co-pay { grid-template-columns: 1fr; } }
+    .co-pay-tile {
+      position: relative; display: flex; align-items: center; gap: 0.8rem;
+      padding: 0.95rem 1rem; border-radius: var(--radius);
+      border: 1px solid var(--line); background: var(--field-bg);
+      cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .co-pay-tile input { position: absolute; opacity: 0; pointer-events: none; }
+    .co-pay-tile.active { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+    .co-pay-tile.disabled { opacity: 0.55; cursor: not-allowed; }
+    .co-pay-name { font-size: 0.9rem; font-weight: 600; color: var(--ink); display: block; }
+    .co-pay-hint { font-size: 0.74rem; color: var(--ink-55); }
+    .co-pay-mark {
+      width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+      border: 1.5px solid var(--ink-38); display: inline-flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s ease;
+    }
+    .co-pay-tile.active .co-pay-mark { border-color: var(--accent); }
+    .co-pay-tile.active .co-pay-mark::after {
+      content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+    }
+    .co-soon {
+      margin-left: auto; font-family: var(--font-mono); font-size: 0.6rem;
+      letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-38);
+      border: 1px solid var(--line); border-radius: 99px; padding: 0.2rem 0.55rem;
+    }
+
+    /* summary card (sticky on desktop) */
+    .co-summary {
+      position: sticky; top: calc(var(--nav-h) + 1.25rem);
+      border: 1px solid var(--line); border-radius: var(--radius);
+      background: var(--paper-3); padding: 1.4rem;
+    }
+    .co-summary-title {
+      font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;
+    }
+    .co-items { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+    .co-item { display: flex; gap: 0.8rem; padding: 0.7rem 0; border-bottom: 1px solid var(--line-soft); }
+    .co-item:last-child { border-bottom: none; }
+    .co-item-thumb {
+      width: 56px; height: 56px; border: 1px solid var(--line-soft); background: var(--media-bg);
+      flex-shrink: 0; position: relative; overflow: hidden; border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center; color: var(--ink-38);
+    }
+    .co-item-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .co-item-info { flex: 1; min-width: 0; }
+    .co-item-name { font-size: 0.86rem; font-weight: 600; color: var(--ink); display: block; }
+    .co-item-meta { font-family: var(--font-mono); font-size: 0.68rem; color: var(--ink-55); display: block; margin-top: 0.15rem; }
+    .co-item-price { font-family: var(--font-mono); font-size: 0.8rem; color: var(--ink-70); white-space: nowrap; }
+    .co-totals { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 0.9rem; display: flex; flex-direction: column; gap: 0.45rem; }
+    .co-line { display: flex; justify-content: space-between; font-size: 0.86rem; color: var(--ink-70); }
+    .co-line.total { font-size: 1.02rem; font-weight: 700; color: var(--ink); padding-top: 0.4rem; }
+    .co-line.total .co-line-val { font-family: var(--font-mono); }
+    .co-free { color: var(--ok); font-weight: 600; }
+    .co-place {
+      width: 100%; margin-top: 1.1rem; padding: 1rem 1.25rem;
+      background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
+      border-radius: var(--radius); font-family: var(--font-body); font-size: 0.82rem;
+      font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      transition: background 0.25s ease, border-color 0.25s ease;
+    }
+    .co-place:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .co-place:disabled { opacity: 0.55; cursor: not-allowed; }
+    .co-terms { font-size: 0.7rem; color: var(--ink-38); text-align: center; margin-top: 0.7rem; line-height: 1.5; }
+    .co-banner {
+      display: none; padding: 0.8rem 1rem; border-radius: var(--radius);
+      background: var(--danger-tint); border: 1px solid var(--danger); color: var(--ink);
+      font-size: 0.84rem; margin-bottom: 1rem;
+    }
+    .co-banner.show { display: block; }
+
+    /* empty + success states */
+    .co-state { text-align: center; padding: clamp(3rem, 10vw, 6rem) 0; }
+    .co-state-title {
+      font-family: var(--font-display); font-size: clamp(2rem, 6vw, 3.6rem);
+      font-weight: 800; letter-spacing: -0.03em; margin-bottom: 1rem;
+    }
+    .co-state-title .slash { color: var(--accent); }
+    .co-state-text { color: var(--ink-55); max-width: 44ch; margin: 0 auto 1.8rem; }
+    .co-state-num {
+      font-family: var(--font-mono); font-size: 1rem; color: var(--accent-deep);
+      display: block; margin-bottom: 1.2rem; letter-spacing: 0.1em;
+    }
+    .co-state-actions { display: flex; gap: 0.8rem; justify-content: center; flex-wrap: wrap; }
+
+    .spinner { animation: co-spin 0.8s linear infinite; }
+    @keyframes co-spin { to { transform: rotate(360deg); } }
+
+    /* phones: form first, summary card right after (no sticky) */
+    @media (max-width: 960px) {
+      .co-summary { position: static; }
+      .co-place { padding: 1.1rem 1.25rem; }
+    }
+  </style>
+</head>
+<body data-page="checkout" data-cart data-no-smooth>
+  <!-- Header + footer injected by assets/layout.js -->
+
+  <main class="co-wrap">
+    <h1 class="co-title h2"><span data-i18n="co.title">Оформление заказа</span><span class="slash">/</span></h1>
+
+    <div id="co-root">
+      <!-- checkout.js renders: form grid | empty state | success state -->
+      <div class="co-grid" id="co-grid" style="display:none">
+        <div class="co-main">
+          <div class="co-banner" id="co-banner" role="alert"></div>
+
+          <!-- 01 · contact -->
+          <section class="co-section">
+            <div class="co-section-head">
+              <span class="co-step">01</span>
+              <h2 class="co-section-title" data-i18n="co.contact">Контактные данные</h2>
+            </div>
+            <div class="co-row">
+              <div class="co-field">
+                <label class="f-label" for="co-name"><span data-i18n="co.name">Имя</span> <span style="color:var(--danger)">*</span></label>
+                <input class="f-input" id="co-name" autocomplete="given-name" />
+                <span class="co-err" id="co-name-err"></span>
+              </div>
+              <div class="co-field">
+                <label class="f-label" for="co-surname" data-i18n="co.surname">Фамилия</label>
+                <input class="f-input" id="co-surname" autocomplete="family-name" />
+              </div>
+            </div>
+            <div class="co-field">
+              <label class="f-label" for="co-phone">
+                <span data-i18n="co.phone">Номер телефона</span> <span style="color:var(--danger)">*</span>
+                <span class="co-verified" id="co-phone-badge" style="display:none">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                  <span data-i18n="co.phoneOk">Подтверждён</span>
+                </span>
+              </label>
+              <input class="f-input" id="co-phone" inputmode="tel" autocomplete="tel" placeholder="+998 90 123-45-67" style="max-width:280px" />
+              <span class="co-err" id="co-phone-err"></span>
+              <div class="co-warn" id="co-phone-warn" style="display:none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span data-i18n="co.phoneWarn">Для заказа подтвердите номер через Telegram</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 02 · delivery -->
+          <section class="co-section">
+            <div class="co-section-head">
+              <span class="co-step">02</span>
+              <h2 class="co-section-title" data-i18n="co.delivery">Доставка</h2>
+            </div>
+            <div class="co-saved" id="co-saved" style="display:none"></div>
+            <div id="co-address"></div>
+            <span class="co-err" id="co-addr-err"></span>
+            <div class="co-details">
+              <div class="co-field" style="margin:0">
+                <label class="f-label" for="co-entrance" data-i18n="co.entrance">Подъезд</label>
+                <input class="f-input" id="co-entrance" inputmode="numeric" />
+              </div>
+              <div class="co-field" style="margin:0">
+                <label class="f-label" for="co-apartment" data-i18n="co.apartment">Квартира</label>
+                <input class="f-input" id="co-apartment" />
+              </div>
+              <div class="co-field" style="margin:0">
+                <label class="f-label" for="co-floor" data-i18n="co.floor">Этаж</label>
+                <input class="f-input" id="co-floor" inputmode="numeric" />
+              </div>
+              <div class="co-field" style="margin:0">
+                <label class="f-label" for="co-intercom" data-i18n="co.intercom">Домофон</label>
+                <input class="f-input" id="co-intercom" />
+              </div>
+            </div>
+            <div class="co-field" style="margin-top:0.9rem">
+              <label class="f-label" for="co-courier"><span data-i18n="co.courierNote">Комментарий курьеру</span> · <span data-i18n="co.optional">необязательно</span></label>
+              <input class="f-input" id="co-courier" maxlength="200" />
+            </div>
+          </section>
+
+          <!-- 03 · payment -->
+          <section class="co-section">
+            <div class="co-section-head">
+              <span class="co-step">03</span>
+              <h2 class="co-section-title" data-i18n="co.payment">Способ оплаты</h2>
+            </div>
+            <div class="co-pay" id="co-pay"></div>
+          </section>
+
+          <!-- 04 · comment -->
+          <section class="co-section">
+            <div class="co-section-head">
+              <span class="co-step">04</span>
+              <h2 class="co-section-title"><span data-i18n="co.orderComment">Комментарий к заказу</span> <span style="font-size:0.8rem;font-weight:400;color:var(--ink-38)">· <span data-i18n="co.optional">необязательно</span></span></h2>
+            </div>
+            <textarea class="f-input" id="co-comment" rows="3" maxlength="500" style="resize:vertical"></textarea>
+          </section>
+        </div>
+
+        <!-- summary -->
+        <aside class="co-summary">
+          <h2 class="co-summary-title"><span data-i18n="co.summary">Ваш заказ</span></h2>
+          <div class="co-items" id="co-items"></div>
+          <div class="co-totals">
+            <div class="co-line"><span data-i18n="co.subtotal">Товары</span><span class="co-line-val" id="co-subtotal">—</span></div>
+            <div class="co-line"><span data-i18n="co.deliveryFee">Доставка</span><span class="co-free" data-i18n="co.free">Бесплатно</span></div>
+            <div class="co-line total"><span data-i18n="co.total">Итого</span><span class="co-line-val" id="co-total">—</span></div>
+          </div>
+          <button class="co-place" id="co-place" type="button">
+            <span data-i18n="co.place">Оформить заказ</span>
+          </button>
+          <p class="co-terms" data-i18n="co.terms">Оформляя заказ, вы соглашаетесь с условиями доставки</p>
+        </aside>
+      </div>
+
+      <!-- empty bag -->
+      <div class="co-state" id="co-empty" style="display:none">
+        <h2 class="co-state-title"><span data-i18n="co.empty">Корзина пуста</span><span class="slash">/</span></h2>
+        <div class="co-state-actions">
+          <a class="btn btn--solid" href="catalog.html" data-i18n="co.emptyCta">Перейти в каталог</a>
+        </div>
+      </div>
+
+      <!-- success -->
+      <div class="co-state" id="co-success" style="display:none">
+        <h2 class="co-state-title"><span data-i18n="co.successTitle">Заказ принят!</span><span class="slash">/</span></h2>
+        <span class="co-state-num" id="co-success-num"></span>
+        <p class="co-state-text" data-i18n="co.successText">Мы скоро свяжемся с вами. Статус можно отслеживать в личном кабинете.</p>
+        <div class="co-state-actions">
+          <a class="btn btn--solid" href="account.html" data-i18n="co.toAccount">Личный кабинет</a>
+          <a class="btn btn--outline" href="catalog.html" data-i18n="co.toCatalog">Вернуться в каталог</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <script src="assets/config.js?v=2"></script>
+  <script src="assets/layout.js?v=3"></script>
+  <script src="assets/i18n.js?v=9"></script>
+  <script src="assets/auth.js?v=3"></script>
+  <script src="assets/nav.js?v=2"></script>
+  <script src="assets/motion.js?v=8"></script>
+  <script src="assets/track.js"></script>
+  <script src="assets/login-modal.js?v=2"></script>
+  <script src="assets/cart.js?v=1"></script>
+  <script src="assets/address-picker.js?v=1"></script>
+  <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
+  <script src="assets/checkout.js?v=1"></script>
+</body>
+</html>

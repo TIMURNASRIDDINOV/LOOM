@@ -55,7 +55,7 @@
   background: var(--paper-3, #fff); border: 1px solid var(--line, rgba(19,19,17,0.16));
   border-radius: var(--radius, 2px); padding: 0.35rem 0;
   min-width: 180px; z-index: 9999;
-  box-shadow: 0 14px 40px rgba(19, 19, 17, 0.14);
+  box-shadow: var(--menu-shadow, 0 14px 40px rgba(19, 19, 17, 0.14));
 }
 .auth-dropdown-menu.open { display: block; }
 
@@ -212,8 +212,8 @@
   font-size: 0.82rem; text-align: center;
   display: none;
 }
-.auth-banner.error { background: rgba(214, 58, 47, 0.08); color: #b3271e; border: 1px solid rgba(214, 58, 47, 0.3); display: block; }
-.auth-banner.success { background: rgba(22, 133, 62, 0.08); color: #15803d; border: 1px solid rgba(22, 133, 62, 0.3); display: block; }
+.auth-banner.error { background: var(--danger-tint, rgba(214, 58, 47, 0.08)); color: var(--danger, #b3271e); border: 1px solid var(--danger, rgba(214, 58, 47, 0.3)); display: block; }
+.auth-banner.success { background: var(--ok-tint, rgba(22, 133, 62, 0.08)); color: var(--ok, #15803d); border: 1px solid var(--ok, rgba(22, 133, 62, 0.3)); display: block; }
 
 /* ── Account page (legacy classes kept for account.js) ────── */
 .account-page {
@@ -277,7 +277,7 @@
   vertical-align: middle;
 }
 .orders-table tr:last-child td { border-bottom: none; }
-.orders-table tbody tr:hover td { background: rgba(19, 19, 17, 0.02); }
+.orders-table tbody tr:hover td { background: var(--hover-wash, rgba(19, 19, 17, 0.02)); }
 
 .account-nav {
   display: flex; align-items: center;

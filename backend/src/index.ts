@@ -7,6 +7,7 @@ import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
 import cartRoutes from './routes/cart'
+import paymentsRoutes from './routes/payments'
 import filesRoutes from './routes/files'
 import userProfile from './routes/user-profile'
 import type { BaseEnv } from './types'
@@ -41,6 +42,7 @@ app.use('*', (c, next) => {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 app.route('/api/cart', cartRoutes)            // GET/POST/PATCH/DELETE /api/cart, POST /api/cart/checkout
+app.route('/api/payments', paymentsRoutes)    // POST /api/payments/{payme,click,uzum}/webhook
 app.route('/api', publicRoutes)               // GET /api/products, POST /api/orders, etc.
 app.route('/api/auth', authRoutes)            // POST /api/auth/register, /login, GET /api/auth/me, PATCH /profile etc.
 app.route('/api/admin', adminRoutes)          // /api/admin/* (orders, auth, media, analytics)

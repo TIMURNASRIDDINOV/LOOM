@@ -11,7 +11,7 @@
 .nav {
   position: fixed; top: 0; left: 0; right: 0;
   min-height: var(--nav-h, 64px); height: var(--nav-h, 64px);
-  background: rgba(244, 242, 237, 0.82);
+  background: var(--nav-bg, rgba(244, 242, 237, 0.82));
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
   z-index: 200;
@@ -21,7 +21,7 @@
 /* cheaper compositing on phones: more opaque paper, lighter blur */
 @media (max-width: 767px) {
   .nav {
-    background: rgba(244, 242, 237, 0.94);
+    background: var(--nav-bg-strong, rgba(244, 242, 237, 0.94));
     backdrop-filter: blur(8px) saturate(120%);
     -webkit-backdrop-filter: blur(8px) saturate(120%);
   }
@@ -75,7 +75,7 @@
   text-decoration: none; white-space: nowrap;
   transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }
-.nav-cta:hover { background: var(--accent, #fc5044); color: #fff; border-color: var(--accent, #fc5044); }
+.nav-cta:hover { background: var(--accent, #fc5044); color: var(--on-accent, #fff); border-color: var(--accent, #fc5044); }
 /* mobile-only: the compact pill keeps the product CTA in the one
    persistent surface phones have. Desktop keeps its link row as-is. */
 @media (min-width: 768px) { .nav-cta { display: none; } }
@@ -93,11 +93,11 @@
   transition: border-color 0.2s ease, background 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.nav-cart-btn:hover { border-color: var(--ink, #131311); background: rgba(19, 19, 17, 0.04); }
+.nav-cart-btn:hover { border-color: var(--ink, #131311); background: var(--hover-wash, rgba(19, 19, 17, 0.04)); }
 .nav-cart-btn svg { width: 19px; height: 19px; }
 .cart-count {
   position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px;
-  padding: 0 5px; border-radius: 9px; background: var(--accent, #fc5044); color: #fff;
+  padding: 0 5px; border-radius: 9px; background: var(--accent, #fc5044); color: var(--on-accent, #fff);
   font-size: 0.68rem; font-weight: 700; font-family: var(--font-mono, monospace);
   display: none; align-items: center; justify-content: center; line-height: 1;
 }
@@ -121,7 +121,7 @@
   display: none; position: absolute; top: calc(100% + 0.55rem); right: 0;
   background: var(--paper-3, #fff); border: 1px solid var(--line, rgba(19,19,17,0.16));
   border-radius: var(--radius, 2px); padding: 0.3rem 0; min-width: 140px; z-index: 9999;
-  box-shadow: 0 14px 40px rgba(19, 19, 17, 0.14);
+  box-shadow: var(--menu-shadow, 0 14px 40px rgba(19, 19, 17, 0.14));
 }
 .lang-menu.open { display: block; }
 .lang-option {
@@ -154,7 +154,7 @@
 
 /* ── Mobile menu — full-screen, editorial ────────────────────── */
 .mobile-backdrop {
-  position: fixed; inset: 0; background: rgba(19, 19, 17, 0.4);
+  position: fixed; inset: 0; background: var(--scrim, rgba(19, 19, 17, 0.4));
   z-index: 250; opacity: 0; visibility: hidden;
   transition: opacity 200ms ease, visibility 200ms ease;
   touch-action: none;
@@ -254,3 +254,39 @@
 
 body.menu-open { overflow: hidden; }
 @media (min-width: 768px) { .mobile-menu, .mobile-backdrop { display: none !important; } }
+
+/* ── Theme switcher (reference-style dots) ───────────────────
+   Markup injected by layout.js; behaviour by assets/boot.js
+   (delegated [data-theme-set] click → __loomTheme.set). One dot per
+   theme; the active dot carries a paper-gap accent ring. */
+.theme-dots { display: inline-flex; align-items: center; gap: 9px; }
+.theme-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  padding: 0; cursor: pointer; position: relative;
+  border: 1px solid var(--line, rgba(19,19,17,0.16));
+  transition: transform 200ms var(--ease-out, ease), box-shadow 200ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+/* dots preview their own theme, so their colors never follow tokens */
+.theme-dot--light { background: #f4f2ed; border-color: rgba(19, 19, 17, 0.35); }
+.theme-dot--dark  { background: #151412; border-color: rgba(244, 242, 237, 0.35); }
+.theme-dot:hover { transform: scale(1.18); }
+.theme-dot.active {
+  box-shadow: 0 0 0 2px var(--paper, #f4f2ed), 0 0 0 4px var(--accent, #fc5044);
+}
+/* comfortable touch target without growing the visual dot */
+.theme-dot::after { content: ''; position: absolute; inset: -8px; }
+@media (max-width: 767px) { .nav-right .theme-dots { display: none; } }
+
+/* Theme row inside the mobile menu (mirrors .mobile-lang) */
+.mobile-theme {
+  padding: 1rem 1.5rem 0;
+  border-top: 1px solid var(--line-soft, rgba(19,19,17,0.09));
+}
+.mobile-theme-label {
+  display: block; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ink-38, rgba(19,19,17,0.38)); font-family: var(--font-mono, monospace); margin-bottom: 0.75rem;
+}
+.mobile-theme .theme-dots { gap: 14px; }
+.mobile-theme .theme-dot { width: 26px; height: 26px; }
+@media (hover: none) { .theme-dot:hover { transform: none; } }

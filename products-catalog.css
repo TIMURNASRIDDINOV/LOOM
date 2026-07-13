@@ -28,11 +28,11 @@
   border-bottom: 1px solid var(--line-soft);
   transition: background var(--dur-fast) ease;
 }
-.product-grid .product-card:hover { background: rgba(255, 255, 255, 0.55); }
+.product-grid .product-card:hover { background: var(--card-wash); }
 @media (hover: none) {
   .product-grid .product-card:hover { background: transparent; }
   .product-grid .product-card { transition: transform 150ms var(--ease-out), background 150ms ease; }
-  .product-grid .product-card:active { background: rgba(255, 255, 255, 0.55); transform: scale(0.985); }
+  .product-grid .product-card:active { background: var(--card-wash); transform: scale(0.985); }
 }
 
 /* Image tile */
@@ -41,7 +41,7 @@
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  background: #fff;
+  background: var(--media-bg);
   border: 1px solid var(--line-soft);
   display: flex;
   align-items: center;
@@ -118,7 +118,7 @@
 .product-card .customize-btn.btn-primary:hover {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 @media (hover: none) {
   .product-card .customize-btn.btn-primary:hover {
@@ -130,7 +130,7 @@
   .product-card .customize-btn.btn-primary:active {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     transform: scale(0.97);
   }
 }
@@ -144,7 +144,7 @@
 /* ── Skeleton shimmer (light) ──────────────────────────────── */
 .product-card--skeleton .product-card__image-container { background: var(--paper-2) !important; }
 .product-card--skeleton .product-card__image-container > div {
-  background: linear-gradient(90deg, transparent 25%, rgba(255, 255, 255, 0.7) 50%, transparent 75%) !important;
+  background: linear-gradient(90deg, transparent 25%, var(--card-wash) 50%, transparent 75%) !important;
   background-size: 200% 100% !important;
 }
 .product-card--skeleton .product-card__content > div {
@@ -192,3 +192,24 @@
   background: var(--line); cursor: pointer; transition: background var(--dur-fast) ease;
 }
 .carousel-dot.active { background: var(--accent); }
+
+/* ── Quick add-to-bag (catalog cards) ─────────────────────────── */
+.bag-btn {
+  background: transparent;
+  color: var(--ink-70);
+  border: 1px solid var(--line);
+}
+.bag-btn:hover { border-color: var(--ink); color: var(--ink); background: transparent; }
+.quick-sizes { display: none; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; }
+.quick-sizes.open { display: flex; }
+.quick-size-btn {
+  min-width: 42px; padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line); background: var(--field-bg); color: var(--ink-70);
+  border-radius: var(--radius); cursor: pointer; font-family: inherit; font-size: 0.8rem;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.quick-size-btn:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
+.quick-size-btn:disabled { opacity: 0.5; cursor: wait; }
+@media (pointer: coarse) {
+  .quick-size-btn { min-width: 46px; padding: 0.7rem 0.7rem; }
+}

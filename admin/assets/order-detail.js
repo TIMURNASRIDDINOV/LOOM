@@ -85,10 +85,77 @@ async function loadOrder(id) {
 
     document.getElementById('order-customer').textContent = o.customer_name
     document.getElementById('order-phone').textContent = o.customer_phone
-    document.getElementById('order-address').textContent = o.address || '—'
-    document.getElementById('order-coords').textContent = o.coordinates || '—'
     document.getElementById('order-comment').textContent = o.comment || '—'
     document.getElementById('order-price').textContent = formatPrice(o.total_price)
+
+    // ── Payment (migration 0011) ─────────────────────────────────
+    const PAY_NAMES = { cod: 'При получении', payme: 'Payme', click: 'Click', uzum: 'Uzum' }
+    const PAY_STATES = {
+      unpaid: ['Не оплачен', 'var(--muted)'],
+      pending: ['Ожидает оплаты', 'var(--warn, #eab308)'],
+      paid: ['Оплачен', 'var(--ok, #3ecf72)'],
+      refunded: ['Возврат', 'var(--muted)'],
+      failed: ['Ошибка оплаты', 'var(--danger, #ff6b5e)'],
+    }
+    const pm = PAY_NAMES[o.payment_method] || o.payment_method || 'При получении'
+    const ps = PAY_STATES[o.payment_status] || PAY_STATES.unpaid
+    document.getElementById('order-payment').innerHTML =
+      `${escHtml(pm)} · <span style="color:${ps[1]};font-weight:500">${escHtml(ps[0])}</span>` +
+      (o.payment_provider_ref ? ` <span style="color:var(--muted);font-family:var(--mono);font-size:0.75rem">${escHtml(o.payment_provider_ref)}</span>` : '')
+
+    // ── Delivery: address + details + embedded map ───────────────
+    document.getElementById('order-address').textContent = o.address || '—'
+    let dLat = typeof o.address_lat === 'number' ? o.address_lat : null
+    let dLng = typeof o.address_lng === 'number' ? o.address_lng : null
+    // legacy orders: coordinates as "lat, lng" string
+    if (dLat === null && o.coordinates && /^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/.test(o.coordinates.trim())) {
+      const parts = o.coordinates.split(',').map(s => parseFloat(s.trim()))
+      if (isFinite(parts[0]) && isFinite(parts[1])) { dLat = parts[0]; dLng = parts[1] }
+    }
+    document.getElementById('order-coords').textContent =
+      dLat !== null ? `${dLat.toFixed(6)}, ${dLng.toFixed(6)}` : (o.coordinates || '—')
+
+    // details chips (подъезд / кв / этаж / домофон / заметка курьеру)
+    try {
+      const det = o.address_details ? JSON.parse(o.address_details) : null
+      if (det && Object.keys(det).length) {
+        const LBL = { entrance: 'подъезд', apartment: 'кв.', floor: 'этаж', intercom: 'домофон', note: '' }
+        const parts = Object.keys(LBL)
+          .filter(k => det[k])
+          .map(k => (LBL[k] ? `${LBL[k]} ${det[k]}` : `«${det[k]}»`))
+        if (parts.length) {
+          document.getElementById('order-addr-details').textContent = parts.join(' · ')
+          document.getElementById('order-details-row').style.display = ''
+        }
+      }
+    } catch (e) { /* legacy/absent details */ }
+
+    // embedded map + deep links (only when we truly have a point)
+    if (dLat !== null && typeof L !== 'undefined') {
+      const wrap = document.getElementById('order-map-wrap')
+      wrap.style.display = ''
+      const dark = document.documentElement.getAttribute('data-theme') !== 'light'
+      const map = L.map('order-map', { center: [dLat, dLng], zoom: 16, attributionControl: false })
+      L.tileLayer(
+        dark
+          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+          : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        { maxZoom: 19 },
+      ).addTo(map)
+      L.circleMarker([dLat, dLng], { radius: 9, color: '#fc5044', fillColor: '#fc5044', fillOpacity: 0.85, weight: 2 }).addTo(map)
+      setTimeout(() => map.invalidateSize(), 80)
+      document.getElementById('order-map-yandex').href =
+        `https://yandex.uz/maps/?pt=${dLng},${dLat}&z=17&l=map`
+      document.getElementById('order-map-google').href =
+        `https://www.google.com/maps?q=${dLat},${dLng}`
+      const copyBtn = document.getElementById('order-coords-copy')
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(`${dLat}, ${dLng}`).then(() => {
+          copyBtn.textContent = 'Скопировано ✓'
+          setTimeout(() => { copyBtn.textContent = 'Скопировать координаты' }, 1600)
+        })
+      })
+    }
 
     // Design summary
     const design = parseDesign(o.design_json)

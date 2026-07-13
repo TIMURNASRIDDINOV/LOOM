@@ -11,6 +11,15 @@ export type Bindings = {
   TELEGRAM_WEBHOOK_SECRET: string
   BOT_USERNAME: string
   ENVIRONMENT: string
+  // Payment providers (optional — checkout falls back to COD until set;
+  // see lib/payments.ts for the wrangler secret names)
+  PAYME_MERCHANT_ID?: string
+  PAYME_KEY?: string
+  CLICK_MERCHANT_ID?: string
+  CLICK_SERVICE_ID?: string
+  CLICK_SECRET?: string
+  UZUM_MERCHANT_ID?: string
+  UZUM_SECRET?: string
 }
 
 // Used by user-auth middleware and routes

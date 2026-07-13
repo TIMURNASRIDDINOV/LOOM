@@ -122,6 +122,44 @@
   var WIPE_KEY = 'loom_wipe';
   var activeWipe = null; /* leave-leg state: { el, tween, cancelled } */
 
+  /* Destination labels: the curtain names where you are going.
+     Filename → i18n key; 'home' renders the LOOM wordmark instead. */
+  var PAGE_LABELS = {
+    '': 'home',
+    'index.html': 'home',
+    'catalog.html': 'nav.catalog',
+    'configurator.html': 'nav.configure',
+    'account.html': 'nav.account',
+    'login.html': 'nav.login',
+    'register.html': 'auth.register'
+  };
+
+  function destKeyFor(url) {
+    var file = (url.pathname.split('/').pop() || '').toLowerCase();
+    return PAGE_LABELS.hasOwnProperty(file) ? PAGE_LABELS[file] : null;
+  }
+
+  /* per-letter masked spans (descender-safe, theme.css .tlabel) */
+  function buildLabel(destKey) {
+    var isHome = destKey === 'home';
+    var text;
+    if (isHome) {
+      text = 'LOOM/';
+    } else {
+      try { text = window.LOOM_I18N ? window.LOOM_I18N.t(destKey) : null; } catch (e) { text = null; }
+      if (!text || text === destKey) return null; /* missing key — no label beats a raw key */
+    }
+    var el = document.createElement('div');
+    el.className = 'tlabel' + (isHome ? ' tlabel--wordmark' : '');
+    el.innerHTML = text.split('').map(function (ch) {
+      var inner = ch === ' ' ? '&nbsp;'
+        : ch === '/' ? '<span class="slash">/</span>'
+        : ch.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return '<span class="tl-m"><span>' + inner + '</span></span>';
+    }).join('');
+    return el;
+  }
+
   function initTransitions() {
     if (reduced || !hasGSAP) return;
 
@@ -134,14 +172,51 @@
         window.__loomCoverFailsafe = null;
       }
       release();
+
+      /* returning home replays the wordmark over the cover before the
+         reveal — the reference-style "brand moment" the user sees when
+         they come back to the main page */
+      var isHomeArrival = window.__loomWipeDest === 'home' &&
+        document.body.getAttribute('data-page') === 'home';
+      var wrap = null;
+      if (isHomeArrival) {
+        var lab = buildLabel('home');
+        if (lab) {
+          wrap = document.createElement('div');
+          wrap.className = 'cover-label';
+          wrap.setAttribute('aria-hidden', 'true');
+          wrap.appendChild(lab);
+          document.body.appendChild(wrap);
+        }
+      }
+
       /* double-rAF: let the first frame paint fully covered */
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          doc.classList.add('page-reveal');
-          /* theme.css shortens the reveal to 0.38s on coarse pointers */
-          setTimeout(function () {
-            doc.classList.remove('page-covered', 'page-reveal');
-          }, coarse ? 450 : 700);
+          if (wrap) {
+            var spans = wrap.querySelectorAll('.tl-m > span');
+            var tIn = coarse ? 0.45 : 0.6;
+            var hold = coarse ? 0.3 : 0.45;
+            var tOut = coarse ? 0.3 : 0.38;
+            gsap.set(spans, { yPercent: 130 });
+            var tl = gsap.timeline();
+            tl.to(spans, { yPercent: 0, duration: tIn, ease: 'expo.out', stagger: 0.05 }, 0);
+            tl.to(spans, { yPercent: -130, duration: tOut, ease: 'power2.in', stagger: 0.03 }, tIn + hold);
+            /* start the reveal while the letters are exiting */
+            tl.call(function () {
+              doc.classList.add('page-reveal');
+              setTimeout(function () {
+                doc.classList.remove('page-covered', 'page-reveal');
+                if (wrap) wrap.remove();
+              }, coarse ? 450 : 700);
+            }, null, tIn + hold + tOut * 0.6);
+          } else {
+            doc.classList.add('page-reveal');
+            /* theme.css shortens the reveal to 0.38s on coarse pointers */
+            setTimeout(function () {
+              doc.classList.remove('page-covered', 'page-reveal');
+            }, coarse ? 450 : 700);
+          }
         });
       });
     }
@@ -162,10 +237,32 @@
       var w = document.createElement('div');
       w.className = 'wipe';
       w.setAttribute('aria-hidden', 'true');
+
+      /* name the destination on the curtain */
+      var destKey = destKeyFor(url);
+      var lab = destKey ? buildLabel(destKey) : null;
+      if (lab) w.appendChild(lab);
+
       document.body.appendChild(w);
-      try { sessionStorage.setItem(WIPE_KEY, '1'); } catch (err) {}
+      try {
+        sessionStorage.setItem(WIPE_KEY, JSON.stringify({ v: 1, dest: destKey || '' }));
+      } catch (err) {}
       var state = { el: w, cancelled: false };
       gsap.set(w, { clipPath: 'inset(100% 0% 0% 0%)' });
+      /* labelled leaves hold a beat after the curtain closes so the
+         word actually reads; unlabelled ones navigate immediately */
+      var holdMs = lab ? (coarse ? 220 : 320) : 0;
+      if (lab) {
+        var spans = lab.querySelectorAll('.tl-m > span');
+        gsap.set(spans, { yPercent: 130 });
+        gsap.to(spans, {
+          yPercent: 0,
+          duration: coarse ? 0.38 : 0.5,
+          ease: 'expo.out',
+          stagger: 0.03,
+          delay: coarse ? 0.1 : 0.18
+        });
+      }
       state.tween = gsap.to(w, {
         clipPath: 'inset(0% 0% 0% 0%)',
         /* every tap pays this toll before the request even starts —
@@ -174,14 +271,17 @@
         ease: coarse ? 'power1.in' : 'power2.in',
         onComplete: function () {
           if (state.cancelled) return;
-          location.href = url.href;
-          /* if the navigation never happens (Esc / stop button /
-             offline), do not leave the page under an opaque curtain */
           setTimeout(function () {
-            state.cancelled = true;
-            w.remove();
-            try { sessionStorage.removeItem(WIPE_KEY); } catch (err) {}
-          }, coarse ? 1500 : 3000);
+            if (state.cancelled) return;
+            location.href = url.href;
+            /* if the navigation never happens (Esc / stop button /
+               offline), do not leave the page under an opaque curtain */
+            setTimeout(function () {
+              state.cancelled = true;
+              w.remove();
+              try { sessionStorage.removeItem(WIPE_KEY); } catch (err) {}
+            }, coarse ? 1500 : 3000);
+          }, holdMs);
         }
       });
       activeWipe = state;
@@ -196,7 +296,7 @@
           if (activeWipe.tween) activeWipe.tween.kill();
           activeWipe = null;
         }
-        document.querySelectorAll('.wipe').forEach(function (el) { el.remove(); });
+        document.querySelectorAll('.wipe, .cover-label').forEach(function (el) { el.remove(); });
         doc.classList.remove('page-covered', 'page-reveal');
         try { sessionStorage.removeItem(WIPE_KEY); } catch (err) {}
         release();

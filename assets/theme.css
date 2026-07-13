@@ -12,6 +12,8 @@
 
 /* ── 1. Tokens ─────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
+
   /* Canvas & ink */
   --paper: #f4f2ed;              /* warm off-white canvas */
   --paper-2: #ebe8e1;            /* recessed surfaces (image tiles, table heads) */
@@ -27,11 +29,32 @@
   --accent: #fc5044;
   --accent-deep: #d63a2f;        /* small text on paper needs the deeper cut */
   --accent-tint: rgba(252, 80, 68, 0.08);
+  --accent-55: rgba(252, 80, 68, 0.55);
+  --on-accent: #ffffff;          /* text sitting on accent fills */
 
   /* Inverted (ink) sections */
   --on-ink: #f4f2ed;
   --on-ink-55: rgba(244, 242, 237, 0.55);
   --on-ink-line: rgba(244, 242, 237, 0.16);
+  --surface-ink: #131311;        /* bg of inverted bands (.sect--ink, alt tiles) */
+
+  /* Surfaces & washes (theme-dependent, never hardcode) */
+  --media-bg: #ffffff;                       /* product-photo tiles (photos are studio-white) */
+  --field-bg: #ffffff;                       /* form inputs */
+  --card-wash: rgba(255, 255, 255, 0.55);    /* card hover/active wash */
+  --hover-wash: rgba(19, 19, 17, 0.04);      /* subtle icon-button hover */
+  --nav-bg: rgba(244, 242, 237, 0.82);       /* nav glass */
+  --nav-bg-strong: rgba(244, 242, 237, 0.94);/* nav glass, phones */
+  --scrim: rgba(19, 19, 17, 0.4);            /* modal/menu backdrops */
+  --menu-shadow: 0 14px 40px rgba(19, 19, 17, 0.14);
+
+  /* Status */
+  --ok: #15803d;
+  --ok-tint: rgba(21, 128, 61, 0.08);
+  --danger: #d6382d;
+  --danger-tint: rgba(214, 58, 47, 0.08);
+  --warn: #a16207;
+  --warn-tint: rgba(161, 98, 7, 0.08);
 
   /* Type — full Cyrillic support (DM Sans had none; RU fell back to system) */
   --font-display: 'Inter Tight', 'Inter', -apple-system, sans-serif;
@@ -58,6 +81,75 @@
   --dur-fast: 0.22s;
   --dur: 0.5s;
   --dur-slow: 0.9s;
+}
+
+/* ── 1b. Dark theme ────────────────────────────────────────────
+   Same warm editorial system, inverted. data-theme is set on <html>
+   by assets/boot.js BEFORE first paint (localStorage `loom_theme`,
+   falling back to prefers-color-scheme). Accent survives unchanged;
+   --accent-deep swaps to a lighter cut because small red text needs
+   luminance on dark paper, not depth. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: #151412;
+  --paper-2: #1d1c19;
+  --paper-3: #242321;
+  --ink: #eeebe4;
+  --ink-70: rgba(238, 235, 228, 0.72);
+  --ink-55: rgba(238, 235, 228, 0.56);
+  --ink-38: rgba(238, 235, 228, 0.40);
+  --line: rgba(238, 235, 228, 0.17);
+  --line-soft: rgba(238, 235, 228, 0.10);
+
+  --accent: #fc5044;
+  --accent-deep: #ff7d72;
+  --accent-tint: rgba(252, 80, 68, 0.16);
+  --accent-55: rgba(252, 80, 68, 0.55);
+  --on-accent: #ffffff;
+
+  --on-ink: #f0ede6;
+  --on-ink-55: rgba(240, 237, 230, 0.55);
+  --on-ink-line: rgba(240, 237, 230, 0.16);
+  --surface-ink: #0c0b0a;        /* inverted bands go deeper than the canvas */
+
+  --media-bg: #201f1c;
+  --field-bg: #1c1b18;
+  --card-wash: rgba(255, 255, 255, 0.05);
+  --hover-wash: rgba(238, 235, 228, 0.07);
+  --nav-bg: rgba(21, 20, 18, 0.80);
+  --nav-bg-strong: rgba(21, 20, 18, 0.94);
+  --scrim: rgba(0, 0, 0, 0.62);
+  --menu-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+
+  --ok: #3ecf72;
+  --ok-tint: rgba(62, 207, 114, 0.12);
+  --danger: #ff6b5e;
+  --danger-tint: rgba(255, 107, 94, 0.12);
+  --warn: #e8b93c;
+  --warn-tint: rgba(232, 185, 60, 0.12);
+}
+
+/* First paint: boot.js stamps data-theme synchronously, then removes
+   .theme-booting two frames later — nothing may animate the initial theme. */
+html.theme-booting *,
+html.theme-booting *::before,
+html.theme-booting *::after { transition: none !important; }
+
+/* User-initiated switch: boot.js pins .theme-anim on <html> for ~400ms so
+   the whole page crossfades (reference behaviour), then unpins so GSAP /
+   component transitions get their own timings back. */
+html.theme-anim body,
+html.theme-anim body *,
+html.theme-anim body *::before,
+html.theme-anim body *::after {
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    fill 0.25s ease,
+    stroke 0.25s ease,
+    box-shadow 0.25s ease !important;
 }
 
 /* ── 2. Base ───────────────────────────────────────────────── */
@@ -137,12 +229,12 @@ h1, h2, h3, h4, p, ul, figure { margin: 0; }
   -webkit-tap-highlight-color: transparent;
 }
 .btn--solid { background: var(--ink); color: var(--paper); }
-.btn--solid:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn--solid:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn--outline { background: transparent; color: var(--ink); }
 .btn--outline:hover { background: var(--ink); color: var(--paper); }
 /* on inverted sections */
 .btn--on-ink { border-color: var(--on-ink); color: var(--on-ink); background: transparent; }
-.btn--on-ink:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn--on-ink:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* Inline arrow link — accent on hover */
 .link-arrow {
@@ -196,7 +288,7 @@ html[lang="uz"] .display {
 .slash { color: var(--accent); }
 
 .sect { padding: var(--sect-y) 0; }
-.sect--ink { background: var(--ink); color: var(--on-ink); }
+.sect--ink { background: var(--surface-ink); color: var(--on-ink); }
 
 /* Section header row: eyebrow left, meta/link right, rule underneath */
 .sect-head {
@@ -220,13 +312,13 @@ html[lang="uz"] .display {
   background: transparent;
   transition: background var(--dur-fast) ease;
 }
-.pcard:hover { background: rgba(255, 255, 255, 0.55); }
+.pcard:hover { background: var(--card-wash); }
 
 .pcard__media {
   position: relative;
   overflow: hidden;
   aspect-ratio: 1;
-  background: #fff;
+  background: var(--media-bg);
   border: 1px solid var(--line-soft);
   margin-bottom: 1.4rem;
 }
@@ -254,7 +346,7 @@ html[lang="uz"] .display {
   gap: 0.6rem;
   padding: 1.2rem;
   text-align: center;
-  background: var(--ink);
+  background: var(--surface-ink);
   color: var(--on-ink);
   opacity: 0;
   transition: opacity var(--dur) var(--ease-out);
@@ -308,7 +400,7 @@ html[lang="uz"] .display {
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   transform: translateY(102%);
   transition: transform var(--dur) var(--ease-out);
 }
@@ -469,7 +561,7 @@ html[lang="uz"] .display {
   width: min(46vw, 250px);
   aspect-ratio: 1;
   position: relative;
-  background: #fff;
+  background: var(--media-bg);
   border: 1px solid var(--line);
 }
 .loader__frame img {
@@ -530,7 +622,7 @@ html[lang="uz"] .display {
   padding: 0.72rem 0.95rem;
   border-radius: var(--radius);
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--field-bg);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 0.9rem;
@@ -564,7 +656,7 @@ html[lang="uz"] .display {
 .cursor--on { opacity: 1; }
 .cursor--idle,
 .cursor--hide { opacity: 0 !important; }
-.cursor--grow { background: rgba(252, 80, 68, 0.55); }
+.cursor--grow { background: var(--accent-55); }
 
 /* ── Page-transition curtain (reference-style red wipe) ─────── */
 /* leave leg: element created by motion.js, animated with clip-path */
@@ -576,6 +668,9 @@ html[lang="uz"] .display {
   pointer-events: none;
   clip-path: inset(100% 0 0 0);
   will-change: clip-path;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 /* arrival leg: painted before first render via boot.js class */
 html.page-covered::after {
@@ -593,6 +688,222 @@ html.page-reveal::after {
   from { clip-path: inset(0 0 0 0); }
   to   { clip-path: inset(0 0 100% 0); }
 }
+
+/* Transition label: destination name rides the curtain on the way out,
+   and is re-shown over the arrival cover so the word appears to carry
+   across the navigation. Returning home swaps the name for the LOOM
+   wordmark (reference-style letter reveal). Built by motion.js. */
+.cover-label {
+  position: fixed;
+  inset: 0;
+  z-index: 986; /* one above the cover / wipe */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.tlabel {
+  display: inline-flex;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--on-accent);
+  font-size: clamp(2rem, 8vw, 5rem);
+  white-space: nowrap;
+}
+.tlabel--wordmark { font-size: clamp(3.4rem, 17vw, 10rem); letter-spacing: -0.04em; }
+.tlabel .slash { color: var(--on-accent); opacity: 0.72; }
+/* per-letter masks — descender-safe clip windows, like .mask-line */
+.tlabel .tl-m {
+  display: inline-block;
+  overflow: hidden;
+  padding: 0.08em 0 0.16em;
+  margin: -0.08em 0 -0.16em;
+}
+.tlabel .tl-m > span { display: inline-block; will-change: transform; }
+
+/* ── 9.4 Bag (full-screen drawer, markup injected by assets/cart.js) ── */
+.drawer-backdrop {
+  position: fixed; inset: 0; background: var(--scrim);
+  z-index: 300; opacity: 0; visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.drawer-backdrop.active { opacity: 1; visibility: visible; }
+.cart-drawer {
+  position: fixed; inset: 0; width: 100vw; height: 100%; z-index: 310;
+  background: var(--paper);
+  transform: translateY(102%);
+  transition: transform 0.55s var(--ease-inout);
+  display: flex; flex-direction: column;
+}
+.cart-drawer.active { transform: translateY(0); }
+.cart-head {
+  flex-shrink: 0;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem;
+  max-width: var(--max-w); width: 100%; margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 2.5rem) var(--gutter) 0.5rem;
+  border-bottom: 2px solid var(--accent);
+}
+.cart-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 9vw, 6.5rem); font-weight: 800;
+  letter-spacing: -0.03em; line-height: 0.95;
+  color: var(--accent); text-transform: uppercase; margin: 0;
+}
+.cart-title-slash { color: var(--ink); margin-left: 0.05em; }
+.cart-head .mobile-menu-close { width: 44px; height: 44px; color: var(--ink); margin-bottom: 0.6rem; }
+.cart-head .mobile-menu-close:hover { color: var(--accent); background: transparent; }
+.cart-head .mobile-menu-close svg { width: 30px; height: 30px; }
+.cart-body {
+  flex: 1; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  max-width: var(--max-w); width: 100%; margin: 0 auto;
+  padding: 1rem var(--gutter);
+  display: flex; flex-direction: column; gap: 0;
+}
+.cart-empty {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5.5vw, 3.8rem); font-weight: 700;
+  letter-spacing: -0.02em; line-height: 1.08;
+  color: var(--accent); text-align: left;
+  padding: 3rem 0; margin: 0; max-width: 18ch;
+}
+.cart-item {
+  display: flex; align-items: center; gap: clamp(1rem, 3vw, 2rem);
+  padding: 1.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.cart-item-thumb {
+  width: 92px; height: 92px; object-fit: cover; position: relative;
+  background: var(--media-bg); flex-shrink: 0; border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; color: var(--ink-38);
+  overflow: hidden;
+}
+.cart-item-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cart-item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.cart-item-name {
+  font-family: var(--font-display); font-size: clamp(1.1rem, 2.4vw, 1.6rem);
+  font-weight: 600; letter-spacing: -0.01em; color: var(--ink);
+}
+.cart-item-meta { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.04em; color: var(--ink-55); }
+.cart-item-price { font-size: clamp(0.95rem, 1.6vw, 1.15rem); font-weight: 600; color: var(--ink); font-family: var(--font-mono); margin-top: 0.2rem; }
+.cart-item-row { display: flex; align-items: center; gap: 1rem; margin-top: 0.2rem; }
+.cart-qty { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--radius); }
+.cart-qty-btn {
+  width: 34px; height: 34px; border: none; background: transparent; color: var(--ink-70);
+  font-size: 1.05rem; font-weight: 600; cursor: pointer; line-height: 1;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.cart-qty-btn:hover { background: var(--hover-wash); color: var(--ink); }
+.cart-qty-val {
+  min-width: 34px; text-align: center; font-family: var(--font-mono);
+  font-size: 0.85rem; color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.cart-item-edit {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.06em;
+  color: var(--ink-55); text-decoration: none; padding: 0.5rem 0;
+  transition: color 0.15s ease;
+}
+.cart-item-edit:hover { color: var(--accent-deep); }
+.cart-item-remove {
+  background: transparent; border: none; color: var(--ink-55); cursor: pointer;
+  padding: 0.4rem; align-self: center; transition: color 0.15s ease, transform 0.2s ease;
+}
+.cart-item-remove:hover { color: var(--danger); transform: rotate(90deg); }
+.cart-item-remove svg { width: 20px; height: 20px; }
+.cart-foot {
+  flex-shrink: 0;
+  max-width: var(--max-w); width: 100%; margin: 0 auto;
+  padding: 1rem var(--gutter) calc(clamp(1.5rem, 4vw, 2.5rem) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.cart-total-row { display: flex; justify-content: space-between; align-items: baseline; }
+.cart-total-label { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-55); }
+.cart-total-val { font-family: var(--font-mono); font-size: clamp(1.3rem, 3vw, 1.9rem); font-weight: 600; color: var(--ink); }
+/* giant text-action checkout, reference-style */
+.cart-foot .btn-primary-full,
+.cart-foot #cartCheckoutBtn {
+  width: auto; align-self: flex-start;
+  background: transparent; border: none; padding: 0.2rem 0;
+  color: var(--accent); cursor: pointer;
+  font-family: var(--font-display); font-size: clamp(1.7rem, 5vw, 2.9rem);
+  font-weight: 700; letter-spacing: -0.02em; text-transform: none;
+  display: inline-flex; align-items: baseline; gap: 0.3em;
+  transition: color 0.2s ease;
+}
+.cart-foot #cartCheckoutBtn::after { content: '\2197'; font-size: 0.85em; }
+.cart-foot #cartCheckoutBtn:hover { color: var(--ink); background: transparent; }
+@media (max-width: 900px) {
+  .cart-item-remove { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .cart-qty-btn { width: 40px; height: 40px; }
+}
+
+/* ── 9.45 Address picker (assets/address-picker.js) ─────────── */
+.addr-picker { display: flex; flex-direction: column; gap: 0.6rem; }
+.addr-search { position: relative; }
+.addr-search-icon {
+  position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%);
+  color: var(--ink-38); pointer-events: none;
+}
+.addr-search-input {
+  width: 100%; padding: 0.8rem 1rem 0.8rem 2.5rem;
+  border-radius: var(--radius); border: 1px solid var(--line);
+  background: var(--field-bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 0.92rem; outline: none;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+.addr-search-input::placeholder { color: var(--ink-38); }
+.addr-search-input:focus { border-color: var(--ink); box-shadow: 0 0 0 3px var(--accent-tint); }
+.addr-suggest {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1200;
+  background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--menu-shadow); overflow: hidden;
+}
+.addr-suggest-item {
+  display: flex; flex-direction: column; gap: 0.1rem; width: 100%; text-align: left;
+  padding: 0.7rem 0.95rem; background: transparent; border: none; cursor: pointer;
+  font-family: var(--font-body); font-size: 0.88rem; color: var(--ink);
+  border-bottom: 1px solid var(--line-soft);
+  transition: background 0.12s ease;
+}
+.addr-suggest-item:last-child { border-bottom: none; }
+.addr-suggest-item:hover { background: var(--hover-wash); }
+.addr-suggest-item small { color: var(--ink-55); font-size: 0.75rem; }
+.addr-map-wrap { position: relative; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.addr-map { height: 300px; width: 100%; background: var(--paper-2); }
+/* the pin never moves — the map does; lift it so the TIP marks center */
+.addr-pin {
+  position: absolute; left: 50%; top: 50%; z-index: 800;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.3));
+}
+.addr-locate {
+  position: absolute; right: 10px; bottom: 10px; z-index: 800;
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--paper-3); color: var(--ink); border: 1px solid var(--line);
+  cursor: pointer; box-shadow: var(--menu-shadow);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.addr-locate:hover { color: var(--accent-deep); border-color: var(--ink); }
+.addr-line { min-height: 1.4em; }
+.addr-line-text { font-size: 0.88rem; color: var(--ink); }
+.addr-line-text[data-state="idle"] { color: var(--ink-38); }
+.addr-line-text[data-state="busy"] { color: var(--ink-55); }
+.addr-line-text[data-state="error"] { color: var(--danger); }
+.addr-line-text[data-state="ok"]::before { content: '📍 '; }
+/* Leaflet chrome follows the theme */
+.addr-map .leaflet-control-zoom a {
+  background: var(--paper-3); color: var(--ink); border-color: var(--line);
+}
+.addr-map .leaflet-control-attribution {
+  background: var(--nav-bg); color: var(--ink-55); font-size: 0.6rem;
+}
+.addr-map .leaflet-control-attribution a { color: var(--ink-70); }
 
 /* ── 9.5 Touch & small-screen adaptations ──────────────────── */
 /* Touch devices: hover choreography never fires meaningfully (iOS
@@ -617,11 +928,11 @@ html.page-reveal::after {
   /* pressed states: instant (<100ms) response reads premium on touch */
   .btn { transition: transform 150ms var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
   .btn:active { transform: scale(0.97); }
-  .btn--solid:active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn--solid:active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .btn--outline:active { background: var(--ink); color: var(--paper); }
-  .btn--on-ink:active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn--on-ink:active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .pcard { transition: transform 150ms var(--ease-out), background 150ms ease; }
-  .pcard:active { background: rgba(255, 255, 255, 0.55); transform: scale(0.985); }
+  .pcard:active { background: var(--card-wash); transform: scale(0.985); }
   .link-arrow:active { color: var(--accent-deep); }
   .site-footer__links a:active { color: var(--accent-deep); }
 

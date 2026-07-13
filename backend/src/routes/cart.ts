@@ -13,6 +13,7 @@ import {
   createOrderItem,
 } from '../db/queries'
 import { sendOrderNotification } from '../lib/telegram'
+import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
 import type { UserEnv } from '../types'
 
 // Account-bound cart + multi-item checkout. All routes require a logged-in user.
@@ -66,6 +67,40 @@ router.post('/', async (c) => {
 
   const items = await getCartItems(c.env.DB, c.get('userId'))
   return c.json({ items, total: cartTotal(items) }, 201)
+})
+
+// GET /api/cart/:id — one item (edit-from-cart rehydration)
+router.get('/:id{[0-9]+}', async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  const item = await getCartItemById(c.env.DB, id)
+  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
+  return c.json(item)
+})
+
+// GET /api/cart/:id/file/:field — stream the caller's OWN cart-item asset
+// (mockup thumbnails in the bag, logo pixels for edit-from-cart rehydration).
+// Ownership-checked: the key is read from the caller's row, never from the URL.
+const CART_FILE_FIELDS: Record<string, 'front_mockup_key' | 'back_mockup_key' | 'logo_key' | 'back_logo_key'> = {
+  'front-mockup': 'front_mockup_key',
+  'back-mockup': 'back_mockup_key',
+  'logo': 'logo_key',
+  'back-logo': 'back_logo_key',
+}
+router.get('/:id{[0-9]+}/file/:field', async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  const field = CART_FILE_FIELDS[c.req.param('field')]
+  if (!field) return c.json({ error: 'Unknown field' }, 400)
+  const item = await getCartItemById(c.env.DB, id)
+  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
+  const key = item[field]
+  if (!key) return c.json({ error: 'No file' }, 404)
+  const object = await c.env.LOOM_UPLOADS.get(key)
+  if (!object) return c.json({ error: 'Not found' }, 404)
+  const headers = new Headers()
+  object.writeHttpMetadata(headers)
+  if (!headers.get('content-type')) headers.set('content-type', 'application/octet-stream')
+  headers.set('cache-control', 'private, max-age=3600')
+  return new Response(object.body, { headers })
 })
 
 // PATCH /api/cart/:id — change quantity
@@ -128,8 +163,32 @@ router.post('/checkout', async (c) => {
   const customerName = (b.customerName as string).trim()
   const customerPhone = (b.customerPhone as string).trim()
   const address = typeof b.address === 'string' ? b.address.trim() : null
-  const coordinates = typeof b.coordinates === 'string' ? b.coordinates.trim() : null
   const comment = typeof b.comment === 'string' ? b.comment.trim() : null
+
+  // Structured coordinates (migration 0011). `coordinates` stays mirrored for
+  // backward compat with older admin builds.
+  const lat = typeof b.addressLat === 'number' && isFinite(b.addressLat) ? b.addressLat : null
+  const lng = typeof b.addressLng === 'number' && isFinite(b.addressLng) ? b.addressLng : null
+  const coordinates =
+    lat != null && lng != null
+      ? `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+      : typeof b.coordinates === 'string' ? b.coordinates.trim() : null
+  // {entrance, apartment, floor, intercom, note} — free-form, size-capped
+  let addressDetails: string | null = null
+  if (b.addressDetails && typeof b.addressDetails === 'object') {
+    const s = JSON.stringify(b.addressDetails)
+    if (s.length <= 1000) addressDetails = s
+  }
+
+  // Payment method — order is created first; online providers redirect after.
+  const paymentMethod = isValidMethod(b.paymentMethod) ? b.paymentMethod : 'cod'
+  const payEnv = c.env as unknown as PaymentEnvVars
+  if (paymentMethod !== 'cod' && !providerConfigured(paymentMethod, payEnv)) {
+    return c.json(
+      { error: 'Этот способ оплаты пока недоступен. Выберите оплату при получении.', code: 'payment_method_unavailable' },
+      400,
+    )
+  }
 
   // Order header — design_json carries a multi-item summary (NOT NULL column).
   const orderId = await createOrder(c.env.DB, {
@@ -143,6 +202,10 @@ router.post('/checkout', async (c) => {
     design_json: JSON.stringify({ multi: true, itemCount: items.length }),
     logo_key: items[0].logo_key ?? null,
     total_price: total,
+    payment_method: paymentMethod,
+    address_lat: lat,
+    address_lng: lng,
+    address_details: addressDetails,
   })
 
   // Line items
@@ -185,7 +248,13 @@ router.post('/checkout', async (c) => {
     )
   }
 
-  return c.json({ id: orderId, status: 'new', itemCount: items.length }, 201)
+  // Online methods: hand back the provider redirect; COD ships with none.
+  const paymentUrl = createPaymentUrl(paymentMethod, { id: orderId, totalPrice: total }, payEnv)
+
+  return c.json(
+    { id: orderId, status: 'new', itemCount: items.length, paymentMethod, paymentUrl },
+    201,
+  )
 })
 
 export default router
