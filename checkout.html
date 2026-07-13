@@ -35,7 +35,10 @@
       display: grid; grid-template-columns: minmax(0, 1fr) 400px;
       gap: clamp(1.5rem, 4vw, 3.5rem); align-items: start;
     }
-    @media (max-width: 960px) { .co-grid { grid-template-columns: 1fr; } }
+    /* single column below 960 — minmax(0,1fr) (not bare 1fr) so a long
+       saved-address chip or the map can't blow the column past the
+       viewport and clip on the right on phones */
+    @media (max-width: 960px) { .co-grid { grid-template-columns: minmax(0, 1fr); } }
 
     /* numbered sections */
     .co-section { border-top: 1px solid var(--line); padding: 1.4rem 0 1.8rem; }
