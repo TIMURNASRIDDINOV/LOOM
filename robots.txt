@@ -1,0 +1,6 @@
+# LOOM — https://loomdesign.uz
+User-agent: *
+Allow: /
+Disallow: /admin/
+
+Sitemap: https://loomdesign.uz/sitemap.xml
