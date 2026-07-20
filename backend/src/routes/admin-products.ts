@@ -153,11 +153,16 @@ router.post('/products', requireAdmin, MANAGER, async (c) => {
   }
   const base_colors = colorsResult as string | null
 
-  // GLB (required)
+  // GLB — required for configurator products; ready-made designs are
+  // bought as-is and never open the 3D scene, so the model is optional
   const glbFile = getFileField(formData, 'glb')
-  if (!glbFile) return c.json({ ok: false, error: { code: 'REQUIRED', message: 'glb file is required', field: 'glb' } }, 400)
-  const glbError = validateGlb(glbFile)
-  if (glbError) return c.json({ ok: false, error: { code: 'INVALID', message: glbError, field: 'glb' } }, 400)
+  if (!glbFile && product_type !== 'ready') {
+    return c.json({ ok: false, error: { code: 'REQUIRED', message: 'glb file is required', field: 'glb' } }, 400)
+  }
+  if (glbFile) {
+    const glbError = validateGlb(glbFile)
+    if (glbError) return c.json({ ok: false, error: { code: 'INVALID', message: glbError, field: 'glb' } }, 400)
+  }
 
   try {
     // Thumbnail (optional)
@@ -174,12 +179,15 @@ router.post('/products', requireAdmin, MANAGER, async (c) => {
       })
     }
 
-    // Upload GLB
-    const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
-    const glb_key = `glb/${slug}.${glbExt}`
-    await c.env.LOOM_MODELS.put(glb_key, glbFile.stream(), {
-      httpMetadata: { contentType: glbFile.type || 'model/gltf-binary' },
-    })
+    // Upload GLB (absent only for ready-made designs — checked above)
+    let glb_key: string | null = null
+    if (glbFile) {
+      const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
+      glb_key = `glb/${slug}.${glbExt}`
+      await c.env.LOOM_MODELS.put(glb_key, glbFile.stream(), {
+        httpMetadata: { contentType: glbFile.type || 'model/gltf-binary' },
+      })
+    }
 
     const id = await createProduct(c.env.DB, {
       slug, name_ru, name_en, description_ru, price,

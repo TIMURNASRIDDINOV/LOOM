@@ -80,6 +80,13 @@ document.getElementById('f-glb').addEventListener('change', (e) => {
   document.getElementById('glb-filename').textContent = file ? file.name : ''
 })
 
+// GLB is optional for ready-made designs — surface that in the form
+function syncGlbNote() {
+  const isReady = document.getElementById('f-type').value === 'ready'
+  document.getElementById('glb-optional-note').style.display = isReady ? '' : 'none'
+}
+document.getElementById('f-type').addEventListener('change', syncGlbNote)
+
 // ── Load existing product (edit mode) ─────────────────────────────────────────
 
 async function loadProduct(id) {
@@ -94,6 +101,7 @@ async function loadProduct(id) {
   document.getElementById('f-order').value = p.display_order ?? 0
   document.getElementById('f-active').checked = !!p.active
   document.getElementById('f-type').value = p.product_type === 'ready' ? 'ready' : 'custom'
+  syncGlbNote()
 
   if (p.base_colors) {
     try { baseColors = JSON.parse(p.base_colors) } catch { baseColors = [] }
@@ -183,8 +191,9 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
   const glbFile = document.getElementById('f-glb').files[0]
   const thumbFile = document.getElementById('f-thumbnail').files[0]
 
-  if (!editId && !glbFile) {
-    errEl.textContent = 'GLB файл обязателен для нового продукта'
+  // Ready-made designs never open the 3D scene — GLB optional for them
+  if (!editId && !glbFile && document.getElementById('f-type').value !== 'ready') {
+    errEl.textContent = 'GLB файл обязателен для кастомизируемого продукта'
     btn.disabled = false
     btn.textContent = 'Сохранить'
     return
