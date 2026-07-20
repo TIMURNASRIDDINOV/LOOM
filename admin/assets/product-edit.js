@@ -93,6 +93,7 @@ async function loadProduct(id) {
   document.getElementById('f-desc').value = p.description_ru || ''
   document.getElementById('f-order').value = p.display_order ?? 0
   document.getElementById('f-active').checked = !!p.active
+  document.getElementById('f-type').value = p.product_type === 'ready' ? 'ready' : 'custom'
 
   if (p.base_colors) {
     try { baseColors = JSON.parse(p.base_colors) } catch { baseColors = [] }
@@ -176,6 +177,7 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
   fd.append('price', document.getElementById('f-price').value)
   fd.append('display_order', document.getElementById('f-order').value || '0')
   fd.append('active', document.getElementById('f-active').checked ? '1' : '0')
+  fd.append('product_type', document.getElementById('f-type').value)
   fd.append('base_colors', JSON.stringify(baseColors))
 
   const glbFile = document.getElementById('f-glb').files[0]

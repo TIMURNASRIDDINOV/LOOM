@@ -449,7 +449,7 @@ export async function getAdminProducts(
 
 const ALLOWED_PRODUCT_COLUMNS = new Set([
   'slug', 'name_ru', 'name_en', 'description_ru', 'price',
-  'glb_key', 'thumbnail_key', 'base_colors', 'active', 'display_order',
+  'glb_key', 'thumbnail_key', 'base_colors', 'product_type', 'active', 'display_order',
 ])
 
 export async function createProduct(
@@ -463,6 +463,7 @@ export async function createProduct(
     glb_key: string | null
     thumbnail_key: string | null
     base_colors: string | null
+    product_type: string
     active: number
     display_order: number
   },
@@ -473,13 +474,13 @@ export async function createProduct(
       .prepare(
         `INSERT INTO products
            (slug, name_ru, name_en, description_ru, price, glb_key, thumbnail_key,
-            base_colors, active, display_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            base_colors, product_type, active, display_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         params.slug, params.name_ru, params.name_en, params.description_ru,
         params.price, params.glb_key, params.thumbnail_key,
-        params.base_colors, params.active, params.display_order,
+        params.base_colors, params.product_type, params.active, params.display_order,
         now, now,
       )
       .run()
@@ -493,7 +494,7 @@ export async function updateProduct(
   params: Partial<{
     slug: string; name_ru: string; name_en: string | null; description_ru: string | null
     price: number; glb_key: string | null; thumbnail_key: string | null
-    base_colors: string | null; active: number; display_order: number
+    base_colors: string | null; product_type: string; active: number; display_order: number
   }>,
 ): Promise<void> {
   return safeQuery('updateProduct', async () => {

@@ -213,3 +213,80 @@
 @media (pointer: coarse) {
   .quick-size-btn { min-width: 46px; padding: 0.7rem 0.7rem; }
 }
+
+/* ================================================================
+   Catalog split: customizable vs ready-made designs
+   (.catalog-tabs / .catalog-section rendered by products-catalog.js)
+================================================================ */
+
+/* ── Filter tabs ────────────────────────────────────────────── */
+.catalog-tabs {
+  display: flex;
+  gap: clamp(1.2rem, 3vw, 2.2rem);
+  max-width: var(--max-w);
+  margin: 0 auto clamp(1.6rem, 4vw, 2.6rem);
+  border-bottom: 1px solid var(--line);
+}
+.catalog-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0.65rem 0.1rem 0.85rem;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+  cursor: pointer;
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+.catalog-tab sup { color: var(--accent-deep); font-size: 0.6em; letter-spacing: 0; }
+.catalog-tab:hover { color: var(--ink); }
+.catalog-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+@media (hover: none) {
+  .catalog-tab:hover { color: var(--ink-55); }
+  .catalog-tab.active { color: var(--ink); }
+}
+
+/* ── Section header ─────────────────────────────────────────── */
+.catalog-section + .catalog-section { margin-top: clamp(2.6rem, 6vw, 4.2rem); }
+.catalog-section__head {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  max-width: var(--max-w);
+  margin: 0 auto 1.1rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.catalog-section__title { font-size: 0.78rem; color: var(--ink); }
+.catalog-section__note { font-size: 0.62rem; color: var(--ink-38); letter-spacing: 0.12em; flex: 1; }
+.catalog-section__count { font-size: 0.62rem; color: var(--accent-deep); }
+@media (max-width: 620px) {
+  .catalog-section__note { display: none; } /* two mono spans don't fit at 375px */
+}
+
+/* ── Ready-design card accents ──────────────────────────────── */
+.pcard__ready-chip {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  z-index: 2;
+  padding: 0.28rem 0.55rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+/* the ink hover-tile flips over the chip — keep the chip legible */
+.product-card--ready:hover .pcard__ready-chip { background: var(--paper); }
+
+/* ready cards: single primary buy button fills the row */
+.bag-btn--primary { flex: 1; }

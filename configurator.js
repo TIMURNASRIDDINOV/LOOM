@@ -662,6 +662,11 @@ async function loadProductFromSlug() {
       const res = await fetch(getApiBase() + "/api/products/" + encodeURIComponent(slug), ctrl ? { signal: ctrl.signal } : undefined);
       if (res.ok) {
         const product = await res.json();
+        // Ready-made designs are bought as-is — no configurator session
+        if ((product.product_type || "custom") === "ready") {
+          window.location.replace("catalog.html");
+          return;
+        }
         currentProduct = product;
         if (product.glb_url) glbUrl = product.glb_url;
         // Update price display

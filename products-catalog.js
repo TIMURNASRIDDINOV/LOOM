@@ -71,13 +71,23 @@
 
   // ── Card factory ──────────────────────────────────────────────────────────
   function createProductCard(product) {
+    const isReady = (product.product_type || 'custom') === 'ready'
+
     const card = document.createElement('div')
-    card.className = 'product-card'
+    card.className = 'product-card' + (isReady ? ' product-card--ready' : '')
     card.setAttribute('data-product-id', product.id)
     card.setAttribute('data-slug', product.slug || '')
 
     const imageContainer = document.createElement('div')
     imageContainer.className = 'product-card__image-container'
+
+    // Ready designs get a corner chip so the two catalog types never blur
+    if (isReady) {
+      const chip = document.createElement('span')
+      chip.className = 'pcard__ready-chip'
+      chip.textContent = T('catalog.readyBadge', 'Готовый дизайн')
+      imageContainer.appendChild(chip)
+    }
 
     if (product.thumbnail_url) {
       const img = document.createElement('img')
@@ -103,7 +113,7 @@
     alt.setAttribute('aria-hidden', 'true')
     const altTag = document.createElement('span')
     altTag.className = 'pcard__alt-tag'
-    altTag.textContent = 'Apparel'
+    altTag.textContent = isReady ? T('catalog.readyBadge', 'Готовый дизайн') : 'Apparel'
     const altName = document.createElement('span')
     altName.className = 'pcard__alt-name'
     altName.textContent = product.name_ru
@@ -116,10 +126,21 @@
     imageContainer.appendChild(alt)
 
     // the whole card navigates — on phones the title/price area is the
-    // natural tap zone, not just the image tile
+    // natural tap zone, not just the image tile. Ready designs never enter
+    // the configurator: the card click opens the size picker instead.
     card.style.cursor = 'pointer'
     card.addEventListener('click', (e) => {
       if (e.target.closest('.customize-btn, .quick-sizes')) return // buttons handle themselves
+      if (isReady) {
+        const row = card.querySelector('.quick-sizes')
+        const btn = card.querySelector('.bag-btn')
+        if (row) {
+          const open = !row.classList.contains('open')
+          row.classList.toggle('open', open)
+          if (btn) btn.setAttribute('aria-expanded', String(open))
+        }
+        return
+      }
       window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
     })
 
@@ -141,21 +162,23 @@
     const actions = document.createElement('div')
     actions.className = 'product-card__actions'
 
-    const btn = document.createElement('button')
-    btn.className = 'customize-btn btn-primary'
-    btn.textContent = T('catalog.customize', 'Настроить дизайн')
-    btn.setAttribute('aria-label', `${T('catalog.customize', 'Настроить дизайн')} ${esc(product.name_ru)}`)
-    btn.addEventListener('click', () => {
-      window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
-    })
+    // Customize → configurator: only for customizable products
+    if (!isReady) {
+      const btn = document.createElement('button')
+      btn.className = 'customize-btn btn-primary'
+      btn.textContent = T('catalog.customize', 'Настроить дизайн')
+      btn.setAttribute('aria-label', `${T('catalog.customize', 'Настроить дизайн')} ${esc(product.name_ru)}`)
+      btn.addEventListener('click', () => {
+        window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
+      })
+      actions.appendChild(btn)
+    }
 
-    actions.appendChild(btn)
-
-    // ── Quick add-to-bag: plain garment, size chosen inline ────────
-    // (custom designs go through the configurator; this is the
-    // "just give me the tee" path, reference-style)
+    // ── Quick add-to-bag: size chosen inline ───────────────────────
+    // custom: the plain-garment path; ready: the ONLY purchase path,
+    // so the button is promoted to primary
     const bagBtn = document.createElement('button')
-    bagBtn.className = 'customize-btn bag-btn'
+    bagBtn.className = isReady ? 'customize-btn btn-primary bag-btn bag-btn--primary' : 'customize-btn bag-btn'
     bagBtn.type = 'button'
     bagBtn.textContent = T('cfg.addToCart', 'В корзину')
     bagBtn.setAttribute('aria-expanded', 'false')
@@ -178,7 +201,11 @@
         try {
           await window.LOOM_CART.add({
             productId: product.id,
-            designJson: JSON.stringify({ plain: true, shirtColor: '#FFFFFF', size: sz }),
+            designJson: JSON.stringify(
+              isReady
+                ? { ready: true, size: sz }
+                : { plain: true, shirtColor: '#FFFFFF', size: sz },
+            ),
             unitPrice: product.price,
             quantity: 1,
           })
@@ -218,6 +245,80 @@
     grid.className = 'product-grid'
     products.forEach(p => grid.appendChild(createProductCard(p)))
     container.appendChild(grid)
+  }
+
+  // ── Sections: customizable vs ready-made ─────────────────────────────────
+  // Both types stay visible at once ("Все") — tabs only narrow the view.
+  let activeTab = 'all' // 'all' | 'custom' | 'ready' — survives langchange re-renders
+
+  function renderCatalogSections(container, products) {
+    const custom = products.filter(p => (p.product_type || 'custom') !== 'ready')
+    const ready = products.filter(p => (p.product_type || 'custom') === 'ready')
+
+    // Only one type present → today's plain grid, no tabs/headers
+    if (!custom.length || !ready.length) {
+      renderGrid(container, products)
+      return
+    }
+
+    const defs = [
+      ['all', T('catalog.tabAll', 'Все'), custom.length + ready.length],
+      ['custom', T('catalog.tabCustom', 'Кастомизация'), custom.length],
+      ['ready', T('catalog.tabReady', 'Готовые дизайны'), ready.length],
+    ]
+
+    const tabs = document.createElement('div')
+    tabs.className = 'catalog-tabs'
+    tabs.setAttribute('role', 'tablist')
+    defs.forEach(([key, label, count]) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'catalog-tab'
+      b.setAttribute('role', 'tab')
+      b.setAttribute('data-tab', key)
+      b.innerHTML = `${esc(label)} <sup>${count}</sup>`
+      b.addEventListener('click', () => {
+        if (activeTab === key) return
+        activeTab = key
+        renderSections()
+      })
+      tabs.appendChild(b)
+    })
+
+    const sectionsWrap = document.createElement('div')
+    sectionsWrap.className = 'catalog-sections'
+
+    function addSection(items, label, note) {
+      const sec = document.createElement('section')
+      sec.className = 'catalog-section'
+      const head = document.createElement('div')
+      head.className = 'catalog-section__head'
+      head.innerHTML = `
+        <span class="catalog-section__title">${esc(label)}</span>
+        <span class="catalog-section__note">${esc(note)}</span>
+        <span class="catalog-section__count">${String(items.length).padStart(2, '0')}</span>
+      `
+      sec.appendChild(head)
+      renderGrid(sec, items)
+      sectionsWrap.appendChild(sec)
+    }
+
+    function renderSections() {
+      sectionsWrap.innerHTML = ''
+      if (activeTab !== 'ready') {
+        addSection(custom, T('catalog.tabCustom', 'Кастомизация'), T('catalog.customNote', 'Создайте свой дизайн в 3D-конфигураторе'))
+      }
+      if (activeTab !== 'custom') {
+        addSection(ready, T('catalog.tabReady', 'Готовые дизайны'), T('catalog.readyNote', 'Готовы к покупке — просто выберите размер'))
+      }
+      tabs.querySelectorAll('.catalog-tab').forEach(t =>
+        t.classList.toggle('active', t.getAttribute('data-tab') === activeTab))
+      if (window._initReveal) window._initReveal()
+    }
+
+    container.appendChild(tabs)
+    container.appendChild(sectionsWrap)
+    renderSections()
   }
 
   // ── Carousel render (index.html, first 3 products) ────────────────────────
@@ -308,7 +409,7 @@
     if (isIndexPage) {
       renderCarousel(container, products)
     } else {
-      renderGrid(container, products)
+      renderCatalogSections(container, products)
     }
 
     // Trigger reveal animations on newly rendered cards

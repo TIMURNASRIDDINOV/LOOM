@@ -21,6 +21,7 @@ export interface Product {
   glb_key: string | null
   thumbnail_key: string | null
   base_colors: string | null  // JSON: ["#FFFFFF","#1F2937"]
+  product_type: string        // 'custom' (configurator) | 'ready' (buy as-is)
   active: number
   display_order: number
   created_at: number

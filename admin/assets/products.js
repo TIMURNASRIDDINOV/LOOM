@@ -45,7 +45,7 @@ async function loadProducts() {
         <tr>
           <td>${thumb}</td>
           <td style="font-family:var(--mono);font-size:0.8rem;color:var(--text-secondary)">${escHtml(p.slug)}</td>
-          <td>${escHtml(p.name_ru)}</td>
+          <td>${escHtml(p.name_ru)}${p.product_type === 'ready' ? ' <span style="font-size:0.62rem;font-family:var(--mono);letter-spacing:0.08em;text-transform:uppercase;padding:0.15rem 0.45rem;border:1px solid var(--accent,#d63a2f);color:var(--accent,#d63a2f);border-radius:2px;margin-left:0.4rem;white-space:nowrap">Готовый</span>' : ''}</td>
           <td style="font-family:var(--mono)">${formatPrice(p.price)}</td>
           <td>
             <label class="toggle" title="${p.active ? 'Деактивировать' : 'Активировать'}">

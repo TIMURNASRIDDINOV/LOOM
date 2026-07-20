@@ -142,6 +142,11 @@ router.post('/products', requireAdmin, MANAGER, async (c) => {
   const display_order = parseInt(String(formData.get('display_order') ?? '0'), 10) || 0
   const active = formData.get('active') === '0' ? 0 : 1
 
+  const product_type = ((formData.get('product_type') as string | null)?.trim() || 'custom')
+  if (product_type !== 'custom' && product_type !== 'ready') {
+    return c.json({ ok: false, error: { code: 'INVALID', message: "product_type must be 'custom' or 'ready'", field: 'product_type' } }, 400)
+  }
+
   const colorsResult = parseColors(formData.get('base_colors'))
   if (colorsResult !== null && typeof colorsResult === 'object' && 'error' in colorsResult) {
     return c.json({ ok: false, error: { code: 'INVALID', message: colorsResult.error, field: 'base_colors' } }, 400)
@@ -178,7 +183,7 @@ router.post('/products', requireAdmin, MANAGER, async (c) => {
 
     const id = await createProduct(c.env.DB, {
       slug, name_ru, name_en, description_ru, price,
-      glb_key, thumbnail_key, base_colors, active, display_order,
+      glb_key, thumbnail_key, base_colors, product_type, active, display_order,
     })
 
     const product = await getProductById(c.env.DB, id)
@@ -242,6 +247,12 @@ router.patch('/products/:id', requireAdmin, MANAGER, async (c) => {
 
   const activeRaw = formData.get('active') as string | null
   if (activeRaw !== null) updates.active = activeRaw === '0' ? 0 : 1
+
+  const typeRaw = (formData.get('product_type') as string | null)?.trim()
+  if (typeRaw != null) {
+    if (typeRaw !== 'custom' && typeRaw !== 'ready') return c.json({ error: "product_type must be 'custom' or 'ready'" }, 400)
+    updates.product_type = typeRaw
+  }
 
   const colorsRaw = formData.get('base_colors')
   if (colorsRaw !== null) {

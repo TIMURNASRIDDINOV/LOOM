@@ -92,6 +92,12 @@
     'catalog.retry':        { uz: 'Qayta urinish', ru: 'Повторить', en: 'Retry' },
     'catalog.empty':        { uz: 'Katalog bo‘sh.', ru: 'Каталог пуст.', en: 'The catalog is empty.' },
     'catalog.soon':         { uz: 'Tez orada', ru: 'Скоро', en: 'Coming soon' },
+    'catalog.tabAll':       { uz: 'Hammasi', ru: 'Все', en: 'All' },
+    'catalog.tabCustom':    { uz: 'Moslashtirish', ru: 'Кастомизация', en: 'Customizable' },
+    'catalog.tabReady':     { uz: 'Tayyor dizaynlar', ru: 'Готовые дизайны', en: 'Ready designs' },
+    'catalog.readyBadge':   { uz: 'Tayyor dizayn', ru: 'Готовый дизайн', en: 'Ready design' },
+    'catalog.customNote':   { uz: 'Konfiguratorda o‘z dizayningizni yarating', ru: 'Создайте свой дизайн в 3D-конфигураторе', en: 'Create your own design in the 3D configurator' },
+    'catalog.readyNote':    { uz: 'Sotib olishga tayyor — o‘lchamni tanlang', ru: 'Готовы к покупке — просто выберите размер', en: 'Ready to buy — just pick a size' },
 
     // ===== Configurator — panel =====
     'cfg.panelProduct': { uz: 'O‘z dizayningizni yarating', ru: 'Создайте свой дизайн', en: 'Create your design' },
