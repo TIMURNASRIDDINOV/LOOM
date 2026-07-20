@@ -713,13 +713,18 @@ html.page-reveal::after {
   white-space: nowrap;
 }
 .tlabel--wordmark { font-size: clamp(3.4rem, 17vw, 10rem); letter-spacing: -0.04em; }
-.tlabel .slash { color: var(--on-accent); opacity: 0.72; }
-/* per-letter masks — descender-safe clip windows, like .mask-line */
+/* full-strength: at 0.72 the slash sank into the red curtain and read
+   as "covered with color" — the wordmark must arrive whole */
+.tlabel .slash { color: var(--on-accent); opacity: 1; }
+/* per-letter masks — descender-safe clip windows, like .mask-line.
+   Horizontal padding matters too: the "/" glyph leans past its advance
+   width (tight letter-spacing), and a zero-width window shaves its
+   diagonal — the slash showed up partially covered by the curtain. */
 .tlabel .tl-m {
   display: inline-block;
   overflow: hidden;
-  padding: 0.08em 0 0.16em;
-  margin: -0.08em 0 -0.16em;
+  padding: 0.08em 0.07em 0.16em;
+  margin: -0.08em -0.07em -0.16em;
 }
 .tlabel .tl-m > span { display: inline-block; will-change: transform; }
 

@@ -120,13 +120,9 @@
     if (wipeRaw) {
       sessionStorage.removeItem('loom_wipe');
       hadWipe = true;
-      /* leave leg stores {v:1, dest:'home'|…} — motion.js replays the
-         wordmark over the arrival cover when dest is home */
-      try {
-        var wp = JSON.parse(wipeRaw);
-        if (wp && wp.dest) window.__loomWipeDest = wp.dest;
-      } catch (e) { /* legacy '1' payload — no label */ }
     }
+    /* motion.js keys the intro off this: curtain arrivals never intro */
+    window.__loomArrivedViaWipe = hadWipe;
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
@@ -144,9 +140,17 @@
       }, 1900);
     }
 
-    /* 2. first-visit intro hold */
+    /* 2. fresh-arrival intro hold: direct opens AND refreshes play the
+       full intro; internal curtain navigations and back/forward skip it
+       (must mirror motion.js wantsIntro() or the page flashes) */
+    var navType = 'navigate';
+    try {
+      var pe = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      if (pe && pe.type) navType = pe.type;
+    } catch (e) { /* Navigation Timing unsupported — treat as fresh */ }
+
     var me = document.currentScript;
-    if (me && me.hasAttribute('data-intro') && !sessionStorage.getItem('loom_intro_v1')) {
+    if (me && me.hasAttribute('data-intro') && !hadWipe && navType !== 'back_forward') {
       d.classList.add('motion-hold');
       setTimeout(function () {
         d.classList.remove('motion-hold');

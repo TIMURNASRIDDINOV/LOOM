@@ -22,7 +22,6 @@
   if (window.__loomMotionBound) return;
   window.__loomMotionBound = true;
 
-  var INTRO_KEY = 'loom_intro_v1';
   var doc = document.documentElement;
 
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -61,11 +60,19 @@
   function wantsIntro() {
     if (reduced || !hasGSAP) return false;
     if (!document.body.hasAttribute('data-preloader')) return false;
-    try { return !sessionStorage.getItem(INTRO_KEY); } catch (e) { return false; }
+    /* fresh arrivals only: a direct open or refresh replays the full
+       intro; internal curtain navigations and back/forward skip it
+       (mirrors boot.js's motion-hold condition) */
+    if (window.__loomArrivedViaWipe) return false;
+    var navType = 'navigate';
+    try {
+      var pe = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      if (pe && pe.type) navType = pe.type;
+    } catch (e) { /* Navigation Timing unsupported — treat as fresh */ }
+    return navType !== 'back_forward';
   }
 
   function runIntro(done) {
-    try { sessionStorage.setItem(INTRO_KEY, '1'); } catch (e) {}
     window.scrollTo(0, 0); /* the intro always reveals from the top */
 
     var el = document.createElement('div');
@@ -173,50 +180,17 @@
       }
       release();
 
-      /* returning home replays the wordmark over the cover before the
-         reveal — the reference-style "brand moment" the user sees when
-         they come back to the main page */
-      var isHomeArrival = window.__loomWipeDest === 'home' &&
-        document.body.getAttribute('data-page') === 'home';
-      var wrap = null;
-      if (isHomeArrival) {
-        var lab = buildLabel('home');
-        if (lab) {
-          wrap = document.createElement('div');
-          wrap.className = 'cover-label';
-          wrap.setAttribute('aria-hidden', 'true');
-          wrap.appendChild(lab);
-          document.body.appendChild(wrap);
-        }
-      }
-
+      /* plain lift for every arrival — the destination was already
+         named on the leave curtain; replaying a wordmark here made
+         returning home read as a second page load */
       /* double-rAF: let the first frame paint fully covered */
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          if (wrap) {
-            var spans = wrap.querySelectorAll('.tl-m > span');
-            var tIn = coarse ? 0.45 : 0.6;
-            var hold = coarse ? 0.3 : 0.45;
-            var tOut = coarse ? 0.3 : 0.38;
-            gsap.set(spans, { yPercent: 130 });
-            var tl = gsap.timeline();
-            tl.to(spans, { yPercent: 0, duration: tIn, ease: 'expo.out', stagger: 0.05 }, 0);
-            tl.to(spans, { yPercent: -130, duration: tOut, ease: 'power2.in', stagger: 0.03 }, tIn + hold);
-            /* start the reveal while the letters are exiting */
-            tl.call(function () {
-              doc.classList.add('page-reveal');
-              setTimeout(function () {
-                doc.classList.remove('page-covered', 'page-reveal');
-                if (wrap) wrap.remove();
-              }, coarse ? 450 : 700);
-            }, null, tIn + hold + tOut * 0.6);
-          } else {
-            doc.classList.add('page-reveal');
-            /* theme.css shortens the reveal to 0.38s on coarse pointers */
-            setTimeout(function () {
-              doc.classList.remove('page-covered', 'page-reveal');
-            }, coarse ? 450 : 700);
-          }
+          doc.classList.add('page-reveal');
+          /* theme.css shortens the reveal to 0.38s on coarse pointers */
+          setTimeout(function () {
+            doc.classList.remove('page-covered', 'page-reveal');
+          }, coarse ? 450 : 700);
         });
       });
     }
