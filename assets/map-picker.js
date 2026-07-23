@@ -70,13 +70,72 @@
     }
   }
 
-  function openModal(currentLat, currentLng) {
+  // ── Leaflet on demand ────────────────────────────────────────────
+  // The picker only ever renders inside this modal, so ~185 KB of map
+  // library has no business loading on every account page view. Fetched
+  // the first time the customer actually opens the picker.
+  const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+  const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+  const LEAFLET_JS_SRI = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo='
+  const LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY='
+  let leafletPromise = null
+  /* NOT `typeof window.L !== 'undefined'` — the Lenis UMD bundle also
+     publishes a global `L`, so on any page carrying smooth scroll that
+     test passes while Leaflet is absent, and L.map() then throws. */
+  function hasLeaflet() {
+    return !!(window.L && typeof window.L.map === 'function' && typeof window.L.tileLayer === 'function')
+  }
+  function ensureLeaflet() {
+    if (hasLeaflet()) return Promise.resolve()
+    if (leafletPromise) return leafletPromise
+    leafletPromise = new Promise((resolve, reject) => {
+      /* Wait for the stylesheet too. A dynamically injected <link> does not
+         block anything, so the script can win the race and L.map() would
+         then measure a container with none of Leaflet's layout rules
+         applied — tiles land in the wrong place. */
+      const cssDone = new Promise((done) => {
+        const existing = document.querySelector('link[data-leaflet]')
+        if (existing) { existing.sheet ? done() : existing.addEventListener('load', done); return }
+        const css = document.createElement('link')
+        css.rel = 'stylesheet'
+        css.href = LEAFLET_CSS
+        css.integrity = LEAFLET_CSS_SRI
+        css.crossOrigin = ''
+        css.setAttribute('data-leaflet', '')
+        css.onload = done
+        css.onerror = done   // unstyled map beats no map at all
+        document.head.appendChild(css)
+      })
+      const s = document.createElement('script')
+      s.src = LEAFLET_JS
+      s.integrity = LEAFLET_JS_SRI
+      s.crossOrigin = ''
+      s.async = true
+      s.onload = () => cssDone.then(resolve)
+      s.onerror = () => reject(new Error('leaflet failed to load'))
+      document.head.appendChild(s)
+    })
+    return leafletPromise
+  }
+
+  async function openModal(currentLat, currentLng) {
     const modal = document.getElementById('map-picker-modal')
     modal.classList.add('open')
     document.body.style.overflow = 'hidden'
 
     const lat = currentLat || DEFAULT_LAT
     const lng = currentLng || DEFAULT_LNG
+
+    const selected = document.getElementById('map-picker-selected')
+    try {
+      if (selected) selected.textContent = '…'
+      await ensureLeaflet()
+    } catch (e) {
+      // saving a location is optional here — say so instead of leaving
+      // the customer staring at an empty grey box
+      if (selected) selected.textContent = 'Карта недоступна. Проверьте соединение.'
+      return
+    }
 
     // Leaflet needs the container to be visible before init
     setTimeout(() => {

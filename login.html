@@ -19,6 +19,15 @@
   <link rel="stylesheet" href="assets/auth.css?v=5" />
   <link rel="stylesheet" href="assets/login-modal.css?v=4" />
   <script src="assets/boot.js?v=7"></script>
+
+  <!-- Page scripts: deferred, document order preserved. -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script defer src="assets/config.js?v=2"></script>
+  <script defer src="assets/i18n.js?v=11"></script>
+  <script defer src="assets/auth.js?v=3"></script>
+  <script defer src="assets/motion.js?v=9"></script>
+  <script defer src="assets/login-modal.js?v=2"></script>
+  <script defer src="assets/password-reset.js?v=3"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: var(--font-body, sans-serif); -webkit-font-smoothing: antialiased; }
@@ -98,16 +107,10 @@
     </p>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="assets/config.js?v=2"></script>
-  <script src="assets/i18n.js?v=9"></script>
-  <script src="assets/auth.js?v=3"></script>
-  <script src="assets/motion.js?v=9"></script>
-  <script src="assets/login-modal.js?v=2"></script>
-  <script src="assets/password-reset.js?v=3"></script>
+  <!-- Depends on the deferred bundle above, so it waits for that queue -->
   <script>
     'use strict';
-    (function () {
+    document.addEventListener('DOMContentLoaded', function () {
       // Redirect if already logged in
       window.LOOM_AUTH.getCurrentUser().then(function (user) {
         if (user) window.location.href = 'account.html';
@@ -190,7 +193,7 @@
           submitBtn.textContent = T('auth.loginBtn', 'Войти');
         }
       });
-    })();
+    });
   </script>
 </body>
 </html>

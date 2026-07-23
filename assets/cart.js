@@ -339,7 +339,10 @@
     if (btn) btn.addEventListener('click', open);
     /* language switch: item meta lines are JS-rendered */
     window.addEventListener('loom:langchange', render);
-    load();
+    /* checkout.js owns the cart fetch on its page — it must run AFTER the
+       auth gate, and loading here too would both duplicate the request and
+       race a not-yet-logged-in 401 into the state. */
+    if (document.body.getAttribute('data-page') !== 'checkout') load();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

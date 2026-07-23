@@ -40,6 +40,22 @@
   <!-- Pre-paint guard -->
   <script src="assets/boot.js?v=7" data-intro></script>
 
+  <!-- Page scripts: deferred, document order preserved (GSAP → motion.js,
+       config → layout → i18n → auth → nav → cart → catalog renderer). -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
+  <script defer src="assets/config.js?v=2"></script>
+  <script defer src="assets/layout.js?v=3"></script>
+  <script defer src="assets/i18n.js?v=11"></script>
+  <script defer src="assets/auth.js?v=3"></script>
+  <script defer src="assets/nav.js?v=2"></script>
+  <script defer src="assets/motion.js?v=9"></script>
+  <script defer src="assets/track.js?v=2"></script>
+  <script defer src="assets/login-modal.js?v=2"></script>
+  <script defer src="assets/cart.js?v=2"></script>
+  <script defer src="products-catalog.js?v=6"></script>
+
   <style>
     /* ============================================================
        CATALOG — page-specific layout only; tokens from theme.css
@@ -99,25 +115,8 @@
     </div>
   </section>
 
-  <!-- ============================================================
-       Scripts
-  ============================================================ -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
-
-  <script src="assets/config.js?v=2"></script>
-  <script src="assets/layout.js?v=3"></script>
-  <script src="assets/i18n.js?v=10"></script>
-  <script src="assets/auth.js?v=3"></script>
-  <script src="assets/nav.js?v=2"></script>
-  <script src="assets/motion.js?v=9"></script>
-  <script src="assets/track.js"></script>
-  <script src="assets/login-modal.js?v=2"></script>
-  <script src="assets/cart.js?v=1"></script>
-  <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
-
-  <!-- Product catalog renderer (calls window._initReveal after fetch) -->
-  <script src="products-catalog.js?v=6"></script>
+  <!-- Scripts are deferred from <head>; auth.js is not available until
+       the defer queue drains. -->
+  <script>document.addEventListener('DOMContentLoaded',function(){window.LOOM_AUTH&&window.LOOM_AUTH.renderAuthNav()})</script>
 </body>
 </html>

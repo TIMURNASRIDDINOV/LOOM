@@ -37,6 +37,27 @@
     <link rel="stylesheet" href="assets/login-modal.css?v=4" />
     <script src="assets/boot.js?v=7"></script>
 
+    <!-- Page scripts: deferred so ~600 KB of three.js never blocks the
+         parser, and so the preload scanner can start all of it at byte 0
+         instead of after 60 KB of studio markup. `defer` preserves
+         document order, which three.js's example modules require (they
+         patch the global THREE namespace) and configurator.js depends on. -->
+    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script defer src="assets/config.js?v=2"></script>
+    <script defer src="assets/layout.js?v=3"></script>
+    <script defer src="assets/i18n.js?v=11"></script>
+    <script defer src="assets/auth.js?v=3"></script>
+    <script defer src="assets/login-modal.js?v=2"></script>
+    <script defer src="assets/motion.js?v=9"></script>
+    <script defer src="assets/track.js?v=2"></script>
+    <script defer src="assets/cart.js?v=2"></script>
+    <script defer src="configurator.js?v=19"></script>
+
     <style>
       /* ============================================================
          CONFIGURATOR — light studio (LOOM editorial system)
@@ -818,24 +839,6 @@
     </div>
 
     <!-- Yandex Maps loads lazily from configurator.js when the map is first opened -->
-    <!-- Three.js -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
-    <!-- Motion (page-transition veil only on this page) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <!-- Config + Auth -->
-    <script src="assets/config.js?v=2"></script>
-    <script src="assets/layout.js?v=3"></script>
-    <script src="assets/i18n.js?v=10"></script>
-    <script src="assets/auth.js?v=3"></script>
-    <script src="assets/login-modal.js?v=2"></script>
-    <script src="assets/motion.js?v=9"></script>
-    <script src="assets/track.js"></script>
-    <!-- Main configurator logic -->
-    <script src="assets/cart.js?v=1"></script>
-    <script src="configurator.js?v=18"></script>
+    <!-- Scripts are deferred from <head> — see the block there. -->
   </body>
 </html>

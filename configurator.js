@@ -651,7 +651,7 @@ function normalizeModelUVsGlobally(object) {
 
 async function loadProductFromSlug() {
   const slug = new URLSearchParams(window.location.search).get("slug");
-  let glbUrl = "assets/models/t_shirt.glb";
+  let glbUrl = "assets/models/t_shirt.glb?v=1";
 
   if (slug) {
     try {
@@ -695,7 +695,7 @@ function loadShirtModel(glbUrl) {
   const loader = new THREE.GLTFLoader();
 
   loader.load(
-    glbUrl || "assets/models/t_shirt.glb",
+    glbUrl || "assets/models/t_shirt.glb?v=1",
 
     // onLoad
     function (gltf) {

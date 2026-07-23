@@ -1,0 +1,65 @@
+# ================================================================
+# LOOM — Cloudflare Pages response headers.
+#
+# Rules are applied top-to-bottom; a later matching rule overrides an
+# earlier one for the same header, so the catch-all comes first and the
+# specific paths refine it.
+#
+# CACHE CONTRACT — read before editing an asset:
+#   Everything under /assets/ (plus the root .js/.css bundles) is served
+#   `immutable` for a year. That is only safe because every reference is
+#   version-qualified, e.g. `assets/theme.css?v=9`. The query string is
+#   part of the browser cache key, so bumping ?v= is what ships a change.
+#
+#   >>> Editing a file WITHOUT bumping its ?v= in the referencing HTML
+#   >>> means returning visitors keep the old copy for up to a year. <<<
+#
+#   HTML is deliberately never cached, so a ?v= bump takes effect on the
+#   customer's very next navigation.
+# ================================================================
+
+/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Content-Type-Options: nosniff
+
+# ── Versioned application code (see cache contract above) ────────
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/configurator.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/products-catalog.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/products-catalog.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# ── Media: unversioned, so revalidate rather than freeze ─────────
+# 30 days in cache, then a year of stale-while-revalidate so a repeat
+# visitor never waits on a byte-identical photo.
+/images/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=31536000
+
+/products/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=31536000
+
+/configuratorprodutcs/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=31536000
+
+# ── Icons / crawler files ────────────────────────────────────────
+/favicon.ico
+  Cache-Control: public, max-age=2592000
+
+/robots.txt
+  Cache-Control: public, max-age=86400
+
+/sitemap.xml
+  Cache-Control: public, max-age=86400
+
+# ── HTML: never cached, so ?v= bumps land immediately ────────────
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate

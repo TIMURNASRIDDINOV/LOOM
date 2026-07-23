@@ -90,7 +90,12 @@
   function mount(container, opts) {
     opts = opts || {};
     if (typeof container === 'string') container = document.querySelector(container);
-    if (!container || typeof L === 'undefined') return null;
+    /* feature-test Leaflet rather than just `typeof L` — the Lenis UMD
+       bundle publishes its own global `L`, which would sail past a bare
+       existence check and then blow up on L.map(). Returning null lets
+       the caller degrade to a plain address field. */
+    if (!container) return null;
+    if (!window.L || typeof window.L.map !== 'function' || typeof window.L.tileLayer !== 'function') return null;
 
     var state = { lat: null, lng: null, address: '', settled: false };
     var destroyed = false;

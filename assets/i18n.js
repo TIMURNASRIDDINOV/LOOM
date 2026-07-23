@@ -199,6 +199,16 @@
     'co.toAccount':    { uz: 'Shaxsiy kabinet', ru: 'Личный кабинет', en: 'My account' },
     'co.toCatalog':    { uz: 'Katalogga qaytish', ru: 'Вернуться в каталог', en: 'Back to catalog' },
     'co.errGeneric':   { uz: 'Buyurtma yuborilmadi. Qayta urinib ko‘ring.', ru: 'Не удалось оформить заказ. Попробуйте ещё раз.', en: 'Could not place the order. Please try again.' },
+    'co.errNetwork':   { uz: 'Server bilan aloqa yo‘q. Internetni tekshirib, qayta urinib ko‘ring.', ru: 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.', en: 'No connection to the server. Check your internet and try again.' },
+    'co.errBootTitle': { uz: 'Nimadir noto‘g‘ri ketdi', ru: 'Что-то пошло не так', en: 'Something went wrong' },
+    'co.errBoot':      { uz: 'Buyurtma sahifasini yuklab bo‘lmadi. Sahifani yangilang.', ru: 'Не удалось загрузить оформление заказа. Обновите страницу.', en: 'Could not load checkout. Please refresh the page.' },
+    'co.retry':        { uz: 'Yangilash',     ru: 'Обновить',   en: 'Refresh' },
+    'co.sessionLost':  { uz: 'Sessiya tugadi. Buyurtma berish uchun qayta kiring.', ru: 'Сессия истекла. Войдите заново, чтобы оформить заказ.', en: 'Your session expired. Sign in again to place the order.' },
+    'co.verifyCta':    { uz: 'Telegram orqali tasdiqlash', ru: 'Подтвердить через Telegram', en: 'Verify via Telegram' },
+    'co.addrPending':  { uz: 'Manzil aniqlanmoqda — bir soniya kuting', ru: 'Определяем адрес — подождите секунду', en: 'Resolving the address — one moment' },
+    'co.needAddrManual': { uz: 'Yetkazib berish manzilini kiriting', ru: 'Укажите адрес доставки', en: 'Enter your delivery address' },
+    'co.addrPh':       { uz: 'Ko‘cha, uy, mo‘ljal', ru: 'Улица, дом, ориентир', en: 'Street, building, landmark' },
+    'co.mapOffline':   { uz: 'Xarita mavjud emas. Manzilni qo‘lda kiriting — kuryer aniqlashtirish uchun bog‘lanadi.', ru: 'Карта недоступна. Введите адрес вручную — курьер свяжется с вами для уточнения.', en: 'The map is unavailable. Enter your address manually — the courier will confirm it with you.' },
 
     // ===== Address picker =====
     'addr.searchPh': { uz: 'Ko‘cha, uy — yozishni boshlang…', ru: 'Улица, дом — начните вводить…', en: 'Street, building — start typing…' },

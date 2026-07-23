@@ -76,6 +76,21 @@
   <!-- Pre-paint guard (must be synchronous, before first render) -->
   <script src="assets/boot.js?v=7" data-intro></script>
 
+  <!-- Page scripts: deferred so parsing is never blocked and the preload
+       scanner starts every download at byte 0. `defer` preserves document
+       order, which this stack depends on (GSAP → motion.js, config →
+       layout → i18n → auth → nav). -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
+  <script defer src="assets/config.js?v=2"></script>
+  <script defer src="assets/layout.js?v=3"></script>
+  <script defer src="assets/i18n.js?v=11"></script>
+  <script defer src="assets/auth.js?v=3"></script>
+  <script defer src="assets/nav.js?v=2"></script>
+  <script defer src="assets/motion.js?v=9"></script>
+  <script defer src="assets/track.js?v=2"></script>
+
   <style>
     /* ============================================================
        HOME — page-specific layout. Colors/type/motion come from
@@ -415,24 +430,14 @@
   </section>
 
   <!-- ============================================================
-       Scripts — motion libs via CDN (no build step), then shared JS
+       Scripts are deferred from <head>; these inline hooks must wait
+       for that queue to drain, hence DOMContentLoaded.
   ============================================================ -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
-
-  <script src="assets/config.js?v=2"></script>
-  <script src="assets/layout.js?v=3"></script>
-  <script src="assets/i18n.js?v=9"></script>
-  <script src="assets/auth.js?v=3"></script>
-  <script src="assets/nav.js?v=2"></script>
-  <script src="assets/motion.js?v=9"></script>
-  <script src="assets/track.js"></script>
-  <script>window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav()</script>
+  <script>document.addEventListener('DOMContentLoaded',function(){window.LOOM_AUTH&&window.LOOM_AUTH.renderAuthNav()})</script>
   <!-- Featured-product prices: format like the catalog (grouped + localized
        currency) and re-format when the language changes. -->
   <script>
-    (function () {
+    document.addEventListener('DOMContentLoaded', function () {
       function fmtPrices() {
         if (!window.LOOM_I18N) return;
         document.querySelectorAll('.pcard__price[data-price]').forEach(function (el) {
@@ -441,7 +446,7 @@
       }
       fmtPrices();
       window.addEventListener('loom:langchange', fmtPrices);
-    })();
+    });
   </script>
 </body>
 </html>
