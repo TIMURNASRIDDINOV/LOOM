@@ -1,9 +1,17 @@
 # ================================================================
 # LOOM — Cloudflare Pages response headers.
 #
-# Rules are applied top-to-bottom; a later matching rule overrides an
-# earlier one for the same header, so the catch-all comes first and the
-# specific paths refine it.
+# Every rule whose path matches is applied, and Cloudflare CONCATENATES
+# the values rather than letting a later rule win. So `/assets/*` really
+# ships as `max-age=31536000, must-revalidate, immutable` — the
+# must-revalidate is inherited from the catch-all below. That is
+# harmless (immutable plus a year of freshness is what actually governs;
+# must-revalidate only bites once the year is up), but it means you
+# cannot "override" an inherited header here — only add to it.
+#
+# The catch-all is what gives HTML its no-cache policy: Pages serves
+# clean URLs (/checkout, not /checkout.html), so a `/*.html` rule alone
+# would never match a real page request.
 #
 # CACHE CONTRACT — read before editing an asset:
 #   Everything under /assets/ (plus the root .js/.css bundles) is served
