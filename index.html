@@ -265,7 +265,11 @@
 
       <figure class="hero__media" data-reveal data-delay="0.35">
         <div class="hero__video">
-          <video src="images/tshirtgif.mp4" autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video>
+          <!-- 360° turntable, pre-cropped to the 4:5 the tile shows (object-fit
+               would discard the rest anyway). Poster paints before the first
+               video frame, so the tile never flashes --media-bg. -->
+          <video src="images/hero-tshirt-360.mp4" poster="images/hero-tshirt-360.jpg"
+                 autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video>
         </div>
         <figcaption class="hero__media-caption">
           <span>Apparel · 01</span>
