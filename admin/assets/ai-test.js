@@ -27,6 +27,10 @@ const nf = (n) => new Intl.NumberFormat('ru-RU').format(n)
 
 let REGISTRY = []
 let CAP = 9000
+// Per-run ceiling — mirrored from the server (/ai/models, /ai/budget) so the
+// estimate can warn before the round-trip. The server guard is still the
+// source of truth; this is only UX.
+let MAX_PER_RUN = 4500
 let BUDGET = { usedToday: 0, remaining: 0, cap: 9000, resetsAt: null }
 /** Blob URLs created for this run — revoked before the next run replaces them. */
 let blobUrls = []
@@ -53,6 +57,7 @@ async function loadBudget() {
   try {
     BUDGET = await apiJSON('/api/admin/ai/budget')
     CAP = BUDGET.cap
+    if (BUDGET.maxPerRun) MAX_PER_RUN = BUDGET.maxPerRun
     renderBudget()
     updateEstimate()
   } catch (err) {
@@ -107,15 +112,21 @@ function updateEstimate() {
   const images = chosen.reduce((n, cb) => n + effectiveCount(cb, requested), 0)
 
   const est = el('est')
+  // Per-run ceiling is checked first: it's an intrinsic "too big" that holds
+  // regardless of the daily remaining, and its fix (split the run) differs.
+  const overRun = cost > MAX_PER_RUN
+  const overDay = cost > BUDGET.remaining
   if (chosen.length === 0) {
     est.textContent = '—'
     est.classList.remove('over')
   } else {
-    const over = cost > BUDGET.remaining
-    est.textContent = `${images} изобр. · ~${nf(cost)} нейронов${over ? ` — превышает остаток (${nf(BUDGET.remaining)})` : ''}`
-    est.classList.toggle('over', over)
+    let note = ''
+    if (overRun) note = ` — превышает лимит за прогон (${nf(MAX_PER_RUN)})`
+    else if (overDay) note = ` — превышает остаток (${nf(BUDGET.remaining)})`
+    est.textContent = `${images} изобр. · ~${nf(cost)} нейронов${note}`
+    est.classList.toggle('over', overRun || overDay)
   }
-  el('btn-generate').disabled = chosen.length === 0
+  el('btn-generate').disabled = chosen.length === 0 || overRun
 
   // Explain any clamp rather than silently generating fewer images.
   const capped = chosen.filter((cb) => effectiveCount(cb, requested) < requested)
@@ -333,6 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const data = await apiJSON('/api/admin/ai/models')
     REGISTRY = data.models
     CAP = data.cap
+    if (data.maxPerRun) MAX_PER_RUN = data.maxPerRun
     renderModels()
   } catch (err) {
     showAlert(`Не удалось загрузить список моделей: ${err.message}`)

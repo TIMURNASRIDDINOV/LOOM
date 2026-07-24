@@ -6,6 +6,7 @@ import { toImageBytes } from '../lib/ai-image'
 import {
   DAILY_NEURON_CAP,
   FREE_TIER_DAILY_NEURONS,
+  MAX_RUN_NEURONS,
   getModel,
   nextUtcReset,
   publicRegistry,
@@ -41,7 +42,7 @@ async function pooled<T, R>(items: T[], limit: number, fn: (item: T, index: numb
 // The registry, minus the input-builder functions.
 
 ai.get('/ai/models', requireAdmin, (c) =>
-  c.json({ models: publicRegistry(), cap: DAILY_NEURON_CAP, freeTier: FREE_TIER_DAILY_NEURONS }),
+  c.json({ models: publicRegistry(), cap: DAILY_NEURON_CAP, freeTier: FREE_TIER_DAILY_NEURONS, maxPerRun: MAX_RUN_NEURONS }),
 )
 
 // ─── GET /api/admin/ai/budget ────────────────────────────────────────────────
@@ -52,6 +53,7 @@ ai.get('/ai/budget', requireAdmin, async (c) => {
     usedToday,
     cap: DAILY_NEURON_CAP,
     freeTier: FREE_TIER_DAILY_NEURONS,
+    maxPerRun: MAX_RUN_NEURONS,
     remaining: Math.max(0, DAILY_NEURON_CAP - usedToday),
     resetsAt: nextUtcReset(),
   })

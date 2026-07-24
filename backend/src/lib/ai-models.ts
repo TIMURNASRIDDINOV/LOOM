@@ -151,6 +151,16 @@ export const FREE_TIER_DAILY_NEURONS = 10_000
  */
 export const DAILY_NEURON_CAP = 9_000
 
+/**
+ * Per-run ceiling: the largest estimated spend a SINGLE generate request may
+ * cost, independent of how much daily budget is left. A safety net against a
+ * fat-fingered selection (every model at once) eating a big slice of the day in
+ * one click. Half the daily cap, so no single run burns more than half a day —
+ * still comfortably allows any one model, or the whole FLUX line-up, in one go.
+ * Tune here; the guard, the API and the admin UI all read this one number.
+ */
+export const MAX_RUN_NEURONS = 4_500
+
 export const MODEL_IDS: readonly string[] = AI_MODELS.map((m) => m.id)
 
 export function getModel(id: string): AiModel | null {

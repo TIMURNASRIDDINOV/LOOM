@@ -3,6 +3,7 @@ import { sumAiNeuronsSince } from '../db/queries'
 import {
   DAILY_NEURON_CAP,
   FREE_TIER_DAILY_NEURONS,
+  MAX_RUN_NEURONS,
   estimateRunCost,
   getModel,
   nextUtcReset,
@@ -63,11 +64,32 @@ export const aiBudget = createMiddleware<AiEnv>(async (c, next) => {
     parsedSeed = s
   }
 
-  // ─── The gate ───────────────────────────────────────────────────────────────
+  const estCost = estimateRunCost(modelIds, requested)
+
+  // ─── Per-run ceiling ─────────────────────────────────────────────────────────
+  // Request-intrinsic: this run is too big regardless of how much daily budget
+  // is left, so it is checked before the time-dependent daily gate and its
+  // message is about splitting the run, not waiting for the reset.
+
+  if (estCost > MAX_RUN_NEURONS) {
+    return c.json(
+      {
+        error:
+          `This run's estimated ${estCost.toLocaleString('en-US')} neurons exceeds the ` +
+          `${MAX_RUN_NEURONS.toLocaleString('en-US')}-neuron per-run limit. ` +
+          `Split it into smaller runs — deselect a model or lower the count.`,
+        code: 'run_limit_exceeded',
+        estCost,
+        maxPerRun: MAX_RUN_NEURONS,
+      },
+      429,
+    )
+  }
+
+  // ─── The daily gate ───────────────────────────────────────────────────────────
 
   const dayStart = utcDayStart()
   const usedToday = await sumAiNeuronsSince(c.env.DB, dayStart)
-  const estCost = estimateRunCost(modelIds, requested)
   const remaining = DAILY_NEURON_CAP - usedToday
 
   if (estCost > remaining) {
