@@ -1,23 +1,27 @@
 import { createMiddleware } from 'hono/factory'
-import { sumAiNeuronsSince } from '../db/queries'
+import { sumAiNeuronsSince, sumAiUsdSince } from '../db/queries'
 import {
   DAILY_NEURON_CAP,
+  DAILY_USD_CAP,
   FREE_TIER_DAILY_NEURONS,
   MAX_RUN_NEURONS,
-  estimateRunCost,
+  MAX_RUN_USD,
+  estimateRun,
   getModel,
+  hasGoogleModel,
   nextUtcReset,
   utcDayStart,
 } from '../lib/ai-models'
 import type { AiEnv } from '../types'
 
-// Validates a generate request and refuses it if dispatching would push the
-// day's estimated neuron spend past DAILY_NEURON_CAP.
+// Validates a generate request and refuses it if dispatching would push either
+// budget over its cap. Two currencies, two caps:
+//   Workers AI → neurons, DAILY_NEURON_CAP (below the free tier)
+//   Google     → dollars, DAILY_USD_CAP (real money, no free tier)
 //
-// The check is BEFORE dispatch, not after: Workers AI has no refund, so a run
-// that discovers it is over budget halfway through has already spent the
-// neurons. The cap sits below Cloudflare's 10,000/day free tier to absorb the
-// gap between our estimates and their billing.
+// Every check is BEFORE dispatch: neither provider refunds a call that discovers
+// it is over budget halfway through. Google is additionally fail-closed — if the
+// API key is unset, its models are refused rather than silently skipped.
 //
 // Use AFTER requireAdmin:
 //   ai.post('/generate', requireAdmin, aiBudget, handler)
@@ -47,8 +51,20 @@ export const aiBudget = createMiddleware<AiEnv>(async (c, next) => {
   }
   const modelIds = models as string[]
 
-  // count defaults to 2, then is clamped per model by its own maxCount — the
-  // slow Leonardo models cap at 1 so the browser does not time out waiting.
+  // Google models are real money — refuse them outright if no key is configured,
+  // rather than dispatching and getting an opaque auth error per image.
+  if (hasGoogleModel(modelIds) && !c.env.GEMINI_API_KEY) {
+    return c.json(
+      {
+        error:
+          'Google (Nano Banana) models need a Gemini API key, which is not configured. ' +
+          'Set it with `wrangler secret put GEMINI_API_KEY`, or deselect the Google models.',
+        code: 'google_key_missing',
+      },
+      400,
+    )
+  }
+
   const rawCount = count === undefined ? 2 : Number(count)
   if (!Number.isInteger(rawCount) || rawCount < 1) {
     return c.json({ error: 'count must be a positive integer' }, 400)
@@ -64,46 +80,57 @@ export const aiBudget = createMiddleware<AiEnv>(async (c, next) => {
     parsedSeed = s
   }
 
-  const estCost = estimateRunCost(modelIds, requested)
+  const { neurons: estNeurons, usd: estUsd } = estimateRun(modelIds, requested)
 
-  // ─── Per-run ceiling ─────────────────────────────────────────────────────────
-  // Request-intrinsic: this run is too big regardless of how much daily budget
-  // is left, so it is checked before the time-dependent daily gate and its
-  // message is about splitting the run, not waiting for the reset.
+  // ─── Per-run ceilings (request-intrinsic, checked before the daily gates) ────
 
-  if (estCost > MAX_RUN_NEURONS) {
+  if (estNeurons > MAX_RUN_NEURONS) {
     return c.json(
       {
         error:
-          `This run's estimated ${estCost.toLocaleString('en-US')} neurons exceeds the ` +
+          `This run's estimated ${estNeurons.toLocaleString('en-US')} neurons exceeds the ` +
           `${MAX_RUN_NEURONS.toLocaleString('en-US')}-neuron per-run limit. ` +
           `Split it into smaller runs — deselect a model or lower the count.`,
         code: 'run_limit_exceeded',
-        estCost,
+        estNeurons,
         maxPerRun: MAX_RUN_NEURONS,
       },
       429,
     )
   }
 
-  // ─── The daily gate ───────────────────────────────────────────────────────────
-
-  const dayStart = utcDayStart()
-  const usedToday = await sumAiNeuronsSince(c.env.DB, dayStart)
-  const remaining = DAILY_NEURON_CAP - usedToday
-
-  if (estCost > remaining) {
+  if (estUsd > MAX_RUN_USD) {
     return c.json(
       {
         error:
-          `This run would spend an estimated ${estCost.toLocaleString('en-US')} neurons, ` +
-          `but only ${Math.max(0, remaining).toLocaleString('en-US')} remain of today's ` +
+          `This run's estimated $${estUsd.toFixed(2)} exceeds the $${MAX_RUN_USD.toFixed(2)} ` +
+          `per-run limit for paid (Google) models. Lower the count or deselect a Google model.`,
+        code: 'run_usd_limit_exceeded',
+        estUsd,
+        maxPerRunUsd: MAX_RUN_USD,
+      },
+      429,
+    )
+  }
+
+  // ─── Daily gates ──────────────────────────────────────────────────────────────
+
+  const dayStart = utcDayStart()
+  const usedNeuronsToday = await sumAiNeuronsSince(c.env.DB, dayStart)
+  const remainingNeurons = DAILY_NEURON_CAP - usedNeuronsToday
+
+  if (estNeurons > remainingNeurons) {
+    return c.json(
+      {
+        error:
+          `This run would spend an estimated ${estNeurons.toLocaleString('en-US')} neurons, ` +
+          `but only ${Math.max(0, remainingNeurons).toLocaleString('en-US')} remain of today's ` +
           `${DAILY_NEURON_CAP.toLocaleString('en-US')} cap. ` +
           `Deselect a model, lower the count, or wait for the 00:00 UTC reset.`,
         code: 'neuron_budget_exceeded',
-        estCost,
-        usedToday,
-        remaining: Math.max(0, remaining),
+        estNeurons,
+        usedToday: usedNeuronsToday,
+        remaining: Math.max(0, remainingNeurons),
         cap: DAILY_NEURON_CAP,
         freeTier: FREE_TIER_DAILY_NEURONS,
         resetsAt: nextUtcReset(),
@@ -112,13 +139,39 @@ export const aiBudget = createMiddleware<AiEnv>(async (c, next) => {
     )
   }
 
+  let usedUsdToday = 0
+  if (estUsd > 0) {
+    usedUsdToday = await sumAiUsdSince(c.env.DB, dayStart)
+    const remainingUsd = DAILY_USD_CAP - usedUsdToday
+    if (estUsd > remainingUsd) {
+      return c.json(
+        {
+          error:
+            `This run would spend an estimated $${estUsd.toFixed(2)} on Google models, ` +
+            `but only $${Math.max(0, remainingUsd).toFixed(2)} remain of today's ` +
+            `$${DAILY_USD_CAP.toFixed(2)} paid cap. ` +
+            `Deselect a Google model, lower the count, or wait for the 00:00 UTC reset.`,
+          code: 'usd_budget_exceeded',
+          estUsd,
+          usedUsdToday,
+          remainingUsd: Math.max(0, remainingUsd),
+          capUsd: DAILY_USD_CAP,
+          resetsAt: nextUtcReset(),
+        },
+        429,
+      )
+    }
+  }
+
   c.set('aiPlan', {
     prompt: prompt.trim(),
     models: modelIds,
     count: requested,
     seed: parsedSeed,
-    estCost,
-    usedToday,
+    estNeurons,
+    estUsd,
+    usedNeuronsToday,
+    usedUsdToday,
   })
 
   await next()

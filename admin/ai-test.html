@@ -33,6 +33,11 @@
     .budget-fill { height: 100%; background: var(--success); transition: width 0.3s, background 0.3s; }
     .budget-fill.warn { background: var(--warning); }
     .budget-fill.danger { background: var(--danger); }
+    /* Two budgets side by side: neurons (free) + dollars (paid Google). */
+    .budgets { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+    @media (max-width: 640px) { .budgets { grid-template-columns: 1fr; } }
+    .budgets .budget { margin-bottom: 0; }
+    .budget.disabled { opacity: 0.55; }
 
     /* ── Form ───────────────────────────────────────────────────── */
     .panel { border: 0.5px solid var(--hairline); border-radius: 4px; background: var(--bg-card); padding: 1.25rem; margin-bottom: 1.5rem; }
@@ -63,9 +68,15 @@
     .model-id { font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim); word-break: break-all; margin-top: 0.15rem; }
     .model-cost { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; }
     .model-cost .cap { color: var(--warning); }
+    .model-cost .paid { color: var(--warning); }
     .model-cost .seed-ok { color: var(--success); }
     .model-cost .seed-no { color: var(--danger); }
     .model-cost .seed-unknown { color: var(--text-dim); }
+    .model-opt.opt-disabled { opacity: 0.5; cursor: not-allowed; }
+    .model-opt.opt-disabled:hover { background: transparent; border-color: var(--hairline); }
+    .prov { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.05rem 0.3rem; border-radius: 3px; vertical-align: middle; }
+    .prov-google { background: var(--warning-bg); color: var(--warning); border: 0.5px solid var(--warning-border); }
+    .unverified { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.05rem 0.3rem; border-radius: 3px; vertical-align: middle; background: var(--danger-bg); color: var(--danger); border: 0.5px solid var(--danger-border); }
 
     /* ── Actions ────────────────────────────────────────────────── */
     .actions { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-top: 1.25rem; }
@@ -127,17 +138,30 @@
       <button id="btn-refresh-budget" class="btn-sm">↻ Обновить бюджет</button>
     </div>
 
-    <!-- Today's neuron budget -->
-    <section class="budget">
-      <div class="budget-top">
-        <div>
-          <div class="budget-label">Остаток нейронов на сегодня</div>
-          <div class="budget-value" id="budget-value">— <span class="dim">/ —</span></div>
+    <!-- Today's budgets: neurons (Workers AI, free) + dollars (Google, paid) -->
+    <div class="budgets">
+      <section class="budget">
+        <div class="budget-top">
+          <div>
+            <div class="budget-label">Остаток нейронов на сегодня</div>
+            <div class="budget-value" id="budget-value">— <span class="dim">/ —</span></div>
+          </div>
+          <div class="budget-meta" id="budget-meta">Загрузка…</div>
         </div>
-        <div class="budget-meta" id="budget-meta">Загрузка…</div>
-      </div>
-      <div class="budget-track"><div class="budget-fill" id="budget-fill" style="width:0%"></div></div>
-    </section>
+        <div class="budget-track"><div class="budget-fill" id="budget-fill" style="width:0%"></div></div>
+      </section>
+
+      <section class="budget" id="budget-usd">
+        <div class="budget-top">
+          <div>
+            <div class="budget-label">Остаток $ на сегодня (Google)</div>
+            <div class="budget-value" id="budget-usd-value">— <span class="dim">/ —</span></div>
+          </div>
+          <div class="budget-meta" id="budget-usd-meta">Загрузка…</div>
+        </div>
+        <div class="budget-track"><div class="budget-fill" id="budget-usd-fill" style="width:0%"></div></div>
+      </section>
+    </div>
 
     <div id="alert" class="alert alert-danger hidden"></div>
 
@@ -192,6 +216,6 @@
   <script src="assets/app.js?v=6"></script>
   <script src="assets/layout.js?v=8"></script>
   <script>LOOM_LAYOUT.init('ai-test')</script>
-  <script src="assets/ai-test.js?v=3"></script>
+  <script src="assets/ai-test.js?v=4"></script>
 </body>
 </html>

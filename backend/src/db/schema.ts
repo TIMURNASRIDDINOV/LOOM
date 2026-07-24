@@ -150,4 +150,7 @@ export interface AiUsage {
   run_id: string
   prompt: string
   created_at: number
+  // Migration 0014 — multi-provider ledger (Workers AI neurons + Google USD)
+  provider: string        // 'workers-ai' | 'google'
+  est_cost_usd: number    // dollars; 0 for Workers AI rows
 }

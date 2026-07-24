@@ -41,6 +41,10 @@ export type Bindings = {
   CLICK_SECRET?: string
   UZUM_MERCHANT_ID?: string
   UZUM_SECRET?: string
+  // Google Gemini image API ("Nano Banana") — optional. When unset, the paid
+  // Google models are refused by the budget guard and disabled in the admin UI.
+  // Set via: wrangler secret put GEMINI_API_KEY
+  GEMINI_API_KEY?: string
 }
 
 // Used by user-auth middleware and routes
@@ -68,8 +72,11 @@ export type AiPlan = {
   models: string[]
   count: number
   seed?: number
-  estCost: number
-  usedToday: number
+  // Split cost estimates the guard cleared this run for (neurons + paid USD).
+  estNeurons: number
+  estUsd: number
+  usedNeuronsToday: number
+  usedUsdToday: number
 }
 
 // Used by the admin AI spike routes (admin auth + a budget-checked plan)
