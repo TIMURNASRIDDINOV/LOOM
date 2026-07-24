@@ -13,6 +13,8 @@
     "migrate:prod:phone-auth": "wrangler d1 execute loom-db --file migrations/0003_phone_auth.sql",
     "seed:local": "wrangler d1 execute loom-db --local --file migrations/0002_seed.sql",
     "seed:prod": "wrangler d1 execute loom-db --file migrations/0002_seed.sql",
+    "migrate:local:ai": "wrangler d1 execute loom-db --local --file migrations/0013_ai_usage.sql",
+    "migrate:prod:ai": "wrangler d1 execute loom-db --remote --file migrations/0013_ai_usage.sql",
     "set-webhook": "npx tsx scripts/set-telegram-webhook.ts",
     "set-admin": "npx tsx scripts/set-admin.ts"
   },

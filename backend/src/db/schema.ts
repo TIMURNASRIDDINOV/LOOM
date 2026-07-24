@@ -139,3 +139,15 @@ export interface OrderStatusLog {
   changed_at: number
   note: string | null
 }
+
+// Migration 0013 — Workers AI neuron ledger for the admin model-comparison
+// spike. One row per dispatched env.AI.run(), including failures (a failed
+// call can still burn neurons). See lib/ai-models.ts for the estimates.
+export interface AiUsage {
+  id: number
+  model: string
+  est_neurons: number
+  run_id: string
+  prompt: string
+  created_at: number
+}

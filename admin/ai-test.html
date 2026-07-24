@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Favicon (pencil mark) -->
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-тест — LOOM Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=6" />
+  <script src="assets/theme-init.js?v=6"></script>
+  <style>
+    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+    :root { --mono: 'DM Mono', monospace; }
+
+    .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap; }
+    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0; }
+
+    /* ── Budget bar ─────────────────────────────────────────────── */
+    .budget { border: 0.5px solid var(--hairline); border-radius: 4px; background: var(--bg-card); padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+    .budget-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
+    .budget-label { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .budget-value { font-family: var(--mono); font-size: 1.15rem; color: var(--text); }
+    .budget-value .dim { color: var(--text-dim); font-size: 0.85rem; }
+    .budget-meta { font-size: 0.78rem; color: var(--text-muted); }
+    .budget-track { height: 6px; border-radius: 3px; background: var(--control-track); overflow: hidden; }
+    .budget-fill { height: 100%; background: var(--success); transition: width 0.3s, background 0.3s; }
+    .budget-fill.warn { background: var(--warning); }
+    .budget-fill.danger { background: var(--danger); }
+
+    /* ── Form ───────────────────────────────────────────────────── */
+    .panel { border: 0.5px solid var(--hairline); border-radius: 4px; background: var(--bg-card); padding: 1.25rem; margin-bottom: 1.5rem; }
+    .field { margin-bottom: 1.1rem; }
+    .field:last-child { margin-bottom: 0; }
+    .field-label { display: block; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+    .field-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.35rem; line-height: 1.5; }
+
+    .form-textarea, .form-input-sm, .form-select {
+      width: 100%; padding: 0.6rem 0.9rem; border-radius: 4px; border: 0.5px solid var(--input-border);
+      background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.875rem; outline: none;
+    }
+    .form-textarea { min-height: 84px; resize: vertical; line-height: 1.6; }
+    .form-textarea:focus, .form-input-sm:focus, .form-select:focus { border-color: var(--input-border-focus); }
+    .form-textarea::placeholder, .form-input-sm::placeholder { color: var(--text-dim); }
+    .form-select { appearance: none; cursor: pointer; }
+    .form-select option { background: var(--bg-card); }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .row > .field { flex: 1 1 180px; margin-bottom: 0; }
+
+    /* ── Model checkboxes ───────────────────────────────────────── */
+    .models { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.6rem; }
+    .model-opt { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.7rem 0.85rem; border: 0.5px solid var(--hairline); border-radius: 4px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+    .model-opt:hover { background: var(--hover-bg); border-color: var(--btn-hover-border); }
+    .model-opt input { margin-top: 0.15rem; accent-color: var(--text); cursor: pointer; }
+    .model-opt-body { min-width: 0; }
+    .model-name { font-size: 0.85rem; color: var(--text); }
+    .model-id { font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim); word-break: break-all; margin-top: 0.15rem; }
+    .model-cost { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .model-cost .cap { color: var(--warning); }
+    .model-cost .seed-ok { color: var(--success); }
+    .model-cost .seed-no { color: var(--danger); }
+    .model-cost .seed-unknown { color: var(--text-dim); }
+
+    /* ── Actions ────────────────────────────────────────────────── */
+    .actions { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-top: 1.25rem; }
+    .btn-sm { padding: 0.55rem 1rem; border-radius: 4px; border: 0.5px solid var(--btn-border); background: var(--input-bg); color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+    .btn-sm:hover { color: var(--text); background: var(--control-track); }
+    .btn-primary { padding: 0.55rem 1.3rem; border-radius: 4px; border: 0.5px solid var(--btn-border); background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; font-weight: 500; }
+    .btn-primary:hover:not(:disabled) { background: var(--hover-bg); border-color: var(--btn-hover-border); }
+    .btn-primary:disabled, .btn-sm:disabled { opacity: 0.45; cursor: not-allowed; }
+    .est { font-family: var(--mono); font-size: 0.8rem; color: var(--text-muted); }
+    .est.over { color: var(--danger); }
+
+    /* ── Alerts ─────────────────────────────────────────────────── */
+    .alert { border-radius: 4px; padding: 0.8rem 1rem; font-size: 0.83rem; line-height: 1.55; margin-bottom: 1.25rem; }
+    .alert-danger { background: var(--danger-bg); border: 0.5px solid var(--danger-border); color: var(--danger); }
+    .alert-warn { background: var(--warning-bg); border: 0.5px solid var(--warning-border); color: var(--warning); }
+    .hidden { display: none !important; }
+
+    /* ── Results grid ───────────────────────────────────────────── */
+    .results-header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .results-title { font-size: 1rem; font-weight: 400; margin: 0; }
+    .run-meta { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .tile { border: 0.5px solid var(--hairline); border-radius: 4px; background: var(--bg-card); overflow: hidden; display: flex; flex-direction: column; }
+    .tile-img-wrap { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
+
+    /* Backdrops — edge fringing only shows on solid black. */
+    .bd-checker {
+      background-color: #808080;
+      background-image:
+        linear-gradient(45deg, rgba(0,0,0,0.22) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.22) 75%),
+        linear-gradient(45deg, rgba(0,0,0,0.22) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.22) 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 8px 8px;
+    }
+    .bd-black { background: #000000; }
+    .bd-white { background: #ffffff; }
+
+    .tile-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .tile-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; text-align: center; font-size: 0.78rem; line-height: 1.5; color: var(--text-muted); background: var(--bg-subtle); }
+    .tile-status.err { color: var(--danger); font-family: var(--mono); font-size: 0.7rem; overflow: auto; align-items: flex-start; text-align: left; }
+
+    .tile-body { padding: 0.75rem 0.85rem; border-top: 0.5px solid var(--hairline2); }
+    .tile-name { font-size: 0.82rem; color: var(--text); }
+    .tile-facts { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); margin-top: 0.3rem; line-height: 1.6; }
+    .tile-toggles { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
+    .chip { padding: 0.28rem 0.6rem; border-radius: 3px; border: 0.5px solid var(--input-border); background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.7rem; cursor: pointer; transition: all 0.15s; }
+    .chip:hover { color: var(--text); border-color: var(--input-border-focus); }
+    .chip.active { background: var(--invert-bg); color: var(--invert-text); border-color: var(--invert-bg); }
+    .chip:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .empty { text-align: center; padding: 3rem 1rem; color: var(--text-dim); font-size: 0.88rem; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="page-header">
+      <h1 class="page-title">AI-тест — сравнение моделей</h1>
+      <button id="btn-refresh-budget" class="btn-sm">↻ Обновить бюджет</button>
+    </div>
+
+    <!-- Today's neuron budget -->
+    <section class="budget">
+      <div class="budget-top">
+        <div>
+          <div class="budget-label">Остаток нейронов на сегодня</div>
+          <div class="budget-value" id="budget-value">— <span class="dim">/ —</span></div>
+        </div>
+        <div class="budget-meta" id="budget-meta">Загрузка…</div>
+      </div>
+      <div class="budget-track"><div class="budget-fill" id="budget-fill" style="width:0%"></div></div>
+    </section>
+
+    <div id="alert" class="alert alert-danger hidden"></div>
+
+    <!-- Generate form -->
+    <section class="panel">
+      <div class="field">
+        <label class="field-label" for="prompt">Промпт</label>
+        <textarea id="prompt" class="form-textarea" placeholder="bold minimalist line-art wolf head, high contrast, centered, plain background — artwork for a t-shirt print"></textarea>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Модели</span>
+        <div class="models" id="models"></div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label class="field-label" for="count">Изображений на модель</label>
+          <select id="count" class="form-select">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+          <div class="field-hint" id="count-hint"></div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="seed">Seed</label>
+          <input id="seed" type="number" min="0" step="1" class="form-input-sm" placeholder="напр. 42 — пусто = случайный" />
+          <div class="field-hint">Seed воспроизводит картинку только у моделей Leonardo (проверено побайтово). Модели FLUX принимают seed, но игнорируют его — их повторные прогоны несравнимы.</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="btn-generate" class="btn-primary">Сгенерировать</button>
+        <span class="est" id="est">—</span>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section id="results-section" class="hidden">
+      <div class="results-header">
+        <h2 class="results-title">Результаты</h2>
+        <span class="run-meta" id="run-meta"></span>
+      </div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <div id="empty" class="empty">Выберите модели и запустите генерацию.</div>
+  </main>
+
+  <script src="assets/app.js?v=6"></script>
+  <script src="assets/layout.js?v=8"></script>
+  <script>LOOM_LAYOUT.init('ai-test')</script>
+  <script src="assets/ai-test.js?v=2"></script>
+</body>
+</html>

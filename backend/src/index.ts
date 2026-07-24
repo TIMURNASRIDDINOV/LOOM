@@ -6,6 +6,8 @@ import telegramAuthRoutes, { webhookRouter } from './routes/telegram-auth'
 import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
+import adminAiRoutes from './routes/admin-ai'
+import aiCutoutRoutes from './routes/ai-cutout'
 import cartRoutes from './routes/cart'
 import paymentsRoutes from './routes/payments'
 import filesRoutes from './routes/files'
@@ -49,6 +51,8 @@ app.route('/api/admin', adminRoutes)          // /api/admin/* (orders, auth, med
 app.route('/api/admin', setupRouter)          // POST /api/admin/setup (no auth required)
 app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/admin/stats
 app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
+app.route('/api/admin', adminAiRoutes)        // /api/admin/ai/{models,budget,runs,generate}
+app.route('/api/ai', aiCutoutRoutes)          // GET /api/ai/cutout/* (admin-only)
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 app.route('/api/auth', userProfile)
 app.route('/api/auth', telegramAuthRoutes)     // POST /api/auth/telegram/{start,status}, /api/auth/logout

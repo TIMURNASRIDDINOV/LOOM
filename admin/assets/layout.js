@@ -11,6 +11,7 @@
     { id: 'orders',    label: 'Заказы',     href: 'orders.html',   icon: '◫' },
     { id: 'products',  label: 'Продукты',   href: 'products.html', icon: '◻' },
     { id: 'users',     label: 'Пользователи', href: 'users.html',  icon: '○' },
+    { id: 'ai-test',   label: 'AI-тест',      href: 'ai-test.html', icon: '◈' },
   ]
 
   const THEME_KEY = (window.__loomTheme && window.__loomTheme.KEY) || 'loom_admin_theme'

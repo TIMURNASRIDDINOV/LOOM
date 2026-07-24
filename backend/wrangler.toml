@@ -34,6 +34,18 @@ bucket_name = "loom-uploads"
 binding = "RATE_LIMIT"
 id = "6dd51851f3ef4e20bc3fe5a7d5bbe23d"
 
+# Workers AI — text-to-image model comparison harness (admin-only spike).
+# Free tier: 10,000 neurons/day, resets 00:00 UTC. See lib/ai-models.ts.
+[ai]
+binding = "AI"
+
+# Images binding — background removal (segment: 'foreground') for the cutout endpoint.
+# `wrangler dev` uses the real Images service by default (the local mock is
+# opt-in via --experimental-images-local-mode), so segment: 'foreground' can be
+# verified without deploying.
+[images]
+binding = "IMAGES"
+
 # Secrets (set via: wrangler secret put <NAME>):
 #   JWT_SECRET               — 64+ char random string for signing JWTs
 #   TELEGRAM_BOT_TOKEN       — from BotFather

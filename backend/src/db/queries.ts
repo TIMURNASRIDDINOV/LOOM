@@ -1381,3 +1381,59 @@ export async function getOrderItemsByOrderId(db: D1Database, orderId: number): P
     return results
   })
 }
+
+// ─── Workers AI usage ledger (migration 0013) ────────────────────────────────
+
+// Records one dispatched env.AI.run(). Called for failed generations too — a
+// call that errors upstream can still have consumed neurons, so leaving it out
+// of the ledger is exactly how a run drifts past the free tier unnoticed.
+export async function insertAiUsage(
+  db: D1Database,
+  p: { model: string; est_neurons: number; run_id: string; prompt: string },
+): Promise<void> {
+  return safeQuery('insertAiUsage', async () => {
+    await db
+      .prepare(
+        `INSERT INTO ai_usage (model, est_neurons, run_id, prompt, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(p.model, p.est_neurons, p.run_id, p.prompt.slice(0, 2000), Date.now())
+      .run()
+  })
+}
+
+// Estimated neurons spent since `since` (epoch ms). The budget guard passes
+// 00:00 UTC today, matching Cloudflare's daily reset.
+export async function sumAiNeuronsSince(db: D1Database, since: number): Promise<number> {
+  return safeQuery('sumAiNeuronsSince', async () => {
+    const row = await db
+      .prepare('SELECT COALESCE(SUM(est_neurons), 0) AS total FROM ai_usage WHERE created_at >= ?')
+      .bind(since)
+      .first<{ total: number }>()
+    return Number(row?.total ?? 0)
+  })
+}
+
+// Recent runs, newest first — powers the admin page's run history.
+export async function listAiRuns(
+  db: D1Database,
+  limit = 20,
+): Promise<Array<{ run_id: string; prompt: string; images: number; est_neurons: number; created_at: number }>> {
+  return safeQuery('listAiRuns', async () => {
+    const { results } = await db
+      .prepare(
+        `SELECT run_id,
+                MIN(prompt)        AS prompt,
+                COUNT(*)           AS images,
+                SUM(est_neurons)   AS est_neurons,
+                MAX(created_at)    AS created_at
+           FROM ai_usage
+          GROUP BY run_id
+          ORDER BY created_at DESC
+          LIMIT ?`,
+      )
+      .bind(limit)
+      .all<{ run_id: string; prompt: string; images: number; est_neurons: number; created_at: number }>()
+    return results
+  })
+}
