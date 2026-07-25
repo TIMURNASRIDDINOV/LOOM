@@ -13,27 +13,26 @@ import {
   getUsersWithRole,
   setUserRole,
 } from '../db/queries'
-import { requireAdmin, requireRole } from '../middleware/requireAdmin'
+import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
 
 const router = new Hono<AdminEnv>()
 
 // Writes need manager or owner; reads are open to any admin (incl. staff).
-const MANAGER = requireRole('owner', 'manager')
 
 const ALLOWED_ROLES = new Set(['user', 'admin', 'super_admin', 'owner'])
 const ALLOWED_STATUSES = new Set(['active', 'banned'])
 
 // ─── GET /api/admin/stats (extended) ─────────────────────────────────────────
 
-router.get('/stats', requireAdmin, async (c) => {
+router.get('/stats', requireAdmin, requireCap('analytics.view'), async (c) => {
   const stats = await getAdminStatsExtended(c.env.DB)
   return c.json(stats)
 })
 
 // ─── GET /api/admin/users ─────────────────────────────────────────────────────
 
-router.get('/users', requireAdmin, async (c) => {
+router.get('/users', requireAdmin, requireCap('users.view'), async (c) => {
   const q = c.req.query('q') || undefined
   const role = c.req.query('role') || undefined
   const status = c.req.query('status') || undefined
@@ -46,7 +45,7 @@ router.get('/users', requireAdmin, async (c) => {
 
 // ─── GET /api/admin/users/:id ─────────────────────────────────────────────────
 
-router.get('/users/:id', requireAdmin, async (c) => {
+router.get('/users/:id', requireAdmin, requireCap('users.view'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -58,7 +57,7 @@ router.get('/users/:id', requireAdmin, async (c) => {
 
 // ─── PATCH /api/admin/users/:id ───────────────────────────────────────────────
 
-router.patch('/users/:id', requireAdmin, MANAGER, async (c) => {
+router.patch('/users/:id', requireAdmin, requireCap('users.edit'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -117,7 +116,7 @@ router.patch('/users/:id', requireAdmin, MANAGER, async (c) => {
 
 // ─── PATCH /api/admin/users/:id/role ─────────────────────────────────────────
 
-router.patch('/users/:id/role', requireAdmin, requireRole('owner'), async (c) => {
+router.patch('/users/:id/role', requireAdmin, requireCap('users.role'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -167,7 +166,7 @@ router.patch('/users/:id/role', requireAdmin, requireRole('owner'), async (c) =>
 // ─── PATCH /api/admin/users/:id/status ────────────────────────────────────────
 // Explicit status-only endpoint (convenience wrapper over PATCH /users/:id)
 
-router.patch('/users/:id/status', requireAdmin, MANAGER, async (c) => {
+router.patch('/users/:id/status', requireAdmin, requireCap('users.status'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -201,7 +200,7 @@ router.patch('/users/:id/status', requireAdmin, MANAGER, async (c) => {
 
 // ─── GET /api/admin/users/:id/orders ─────────────────────────────────────────
 
-router.get('/users/:id/orders', requireAdmin, async (c) => {
+router.get('/users/:id/orders', requireAdmin, requireCap('users.view'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -212,7 +211,7 @@ router.get('/users/:id/orders', requireAdmin, async (c) => {
 
 // ─── GET /api/admin/users/:id/activity ───────────────────────────────────────
 
-router.get('/users/:id/activity', requireAdmin, async (c) => {
+router.get('/users/:id/activity', requireAdmin, requireCap('users.view'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -224,7 +223,7 @@ router.get('/users/:id/activity', requireAdmin, async (c) => {
 
 // ─── POST /api/admin/notifications ───────────────────────────────────────────
 
-router.post('/notifications', requireAdmin, MANAGER, async (c) => {
+router.post('/notifications', requireAdmin, requireCap('notifications.send'), async (c) => {
   let body: unknown
   try { body = await c.req.json() } catch {
     return c.json({ error: 'Invalid JSON' }, 400)
@@ -323,7 +322,7 @@ router.post('/notifications', requireAdmin, MANAGER, async (c) => {
 
 // ─── PATCH /api/admin/users/:id/profile ──────────────────────────────────────
 
-router.patch('/users/:id/profile', requireAdmin, MANAGER, async (c) => {
+router.patch('/users/:id/profile', requireAdmin, requireCap('users.edit'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -362,7 +361,7 @@ router.patch('/users/:id/profile', requireAdmin, MANAGER, async (c) => {
 
 // ─── PATCH /api/admin/users/:id/location ─────────────────────────────────────
 
-router.patch('/users/:id/location', requireAdmin, MANAGER, async (c) => {
+router.patch('/users/:id/location', requireAdmin, requireCap('users.edit'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -402,7 +401,7 @@ router.patch('/users/:id/location', requireAdmin, MANAGER, async (c) => {
 
 // Trigger a Telegram self-reset for the user. The admin NEVER sees or sets a
 // password — they only ask the user to reset it via the bot.
-router.patch('/users/:id/password', requireAdmin, MANAGER, async (c) => {
+router.patch('/users/:id/password', requireAdmin, requireCap('users.password'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -449,7 +448,7 @@ router.patch('/users/:id/password', requireAdmin, MANAGER, async (c) => {
 
 // ─── GET /api/admin/notifications ────────────────────────────────────────────
 
-router.get('/notifications', requireAdmin, async (c) => {
+router.get('/notifications', requireAdmin, requireCap('notifications.view'), async (c) => {
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
   const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '25', 10)))
   const { items, total } = await getNotifications(c.env.DB, page, limit)

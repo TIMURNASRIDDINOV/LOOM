@@ -1,5 +1,7 @@
 // Central environment types for Hono
 
+import type { Capability } from './lib/permissions'
+
 // Narrow structural types for the Workers AI + Images bindings. Declared here
 // rather than leaning on the ambient `Ai` / `ImagesBinding` globals so a bump
 // of @cloudflare/workers-types cannot break the build over surface we do not
@@ -53,10 +55,12 @@ export type UserEnv = {
   Variables: { userId: number }
 }
 
-// Used by admin-auth middleware and routes
+// Used by admin-auth middleware and routes.
+// adminCaps is the admin's effective capability set (role preset + per-admin
+// overrides), resolved once per request by middleware/requireAdmin.ts.
 export type AdminEnv = {
   Bindings: Bindings
-  Variables: { adminId: number; adminRole: string }
+  Variables: { adminId: number; adminRole: string; adminCaps: Set<Capability> }
 }
 
 // Base env — no Variables set (public routes, top-level app)
@@ -79,8 +83,9 @@ export type AiPlan = {
   usedUsdToday: number
 }
 
-// Used by the admin AI spike routes (admin auth + a budget-checked plan)
+// Used by the admin AI spike routes (admin auth + a budget-checked plan).
+// Mirrors AdminEnv's Variables so requireAdmin/requireCap compose here too.
 export type AiEnv = {
   Bindings: Bindings
-  Variables: { adminId: number; adminRole: string; aiPlan: AiPlan }
+  Variables: { adminId: number; adminRole: string; adminCaps: Set<Capability>; aiPlan: AiPlan }
 }

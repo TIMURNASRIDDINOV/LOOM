@@ -20,10 +20,20 @@ import {
   updateAdminRole,
   deleteAdmin,
   countAdminsByRole,
+  listAllAdminPermissions,
+  setAdminPermission,
+  clearAdminPermission,
+  clearAllAdminPermissions,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { signToken, verifyToken } from '../lib/jwt'
-import { requireAdmin, requireRole } from '../middleware/requireAdmin'
+import { requireAdmin, requireRole, requireCap } from '../middleware/requireAdmin'
+import {
+  permissionCatalog,
+  resolveCapabilities,
+  isCapability,
+  presetFor,
+} from '../lib/permissions'
 import { ORDER_STATUSES, ADMIN_ROLES } from '../db/schema'
 import type { AdminEnv, BaseEnv, Bindings } from '../types'
 
@@ -136,16 +146,89 @@ admin.post('/logout', (c) => {
 admin.get('/me', requireAdmin, async (c) => {
   const row = await getAdminById(c.env.DB, c.get('adminId'))
   if (!row) return c.json({ error: 'Not found' }, 404)
-  return c.json({ id: row.id, email: row.email, role: row.role || 'staff' })
+  // capabilities drives the whole admin UI: the sidebar hides pages the admin
+  // cannot open, and [data-cap] controls are removed from the DOM entirely.
+  return c.json({
+    id: row.id,
+    email: row.email,
+    role: row.role || 'staff',
+    capabilities: [...c.get('adminCaps')],
+  })
 })
+
+// ─── Permission catalog ───────────────────────────────────────────────────────
+// Labels, groupings and role presets, so the panel never hardcodes the list.
+
+admin.get('/permissions/catalog', requireAdmin, (c) => c.json(permissionCatalog()))
 
 // ─── Admin team management (OWNER only) ───────────────────────────────────────
 
 // List all admin accounts — any admin can SEE the team roster (who is owner/
-// manager/staff); only the owner can add/change/remove (gated below).
+// manager/staff); only the owner can add/change/remove (gated below) and only
+// the owner is shown the per-member capability detail.
 admin.get('/admins', requireAdmin, async (c) => {
   const admins = await listAdmins(c.env.DB)
-  return c.json({ admins })
+  if (c.get('adminRole') !== 'owner') return c.json({ admins })
+
+  const overridesByAdmin = await listAllAdminPermissions(c.env.DB)
+  return c.json({
+    admins: admins.map((a) => {
+      const overrides = overridesByAdmin[a.id] ?? {}
+      return {
+        ...a,
+        overrides,
+        preset: presetFor(a.role),
+        capabilities: [...resolveCapabilities(a.role, overrides)],
+      }
+    }),
+  })
+})
+
+// Replace an admin's capability overrides.
+//   { overrides: { "orders.approve": false, "users.role": true, "ai.use": null } }
+// true = grant on top of the preset, false = revoke from it, null = inherit.
+admin.put('/admins/:id/permissions', requireAdmin, requireRole('owner'), async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  let body: unknown
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const { overrides } = body as Record<string, unknown>
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+    return c.json({ error: 'overrides должен быть объектом' }, 400)
+  }
+
+  const target = await getAdminById(c.env.DB, id)
+  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+  // The owner always resolves to every capability, so storing overrides for one
+  // would be a silent no-op that reads as a working toggle in the UI.
+  if ((target.role || 'staff') === 'owner') {
+    return c.json({ error: 'У владельца всегда полный доступ — права не настраиваются.' }, 400)
+  }
+
+  const entries = Object.entries(overrides as Record<string, unknown>)
+  const unknown = entries.filter(([cap]) => !isCapability(cap)).map(([cap]) => cap)
+  if (unknown.length) return c.json({ error: `Неизвестные права: ${unknown.join(', ')}` }, 400)
+
+  for (const [cap, value] of entries) {
+    if (value === null) {
+      await clearAdminPermission(c.env.DB, id, cap)
+    } else if (typeof value === 'boolean') {
+      await setAdminPermission(c.env.DB, {
+        adminId: id, capability: cap, granted: value, updatedBy: c.get('adminId'),
+      })
+    } else {
+      return c.json({ error: `Значение для «${cap}» должно быть true, false или null` }, 400)
+    }
+  }
+
+  const fresh = await listAllAdminPermissions(c.env.DB)
+  const merged = fresh[id] ?? {}
+  return c.json({
+    ok: true,
+    overrides: merged,
+    capabilities: [...resolveCapabilities(target.role || 'staff', merged)],
+  })
 })
 
 // Create a new admin account with a role.
@@ -186,6 +269,10 @@ admin.patch('/admins/:id/role', requireAdmin, requireRole('owner'), async (c) =>
     if (id === c.get('adminId')) return c.json({ ok: true, role }) // already owner
     await updateAdminRole(c.env.DB, c.get('adminId'), 'manager')
     await updateAdminRole(c.env.DB, id, 'owner')
+    // The new owner's old overrides no longer mean anything (owner = all), and
+    // the outgoing owner starts from a clean manager preset.
+    await clearAllAdminPermissions(c.env.DB, id)
+    await clearAllAdminPermissions(c.env.DB, c.get('adminId'))
     return c.json({ ok: true, role, transferred: true })
   }
 
@@ -195,7 +282,11 @@ admin.patch('/admins/:id/role', requireAdmin, requireRole('owner'), async (c) =>
     if (owners <= 1) return c.json({ error: 'Нельзя снять роль с единственного владельца. Сначала назначьте другого.' }, 400)
   }
   await updateAdminRole(c.env.DB, id, role)
-  return c.json({ ok: true, role })
+  // Overrides are deviations FROM a preset; carrying them onto a different
+  // preset would silently grant or strip access the owner never chose.
+  if (target.role !== role) await clearAllAdminPermissions(c.env.DB, id)
+  const overrides = target.role !== role ? {} : await listAllAdminPermissions(c.env.DB).then((m) => m[id] ?? {})
+  return c.json({ ok: true, role, capabilities: [...resolveCapabilities(role, overrides)] })
 })
 
 // Delete an admin account.
@@ -212,7 +303,7 @@ admin.delete('/admins/:id', requireAdmin, requireRole('owner'), async (c) => {
 
 // ─── GET /api/admin/orders ────────────────────────────────────────────────────
 
-admin.get('/orders', requireAdmin, async (c) => {
+admin.get('/orders', requireAdmin, requireCap('orders.view'), async (c) => {
   const status = c.req.query('status') || undefined
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
   const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10)))
@@ -224,7 +315,7 @@ admin.get('/orders', requireAdmin, async (c) => {
 
 // ─── GET /api/admin/orders/:id ────────────────────────────────────────────────
 
-admin.get('/orders/:id', requireAdmin, async (c) => {
+admin.get('/orders/:id', requireAdmin, requireCap('orders.view'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -262,7 +353,7 @@ admin.get('/orders/:id', requireAdmin, async (c) => {
 // ─── POST /api/admin/orders/:id/approve  (owner/manager) ──────────────────────
 // Mark / unmark the production proof as approved. Approval gates status → producing.
 
-admin.post('/orders/:id/approve', requireAdmin, requireRole('owner', 'manager'), async (c) => {
+admin.post('/orders/:id/approve', requireAdmin, requireCap('orders.approve'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -287,7 +378,7 @@ admin.post('/orders/:id/approve', requireAdmin, requireRole('owner', 'manager'),
 
 // ─── PATCH /api/admin/orders/:id/status ──────────────────────────────────────
 
-admin.patch('/orders/:id/status', requireAdmin, async (c) => {
+admin.patch('/orders/:id/status', requireAdmin, requireCap('orders.status'), async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
@@ -410,7 +501,7 @@ async function notifyOrderStatus(
 // ─── GET /api/admin/media/:key  (serve R2 logo to admin panel) ───────────────
 // The admin panel fetches this with credentials: 'include' and creates a blob URL.
 
-admin.get('/media/:key{.+}', requireAdmin, async (c) => {
+admin.get('/media/:key{.+}', requireAdmin, requireCap('orders.view'), async (c) => {
   const key = c.req.param('key')
   const object = await c.env.LOOM_UPLOADS.get(key)
   if (!object) return c.json({ error: 'Not found' }, 404)
@@ -451,7 +542,7 @@ admin.post('/refresh', async (c) => {
 
 // ─── GET /api/admin/analytics/visitors ───────────────────────────────────────
 
-admin.get('/analytics/visitors', requireAdmin, async (c) => {
+admin.get('/analytics/visitors', requireAdmin, requireCap('analytics.view'), async (c) => {
   const stats = await getVisitorStats(c.env.DB)
   return c.json(stats)
 })

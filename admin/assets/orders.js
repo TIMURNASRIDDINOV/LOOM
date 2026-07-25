@@ -1,92 +1,99 @@
 'use strict'
 
-let currentPage = 1
-const LIMIT = 50
-let debounceTimer = null
+;(function () {
+  const { apiJSON, statusBadge, formatPrice, formatDate, formatPhone } = window.LOOM
+  const { esc, apiErrorMessage } = window.LOOM_UI
 
-async function loadOrders() {
-  const { apiFetch, statusBadge, formatPrice, formatDate } = window.LOOM
+  const LIMIT = 50
+  let currentPage = 1
+  let debounceTimer = null
 
-  const status = document.getElementById('filter-status').value
-  const q = document.getElementById('filter-q').value.trim()
+  const el = (id) => document.getElementById(id)
 
-  const params = new URLSearchParams({ page: currentPage, limit: LIMIT })
-  if (status) params.set('status', status)
-  if (q) params.set('q', q)
+  function stateRow(html, kind) {
+    return '<tr><td colspan="8"><div class="state' + (kind ? ' state--' + kind : '') + '">' + html + '</div></td></tr>'
+  }
 
-  const tbody = document.getElementById('orders-tbody')
-  tbody.innerHTML = '<tr><td colspan="8" class="cell-empty">Загрузка…</td></tr>'
+  async function loadOrders() {
+    const status = el('filter-status').value
+    const q = el('filter-q').value.trim()
 
-  try {
-    const res = await apiFetch('/api/admin/orders?' + params)
-    if (res.status === 401) { window.location.href = 'login.html'; return }
-    const data = await res.json()
+    const params = new URLSearchParams({ page: currentPage, limit: LIMIT })
+    if (status) params.set('status', status)
+    if (q) params.set('q', q)
 
-    const { orders, total, page, limit } = data
+    const tbody = el('orders-tbody')
+    tbody.innerHTML = stateRow('Загрузка…')
 
-    // Update pagination info
-    const totalPages = Math.ceil(total / limit)
-    document.getElementById('page-info').textContent = `Стр. ${page} из ${totalPages || 1} (всего ${total})`
-    document.getElementById('btn-prev').disabled = page <= 1
-    document.getElementById('btn-next').disabled = page >= totalPages
+    try {
+      const { orders, total, page, limit } = await apiJSON('/api/admin/orders?' + params)
 
-    if (!orders.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="cell-empty">Заказов нет</td></tr>'
-      return
+      const totalPages = Math.ceil(total / limit) || 1
+      el('page-info').textContent = 'Страница ' + page + ' из ' + totalPages + ' · всего ' + total
+      el('btn-prev').disabled = page <= 1
+      el('btn-next').disabled = page >= totalPages
+
+      if (!orders.length) {
+        // An empty result from a filter is a different situation from an empty
+        // shop, and the way out of each is different.
+        tbody.innerHTML = (status || q)
+          ? stateRow('<p class="state-title">Ничего не найдено</p>' +
+              '<p class="state-sub">Под выбранный фильтр не попал ни один заказ.</p>' +
+              '<div class="state-actions"><button type="button" class="btn btn--sm" id="btn-clear-filters">Сбросить фильтры</button></div>')
+          : stateRow('<p class="state-title">Заказов пока нет</p>' +
+              '<p class="state-sub">Как только клиент оформит заказ, он появится здесь.</p>')
+        const clear = el('btn-clear-filters')
+        if (clear) clear.addEventListener('click', () => {
+          el('filter-status').value = ''
+          el('filter-q').value = ''
+          currentPage = 1
+          loadOrders()
+        })
+        return
+      }
+
+      tbody.innerHTML = orders.map((o) =>
+        '<tr class="is-clickable" data-id="' + o.id + '" tabindex="0">' +
+          '<td class="num">' + o.id + '</td>' +
+          '<td>' + esc(o.customer_name) + '</td>' +
+          '<td class="num">' + esc(formatPhone(o.customer_phone)) + '</td>' +
+          '<td>' + esc(o.product_name_ru || '—') + '</td>' +
+          '<td class="num right">' + formatPrice(o.total_price) + '</td>' +
+          '<td>' + statusBadge(o.status) + '</td>' +
+          '<td class="muted">' + formatDate(o.created_at) + '</td>' +
+          '<td class="dim" aria-hidden="true">→</td>' +
+        '</tr>').join('')
+
+      tbody.querySelectorAll('tr[data-id]').forEach((row) => {
+        const open = () => { window.location.href = 'order.html?id=' + row.dataset.id }
+        row.addEventListener('click', open)
+        row.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() }
+        })
+      })
+    } catch (err) {
+      if (err.status === 401) { window.location.href = 'login.html'; return }
+      tbody.innerHTML = stateRow(esc(apiErrorMessage(err)), 'error')
+    }
+  }
+
+  window.LOOM_LAYOUT.onReady(() => {
+    // The dashboard links here with a status pre-selected ("12 ждут обработки"
+    // → the 12), so the filter has to honour ?status=.
+    const wanted = new URLSearchParams(location.search).get('status')
+    if (wanted && el('filter-status').querySelector('option[value="' + wanted + '"]')) {
+      el('filter-status').value = wanted
     }
 
-    tbody.innerHTML = orders.map(o => `
-      <tr class="order-row" data-id="${o.id}">
-        <td>#${o.id}</td>
-        <td>${escHtml(o.customer_name)}</td>
-        <td class="cell-mono">${escHtml(o.customer_phone)}</td>
-        <td>${escHtml(o.product_name_ru || '—')}</td>
-        <td class="cell-mono">${formatPrice(o.total_price)}</td>
-        <td>${statusBadge(o.status)}</td>
-        <td class="cell-date">${formatDate(o.created_at)}</td>
-        <td class="cell-arrow">→</td>
-      </tr>
-    `).join('')
-
-    // Row click navigation (hover handled via CSS)
-    tbody.querySelectorAll('.order-row').forEach(row => {
-      row.addEventListener('click', () => {
-        window.location.href = `order.html?id=${row.dataset.id}`
-      })
+    el('filter-status').addEventListener('change', () => { currentPage = 1; loadOrders() })
+    el('filter-q').addEventListener('input', () => {
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => { currentPage = 1; loadOrders() }, 300)
     })
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="cell-error">Ошибка: ${escHtml(e.message)}</td></tr>`
-  }
-}
+    el('btn-refresh').addEventListener('click', loadOrders)
+    el('btn-prev').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadOrders() } })
+    el('btn-next').addEventListener('click', () => { currentPage++; loadOrders() })
 
-function escHtml(s) {
-  if (!s) return ''
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-  const { checkAuth } = window.LOOM
-  const admin = await checkAuth()
-  if (!admin) { window.location.href = 'login.html'; return }
-
-  window.LOOM_LAYOUT.setEmail(admin.email)
-
-  // Wire controls
-  document.getElementById('filter-status').addEventListener('change', () => { currentPage = 1; loadOrders() })
-
-  document.getElementById('filter-q').addEventListener('input', () => {
-    clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(() => { currentPage = 1; loadOrders() }, 300)
+    loadOrders()
   })
-
-  document.getElementById('btn-refresh').addEventListener('click', loadOrders)
-
-  document.getElementById('btn-prev').addEventListener('click', () => {
-    if (currentPage > 1) { currentPage--; loadOrders() }
-  })
-  document.getElementById('btn-next').addEventListener('click', () => {
-    currentPage++; loadOrders()
-  })
-
-  loadOrders()
-})
+})()

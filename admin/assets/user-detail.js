@@ -1,7 +1,17 @@
 'use strict'
 
 ;(function () {
-  const { apiJSON, checkAuth, formatPrice, formatDate, formatPhone, statusBadge } = window.LOOM
+  const { apiJSON, formatPrice, formatDate, formatPhone, statusBadge } = window.LOOM
+  const { toast, confirmDialog, apiErrorMessage } = window.LOOM_UI
+
+  // Every action button below lives behind a data-cap and may be absent from
+  // the DOM entirely (layout.js removes what the admin may not use), so each
+  // listener is attached defensively.
+  const on = (id, event, fn) => {
+    const node = document.getElementById(id)
+    if (node) node.addEventListener(event, fn)
+    return node
+  }
 
   let userId = null
   let currentUser = null
@@ -12,21 +22,15 @@
   }
 
   function roleBadge(role) {
-    // [color, bg, border] — real-hue roles keep their hue + ${color}30 border;
-    // white-based roles use neutral tokens and a tokenized border (hairline)
-    const map = {
-      owner:       ['OWNER',       '#fbbf24', 'rgba(251,191,36,0.15)', '#fbbf2430'],
-      super_admin: ['SUPER ADMIN', '#a78bfa', 'rgba(167,139,250,0.15)', '#a78bfa30'],
-      admin:       ['ADMIN',       '#60a5fa', 'rgba(96,165,250,0.15)', '#60a5fa30'],
-      user:        ['USER',        'var(--text-muted)', 'var(--hover-bg)', 'var(--hairline)'],
-    }
-    const [label, color, bg, border] = map[role] || ['?', 'var(--text-dim)', 'transparent', 'var(--hairline)']
-    return `<span class="badge" style="color:${color};background:${bg};border:1px solid ${border}">${label}</span>`
+    const labels = { owner: 'OWNER', super_admin: 'SUPER ADMIN', admin: 'ADMIN', user: 'USER' }
+    return `<span class="badge">${labels[role] || escHtml(role || '?')}</span>`
   }
 
   function renderUserInfo(u) {
     currentUser = u
-    document.getElementById('page-title').textContent = u.phone || `Пользователь #${u.id}`
+    const title = [u.first_name, u.last_name].filter(Boolean).join(' ')
+      || (u.phone ? formatPhone(u.phone) : u.email) || `Клиент #${u.id}`
+    document.getElementById('page-title').textContent = title
 
     const rows = [
       ['ID', String(u.id)],
@@ -42,10 +46,10 @@
 
     // Identity header (avatar/initials + name + email + status)
     const displayName = [u.first_name, u.last_name].filter(Boolean).join(' ')
-      || (u.phone ? formatPhone(u.phone) : u.email) || ('Пользователь #' + u.id)
+      || (u.phone ? formatPhone(u.phone) : u.email) || ('Клиент #' + u.id)
     const initials = (displayName || '?').replace(/[^A-Za-zА-Яа-яЁё]/g, '').slice(0, 2).toUpperCase() || '#'
     const statusHtml = `<span class="badge badge-${u.status === 'banned' ? 'banned' : 'active'}">${u.status === 'banned' ? 'Заблокирован' : 'Активен'}</span>`
-    const tgHtml = u.telegram_user_id ? '<span class="badge" style="color:#229ED9;background:rgba(34,158,217,0.12);border:1px solid rgba(34,158,217,0.3)">Telegram ✓</span>' : ''
+    const tgHtml = u.telegram_user_id ? '<span class="badge">Telegram ✓</span>' : ''
     const ident = document.getElementById('user-identity')
     if (ident) {
       ident.innerHTML =
@@ -65,32 +69,29 @@
         <span class="info-value">${escHtml(val)}</span>
       `).join('')
 
-    // Show action buttons
-    const actions = document.getElementById('user-actions')
-    actions.style.display = ''
-
     const toggleStatusBtn = document.getElementById('btn-toggle-status')
-    toggleStatusBtn.textContent = u.status === 'banned' ? 'Разблокировать' : 'Заблокировать'
-    toggleStatusBtn.className = u.status === 'banned'
-      ? 'btn-action manager-only'
-      : 'btn-action danger manager-only'
+    if (toggleStatusBtn) {
+      const banned = u.status === 'banned'
+      toggleStatusBtn.textContent = banned ? 'Разблокировать' : 'Заблокировать'
+      toggleStatusBtn.className = banned ? 'btn' : 'btn btn--danger'
+      toggleStatusBtn.setAttribute('data-cap-ok', '')
+    }
 
-    // Notify button — always visible; hint differs when no Telegram
-    const notifyBtn = document.getElementById('btn-notify')
-    notifyBtn.style.display = ''
     const noTgNote = document.getElementById('notif-no-tg-note')
     if (noTgNote) noTgNote.style.display = u.telegram_user_id ? 'none' : ''
 
-    // Pre-fill edit profile form
-    document.getElementById('edit-first-name').value = u.first_name || ''
-    document.getElementById('edit-last-name').value = u.last_name || ''
-    document.getElementById('edit-email').value = u.email || ''
-    document.getElementById('edit-phone').value = u.phone || ''
+    // Pre-fill the edit panel when the admin is allowed to see it at all.
+    const setVal = (id, v) => { const n = document.getElementById(id); if (n) n.value = v || '' }
+    setVal('edit-first-name', u.first_name)
+    setVal('edit-last-name', u.last_name)
+    setVal('edit-email', u.email)
+    setVal('edit-phone', u.phone)
 
     // Pre-fill location form from JSON
     try {
       const loc = u.location_preset ? JSON.parse(u.location_preset) : null
       const curEl = document.getElementById('admin-loc-current')
+      if (!curEl) return
       if (loc && loc.address) {
         curEl.textContent = `Текущий: ${loc.address}${loc.lat ? ` (${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)})` : ''}`
         curEl.style.display = ''
@@ -115,6 +116,7 @@
 
   function showAdminLocResult(address, lat, lng) {
     _adminLocAddr = address; _adminLocLat = lat; _adminLocLng = lng
+    if (!document.getElementById('admin-loc-result')) return
     document.getElementById('admin-loc-found-addr').textContent = address
     document.getElementById('admin-loc-coords').textContent = lat && lng ? `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}` : ''
     if (lat && lng) {
@@ -131,32 +133,35 @@
       const data = await apiJSON(`/api/admin/users/${userId}/orders`)
       const tbody = document.getElementById('orders-tbody')
       if (!data.orders?.length) {
-        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim)">Заказов нет</td></tr>'
+        tbody.innerHTML = '<tr><td colspan="4"><div class="state">У этого клиента ещё нет заказов</div></td></tr>'
         return
       }
       tbody.innerHTML = data.orders.map(o => `
-        <tr style="cursor:pointer" onclick="location.href='order.html?id=${o.id}'">
-          <td class="mono">#${o.id}</td>
-          <td style="color:var(--text-muted)">${formatDate(o.created_at)}</td>
+        <tr class="is-clickable" data-order="${o.id}">
+          <td class="num">${o.id}</td>
+          <td class="muted">${formatDate(o.created_at)}</td>
           <td>${statusBadge(o.status)}</td>
-          <td style="text-align:right;font-family:var(--mono)">${formatPrice(o.total_price)}</td>
+          <td class="num right">${formatPrice(o.total_price)}</td>
         </tr>
       `).join('')
+      tbody.querySelectorAll('tr[data-order]').forEach((row) => {
+        row.addEventListener('click', () => { location.href = 'order.html?id=' + row.dataset.order })
+      })
     } catch (err) {
       document.getElementById('orders-tbody').innerHTML =
-        `<tr><td colspan="4" style="color:var(--danger)">${escHtml(err.message)}</td></tr>`
+        `<tr><td colspan="4"><div class="state state--error">${escHtml(apiErrorMessage(err))}</div></td></tr>`
     }
   }
 
   async function loadActivity(since) {
     const tbody = document.getElementById('activity-tbody')
-    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-dim)">Загрузка…</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="3"><div class="state">Загрузка…</div></td></tr>'
     try {
       const qs = since ? `?since=${since}` : ''
       const data = await apiJSON(`/api/admin/users/${userId}/activity${qs}`)
 
       if (!data.items?.length) {
-        tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-dim)">Нет записей</td></tr>'
+        tbody.innerHTML = '<tr><td colspan="3"><div class="state">За этот период активности не было</div></td></tr>'
         return
       }
       tbody.innerHTML = data.items.map(a => {
@@ -169,181 +174,215 @@
         }
         return `
           <tr>
-            <td class="mono" style="font-size:0.8rem">${escHtml(a.action)}</td>
-            <td style="color:var(--text-muted);font-size:0.8rem">${formatDate(a.created_at)}</td>
-            <td style="color:var(--text-muted);font-size:0.78rem">${escHtml(meta)}</td>
+            <td class="mono">${escHtml(a.action)}</td>
+            <td class="muted">${formatDate(a.created_at)}</td>
+            <td class="muted">${escHtml(meta)}</td>
           </tr>
         `
       }).join('')
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="3" style="color:var(--danger)">${escHtml(err.message)}</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="3"><div class="state state--error">${escHtml(apiErrorMessage(err))}</div></td></tr>`
     }
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
+  // Exactly one editing panel is open at a time; the previous layout let four
+  // stack up and the page turned into a column of half-finished forms.
+  function openPanel(id) {
+    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('open', p.id === id))
+    const panel = document.getElementById(id)
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+  function closePanels() {
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('open'))
+  }
+  function togglePanel(id) {
+    const panel = document.getElementById(id)
+    if (panel && panel.classList.contains('open')) closePanels()
+    else openPanel(id)
+  }
 
-  document.getElementById('btn-toggle-status').addEventListener('click', async () => {
+  document.querySelectorAll('[data-close-panel]').forEach((b) => b.addEventListener('click', closePanels))
+
+  on('btn-notify', 'click', () => togglePanel('notif-form'))
+  on('btn-edit-profile', 'click', () => togglePanel('edit-profile-card'))
+  on('btn-edit-location', 'click', () => togglePanel('edit-location-card'))
+  on('btn-reset-password', 'click', () => togglePanel('reset-password-card'))
+
+  on('btn-toggle-status', 'click', async () => {
     if (!currentUser) return
-    const newStatus = currentUser.status === 'banned' ? 'active' : 'banned'
-    const label = newStatus === 'banned' ? 'заблокировать' : 'разблокировать'
-    if (!confirm(`Вы уверены, что хотите ${label} этого пользователя?`)) return
+    const banning = currentUser.status !== 'banned'
+    const ok = await confirmDialog({
+      title: banning ? 'Заблокировать клиента?' : 'Разблокировать клиента?',
+      body: banning
+        ? 'Клиент не сможет войти в личный кабинет и оформлять заказы, пока вы не снимете блокировку.'
+        : 'Клиент снова сможет войти и оформлять заказы.',
+      confirmLabel: banning ? 'Заблокировать' : 'Разблокировать',
+      danger: banning,
+    })
+    if (!ok) return
     try {
-      await apiJSON(`/api/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }), headers: { 'Content-Type': 'application/json' } })
+      await apiJSON(`/api/admin/users/${userId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: banning ? 'banned' : 'active' }),
+      })
+      toast(banning ? 'Клиент заблокирован' : 'Клиент разблокирован', 'success')
       location.reload()
     } catch (err) {
-      alert('Ошибка: ' + err.message)
+      toast(apiErrorMessage(err), 'error')
     }
   })
 
-  // Role change is now handled by the role-select dropdown rendered inside renderUserInfo
+  // ── Notify ────────────────────────────────────────────────────────────────
 
-  function toggleCard(btnId, cardId) {
-    document.getElementById(btnId).addEventListener('click', () => {
-      const card = document.getElementById(cardId)
-      card.style.display = card.style.display === 'none' ? '' : 'none'
-    })
-  }
-
-  toggleCard('btn-notify', 'notif-form')
-  toggleCard('btn-edit-profile', 'edit-profile-card')
-  toggleCard('btn-edit-location', 'edit-location-card')
-  toggleCard('btn-reset-password', 'reset-password-card')
-
-  document.getElementById('btn-send-notif').addEventListener('click', async () => {
+  on('btn-send-notif', 'click', async (e) => {
+    const btn = e.currentTarget
     const msg = document.getElementById('notif-msg').value.trim()
     const btnLabel = document.getElementById('notif-btn-label').value.trim()
     const btnUrl = document.getElementById('notif-btn-url').value.trim()
-    const result = document.getElementById('notif-result')
+    if (!msg) { toast('Введите текст сообщения', 'error'); return }
 
-    if (!msg) { result.style.color = 'var(--danger)'; result.textContent = 'Введите текст сообщения'; return }
-
-    result.style.color = 'var(--text-muted)'; result.textContent = 'Отправка…'
-
+    btn.disabled = true
     try {
       const body = { user_id: userId, message: msg }
       if (btnLabel && btnUrl) { body.button_label = btnLabel; body.button_url = btnUrl }
-
       await apiJSON('/api/admin/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
-      result.style.color = 'var(--success)'; result.textContent = '✅ Уведомление отправлено'
+      toast('Сообщение отправлено', 'success')
       document.getElementById('notif-msg').value = ''
+      closePanels()
     } catch (err) {
-      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
+      toast(apiErrorMessage(err), 'error')
+    } finally {
+      btn.disabled = false
     }
   })
 
-  // ── Edit Profile ──────────────────────────────────────────────────────────
+  // ── Edit profile ──────────────────────────────────────────────────────────
 
-  document.getElementById('btn-save-profile').addEventListener('click', async () => {
-    const result = document.getElementById('profile-result')
+  on('btn-save-profile', 'click', async (e) => {
+    const btn = e.currentTarget
     const body = {
       first_name: document.getElementById('edit-first-name').value.trim() || null,
       last_name: document.getElementById('edit-last-name').value.trim() || null,
       email: document.getElementById('edit-email').value.trim() || null,
       phone: document.getElementById('edit-phone').value.trim() || null,
     }
-    result.style.color = 'var(--text-muted)'; result.textContent = 'Сохранение…'
+    btn.disabled = true
     try {
       const updated = await apiJSON(`/api/admin/users/${userId}/profile`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
-      result.style.color = 'var(--success)'; result.textContent = '✅ Сохранено'
+      toast('Данные сохранены', 'success')
       renderUserInfo(updated)
+      closePanels()
     } catch (err) {
-      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
+      toast(apiErrorMessage(err), 'error')
+    } finally {
+      btn.disabled = false
     }
   })
 
-  // ── Edit Location ─────────────────────────────────────────────────────────
+  // ── Location ──────────────────────────────────────────────────────────────
 
-  document.getElementById('btn-geocode-location').addEventListener('click', async () => {
+  on('btn-geocode-location', 'click', async (e) => {
+    const btn = e.currentTarget
     const q = document.getElementById('edit-location-addr').value.trim()
-    const result = document.getElementById('location-result')
-    const btn = document.getElementById('btn-geocode-location')
-    if (!q) return
-    btn.disabled = true; btn.textContent = '…'; result.textContent = ''
+    if (!q) { toast('Введите адрес', 'error'); return }
+    btn.disabled = true; btn.textContent = 'Ищем…'
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=ru`
-      const res = await fetch(url)
-      const data = await res.json()
-      if (!data.length) { result.style.color = 'var(--danger)'; result.textContent = 'Адрес не найден'; return }
+      const data = await (await fetch(url)).json()
+      if (!data.length) { toast('Адрес не найден — попробуйте выбрать на карте', 'error'); return }
       const { lat, lon, display_name } = data[0]
       document.getElementById('edit-location-addr').value = display_name
       showAdminLocResult(display_name, parseFloat(lat), parseFloat(lon))
     } catch (err) {
-      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
+      toast('Не удалось найти адрес: ' + err.message, 'error')
     } finally {
       btn.disabled = false; btn.textContent = 'Найти'
     }
   })
 
-  document.getElementById('edit-location-addr').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('btn-geocode-location').click()
+  on('edit-location-addr', 'keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btn-geocode-location').click() }
   })
 
-  document.getElementById('btn-save-location').addEventListener('click', async () => {
-    const result = document.getElementById('location-result')
-    result.style.color = 'var(--text-muted)'; result.textContent = 'Сохранение…'
+  on('btn-save-location', 'click', async (e) => {
+    const btn = e.currentTarget
     const loc = _adminLocAddr ? { address: _adminLocAddr, lat: _adminLocLat, lng: _adminLocLng } : null
+    btn.disabled = true
     try {
       await apiJSON(`/api/admin/users/${userId}/location`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ location_preset: loc }),
       })
-      result.style.color = 'var(--success)'; result.textContent = '✅ Сохранено'
+      toast('Адрес сохранён', 'success')
     } catch (err) {
-      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
+      toast(apiErrorMessage(err), 'error')
+    } finally {
+      btn.disabled = false
     }
   })
 
-  document.getElementById('btn-clear-location').addEventListener('click', async () => {
-    const result = document.getElementById('location-result')
+  on('btn-clear-location', 'click', async (e) => {
+    const btn = e.currentTarget
+    const ok = await confirmDialog({
+      title: 'Очистить адрес доставки?',
+      body: 'Сохранённый адрес клиента будет удалён. Он сможет указать новый при следующем заказе.',
+      confirmLabel: 'Очистить',
+      danger: true,
+    })
+    if (!ok) return
+
     document.getElementById('edit-location-addr').value = ''
     document.getElementById('admin-loc-result').style.display = 'none'
     document.getElementById('admin-loc-current').style.display = 'none'
     _adminLocAddr = null; _adminLocLat = null; _adminLocLng = null
-    result.style.color = 'var(--text-muted)'; result.textContent = 'Очистка…'
+
+    btn.disabled = true
     try {
       await apiJSON(`/api/admin/users/${userId}/location`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ location_preset: null }),
       })
-      result.style.color = 'var(--success)'; result.textContent = '✅ Локация очищена'
+      toast('Адрес очищен', 'success')
     } catch (err) {
-      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
+      toast(apiErrorMessage(err), 'error')
+    } finally {
+      btn.disabled = false
     }
   })
 
-  // ── Reset Password ────────────────────────────────────────────────────────
+  // ── Reset password ────────────────────────────────────────────────────────
+  // The admin can only TRIGGER a reset — the client sets their own new password
+  // via Telegram. No plaintext password is ever shown to or set by an admin.
 
-  // Admin can only TRIGGER a reset — the user sets their own new password via
-  // Telegram. The admin never sees or sets a plaintext password.
-  document.getElementById('btn-save-password').addEventListener('click', async () => {
-    const result = document.getElementById('password-result')
+  on('btn-save-password', 'click', async (e) => {
+    const btn = e.currentTarget
     if (currentUser && !currentUser.telegram_user_id) {
-      result.style.color = 'var(--danger)'
-      result.textContent = '⚠ У пользователя не привязан Telegram — отправить сброс невозможно.'
+      toast('У клиента не привязан Telegram — отправить запрос некуда', 'error')
       return
     }
-    if (!confirm('Отправить пользователю запрос на сброс пароля через Telegram?')) return
-    result.style.color = 'var(--text-muted)'; result.textContent = 'Отправка…'
+    const ok = await confirmDialog({
+      title: 'Отправить запрос на сброс пароля?',
+      body: 'Клиент получит сообщение в Telegram и сам задаст новый пароль на сайте.',
+      confirmLabel: 'Отправить',
+    })
+    if (!ok) return
+
+    btn.disabled = true
     try {
       await apiJSON(`/api/admin/users/${userId}/password`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
       })
-      result.style.color = 'var(--success)'
-      result.textContent = '✅ Пользователю отправлено сообщение в Telegram для сброса пароля.'
+      toast('Запрос отправлен в Telegram', 'success')
+      closePanels()
     } catch (err) {
-      result.style.color = 'var(--danger)'; result.textContent = 'Ошибка: ' + err.message
+      toast(apiErrorMessage(err), 'error')
+    } finally {
+      btn.disabled = false
     }
   })
 
@@ -365,30 +404,26 @@
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    const admin = await checkAuth()
-    if (!admin) { window.location.href = 'login.html'; return }
-    window.LOOM_LAYOUT.setEmail(admin.email)
-
+  window.LOOM_LAYOUT.onReady(async () => {
     userId = parseInt(new URLSearchParams(window.location.search).get('id'), 10)
     if (!userId) { window.location.href = 'users.html'; return }
 
     try {
       const user = await apiJSON(`/api/admin/users/${userId}`)
       renderUserInfo(user)
+      window.LOOM_LAYOUT.setTitle(document.getElementById('page-title').textContent)
     } catch (err) {
-      document.getElementById('user-info').textContent = 'Ошибка загрузки: ' + err.message
+      document.getElementById('user-info').innerHTML =
+        `<span class="state--error">${escHtml(apiErrorMessage(err))}</span>`
       return
     }
 
-    // Phone input mask
     const phoneInput = document.getElementById('edit-phone')
     if (phoneInput) applyPhoneMask(phoneInput)
 
-    // Activity filter buttons
-    document.querySelectorAll('.activity-filter-btn').forEach(btn => {
+    document.querySelectorAll('.activity-filter-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.activity-filter-btn').forEach(b => b.classList.remove('active'))
+        document.querySelectorAll('.activity-filter-btn').forEach((b) => b.classList.remove('active'))
         btn.classList.add('active')
         loadActivity(btn.dataset.since || undefined)
       })

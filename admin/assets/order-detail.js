@@ -20,7 +20,7 @@ function renderOrderItems(items, anchorCard) {
   const { apiFetch, formatPrice } = window.LOOM
   const card = document.createElement('div')
   card.className = 'card'
-  card.innerHTML = `<p class="card-title">Позиции заказа (${items.length})</p>` +
+  card.innerHTML = `<div class="card-head"><h3 class="card-title">Позиции заказа (${items.length})</h3></div>` +
     items.map((it, i) => {
       const d = parseDesign(it.design_json)
       const color = d.shirtColor || '—'
@@ -79,12 +79,13 @@ async function loadOrder(id) {
     document.title = `Заказ #${o.id} — LOOM Admin`
 
     // ── Left column ──────────────────────────────────────────────
-    document.getElementById('order-id').textContent = `#${o.id}`
+    // The heading already renders the № sign.
+    document.getElementById('order-id').textContent = String(o.id)
     document.getElementById('order-status-badge').innerHTML = statusBadge(o.status)
     document.getElementById('order-date').textContent = formatDate(o.created_at)
 
     document.getElementById('order-customer').textContent = o.customer_name
-    document.getElementById('order-phone').textContent = o.customer_phone
+    document.getElementById('order-phone').textContent = window.LOOM.formatPhone(o.customer_phone)
     document.getElementById('order-comment').textContent = o.comment || '—'
     document.getElementById('order-price').textContent = formatPrice(o.total_price)
 
@@ -207,12 +208,13 @@ async function loadOrder(id) {
 
     // ── Right column: status change ───────────────────────────────
     const statusSelect = document.getElementById('status-select')
-    statusSelect.value = o.status
+    const updateBtn = document.getElementById('btn-update-status')
+    if (statusSelect) statusSelect.value = o.status
 
-    document.getElementById('btn-update-status').addEventListener('click', async () => {
+    if (updateBtn) updateBtn.addEventListener('click', async () => {
       const newStatus = statusSelect.value
       const note = document.getElementById('status-note').value.trim()
-      const btn = document.getElementById('btn-update-status')
+      const btn = updateBtn
       btn.disabled = true
       btn.textContent = 'Обновляю…'
       try {
@@ -223,7 +225,7 @@ async function loadOrder(id) {
         })
         await loadOrder(id)  // reload to refresh log + badge
       } catch (e) {
-        alert('Ошибка: ' + e.message)
+        window.LOOM_UI.toast(window.LOOM_UI.apiErrorMessage(e), 'error')
         btn.disabled = false
         btn.textContent = 'Обновить статус'
       }
@@ -232,18 +234,18 @@ async function loadOrder(id) {
     // ── Status log ────────────────────────────────────────────────
     const logEl = document.getElementById('status-log')
     if (!o.statusLog?.length) {
-      logEl.innerHTML = '<p style="color:var(--text-dim);font-size:0.82rem">История пуста</p>'
+      logEl.innerHTML = '<div class="state">Изменений статуса ещё не было</div>'
     } else {
       logEl.innerHTML = o.statusLog.map(entry => `
-        <div style="padding:0.6rem 0;border-bottom:1px solid var(--hairline2)">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
-            <div>
-              <span style="color:var(--text-muted);font-size:0.75rem">${entry.old_status ? escHtml(STATUS_LABELS[entry.old_status] || entry.old_status) + ' →' : ''}</span>
+        <div style="padding:var(--sp-3) 0;border-bottom:1px solid var(--hairline2)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--sp-3);flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:var(--sp-2)">
+              <span class="muted" style="font-size:var(--fs-sm)">${entry.old_status ? escHtml(STATUS_LABELS[entry.old_status] || entry.old_status) + ' →' : ''}</span>
               ${statusBadge(entry.new_status)}
             </div>
-            <span style="font-size:0.72rem;color:var(--text-dim);white-space:nowrap">${formatDate(entry.changed_at)}</span>
+            <span class="muted" style="font-size:var(--fs-sm);white-space:nowrap">${formatDate(entry.changed_at)}</span>
           </div>
-          ${entry.note ? `<p style="margin:0.3rem 0 0;font-size:0.8rem;color:var(--text-secondary)">${escHtml(entry.note)}</p>` : ''}
+          ${entry.note ? `<p style="margin:var(--sp-2) 0 0;font-size:var(--fs-base);color:var(--text-secondary)">${escHtml(entry.note)}</p>` : ''}
         </div>
       `).join('')
     }
@@ -253,16 +255,12 @@ async function loadOrder(id) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const { checkAuth } = window.LOOM
-  const admin = await checkAuth()
-  if (!admin) { window.location.href = 'login.html'; return }
-
-  window.LOOM_LAYOUT.setEmail(admin.email)
-
+window.LOOM_LAYOUT.onReady(() => {
   const id = new URLSearchParams(window.location.search).get('id')
   if (!id) { showError('ID не указан'); return }
 
+  // The topbar shows the record you are on, not just the section.
+  window.LOOM_LAYOUT.setTitle('Заказ №' + id)
   loadOrder(id)
 })
 
@@ -585,21 +583,21 @@ function buildSpecTable(d) {
 // ── Approval (production gate) ──────────────────────────────────────────────
 function setupApproval(o) {
   const stateEl = document.getElementById('approval-state')
+  // Removed from the DOM for admins without orders.approve — see layout.js.
   const btn = document.getElementById('btn-approve')
-  if (!stateEl || !btn) return
+  if (!stateEl) return
 
   if (o.proof_approved_at) {
     const by = o.approvedBy ? ` · ${escHtml(o.approvedBy.email)}` : ''
     stateEl.innerHTML = `<span class="ps-approved">✓ Макет подтверждён</span>` +
-      `<div style="color:var(--text-dim);font-size:0.74rem;margin-top:0.25rem">${escHtml(window.LOOM.formatDate(o.proof_approved_at))}${by}</div>`
-    btn.textContent = 'Снять подтверждение'
-    btn.dataset.approve = 'false'
+      `<div class="muted" style="font-size:var(--fs-sm);margin-top:var(--sp-1)">${escHtml(window.LOOM.formatDate(o.proof_approved_at))}${by}</div>`
+    if (btn) { btn.textContent = 'Снять подтверждение'; btn.dataset.approve = 'false' }
   } else {
     stateEl.innerHTML = `<span class="ps-pending">● Ожидает подтверждения</span>`
-    btn.textContent = 'Макет проверен — в производство'
-    btn.dataset.approve = 'true'
+    if (btn) { btn.textContent = 'Макет проверен — в производство'; btn.dataset.approve = 'true' }
   }
 
+  if (!btn) return
   btn.disabled = false
   btn.onclick = async () => {
     btn.disabled = true
@@ -612,7 +610,7 @@ function setupApproval(o) {
       })
       await loadOrder(o.id)
     } catch (e) {
-      alert('Ошибка: ' + (e.message || 'не удалось обновить'))
+      window.LOOM_UI.toast(window.LOOM_UI.apiErrorMessage(e), 'error')
       btn.disabled = false
     }
   }

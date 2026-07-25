@@ -9,99 +9,85 @@
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Продукт — LOOM Admin</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=6" />
-  <script src="assets/theme-init.js?v=6"></script>
+  <title>Товар — LOOM Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=18" />
+  <script src="assets/theme-init.js?v=18"></script>
   <style>
-    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-    :root { --mono: 'DM Mono', monospace; }
-
-    .page { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
-    .page-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
-    .btn-back { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.9rem; border: 0.5px solid var(--input-border); border-radius: 3px; background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.8rem; cursor: pointer; text-decoration: none; transition: all 0.15s; }
-    .btn-back:hover { color: var(--text); border-color: var(--btn-hover-border); }
-    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0; }
-
-    /* Card */
-    .card { background: var(--bg-card); border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; margin-bottom: 1.25rem; }
-    .card-title { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 1.25rem; }
-
-    /* Form */
-    .field { margin-bottom: 1.1rem; }
-    .field:last-child { margin-bottom: 0; }
-    .field-label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; }
-    .field-label .req { color: var(--danger); margin-left: 2px; }
-    .field-hint { font-size: 0.72rem; color: var(--text-dim); margin-top: 0.3rem; }
+    /* Aliases onto the design-system components (theme.css). The markup below
+       and product-edit.js still speak .form-input / .form-textarea / .toggle. */
     .form-input, .form-textarea {
-      width: 100%; padding: 0.65rem 0.9rem; border-radius: 4px;
-      border: 0.5px solid var(--input-border); background: var(--input-bg);
-      color: var(--text); font-family: inherit; font-size: 0.875rem; outline: none;
-      transition: border-color 0.15s;
+      width: 100%; min-height: 40px; padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-sm); border: 1px solid var(--input-border);
+      background: var(--input-bg); color: var(--text);
+      font-family: inherit; font-size: var(--fs-base); line-height: 1.4;
+      outline: none; transition: border-color 0.12s, box-shadow 0.12s;
     }
     .form-input::placeholder, .form-textarea::placeholder { color: var(--text-dim); }
-    .form-input:focus, .form-textarea:focus { border-color: var(--input-border-focus); }
-    .form-textarea { resize: vertical; min-height: 80px; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+    .form-input:focus, .form-textarea:focus { border-color: var(--input-border-focus); box-shadow: var(--focus-ring); }
+    .form-textarea { resize: vertical; min-height: 96px; line-height: var(--lh-base); }
+    select.form-input { cursor: pointer; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+    @media (max-width: 700px) { .form-row { grid-template-columns: 1fr; } }
+    .field-label .req { color: var(--danger); margin-left: 2px; }
 
     /* Toggle */
-    .toggle-row { display: flex; align-items: center; gap: 0.75rem; }
-    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
-    .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider { position: absolute; inset: 0; background: var(--control-track); border-radius: 22px; cursor: pointer; transition: background 0.2s; border: 0.5px solid var(--control-track-border); }
-    .toggle-slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 2px; top: 2px; background: var(--control-knob-off); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
-    .toggle input:checked + .toggle-slider { background: var(--success-bg); border-color: var(--success-border); }
-    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--success); }
-    .toggle-label { font-size: 0.85rem; color: var(--text-secondary); }
+    .toggle-row { display: flex; align-items: center; gap: var(--sp-3); }
+    .toggle { position: relative; display: inline-block; width: 40px; height: 24px; flex-shrink: 0; }
+    .toggle input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--control-track); border-radius: 999px; cursor: pointer; transition: background 0.2s; border: 1px solid var(--control-track-border); pointer-events: none; }
+    .toggle-slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: var(--control-knob-off); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--invert-bg); border-color: var(--invert-bg); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: var(--invert-text); }
+    .toggle input:focus-visible + .toggle-slider { box-shadow: var(--focus-ring); }
+    .toggle-label { font-size: var(--fs-base); color: var(--text); }
 
-    /* Colors */
-    .colors-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.65rem; min-height: 32px; align-items: center; }
-    .color-chip { display: flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.5rem 0.25rem 0.35rem; border: 0.5px solid var(--input-border); border-radius: 3px; font-size: 0.78rem; font-family: var(--mono); color: var(--text-secondary); background: var(--input-bg); }
-    .color-swatch { width: 16px; height: 16px; border-radius: 3px; border: 0.5px solid var(--input-border); flex-shrink: 0; }
-    .color-remove { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0; line-height: 1; font-size: 0.85rem; }
+    /* Colours */
+    .colors-list { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); min-height: 34px; align-items: center; }
+    .color-chip { display: flex; align-items: center; gap: var(--sp-2); padding: 0.3rem 0.5rem; border: 1px solid var(--input-border); border-radius: var(--radius-sm); font-size: var(--fs-sm); font-family: var(--mono); color: var(--text-secondary); background: var(--input-bg); }
+    .color-swatch { width: 16px; height: 16px; border-radius: 3px; border: 1px solid var(--input-border); flex-shrink: 0; }
+    .color-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0 2px; line-height: 1; font-size: var(--fs-base); }
     .color-remove:hover { color: var(--danger); }
-    .color-add-row { display: flex; align-items: center; gap: 0.5rem; }
-    .color-picker { width: 36px; height: 36px; padding: 0; border: 0.5px solid var(--input-border); border-radius: 4px; background: none; cursor: pointer; }
-    .btn-add-color { padding: 0.4rem 0.75rem; border: 0.5px solid var(--btn-border); border-radius: 3px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
-    .btn-add-color:hover { color: var(--text); }
+    .color-add-row { display: flex; align-items: center; gap: var(--sp-2); }
+    .color-picker { width: 40px; height: 40px; padding: 0; border: 1px solid var(--input-border); border-radius: var(--radius-sm); background: none; cursor: pointer; }
 
     /* Upload zones */
-    .upload-zone { border: 1px dashed var(--input-border); border-radius: 4px; padding: 1.5rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; position: relative; }
+    .upload-zone { border: 1px dashed var(--input-border); border-radius: var(--radius-sm); padding: var(--sp-5); text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; position: relative; }
     .upload-zone:hover, .upload-zone.drag-over { border-color: var(--btn-hover-border); background: var(--hover-bg); }
     .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-    .upload-zone-text { font-size: 0.82rem; color: var(--text-muted); pointer-events: none; }
-    .upload-zone-text strong { color: var(--text-secondary); }
-    .upload-filename { font-size: 0.82rem; color: var(--text-secondary); font-family: var(--mono); margin-top: 0.4rem; word-break: break-all; }
-    .upload-current { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.5rem; font-family: var(--mono); }
-    .progress-bar-wrap { height: 3px; background: var(--hairline); border-radius: 2px; margin-top: 0.5rem; overflow: hidden; display: none; }
-    .progress-bar { height: 100%; background: var(--text-muted); width: 0%; transition: width 0.1s; border-radius: 2px; }
-    .progress-text { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; display: none; }
+    .upload-zone-text { font-size: var(--fs-base); color: var(--text-muted); pointer-events: none; line-height: var(--lh-loose); }
+    .upload-zone-text strong { color: var(--text); }
+    .upload-filename { font-size: var(--fs-sm); color: var(--text-secondary); font-family: var(--mono); margin-top: var(--sp-2); word-break: break-all; }
+    .upload-current { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: var(--sp-2); font-family: var(--mono); }
+    .progress-bar-wrap { height: 4px; background: var(--hairline); border-radius: 2px; margin-top: var(--sp-2); overflow: hidden; display: none; }
+    .progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.1s; border-radius: 2px; }
+    .progress-text { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-1); display: none; }
 
-    /* Thumbnail preview */
-    .thumb-preview { max-width: 120px; max-height: 120px; border-radius: 3px; object-fit: cover; border: 0.5px solid var(--hairline); margin-top: 0.5rem; display: none; }
+    .thumb-preview { max-width: 120px; max-height: 120px; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--hairline); margin-top: var(--sp-2); display: none; }
 
-    /* Submit */
-    .submit-row { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
-    .btn-submit { padding: 0.75rem 1.75rem; border-radius: 3px; border: 1px solid var(--invert-bg); background: var(--invert-bg); color: var(--invert-text); font-family: inherit; font-size: 0.82rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
-    .btn-submit:hover:not(:disabled) { background: transparent; color: var(--text); }
-    .btn-submit:disabled { opacity: 0.45; cursor: not-allowed; }
-    .form-error { color: var(--danger); font-size: 0.82rem; }
-    .form-success { color: var(--success); font-size: 0.82rem; }
+    .submit-row { display: flex; align-items: center; gap: var(--sp-4); margin-top: var(--sp-5); flex-wrap: wrap; }
+    .form-error { color: var(--danger); font-size: var(--fs-base); }
+    .form-success { color: var(--success); font-size: var(--fs-base); }
   </style>
 </head>
 <body>
   <main class="page">
-    <div class="page-header">
-      <a href="products.html" class="btn-back">← Продукты</a>
-      <h1 class="page-title" id="page-title">Новый продукт</h1>
+    <div class="page-head">
+      <div>
+        <a href="products.html" class="btn-back">← Все товары</a>
+        <h2 class="page-title" id="page-title">Новый товар</h2>
+      </div>
+    </div>
+
+    <div class="notice" data-cap-not="products.edit" style="margin-bottom:var(--sp-4)">
+      <span aria-hidden="true">👁</span>
+      <span>Карточка открыта только для просмотра — сохранять изменения может администратор с правом «Редактировать товары».</span>
     </div>
 
     <form id="product-form" autocomplete="off">
       <!-- Basic info -->
       <div class="card">
-        <p class="card-title">Основное</p>
+        <div class="card-head"><h3 class="card-title">Основное</h3></div>
 
         <div class="form-row">
           <div class="field">
@@ -157,25 +143,25 @@
 
       <!-- Colors -->
       <div class="card">
-        <p class="card-title">Базовые цвета</p>
+        <div class="card-head"><div><h3 class="card-title">Базовые цвета</h3><p class="card-sub">Цвета, доступные в конфигураторе по умолчанию.</p></div></div>
         <div class="colors-list" id="colors-list"></div>
         <div class="color-add-row">
           <input type="color" id="color-picker" class="color-picker" value="#ffffff" />
-          <button type="button" id="btn-add-color" class="btn-add-color">+ Добавить цвет</button>
+          <button type="button" id="btn-add-color" class="btn">+ Добавить цвет</button>
         </div>
-        <p class="field-hint" style="margin-top:0.5rem">Цвета по умолчанию для конфигуратора</p>
+        
       </div>
 
       <!-- GLB upload -->
       <div class="card">
-        <p class="card-title">3D модель (GLB)</p>
-        <p id="glb-optional-note" style="display:none;font-size:0.78rem;color:var(--text-dim);margin:-0.4rem 0 0.6rem">Для готовых дизайнов 3D-модель необязательна — товар продаётся как есть.</p>
+        <div class="card-head"><h3 class="card-title">3D-модель (GLB)</h3></div>
+        <p id="glb-optional-note" class="field-hint" style="display:none;margin:0 0 var(--sp-3)">Для готовых дизайнов 3D-модель необязательна — товар продаётся как есть.</p>
         <p class="upload-current" id="glb-current" style="display:none"></p>
         <div class="upload-zone" id="glb-zone">
           <input type="file" id="f-glb" accept=".glb,.gltf" />
           <div class="upload-zone-text">
             <strong>Выберите .glb файл</strong> или перетащите сюда<br>
-            <span style="font-size:0.75rem">max 20 MB</span>
+            <span class="dim">Максимум 20 МБ</span>
           </div>
           <p class="upload-filename" id="glb-filename"></p>
         </div>
@@ -187,29 +173,30 @@
 
       <!-- Thumbnail -->
       <div class="card">
-        <p class="card-title">Превью изображение</p>
+        <div class="card-head"><h3 class="card-title">Изображение для каталога</h3></div>
         <p class="upload-current" id="thumb-current" style="display:none"></p>
         <div class="upload-zone" id="thumb-zone">
           <input type="file" id="f-thumbnail" accept="image/png,image/jpeg,image/webp" />
           <div class="upload-zone-text">
             <strong>Выберите изображение</strong> или перетащите<br>
-            <span style="font-size:0.75rem">PNG / JPG / WebP, max 2 MB</span>
+            <span class="dim">PNG, JPG или WebP · максимум 2 МБ</span>
           </div>
         </div>
         <img id="thumb-preview" class="thumb-preview" alt="" />
       </div>
 
       <div class="submit-row">
-        <button type="submit" class="btn-submit" id="btn-submit">Сохранить</button>
+        <button type="submit" class="btn btn--primary" id="btn-submit" data-cap="products.edit">Сохранить</button>
         <span class="form-error" id="form-error"></span>
         <span class="form-success" id="form-success"></span>
       </div>
     </form>
   </main>
 
-  <script src="assets/app.js?v=6"></script>
-  <script src="assets/layout.js?v=8"></script>
-  <script>LOOM_LAYOUT.init('products')</script>
-  <script src="assets/product-edit.js?v=7"></script>
+  <script src="assets/app.js?v=18"></script>
+  <script src="assets/ui.js?v=18"></script>
+  <script src="assets/layout.js?v=18"></script>
+  <script>LOOM_LAYOUT.init('products', { title: 'Товар', crumbs: [{ label: 'Товары', href: 'products.html' }] })</script>
+  <script src="assets/product-edit.js?v=18"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
 // and clicking "Сохранить" just does a native form submit — i.e. adding a
 // product silently does nothing. Scope isolation is the standard back-office fix.
 ;(function () {
-const { API_BASE, apiJSON, checkAuth } = window.LOOM
+const { API_BASE, apiJSON } = window.LOOM
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let editId = null
@@ -92,7 +92,8 @@ document.getElementById('f-type').addEventListener('change', syncGlbNote)
 async function loadProduct(id) {
   const p = await apiJSON(`/api/admin/products/${id}`)
 
-  document.getElementById('page-title').textContent = `Редактировать: ${p.slug}`
+  document.getElementById('page-title').textContent = p.name_ru || p.slug
+  window.LOOM_LAYOUT.setTitle(p.name_ru || p.slug)
   document.getElementById('f-slug').value = p.slug
   document.getElementById('f-price').value = p.price
   document.getElementById('f-name-ru').value = p.name_ru || ''
@@ -230,7 +231,7 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
       // Switch to edit mode after creation
       editId = product.id
       history.replaceState(null, '', `?id=${editId}`)
-      document.getElementById('page-title').textContent = `Редактировать: ${product.slug}`
+      document.getElementById('page-title').textContent = product.name_ru || product.slug
       const glbEl = document.getElementById('glb-current')
       glbEl.textContent = 'Текущий файл: ' + (product.glb_key || '')
       glbEl.style.display = 'block'
@@ -245,11 +246,13 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const admin = await checkAuth()
-  if (!admin) { window.location.href = 'login.html'; return }
-
-  window.LOOM_LAYOUT.setEmail(admin.email)
+window.LOOM_LAYOUT.onReady(async (me, caps) => {
+  // Without products.edit the form is readable but not submittable — the save
+  // button is already gone (data-cap), so lock the inputs to match.
+  if (!caps.has('products.edit')) {
+    document.querySelectorAll('#product-form input, #product-form textarea, #product-form select, #product-form button')
+      .forEach((node) => { node.disabled = true })
+  }
 
   renderColors()
 
@@ -258,7 +261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       await loadProduct(editId)
     } catch (e) {
-      document.getElementById('form-error').textContent = 'Ошибка загрузки продукта: ' + e.message
+      window.LOOM_UI.toast('Не удалось загрузить товар: ' + e.message, 'error')
     }
   }
 })

@@ -1,126 +1,141 @@
 'use strict'
 
-let currentPage = 1
-const LIMIT = 50
-let debounceTimer = null
+;(function () {
+  const { apiJSON, formatPrice } = window.LOOM
+  const { esc, toast, confirmDialog, apiErrorMessage } = window.LOOM_UI
 
-function escHtml(s) {
-  if (!s) return ''
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
+  const LIMIT = 50
+  let currentPage = 1
+  let debounceTimer = null
+  let canEdit = false
 
-async function loadProducts() {
-  const { apiFetch, apiJSON, formatPrice } = window.LOOM
+  const el = (id) => document.getElementById(id)
 
-  const active = document.getElementById('filter-active').value
-  const q = document.getElementById('filter-q').value.trim()
+  function stateRow(html, kind) {
+    return '<tr><td colspan="6"><div class="state' + (kind ? ' state--' + kind : '') + '">' + html + '</div></td></tr>'
+  }
 
-  const params = new URLSearchParams({ page: currentPage, limit: LIMIT })
-  if (active !== '') params.set('active', active)
-  if (q) params.set('q', q)
+  function rowHtml(p) {
+    const thumb = p.thumbnail_url
+      ? '<img src="' + esc(p.thumbnail_url) + '" class="thumb" alt="" loading="lazy" />'
+      : '<div class="thumb-placeholder" aria-hidden="true">GLB</div>'
 
-  const tbody = document.getElementById('products-tbody')
-  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-dim)">Загрузка…</td></tr>'
+    // Editing is a capability, not a role — a manager can have it revoked and a
+    // staff member can have it granted.
+    const actions = canEdit
+      ? '<a href="product-edit.html?id=' + p.id + '" class="btn btn--sm">Изменить</a> ' +
+        '<button type="button" class="btn btn--sm btn--danger" data-del="' + p.id + '" data-name="' + esc(p.name_ru) + '">Удалить</button>'
+      : '<a href="product-edit.html?id=' + p.id + '" class="btn btn--sm">Открыть</a>'
 
-  try {
-    const data = await apiJSON('/api/admin/products?' + params)
-    const { products, total, page, limit } = data
+    const toggle = '<label class="switch" title="' + (p.active ? 'Скрыть с сайта' : 'Показать на сайте') + '">' +
+      '<input type="checkbox" data-active="' + p.id + '"' + (p.active ? ' checked' : '') + (canEdit ? '' : ' disabled') + ' />' +
+      '<span class="track" aria-hidden="true"></span><span class="knob" aria-hidden="true"></span>' +
+      '<span class="sr-only">Товар активен</span>' +
+    '</label>'
 
-    const totalPages = Math.ceil(total / limit)
-    document.getElementById('page-info').textContent = `Стр. ${page} из ${totalPages || 1} (всего ${total})`
-    document.getElementById('btn-prev').disabled = page <= 1
-    document.getElementById('btn-next').disabled = page >= totalPages
+    return '<tr>' +
+      '<td>' + thumb + '</td>' +
+      '<td>' + esc(p.name_ru) +
+        (p.product_type === 'ready' ? '<span class="tag-ready">Готовый</span>' : '') + '</td>' +
+      '<td class="num muted">' + esc(p.slug) + '</td>' +
+      '<td class="num right">' + formatPrice(p.price) + '</td>' +
+      '<td>' + toggle + '</td>' +
+      '<td class="cell-actions">' + actions + '</td>' +
+    '</tr>'
+  }
 
-    if (!products.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-dim)">Продуктов нет</td></tr>'
-      return
+  async function loadProducts() {
+    const active = el('filter-active').value
+    const q = el('filter-q').value.trim()
+
+    const params = new URLSearchParams({ page: currentPage, limit: LIMIT })
+    if (active !== '') params.set('active', active)
+    if (q) params.set('q', q)
+
+    const tbody = el('products-tbody')
+    tbody.innerHTML = stateRow('Загрузка…')
+
+    try {
+      const { products, total, page, limit } = await apiJSON('/api/admin/products?' + params)
+
+      const totalPages = Math.ceil(total / limit) || 1
+      el('page-info').textContent = 'Страница ' + page + ' из ' + totalPages + ' · всего ' + total
+      el('btn-prev').disabled = page <= 1
+      el('btn-next').disabled = page >= totalPages
+
+      if (!products.length) {
+        tbody.innerHTML = (active !== '' || q)
+          ? stateRow('<p class="state-title">Ничего не найдено</p><p class="state-sub">Под выбранный фильтр не попал ни один товар.</p>')
+          : stateRow('<p class="state-title">Каталог пуст</p><p class="state-sub">Добавьте первый товар, чтобы он появился на сайте.</p>')
+        return
+      }
+
+      tbody.innerHTML = products.map(rowHtml).join('')
+      wireRows()
+    } catch (err) {
+      if (err.status === 401) { window.location.href = 'login.html'; return }
+      tbody.innerHTML = stateRow(esc(apiErrorMessage(err)), 'error')
     }
+  }
 
-    tbody.innerHTML = products.map(p => {
-      const thumb = p.thumbnail_url
-        ? `<img src="${escHtml(p.thumbnail_url)}" class="thumb" alt="" loading="lazy" />`
-        : `<div class="thumb-placeholder">GLB</div>`
+  function wireRows() {
+    const tbody = el('products-tbody')
 
-      return `
-        <tr>
-          <td>${thumb}</td>
-          <td style="font-family:var(--mono);font-size:0.8rem;color:var(--text-secondary)">${escHtml(p.slug)}</td>
-          <td>${escHtml(p.name_ru)}${p.product_type === 'ready' ? ' <span style="font-size:0.62rem;font-family:var(--mono);letter-spacing:0.08em;text-transform:uppercase;padding:0.15rem 0.45rem;border:1px solid var(--accent,#d63a2f);color:var(--accent,#d63a2f);border-radius:2px;margin-left:0.4rem;white-space:nowrap">Готовый</span>' : ''}</td>
-          <td style="font-family:var(--mono)">${formatPrice(p.price)}</td>
-          <td>
-            <label class="toggle" title="${p.active ? 'Деактивировать' : 'Активировать'}">
-              <input type="checkbox" class="active-toggle" data-id="${p.id}" ${p.active ? 'checked' : ''} />
-              <span class="toggle-slider"></span>
-            </label>
-          </td>
-          <td style="white-space:nowrap">
-            <a href="product-edit.html?id=${p.id}" class="action-btn">Изменить</a>
-            <button class="action-btn danger delete-btn" data-id="${p.id}" data-name="${escHtml(p.name_ru)}" style="margin-left:0.4rem">Удалить</button>
-          </td>
-        </tr>
-      `
-    }).join('')
-
-    // Wire active toggles
-    tbody.querySelectorAll('.active-toggle').forEach(toggle => {
+    tbody.querySelectorAll('[data-active]').forEach((toggle) => {
       toggle.addEventListener('change', async () => {
-        const id = toggle.dataset.id
-        const newActive = toggle.checked ? 1 : 0
         toggle.disabled = true
         try {
           const fd = new FormData()
-          fd.append('active', String(newActive))
-          await apiJSON(`/api/admin/products/${id}`, { method: 'PATCH', body: fd })
-        } catch (e) {
-          alert('Ошибка: ' + e.message)
-          toggle.checked = !toggle.checked  // revert
+          fd.append('active', toggle.checked ? '1' : '0')
+          await apiJSON('/api/admin/products/' + toggle.dataset.active, { method: 'PATCH', body: fd })
+          toast(toggle.checked ? 'Товар показан на сайте' : 'Товар скрыт с сайта', 'success')
+        } catch (err) {
+          toggle.checked = !toggle.checked   // revert to the server's truth
+          toast(apiErrorMessage(err), 'error')
         } finally {
           toggle.disabled = false
         }
       })
     })
 
-    // Wire delete buttons
-    tbody.querySelectorAll('.delete-btn').forEach(btn => {
+    tbody.querySelectorAll('[data-del]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const id = btn.dataset.id
         const name = btn.dataset.name
-        if (!confirm(`Удалить продукт "${name}"?\n\nЕсли по нему уже есть заказы, он будет архивирован (деактивирован), а не удалён полностью — чтобы сохранить историю заказов.`)) return
+        const ok = await confirmDialog({
+          title: 'Удалить «' + name + '»?',
+          body: 'Если по этому товару уже есть заказы, он будет архивирован (скрыт с сайта), а не удалён — чтобы история заказов осталась целой.',
+          confirmLabel: 'Удалить',
+          danger: true,
+        })
+        if (!ok) return
+
         btn.disabled = true
         try {
-          const res = await apiJSON(`/api/admin/products/${id}`, { method: 'DELETE' })
-          if (res && res.mode === 'archived') {
-            alert(`Продукт "${name}" нельзя удалить полностью: на него ссылаются заказы (${res.orders}).\nОн архивирован (деактивирован) и больше не показывается в каталоге.`)
-          }
+          const res = await apiJSON('/api/admin/products/' + btn.dataset.del, { method: 'DELETE' })
+          toast(res && res.mode === 'archived'
+            ? '«' + name + '» архивирован: на него ссылаются заказы (' + res.orders + ')'
+            : '«' + name + '» удалён', 'success')
           await loadProducts()
-        } catch (e) {
-          alert('Ошибка: ' + e.message)
+        } catch (err) {
+          toast(apiErrorMessage(err), 'error')
           btn.disabled = false
         }
       })
     })
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--danger)">Ошибка: ${escHtml(e.message)}</td></tr>`
   }
-}
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const { checkAuth } = window.LOOM
-  const admin = await checkAuth()
-  if (!admin) { window.location.href = 'login.html'; return }
+  window.LOOM_LAYOUT.onReady((me, caps) => {
+    canEdit = caps.has('products.edit')
 
-  window.LOOM_LAYOUT.setEmail(admin.email)
+    el('filter-active').addEventListener('change', () => { currentPage = 1; loadProducts() })
+    el('filter-q').addEventListener('input', () => {
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => { currentPage = 1; loadProducts() }, 300)
+    })
+    el('btn-refresh').addEventListener('click', loadProducts)
+    el('btn-prev').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadProducts() } })
+    el('btn-next').addEventListener('click', () => { currentPage++; loadProducts() })
 
-  document.getElementById('filter-active').addEventListener('change', () => { currentPage = 1; loadProducts() })
-  document.getElementById('filter-q').addEventListener('input', () => {
-    clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(() => { currentPage = 1; loadProducts() }, 300)
+    loadProducts()
   })
-  document.getElementById('btn-refresh').addEventListener('click', loadProducts)
-  document.getElementById('btn-prev').addEventListener('click', () => {
-    if (currentPage > 1) { currentPage--; loadProducts() }
-  })
-  document.getElementById('btn-next').addEventListener('click', () => { currentPage++; loadProducts() })
-
-  loadProducts()
-})
+})()

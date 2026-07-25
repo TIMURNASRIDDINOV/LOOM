@@ -9,89 +9,247 @@
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Команда — LOOM Admin</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=6" />
-  <script src="assets/theme-init.js?v=6"></script>
+  <title>Команда и доступы — LOOM Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=18" />
+  <script src="assets/theme-init.js?v=18"></script>
   <style>
-    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-    :root { --mono: 'DM Mono', monospace; }
-    body { background: var(--bg); color: var(--text); margin: 0; }
-    .page { padding: 2rem 1.75rem; max-width: 820px; }
-    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0 0 0.4rem; }
-    .page-sub { color: var(--text-muted); font-size: 0.85rem; margin: 0 0 2rem; }
-    .card { background: var(--bg-card); border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; margin-bottom: 1.25rem; }
-    .card-title { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 1rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    th { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); padding: 0.5rem 0.75rem; text-align: left; border-bottom: 0.5px solid var(--hairline); }
-    td { padding: 0.65rem 0.75rem; border-bottom: 0.5px solid var(--hairline); vertical-align: middle; }
-    .mono { font-family: var(--mono); }
-    .badge { display: inline-block; padding: 2px 9px; border-radius: 9999px; font-size: 0.7rem; letter-spacing: 0.04em; }
-    .role-owner   { color: #fbbf24; background: rgba(251,191,36,0.14); border: 1px solid rgba(251,191,36,0.3); }
-    .role-manager { color: #60a5fa; background: rgba(96,165,250,0.14); border: 1px solid rgba(96,165,250,0.3); }
-    .role-staff   { color: var(--text-muted); background: var(--hover-bg); border: 1px solid var(--hairline); }
-    .btn-action { padding: 0.5rem 1rem; border-radius: 3px; border: 0.5px solid var(--btn-border); background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
-    .btn-action:hover { color: var(--text); border-color: var(--btn-hover-border); }
-    .btn-action.primary { border-color: var(--btn-hover-border); color: var(--text); }
-    .btn-action.danger { border-color: var(--danger-border); color: var(--danger); }
-    .btn-action.danger:hover { border-color: var(--danger); }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 0.6rem; align-items: end; }
-    @media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
-    .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
-    .form-label { font-size: 0.72rem; color: var(--text-muted); }
-    .form-input, .form-select { padding: 0.55rem 0.8rem; border-radius: 4px; border: 0.5px solid var(--input-border); background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.82rem; outline: none; }
-    .form-input:focus, .form-select:focus { border-color: var(--input-border-focus); }
-    .form-result { font-size: 0.82rem; margin-top: 0.75rem; min-height: 1.2em; }
-    .sel-inline { padding: 0.35rem 0.55rem; border-radius: 3px; border: 0.5px solid var(--btn-border); background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.78rem; }
-    #no-access { display: none; color: var(--danger); font-size: 0.9rem; }
+    /* Master–detail: the roster stays visible while you edit one person's
+       access, so it is obvious who you are changing. */
+    .team-layout { display: grid; grid-template-columns: 320px 1fr; gap: var(--sp-4); align-items: start; }
+    @media (max-width: 980px) { .team-layout { grid-template-columns: 1fr; } }
+
+    .roster { display: flex; flex-direction: column; }
+    .roster-item {
+      display: flex; align-items: center; gap: var(--sp-3);
+      width: 100%; text-align: left;
+      padding: var(--sp-3) var(--sp-4);
+      background: transparent; border: none; border-bottom: 1px solid var(--hairline2);
+      font-family: inherit; cursor: pointer; transition: background 0.12s;
+    }
+    .roster-item:last-child { border-bottom: none; }
+    .roster-item:hover { background: var(--hover-bg); }
+    .roster-item[aria-current="true"] { background: var(--link-active-bg); box-shadow: inset 3px 0 0 var(--link-active); }
+    .roster-body { flex: 1; min-width: 0; }
+    .roster-email { display: block; font-size: var(--fs-base); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .roster-meta { display: block; font-size: var(--fs-sm); color: var(--text-muted); margin-top: 2px; }
+
+    .perm-group + .perm-group { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--hairline2); }
+    .perm-group-title { font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 var(--sp-2); }
+
+    /* "изменено" marks a capability the owner set by hand, so it is obvious
+       which switches deviate from the role and can be reset. */
+    .perm-tag {
+      display: inline-block; margin-left: var(--sp-2);
+      font-size: var(--fs-xs); color: var(--warning);
+      background: var(--warning-bg); border: 1px solid var(--warning-border);
+      border-radius: 999px; padding: 0 7px; vertical-align: 1px;
+    }
+
+    .role-options { display: grid; gap: var(--sp-2); }
+    .role-option {
+      display: flex; gap: var(--sp-3); align-items: flex-start;
+      padding: var(--sp-3); border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm); cursor: pointer; transition: border-color 0.12s, background 0.12s;
+    }
+    .role-option:hover { background: var(--hover-bg); }
+    .role-option:has(input:checked) { border-color: var(--accent); background: var(--link-active-bg); }
+    .role-option input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; }
+    .role-option-title { display: block; font-size: var(--fs-base); font-weight: 500; color: var(--text); }
+    .role-option-desc { display: block; font-size: var(--fs-sm); color: var(--text-muted); margin-top: 2px; line-height: var(--lh-loose); }
+
+    /* Unsaved-changes bar: docked to the bottom of the window and only present
+       while something is actually pending, so it never floats over content the
+       admin is trying to read. */
+    .save-bar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+      padding: var(--sp-3) var(--sp-5);
+      background: var(--bg-elevated); border-top: 1px solid var(--hairline);
+      box-shadow: var(--shadow-pop);
+      display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+    }
+    @media (min-width: 861px) { .save-bar { left: var(--sidebar-w); } }
+    body.sidebar-collapsed .save-bar { left: 64px; }
+    .save-bar .status { font-size: var(--fs-base); color: var(--text); margin-right: auto; font-weight: 500; }
+    /* Room to scroll past the docked bar. */
+    body.has-unsaved .page { padding-bottom: 96px; }
+
+    .perm-status-inline { font-size: var(--fs-sm); color: var(--text-muted); }
+
+    .invite-result {
+      margin-top: var(--sp-4); padding: var(--sp-3) var(--sp-4);
+      border-radius: var(--radius-sm); border: 1px solid var(--success-border);
+      background: var(--success-bg); font-size: var(--fs-base);
+    }
+    .credential {
+      display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+      margin-top: var(--sp-2); font-family: var(--mono); font-size: var(--fs-sm);
+    }
+    .credential code { background: var(--bg-card); border: 1px solid var(--hairline); border-radius: 3px; padding: 3px 8px; }
   </style>
 </head>
 <body>
   <main class="page">
-    <h1 class="page-title">Команда</h1>
-    <p class="page-sub">Управление администраторами и их ролями. Доступно только владельцу.</p>
-
-    <p id="no-access">⛔ Доступ только для владельца (owner).</p>
-
-    <div class="card" id="team-card">
-      <p class="card-title">Администраторы</p>
-      <table>
-        <thead><tr><th>Email</th><th>Роль</th><th>Создан</th><th style="text-align:right">Действия</th></tr></thead>
-        <tbody id="admins-tbody"><tr><td colspan="4" style="color:var(--text-dim)">Загрузка…</td></tr></tbody>
-      </table>
+    <div class="page-head">
+      <div>
+        <h2 class="page-title">Команда и доступы</h2>
+        <p class="page-sub">
+          Роль задаёт набор прав по умолчанию. Любое право можно включить или выключить
+          отдельно для конкретного сотрудника — он увидит только то, что ему разрешено.
+        </p>
+      </div>
+      <!-- Toggled by team.js: team management is owner-only by design, which is
+           a role check rather than a capability (see lib/permissions.ts). -->
+      <div class="page-actions" id="readonly-flag" hidden>
+        <span class="badge">Только просмотр</span>
+      </div>
     </div>
 
-    <div class="card" id="add-card">
-      <p class="card-title">Добавить администратора</p>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input id="new-email" type="email" class="form-input" placeholder="admin@example.com" />
+    <div class="team-layout">
+      <!-- ── Roster ─────────────────────────────────────────────── -->
+      <div>
+        <div class="card card--flush">
+          <div class="roster" id="roster">
+            <div class="state">Загрузка…</div>
+          </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Пароль (мин. 8)</label>
-          <input id="new-password" type="text" class="form-input" placeholder="Пароль" autocomplete="off" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Роль</label>
-          <select id="new-role" class="form-select">
-            <option value="manager">manager</option>
-            <option value="staff" selected>staff</option>
-          </select>
-        </div>
-        <button class="btn-action primary" id="btn-add-admin">Добавить</button>
+        <button type="button" class="btn btn--block" id="btn-show-invite" style="margin-top:var(--sp-3)" hidden>
+          + Добавить администратора
+        </button>
       </div>
-      <p class="form-result" id="add-result"></p>
-      <p style="font-size:0.78rem;color:var(--text-dim);margin-top:1rem;line-height:1.55">
-        <b>owner</b> — полный доступ + управление командой. <b>manager</b> — заказы, товары, пользователи.
-        <b>staff</b> — просмотр + смена статуса заказов.
-      </p>
+
+      <!-- ── Detail ─────────────────────────────────────────────── -->
+      <div>
+        <div id="detail-empty" class="card">
+          <div class="state">
+            <p class="state-title">Выберите участника</p>
+            <p class="state-sub">Слева — все, у кого есть доступ в админку. Нажмите на любого, чтобы посмотреть или изменить его права.</p>
+          </div>
+        </div>
+
+        <div id="detail" hidden>
+          <!-- Identity -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title" id="d-email">—</h3>
+                <p class="card-sub" id="d-meta">—</p>
+              </div>
+              <span class="badge" id="d-role-badge">—</span>
+            </div>
+            <div id="d-self-note" class="notice" hidden>
+              <span aria-hidden="true">👤</span>
+              <span>Это ваша учётная запись. Свои права и роль изменить нельзя.</span>
+            </div>
+            <div id="d-owner-note" class="notice" hidden>
+              <span aria-hidden="true">🔑</span>
+              <span>У владельца всегда полный доступ ко всем разделам. Отдельные права для этой роли не настраиваются.</span>
+            </div>
+          </div>
+
+          <!-- Role -->
+          <div class="card" id="role-card" hidden>
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">Роль</h3>
+                <p class="card-sub">Определяет, какие права включены по умолчанию. Смена роли сбрасывает индивидуальные настройки ниже.</p>
+              </div>
+            </div>
+            <div class="role-options" id="role-options"></div>
+          </div>
+
+          <!-- Permission matrix -->
+          <div class="card" id="perm-card" hidden>
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">Права доступа</h3>
+                <p class="card-sub" id="perm-sub">Переключатели поверх роли. «Изменено» — право, которое вы задали вручную.</p>
+                <p class="perm-status-inline" id="perm-status">Изменений нет</p>
+              </div>
+              <button type="button" class="btn btn--sm" id="btn-reset-perms">Сбросить к роли</button>
+            </div>
+            <div id="perm-groups"></div>
+          </div>
+
+          <!-- Dangerous actions -->
+          <div class="card" id="danger-card" hidden>
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">Управление учётной записью</h3>
+                <p class="card-sub">Действия, которые нельзя отменить одним кликом.</p>
+              </div>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Передать владение</span>
+              <span class="info-value">
+                <button type="button" class="btn btn--sm" id="btn-transfer">Сделать владельцем</button>
+                <span class="field-hint" style="display:block;margin-top:var(--sp-2)">
+                  Вы станете менеджером и потеряете доступ к управлению командой.
+                </span>
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Удалить доступ</span>
+              <span class="info-value">
+                <button type="button" class="btn btn--sm btn--danger" id="btn-remove">Удалить администратора</button>
+                <span class="field-hint" style="display:block;margin-top:var(--sp-2)">
+                  Учётная запись перестанет работать сразу. Заказы и история остаются.
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Invite -->
+        <div class="card" id="invite-card" hidden>
+          <div class="card-head">
+            <div>
+              <h3 class="card-title">Новый администратор</h3>
+              <p class="card-sub">Создайте учётную запись и передайте пароль сотруднику. Права можно настроить сразу после создания.</p>
+            </div>
+            <button type="button" class="btn btn--sm btn--ghost" id="btn-hide-invite">Закрыть</button>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="new-email">Рабочий email</label>
+              <input id="new-email" type="email" class="input" placeholder="ivan@loomdesign.uz" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="new-role">Роль</label>
+              <select id="new-role" class="select">
+                <option value="staff" selected>Сотрудник — заказы и просмотр справочных данных</option>
+                <option value="manager">Менеджер — заказы, клиенты и каталог</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="new-password">Временный пароль</label>
+            <div style="display:flex;gap:var(--sp-2);flex-wrap:wrap">
+              <input id="new-password" type="text" class="input" placeholder="Минимум 8 символов" autocomplete="off" style="flex:1;min-width:200px" />
+              <button type="button" class="btn" id="btn-gen-password">Сгенерировать</button>
+            </div>
+            <span class="field-hint">Сотрудник сможет войти с этим паролем. Передайте его лично, а не в общий чат.</span>
+          </div>
+          <div class="card-foot" style="display:flex;gap:var(--sp-2);flex-wrap:wrap">
+            <button type="button" class="btn btn--primary" id="btn-add-admin">Создать администратора</button>
+          </div>
+          <div class="invite-result" id="invite-result" hidden></div>
+        </div>
+      </div>
     </div>
   </main>
 
-  <script src="assets/app.js?v=6"></script>
-  <script src="assets/layout.js?v=8"></script>
+  <!-- Appears only while permission toggles are pending. -->
+  <div class="save-bar" id="save-bar" hidden>
+    <span class="status">Есть несохранённые изменения</span>
+    <button type="button" class="btn" id="btn-discard">Отменить</button>
+    <button type="button" class="btn btn--primary" id="btn-save-perms">Сохранить права</button>
+  </div>
+
+  <script src="assets/app.js?v=18"></script>
+  <script src="assets/ui.js?v=18"></script>
+  <script src="assets/layout.js?v=18"></script>
   <script>LOOM_LAYOUT.init('team')</script>
-  <script src="assets/team.js?v=2"></script>
+  <script src="assets/team.js?v=18"></script>
 </body>
 </html>

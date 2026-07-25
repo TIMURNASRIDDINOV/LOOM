@@ -123,6 +123,80 @@ export async function countAdminsByRole(db: D1Database, role: string): Promise<n
   }) as Promise<number>
 }
 
+// ─── Admin capability overrides (migration 0015) ─────────────────────────────
+// Deviations from the role preset, keyed by capability. See lib/permissions.ts
+// for how these combine with the preset into an effective capability set.
+
+export async function listAdminPermissions(
+  db: D1Database,
+  adminId: number,
+): Promise<Record<string, boolean>> {
+  return safeQuery('listAdminPermissions', async () => {
+    const res = await db
+      .prepare('SELECT capability, granted FROM admin_permissions WHERE admin_id = ?')
+      .bind(adminId)
+      .all<{ capability: string; granted: number }>()
+    const out: Record<string, boolean> = {}
+    for (const row of res.results ?? []) out[row.capability] = row.granted === 1
+    return out
+  })
+}
+
+// One query for the whole team, so the roster does not fan out into N reads.
+export async function listAllAdminPermissions(
+  db: D1Database,
+): Promise<Record<number, Record<string, boolean>>> {
+  return safeQuery('listAllAdminPermissions', async () => {
+    const res = await db
+      .prepare('SELECT admin_id, capability, granted FROM admin_permissions')
+      .all<{ admin_id: number; capability: string; granted: number }>()
+    const out: Record<number, Record<string, boolean>> = {}
+    for (const row of res.results ?? []) {
+      ;(out[row.admin_id] ??= {})[row.capability] = row.granted === 1
+    }
+    return out
+  })
+}
+
+export async function setAdminPermission(
+  db: D1Database,
+  params: { adminId: number; capability: string; granted: boolean; updatedBy: number },
+): Promise<void> {
+  return safeQuery('setAdminPermission', async () => {
+    await db
+      .prepare(
+        `INSERT INTO admin_permissions (admin_id, capability, granted, updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(admin_id, capability)
+         DO UPDATE SET granted = excluded.granted, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+      )
+      .bind(params.adminId, params.capability, params.granted ? 1 : 0, Date.now(), params.updatedBy)
+      .run()
+  })
+}
+
+// Drop the override so the capability falls back to the role preset.
+export async function clearAdminPermission(
+  db: D1Database,
+  adminId: number,
+  capability: string,
+): Promise<void> {
+  return safeQuery('clearAdminPermission', async () => {
+    await db
+      .prepare('DELETE FROM admin_permissions WHERE admin_id = ? AND capability = ?')
+      .bind(adminId, capability)
+      .run()
+  })
+}
+
+// Role changes rebase the admin onto a new preset; stale overrides from the old
+// role would silently follow them across, so they are dropped.
+export async function clearAllAdminPermissions(db: D1Database, adminId: number): Promise<void> {
+  return safeQuery('clearAllAdminPermissions', async () => {
+    await db.prepare('DELETE FROM admin_permissions WHERE admin_id = ?').bind(adminId).run()
+  })
+}
+
 export async function updateUserProfile(
   db: D1Database,
   id: number,

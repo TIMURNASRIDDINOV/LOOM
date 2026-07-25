@@ -9,247 +9,231 @@
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Пользователь — LOOM Admin</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=6" />
-  <script src="assets/theme-init.js?v=6"></script>
+  <title>Клиент — LOOM Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=18" />
+  <script src="assets/theme-init.js?v=18"></script>
   <style>
-    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-    :root { --mono: 'DM Mono', monospace; }
-    body { background: var(--bg); color: var(--text); margin: 0; }
-
-    .page { padding: 2rem 1.75rem; max-width: 900px; }
-    .page-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
-    .btn-back { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.9rem; border: 0.5px solid var(--input-border); border-radius: 3px; background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.8rem; cursor: pointer; text-decoration: none; transition: all 0.15s; }
-    .btn-back:hover { color: var(--text); border-color: var(--btn-hover-border); }
-    .page-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -0.02em; margin: 0; }
-
-    .card { background: var(--bg-card); border: 0.5px solid var(--hairline); border-radius: 4px; padding: 1.5rem; margin-bottom: 1.25rem; }
-    .card-title { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 1rem; }
-
-    .info-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1.5rem; font-size: 0.85rem; }
-    .info-label { color: var(--text-muted); white-space: nowrap; }
-    .info-value { font-family: var(--mono); }
+    .info-grid { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-base); }
+    .info-grid .info-label { color: var(--text-muted); white-space: nowrap; }
+    .info-grid .info-value { font-family: var(--mono); }
 
     /* Identity header */
-    .ud-identity { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 0.5px solid var(--hairline); }
+    .ud-identity { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-4); padding-bottom: var(--sp-4); border-bottom: 1px solid var(--hairline); }
     .ud-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--hairline); }
-    .ud-avatar-ph { display: flex; align-items: center; justify-content: center; background: var(--hover-bg); font-size: 1.2rem; font-weight: 600; color: var(--text-secondary); }
-    .ud-name { font-size: 1.15rem; font-weight: 500; color: var(--text); }
-    .ud-email { font-size: 0.82rem; color: var(--text-muted); font-family: var(--mono); margin-top: 0.1rem; }
-    .ud-badges { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap; }
+    .ud-avatar-ph { display: flex; align-items: center; justify-content: center; background: var(--hover-bg); font-size: var(--fs-lg); font-weight: 600; color: var(--text-secondary); }
+    .ud-name { font-size: var(--fs-lg); font-weight: 600; color: var(--text); }
+    .ud-email { font-size: var(--fs-base); color: var(--text-muted); font-family: var(--mono); margin-top: 2px; }
+    .ud-badges { display: flex; gap: var(--sp-2); align-items: center; margin-top: var(--sp-2); flex-wrap: wrap; }
 
-    .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem; }
-    .btn-action { padding: 0.55rem 1.1rem; border-radius: 3px; border: 0.5px solid var(--btn-border); background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
-    .btn-action:hover { color: var(--text); border-color: var(--btn-hover-border); }
-    .btn-action.danger { border-color: var(--danger-border); color: var(--danger); }
-    .btn-action.danger:hover { border-color: var(--danger); }
-    .btn-action.primary { border-color: var(--btn-hover-border); color: var(--text); }
+    .actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-4); }
 
-    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    th { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); padding: 0.4rem 0.75rem; text-align: left; border-bottom: 0.5px solid var(--hairline); }
-    td { padding: 0.6rem 0.75rem; border-bottom: 0.5px solid var(--hairline2); vertical-align: middle; }
-    .mono { font-family: var(--mono); }
-
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.72rem; }
-    .badge-active { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
-    .badge-banned  { background: var(--danger-bg);  color: var(--danger); border: 1px solid var(--danger-border); }
+    .badge-active { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+    .badge-banned { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
 
     /* Map picker modal */
-    #admin-map-modal {
-      display: none; position: fixed; inset: 0; z-index: 2000;
-      background: rgba(0,0,0,0.92); flex-direction: column;
-    }
+    #admin-map-modal { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.92); flex-direction: column; }
     #admin-map-modal.open { display: flex; }
     #admin-map-bar {
-      padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem;
-      background: var(--bg-card); border-bottom: 0.5px solid var(--hairline);
-      flex-shrink: 0;
+      padding: var(--sp-3) var(--sp-4); display: flex; align-items: center; gap: var(--sp-3);
+      background: var(--bg-card); border-bottom: 1px solid var(--hairline); flex-shrink: 0; flex-wrap: wrap;
     }
-    #admin-map-hint { font-size: 0.8rem; color: var(--text-muted); flex: 1; }
-    #admin-map-selected { font-size: 0.78rem; color: var(--text-secondary); flex: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #admin-map-hint { font-size: var(--fs-base); color: var(--text-muted); flex: 1; }
+    #admin-map-selected { font-size: var(--fs-sm); color: var(--text-secondary); flex: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #admin-map-el { flex: 1; }
 
-    /* Forms */
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .form-row.single { grid-template-columns: 1fr; }
-    .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
-    .form-label { font-size: 0.72rem; color: var(--text-muted); letter-spacing: 0.05em; }
-    .form-input { padding: 0.55rem 0.8rem; border-radius: 4px; border: 0.5px solid var(--input-border); background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.82rem; outline: none; width: 100%; }
-    .form-input::placeholder { color: var(--text-dim); }
-    .form-input:focus { border-color: var(--input-border-focus); }
-    textarea.form-input { resize: vertical; min-height: 80px; }
-    .form-result { font-size: 0.82rem; margin-top: 0.5rem; min-height: 1.2em; }
-    .notif-form .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .notif-form input { width: 100%; padding: 0.55rem 0.8rem; border-radius: 4px; border: 0.5px solid var(--input-border); background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.82rem; outline: none; }
-    .notif-form input::placeholder { color: var(--text-dim); }
-    .notif-form input:focus { border-color: var(--input-border-focus); }
-    .notif-form textarea { width: 100%; padding: 0.65rem 0.9rem; border-radius: 4px; border: 0.5px solid var(--input-border); background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.85rem; outline: none; resize: vertical; min-height: 80px; margin-bottom: 0.75rem; }
-    .notif-form textarea:focus { border-color: var(--input-border-focus); }
-
-    /* Activity filter buttons */
+    /* Segmented time filter on the activity log */
+    .filter-row { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
     .activity-filter-btn {
-      padding: 0.3rem 0.65rem; border-radius: 3px; border: 0.5px solid var(--input-border);
+      padding: 0.35rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--input-border);
       background: transparent; color: var(--text-muted); font-family: inherit;
-      font-size: 0.75rem; cursor: pointer; transition: all 0.12s;
+      font-size: var(--fs-sm); cursor: pointer; transition: color 0.12s, border-color 0.12s, background 0.12s;
+      min-height: 32px;
     }
-    .activity-filter-btn:hover { color: var(--text-secondary); border-color: var(--input-border-focus); }
-    .activity-filter-btn.active { color: var(--text); border-color: var(--btn-hover-border); background: var(--hover-bg); }
+    .activity-filter-btn:hover { color: var(--text); border-color: var(--btn-hover-border); }
+    .activity-filter-btn.active { color: var(--text); border-color: var(--accent); background: var(--link-active-bg); font-weight: 500; }
+
+    /* Only one editing panel is ever open, so the page never becomes a stack
+       of half-finished forms the way four independently-toggled cards did. */
+    .panel { display: none; }
+    .panel.open { display: block; }
   </style>
 </head>
 <body>
   <main class="page">
-    <div class="page-header">
-      <a href="users.html" class="btn-back">← Пользователи</a>
-      <h1 class="page-title" id="page-title">Пользователь</h1>
+    <div class="page-head">
+      <div>
+        <a href="users.html" class="btn-back">← Все клиенты</a>
+        <h2 class="page-title" id="page-title">Клиент</h2>
+      </div>
     </div>
 
     <div id="user-info-card" class="card">
       <div id="user-identity" class="ud-identity"></div>
-      <div id="user-info" class="info-grid" style="color:var(--text-dim)">Загрузка…</div>
-      <div class="actions manager-only" id="user-actions" style="display:none">
-        <button class="btn-action primary" id="btn-notify">📤 Уведомить</button>
-        <button class="btn-action" id="btn-edit-profile">✏️ Профиль</button>
-        <button class="btn-action" id="btn-edit-location">📍 Локация</button>
-        <button class="btn-action" id="btn-reset-password">🔑 Сбросить пароль</button>
-        <button class="btn-action" id="btn-toggle-status">Заблокировать</button>
+      <div id="user-info" class="info-grid"><span class="muted">Загрузка…</span></div>
+
+      <!-- One action bar with words on the buttons. Each entry is gated on the
+           capability its endpoint actually enforces, so an admin never sees a
+           button that would come back 403. -->
+      <div class="actions" id="user-actions">
+        <button class="btn" id="btn-notify" data-cap="notifications.send">Написать в Telegram</button>
+        <button class="btn" id="btn-edit-profile" data-cap="users.edit">Изменить данные</button>
+        <button class="btn" id="btn-edit-location" data-cap="users.edit">Адрес доставки</button>
+        <button class="btn" id="btn-reset-password" data-cap="users.password">Сбросить пароль</button>
+        <button class="btn btn--danger" id="btn-toggle-status" data-cap="users.status">Заблокировать</button>
       </div>
-      <p class="staff-only" style="display:none;font-size:0.8rem;color:var(--text-dim);margin:1rem 0 0">Просмотр доступен только для чтения (роль «staff»).</p>
+      <div class="notice" data-cap-not="users.edit" style="margin-top:var(--sp-4)">
+        <span aria-hidden="true">👁</span>
+        <span>Карточка открыта только для просмотра. Права на изменение данных клиентов выдаёт владелец.</span>
+      </div>
     </div>
 
-    <!-- Notification panel -->
-    <div class="card notif-form" id="notif-form" style="display:none">
-      <p class="card-title">Отправить уведомление</p>
-      <p id="notif-no-tg-note" style="display:none;font-size:0.78rem;color:var(--warning);margin-bottom:0.75rem">⚠ Telegram не привязан — сообщение сохранится только как in-app уведомление</p>
-      <textarea id="notif-msg" placeholder="Текст сообщения (HTML поддерживается)…"></textarea>
-      <div class="row-2">
-        <input id="notif-btn-label" type="text" placeholder="Текст кнопки (необязательно)" />
-        <input id="notif-btn-url" type="url" placeholder="URL кнопки" />
+    <div class="card panel" id="notif-form">
+      <div class="card-head">
+        <div>
+          <h3 class="card-title">Сообщение клиенту</h3>
+          <p class="card-sub" id="notif-no-tg-note" style="display:none;color:var(--warning)">Telegram не привязан — сообщение сохранится только в личном кабинете на сайте.</p>
+        </div>
+        <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
       </div>
-      <button class="btn-action primary" id="btn-send-notif">Отправить</button>
-      <p class="form-result" id="notif-result"></p>
-    </div>
-
-    <!-- Edit Profile -->
-    <div class="card" id="edit-profile-card" style="display:none">
-      <p class="card-title">Редактировать профиль</p>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Имя</label>
-          <input id="edit-first-name" type="text" class="form-input" placeholder="Имя" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Фамилия</label>
-          <input id="edit-last-name" type="text" class="form-input" placeholder="Фамилия" />
-        </div>
+      <div class="field">
+        <label class="field-label" for="notif-msg">Текст</label>
+        <textarea id="notif-msg" class="textarea" placeholder="Здравствуйте! Ваш заказ готов."></textarea>
+        <span class="field-hint">Поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;a href="…"&gt;.</span>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input id="edit-email" type="email" class="form-input" placeholder="email@example.com" />
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="notif-btn-label">Кнопка — надпись</label>
+          <input id="notif-btn-label" type="text" class="input" placeholder="Перейти к заказу" />
         </div>
-        <div class="form-group">
-          <label class="form-label">Телефон</label>
-          <input id="edit-phone" type="tel" class="form-input" placeholder="+998..." />
+        <div class="field">
+          <label class="field-label" for="notif-btn-url">Кнопка — ссылка</label>
+          <input id="notif-btn-url" type="url" class="input" placeholder="https://loomdesign.uz/…" />
         </div>
       </div>
-      <button class="btn-action primary" id="btn-save-profile">Сохранить</button>
-      <p class="form-result" id="profile-result"></p>
+      <div class="card-foot">
+        <button class="btn btn--primary" id="btn-send-notif">Отправить</button>
+      </div>
     </div>
 
-    <!-- Location -->
-    <div class="card" id="edit-location-card" style="display:none">
-      <p class="card-title">Адрес доставки</p>
-      <div id="admin-loc-current" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;display:none"></div>
-      <div class="form-row single">
-        <div class="form-group">
-          <label class="form-label">Адрес</label>
-          <div style="display:flex;gap:0.5rem">
-            <input id="edit-location-addr" type="text" class="form-input" placeholder="Ташкент, ул. Амира Темура 1" style="flex:1" />
-            <button class="btn-action" id="btn-geocode-location" style="white-space:nowrap;flex-shrink:0">Найти</button>
-          </div>
+    <div class="card panel" id="edit-profile-card">
+      <div class="card-head">
+        <h3 class="card-title">Данные клиента</h3>
+        <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="edit-first-name">Имя</label>
+          <input id="edit-first-name" type="text" class="input" placeholder="Иван" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-last-name">Фамилия</label>
+          <input id="edit-last-name" type="text" class="input" placeholder="Петров" />
         </div>
       </div>
-      <div id="admin-loc-result" style="display:none;margin:0.5rem 0;padding:0.6rem 0.85rem;background:var(--input-bg);border:0.5px solid var(--hairline);border-radius:3px;font-size:0.8rem">
-        <div id="admin-loc-found-addr" style="color:var(--text-secondary);margin-bottom:0.3rem"></div>
-        <div id="admin-loc-coords" style="color:var(--text-muted);font-family:var(--mono);font-size:0.75rem;margin-bottom:0.35rem"></div>
-        <a id="admin-loc-map-link" href="#" target="_blank" rel="noopener" style="font-size:0.73rem;color:var(--text-muted);text-decoration:none;border-bottom:0.5px solid var(--btn-border);margin-right:0.75rem">Яндекс Карты →</a>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="edit-email">Email</label>
+          <input id="edit-email" type="email" class="input" placeholder="email@example.com" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="edit-phone">Телефон</label>
+          <input id="edit-phone" type="tel" class="input" placeholder="+998…" />
+        </div>
       </div>
-      <div style="margin-bottom:0.5rem">
-        <button type="button" class="btn-action" id="admin-open-map-btn" style="font-size:0.78rem">📍 Выбрать на карте</button>
+      <div class="card-foot">
+        <button class="btn btn--primary" id="btn-save-profile">Сохранить</button>
       </div>
-      <div style="display:flex;gap:0.5rem;margin-top:0.5rem">
-        <button class="btn-action primary" id="btn-save-location">Сохранить</button>
-        <button class="btn-action" id="btn-clear-location">Очистить</button>
-      </div>
-      <p class="form-result" id="location-result"></p>
     </div>
 
-    <!-- Password Reset (Telegram self-reset) -->
-    <div class="card" id="reset-password-card" style="display:none">
-      <p class="card-title">Сбросить пароль</p>
-      <p style="font-size:0.82rem;color:var(--text-muted);line-height:1.55;margin:0 0 1rem">
-        🔒 Пароль виден только пользователю. Администратор не задаёт и не видит пароль — пользователю отправляется
-        запрос в Telegram, после подтверждения он сам задаёт новый пароль на сайте.
-      </p>
-      <button class="btn-action primary" id="btn-save-password">📨 Отправить сброс через Telegram</button>
-      <p class="form-result" id="password-result"></p>
+    <div class="card panel" id="edit-location-card">
+      <div class="card-head">
+        <h3 class="card-title">Адрес доставки</h3>
+        <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
+      </div>
+      <div id="admin-loc-current" class="notice" style="display:none;margin-bottom:var(--sp-4)"></div>
+      <div class="field">
+        <label class="field-label" for="edit-location-addr">Адрес</label>
+        <div style="display:flex;gap:var(--sp-2);flex-wrap:wrap">
+          <input id="edit-location-addr" type="text" class="input" placeholder="Ташкент, ул. Амира Темура 1" style="flex:1;min-width:220px" />
+          <button class="btn" id="btn-geocode-location">Найти</button>
+        </div>
+        <span class="field-hint">Или выберите точку на карте — так курьер получит точные координаты.</span>
+      </div>
+      <div id="admin-loc-result" style="display:none;margin:var(--sp-3) 0;padding:var(--sp-3) var(--sp-4);background:var(--bg-subtle);border:1px solid var(--hairline);border-radius:var(--radius-sm)">
+        <div id="admin-loc-found-addr" style="margin-bottom:var(--sp-1)"></div>
+        <div id="admin-loc-coords" class="muted" style="font-family:var(--mono);font-size:var(--fs-sm);margin-bottom:var(--sp-2)"></div>
+        <a id="admin-loc-map-link" href="#" target="_blank" rel="noopener" style="font-size:var(--fs-sm);color:var(--text-secondary)">Открыть в Яндекс Картах →</a>
+      </div>
+      <button type="button" class="btn" id="admin-open-map-btn">📍 Выбрать на карте</button>
+      <div class="card-foot" style="display:flex;gap:var(--sp-2);flex-wrap:wrap">
+        <button class="btn btn--primary" id="btn-save-location">Сохранить</button>
+        <button class="btn" id="btn-clear-location">Очистить адрес</button>
+      </div>
     </div>
 
-    <!-- Orders -->
-    <div class="card">
-      <p class="card-title">Заказы</p>
-      <table>
-        <thead>
-          <tr><th>№</th><th>Дата</th><th>Статус</th><th style="text-align:right">Сумма</th></tr>
-        </thead>
-        <tbody id="orders-tbody">
-          <tr><td colspan="4" style="color:var(--text-dim)">Загрузка…</td></tr>
-        </tbody>
-      </table>
+    <div class="card panel" id="reset-password-card">
+      <div class="card-head">
+        <h3 class="card-title">Сброс пароля</h3>
+        <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
+      </div>
+      <div class="notice">
+        <span aria-hidden="true">🔒</span>
+        <span>Вы не задаёте и не видите пароль. Клиенту придёт запрос в Telegram, и после подтверждения он сам задаст новый пароль на сайте.</span>
+      </div>
+      <div class="card-foot">
+        <button class="btn btn--primary" id="btn-save-password">Отправить запрос в Telegram</button>
+      </div>
     </div>
 
-    <!-- Activity log -->
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem">
-        <p class="card-title" style="margin:0">Активность</p>
-        <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-          <button class="activity-filter-btn active" data-since="">Всё</button>
+    <div class="card card--flush">
+      <div style="padding:var(--sp-5) var(--sp-5) 0"><h3 class="card-title">Заказы клиента</h3></div>
+      <div class="table-wrap" style="border:none;box-shadow:none;margin-top:var(--sp-4)">
+        <table class="table">
+          <thead><tr><th>№</th><th>Дата</th><th>Статус</th><th class="right">Сумма</th></tr></thead>
+          <tbody id="orders-tbody"><tr><td colspan="4"><div class="state">Загрузка…</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card card--flush">
+      <div class="card-head" style="padding:var(--sp-5) var(--sp-5) 0;margin-bottom:var(--sp-4)">
+        <h3 class="card-title">Активность</h3>
+        <div class="filter-row">
+          <button class="activity-filter-btn active" data-since="">Всё время</button>
           <button class="activity-filter-btn" data-since="day">День</button>
           <button class="activity-filter-btn" data-since="week">Неделя</button>
           <button class="activity-filter-btn" data-since="month">Месяц</button>
           <button class="activity-filter-btn" data-since="year">Год</button>
         </div>
       </div>
-      <table>
-        <thead>
-          <tr><th>Действие</th><th>Дата</th><th>Детали</th></tr>
-        </thead>
-        <tbody id="activity-tbody">
-          <tr><td colspan="3" style="color:var(--text-dim)">Загрузка…</td></tr>
-        </tbody>
-      </table>
+      <div class="table-wrap" style="border:none;box-shadow:none">
+        <table class="table">
+          <thead><tr><th>Действие</th><th>Дата</th><th>Детали</th></tr></thead>
+          <tbody id="activity-tbody"><tr><td colspan="3"><div class="state">Загрузка…</div></td></tr></tbody>
+        </table>
+      </div>
     </div>
   </main>
 
   <!-- Admin map picker modal -->
   <div id="admin-map-modal">
     <div id="admin-map-bar">
-      <button type="button" class="btn-action" id="admin-map-cancel-btn" style="font-size:0.78rem;flex-shrink:0">← Назад</button>
+      <button type="button" class="btn btn--sm" id="admin-map-cancel-btn">← Назад</button>
       <span id="admin-map-hint">Нажмите на карту, чтобы выбрать место</span>
       <span id="admin-map-selected"></span>
-      <button type="button" class="btn-action primary" id="admin-map-confirm-btn" style="flex-shrink:0" disabled>Выбрать это место</button>
+      <button type="button" class="btn btn--sm btn--primary" id="admin-map-confirm-btn" disabled>Выбрать это место</button>
     </div>
     <div id="admin-map-el"></div>
   </div>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="assets/app.js?v=6"></script>
-  <script src="assets/layout.js?v=8"></script>
-  <script>LOOM_LAYOUT.init('users')</script>
-  <script src="assets/user-detail.js?v=6"></script>
-  <script src="assets/admin-map-picker.js?v=6"></script>
+  <script src="assets/app.js?v=18"></script>
+  <script src="assets/ui.js?v=18"></script>
+  <script src="assets/layout.js?v=18"></script>
+  <script>LOOM_LAYOUT.init('users', { title: 'Клиент', crumbs: [{ label: 'Клиенты', href: 'users.html' }] })</script>
+  <script src="assets/user-detail.js?v=18"></script>
+  <script src="assets/admin-map-picker.js?v=18"></script>
 </body>
 </html>

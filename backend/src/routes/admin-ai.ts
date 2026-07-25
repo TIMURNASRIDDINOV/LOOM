@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { insertAiUsage, listAiRuns, sumAiNeuronsSince, sumAiUsdSince } from '../db/queries'
-import { requireAdmin } from '../middleware/requireAdmin'
+import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import { aiBudget } from '../middleware/aiBudget'
 import { toImageBytes, type NormalisedImage } from '../lib/ai-image'
 import { generateGeminiImage } from '../lib/google-image'
@@ -71,7 +71,7 @@ async function generateOne(
 
 // ─── GET /api/admin/ai/models ────────────────────────────────────────────────
 
-ai.get('/ai/models', requireAdmin, (c) =>
+ai.get('/ai/models', requireAdmin, requireCap('ai.use'), (c) =>
   c.json({
     models: publicRegistry(),
     cap: DAILY_NEURON_CAP,
@@ -86,7 +86,7 @@ ai.get('/ai/models', requireAdmin, (c) =>
 
 // ─── GET /api/admin/ai/budget ────────────────────────────────────────────────
 
-ai.get('/ai/budget', requireAdmin, async (c) => {
+ai.get('/ai/budget', requireAdmin, requireCap('ai.use'), async (c) => {
   const dayStart = utcDayStart()
   const [usedToday, usedUsdToday] = await Promise.all([
     sumAiNeuronsSince(c.env.DB, dayStart),
@@ -109,7 +109,7 @@ ai.get('/ai/budget', requireAdmin, async (c) => {
 
 // ─── GET /api/admin/ai/runs ──────────────────────────────────────────────────
 
-ai.get('/ai/runs', requireAdmin, async (c) => {
+ai.get('/ai/runs', requireAdmin, requireCap('ai.use'), async (c) => {
   const limit = Math.min(50, Math.max(1, parseInt(c.req.query('limit') ?? '20', 10) || 20))
   return c.json({ runs: await listAiRuns(c.env.DB, limit) })
 })
@@ -120,7 +120,7 @@ ai.get('/ai/runs', requireAdmin, async (c) => {
 // aiBudget has already validated the body and confirmed the run fits BOTH the
 // neuron and USD caps, and that any Google model has a key — see aiBudget.ts.
 
-ai.post('/ai/generate', requireAdmin, aiBudget, async (c) => {
+ai.post('/ai/generate', requireAdmin, requireCap('ai.use'), aiBudget, async (c) => {
   const plan = c.get('aiPlan')
   const runId = crypto.randomUUID()
 
