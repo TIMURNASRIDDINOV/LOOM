@@ -108,13 +108,22 @@ function formatPhone(phone) {
 let bootErrorShown = false
 
 // Only shout when there is evidence the page is actually stuck. An uncaught
-// error from some unrelated widget should not put a scary banner over a page
-// that rendered fine.
-function pageLooksStuck() {
-  return Array.prototype.some.call(
+// error from some unrelated widget must not put a scary banner over a page that
+// rendered fine.
+//
+// Visibility matters: several pages HIDE their loading placeholder rather than
+// removing it (order.html sets #loading to display:none), so a text-only check
+// reports every such page as permanently stuck. getClientRects() is empty when
+// the element or any ancestor is display:none, which is exactly the test we want.
+function visibleLoadingPlaceholders() {
+  return Array.prototype.filter.call(
     document.querySelectorAll('.state'),
-    (el) => /Загрузка/.test(el.textContent || ''),
+    (el) => /Загрузка/.test(el.textContent || '') && el.getClientRects().length > 0,
   )
+}
+
+function pageLooksStuck() {
+  return visibleLoadingPlaceholders().length > 0
 }
 
 function showBootError(detail) {
@@ -133,24 +142,29 @@ function showBootError(detail) {
     'font:500 14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif',
     'display:flex', 'gap:12px', 'align-items:center', 'flex-wrap:wrap',
   ].join(';')
+  const btnCss = 'padding:8px 16px;border-radius:4px;font:inherit;cursor:pointer;'
   bar.innerHTML =
-    '<span style="flex:1;min-width:240px">Страница загрузилась не полностью — ' +
-    'часть файлов устарела. Нажмите «Обновить», чтобы получить свежую версию.</span>' +
-    '<button type="button" style="padding:8px 16px;border-radius:4px;border:1px solid #7f1d1d;' +
-    'background:#7f1d1d;color:#fff;font:inherit;cursor:pointer">Обновить</button>'
+    '<span style="flex:1;min-width:240px">Не удалось загрузить часть данных на этой ' +
+    'странице. Попробуйте обновить — если не помогает, сообщите разработчику.</span>' +
+    '<button type="button" data-act="reload" style="' + btnCss +
+    'border:1px solid #7f1d1d;background:#7f1d1d;color:#fff">Обновить</button>' +
+    '<button type="button" data-act="dismiss" aria-label="Скрыть сообщение" style="' + btnCss +
+    'border:1px solid #fca5a5;background:transparent;color:#7f1d1d">Скрыть</button>'
 
-  bar.querySelector('button').addEventListener('click', () => {
+  bar.querySelector('[data-act="reload"]').addEventListener('click', () => {
     const url = new URL(window.location.href)
     url.searchParams.set('_', Date.now().toString(36))
     window.location.replace(url.toString())
   })
+  // Never trap the operator behind a banner they cannot clear — if this fires
+  // wrongly, dismissing must get them back to work immediately.
+  bar.querySelector('[data-act="dismiss"]').addEventListener('click', () => bar.remove())
 
   function mount() {
     // position:fixed keeps this out of flow, so it cannot become a flex item of
     // body.has-sidebar and disturb the shell layout.
     document.body.appendChild(bar)
-    document.querySelectorAll('.state').forEach((el) => {
-      if (!/Загрузка/.test(el.textContent || '')) return
+    visibleLoadingPlaceholders().forEach((el) => {
       el.classList.add('state--error')
       el.textContent = 'Не удалось загрузить данные — обновите страницу.'
     })
@@ -159,25 +173,29 @@ function showBootError(detail) {
   else document.addEventListener('DOMContentLoaded', mount)
 }
 
-// A script or stylesheet that 404s reports through the capture phase with the
-// element as target; a thrown exception reports with target === window.
+// Report only when the page is BOTH broken and visibly stuck. Getting this
+// wrong in the noisy direction is worse than staying quiet: an operator who
+// sees a red banner over a page that works learns to ignore all of them.
+function reportIfStuck(detail) {
+  setTimeout(() => { if (pageLooksStuck()) showBootError(detail) }, 800)
+}
+
+// A failed subresource reports through the capture phase with the element as
+// target; a thrown exception reports with target === window.
 window.addEventListener('error', (e) => {
   const el = e.target
   if (el && el !== window && el.tagName) {
-    // A broken <img> (e.g. a missing product thumbnail) is cosmetic — ignore it.
-    if (el.tagName === 'SCRIPT' || el.tagName === 'LINK') {
-      showBootError('failed to load ' + (el.src || el.href))
-    }
+    // Only a SCRIPT can leave the page functionally empty. A <link> covers
+    // favicons and the Google Fonts stylesheet — losing those is cosmetic, and
+    // treating them as fatal fired this banner on perfectly working pages.
+    // An <img> (a missing product thumbnail) is cosmetic for the same reason.
+    if (el.tagName === 'SCRIPT') reportIfStuck('failed to load ' + (el.src || el.href))
     return
   }
-  // Give the page a moment to finish rendering before judging it stuck.
-  const err = e.error || e.message
-  setTimeout(() => { if (pageLooksStuck()) showBootError(err) }, 600)
+  reportIfStuck(e.error || e.message)
 }, true)
 
-window.addEventListener('unhandledrejection', (e) => {
-  setTimeout(() => { if (pageLooksStuck()) showBootError(e.reason) }, 600)
-})
+window.addEventListener('unhandledrejection', (e) => reportIfStuck(e.reason))
 
 // ─── LOOM_UI fallback ─────────────────────────────────────────────────────────
 // Every page script opens with `const { esc, toast, … } = window.LOOM_UI`, so if

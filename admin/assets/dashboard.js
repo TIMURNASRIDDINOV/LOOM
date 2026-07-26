@@ -195,13 +195,37 @@
     })
   }
 
+  // A swallowed rejection used to leave every placeholder on «Загрузка…»
+  // forever, which reads as "still working" rather than "this failed".
+  function failPanels(ids, message) {
+    ids.forEach((id) => {
+      const node = el(id)
+      if (!node) return
+      node.innerHTML = '<div class="state state--error">' + esc(message) + '</div>'
+    })
+  }
+
   async function load() {
     const [stats, visitors] = await Promise.all([
-      apiJSON('/api/admin/stats').catch(() => null),
-      apiJSON('/api/admin/analytics/visitors').catch(() => null),
+      apiJSON('/api/admin/stats').catch((e) => e),
+      apiJSON('/api/admin/analytics/visitors').catch((e) => e),
     ])
-    if (stats) renderOrders(stats)
-    if (visitors) renderVisitors(visitors)
+
+    if (stats instanceof Error) {
+      failPanels(['status-bar', 'top-products'], 'Не удалось загрузить статистику заказов.')
+      el('recent-orders').querySelector('tbody').innerHTML =
+        '<tr><td colspan="3"><div class="state state--error">Не удалось загрузить заказы.</div></td></tr>'
+      el('greeting').textContent = 'Не удалось загрузить данные — обновите страницу.'
+    } else {
+      renderOrders(stats)
+    }
+
+    if (visitors instanceof Error) {
+      failPanels(['device-breakdown', 'browser-breakdown', 'os-breakdown'],
+        'Не удалось загрузить статистику посетителей.')
+    } else {
+      renderVisitors(visitors)
+    }
   }
 
   window.LOOM_LAYOUT.onReady(() => {
