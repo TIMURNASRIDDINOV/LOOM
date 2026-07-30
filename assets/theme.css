@@ -847,7 +847,10 @@ html.page-reveal::after {
 }
 
 /* ── 9.45 Address picker (assets/address-picker.js) ─────────── */
-.addr-picker { display: flex; flex-direction: column; gap: 0.6rem; }
+/* isolate: Leaflet's internal panes/controls carry z-index 400–1000 and,
+   without a stacking context here, would compete with page overlays in
+   the root context — the map used to bleed through the cart drawer (310). */
+.addr-picker { display: flex; flex-direction: column; gap: 0.6rem; isolation: isolate; }
 .addr-search { position: relative; }
 .addr-search-icon {
   position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%);
