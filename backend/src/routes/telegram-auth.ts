@@ -5,17 +5,22 @@ import {
   getAuthSession,
   getActiveAuthSessionByPhone,
   setAuthSessionTelegramUser,
-  getPendingAuthSessionByTelegramUser,
+  getPendingAuthSessionsByTelegramUser,
+  getPendingWebappSessionByTelegramUser,
   markAuthSessionVerified,
   markAuthSessionFailed,
   markAuthSessionUsed,
   upsertPhoneUser,
+  upsertTelegramWebappUser,
   insertUserActivity,
   getUserByPhone,
+  getUserById,
+  getUserByTelegramId,
   updateUserPassword,
 } from '../db/queries'
 import { signToken } from '../lib/jwt'
 import { hashPassword } from '../lib/password'
+import { validateWebAppInitData } from '../lib/telegram-webapp'
 import type { BaseEnv } from '../types'
 
 const USER_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  // 30 days
@@ -96,6 +101,78 @@ router.post('/telegram/start', async (c) => {
   })
 })
 
+// ─── POST /api/auth/telegram/webapp ──────────────────────────────────────────
+// Telegram Mini App login. The Mini App posts window.Telegram.WebApp.initData;
+// a valid Telegram HMAC signature on it proves the request comes from this
+// bot's Mini App session for that Telegram user — no password or SMS needed.
+//
+// The token is also returned in the body (not only as a cookie) because in
+// Telegram-Web the Mini App runs inside an iframe on web.telegram.org, where
+// the SameSite=Lax cookie for api.loomdesign.uz is never sent.
+
+router.post('/telegram/webapp', async (c) => {
+  let body: unknown
+  try { body = await c.req.json() } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const initData = (body as Record<string, unknown>).init_data
+  if (typeof initData !== 'string' || !initData) {
+    return c.json({ error: 'init_data is required' }, 400)
+  }
+
+  const botToken = c.env.TELEGRAM_BOT_TOKEN
+  if (!botToken) {
+    console.error('[TelegramWebApp] TELEGRAM_BOT_TOKEN env var not set')
+    return c.json({ error: 'Bot not configured' }, 503)
+  }
+
+  const data = await validateWebAppInitData(initData, botToken)
+  if (!data) return c.json({ error: 'Invalid init data' }, 401)
+
+  const existing = await getUserByTelegramId(c.env.DB, data.user.id)
+  if (existing) {
+    if (existing.status === 'banned') {
+      return c.json({ error: 'Your account has been blocked' }, 403)
+    }
+
+    const jwt = await signToken({ sub: String(existing.id), role: 'user' }, c.env.JWT_SECRET, '30d')
+    setCookie(c, 'user_token', jwt, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      maxAge: USER_COOKIE_MAX_AGE,
+      path: '/',
+    })
+    await insertUserActivity(c.env.DB, {
+      user_id: existing.id,
+      action: 'login',
+      metadata: { via: 'telegram_webapp', telegram_user_id: data.user.id },
+    })
+    return c.json({ status: 'ok', token: jwt })
+  }
+
+  // No linked account yet. The Mini App calls Telegram.WebApp.requestContact();
+  // the shared contact lands on the bot webhook, which completes this session
+  // (purpose='webapp' — phone is unknown until the contact arrives).
+  //
+  // Reuse a live session for this Telegram user: tma.js calls this on any page
+  // load where the visitor is not logged in, and a row per navigation would
+  // pile up unbounded (nothing sweeps auth_sessions).
+  const openSession = await getPendingWebappSessionByTelegramUser(c.env.DB, data.user.id)
+  if (openSession) {
+    return c.json({ status: 'need_contact', session_id: openSession.id, expires_at: openSession.expires_at })
+  }
+
+  const sessionId = crypto.randomUUID()
+  const expiresAt = Date.now() + 10 * 60 * 1000  // 10 minutes
+
+  await createAuthSession(c.env.DB, { id: sessionId, phone: '', expires_at: expiresAt, purpose: 'webapp' })
+  await setAuthSessionTelegramUser(c.env.DB, sessionId, data.user.id)
+
+  return c.json({ status: 'need_contact', session_id: sessionId, expires_at: expiresAt })
+})
+
 // ─── GET /api/auth/telegram/status ───────────────────────────────────────────
 
 router.get('/telegram/status', async (c) => {
@@ -118,6 +195,14 @@ router.get('/telegram/status', async (c) => {
       maxAge: USER_COOKIE_MAX_AGE,
       path: '/',
     })
+    // Mini App sessions also get the token in the body: inside Telegram-Web's
+    // iframe the cookie is third-party and never comes back (see /telegram/webapp).
+    // Handing it out consumes the session, so the id cannot be replayed later as
+    // a bearer-token dispenser for the whole 30-day lifetime of the JWT.
+    if (session.purpose === 'webapp') {
+      await markAuthSessionUsed(c.env.DB, sessionId)
+      return c.json({ status: 'verified', token: session.jwt })
+    }
     return c.json({ status: 'verified' })
   }
 
@@ -197,7 +282,19 @@ webhookRouter.post('/webhook', async (c) => {
     }
 
     const session = await getAuthSession(c.env.DB, sessionId)
-    if (!session || session.status !== 'pending' || Date.now() > session.expires_at) {
+    // A deep link may only ever drive a session the WEBSITE started and that no
+    // Telegram user has claimed yet. Mini App sessions ('webapp') are bound to a
+    // Telegram identity at creation from signed initData, so accepting one here
+    // would let an attacker forward their own session_id and have the victim who
+    // taps it — and shares their own contact — verify it, handing the attacker a
+    // token for the victim's account.
+    if (
+      !session ||
+      session.status !== 'pending' ||
+      Date.now() > session.expires_at ||
+      session.purpose === 'webapp' ||
+      session.telegram_user_id !== null
+    ) {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
@@ -206,8 +303,17 @@ webhookRouter.post('/webhook', async (c) => {
       return c.json({ ok: true })
     }
 
-    // Associate this Telegram user with the session
-    await setAuthSessionTelegramUser(c.env.DB, sessionId, telegramUserId)
+    // Associate this Telegram user with the session. Loses the race (and stops)
+    // if another Telegram user claimed it between the read and here.
+    const bound = await setAuthSessionTelegramUser(c.env.DB, sessionId, telegramUserId)
+    if (!bound) {
+      await sendTelegramMessage(
+        botToken,
+        msg.chat.id,
+        '❌ Ссылка устарела или уже использована. Вернитесь на loomdesign.uz и запросите новую.',
+      )
+      return c.json({ ok: true })
+    }
 
     // Ask for phone number
     await sendContactRequest(botToken, msg.chat.id)
@@ -230,14 +336,94 @@ webhookRouter.post('/webhook', async (c) => {
       return c.json({ ok: true })
     }
 
-    // Find the pending session for this Telegram user
-    const session = await getPendingAuthSessionByTelegramUser(c.env.DB, telegramUserId)
+    // Find the pending session this contact is answering. A Mini App session is
+    // created on page load, so "newest wins" would let it shadow the website
+    // login/reset the user deliberately started and is polling right now.
+    // Prefer a website session whose phone actually matches the shared contact.
+    const pending = await getPendingAuthSessionsByTelegramUser(c.env.DB, telegramUserId)
+    const session =
+      pending.find(s => s.purpose !== 'webapp' && s.phone === sharedPhone) ??
+      pending[0] ??
+      null
     if (!session) {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
         '❌ Сессия не найдена или истекла. Вернитесь на loomdesign.uz и попробуйте снова.',
       )
+      return c.json({ ok: true })
+    }
+
+    // Mini App onboarding (purpose='webapp'): the session carries no phone —
+    // it was created from signed initData, and the shared contact IS the phone.
+    // The session's telegram_user_id came from that initData and can no longer
+    // be rebound (see setAuthSessionTelegramUser), so this Telegram user really
+    // is the one who opened the Mini App.
+    if (session.purpose === 'webapp') {
+      if (!isValidE164(sharedPhone)) {
+        await markAuthSessionFailed(c.env.DB, session.id)
+        await sendTelegramMessage(
+          botToken, msg.chat.id,
+          '❌ Не удалось распознать номер телефона. Откройте мини-приложение заново.', undefined, true,
+        )
+        return c.json({ ok: true })
+      }
+
+      try {
+        const { userId, conflict } = await upsertTelegramWebappUser(c.env.DB, {
+          phone: sharedPhone,
+          telegram_user_id: telegramUserId,
+          telegram_username: msg.from?.username ?? null,
+          first_name: msg.from?.first_name ?? null,
+          last_name: msg.from?.last_name ?? null,
+        })
+
+        // This phone already belongs to an account linked to a DIFFERENT
+        // Telegram user. Issuing a token here would hand over that account.
+        if (conflict || !userId) {
+          await markAuthSessionFailed(c.env.DB, session.id)
+          await sendTelegramMessage(
+            botToken, msg.chat.id,
+            '❌ Этот номер уже привязан к другому аккаунту Telegram. Войдите на loomdesign.uz по паролю или напишите нам.',
+            undefined, true,
+          )
+          return c.json({ ok: true })
+        }
+
+        const user = await getUserById(c.env.DB, userId)
+        if (user?.status === 'banned') {
+          await markAuthSessionFailed(c.env.DB, session.id)
+          await sendTelegramMessage(
+            botToken, msg.chat.id,
+            '❌ Доступ к аккаунту заблокирован.', undefined, true,
+          )
+          return c.json({ ok: true })
+        }
+
+        const jwt = await signToken({ sub: String(userId), role: 'user' }, c.env.JWT_SECRET, '30d')
+        await markAuthSessionVerified(c.env.DB, session.id, userId, jwt)
+        await insertUserActivity(c.env.DB, {
+          user_id: userId,
+          action: 'login',
+          metadata: { via: 'telegram_webapp', telegram_user_id: telegramUserId },
+        })
+
+        await sendTelegramMessage(
+          botToken,
+          msg.chat.id,
+          '✅ Номер подтверждён! Вернитесь в мини-приложение LOOM — вы уже вошли в систему.',
+          undefined,
+          true,  // remove keyboard
+        )
+      } catch (err) {
+        console.error('[TelegramWebApp] upsertTelegramWebappUser failed:', err)
+        await markAuthSessionFailed(c.env.DB, session.id)
+        await sendTelegramMessage(
+          botToken,
+          msg.chat.id,
+          '❌ Произошла ошибка. Откройте мини-приложение заново и попробуйте ещё раз.',
+        )
+      }
       return c.json({ ok: true })
     }
 
@@ -346,7 +532,9 @@ async function sendTelegramMessage(
 async function sendContactRequest(botToken: string, chatId: number): Promise<void> {
   const payload = {
     chat_id: chatId,
-    text: '📱 Нажмите кнопку ниже, чтобы поделиться номером телефона и войти в loomdesign.uz.',
+    text:
+      '📱 Нажмите кнопку ниже, чтобы поделиться номером телефона и войти в loomdesign.uz.\n\n' +
+      '⚠️ Если вы не начинали вход сами — не делитесь номером и закройте этот чат.',
     reply_markup: {
       keyboard: [[{ text: '📱 Поделиться номером телефона', request_contact: true }]],
       one_time_keyboard: true,

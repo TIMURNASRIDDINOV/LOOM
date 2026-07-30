@@ -18,6 +18,7 @@
     "migrate:local:perms": "wrangler d1 execute loom-db --local --file migrations/0015_admin_permissions.sql",
     "migrate:prod:perms": "wrangler d1 execute loom-db --remote --file migrations/0015_admin_permissions.sql",
     "set-webhook": "npx tsx scripts/set-telegram-webhook.ts",
+    "set-menu-button": "npx tsx scripts/set-menu-button.ts",
     "set-admin": "npx tsx scripts/set-admin.ts"
   },
   "dependencies": {

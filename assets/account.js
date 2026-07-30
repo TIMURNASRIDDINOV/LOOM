@@ -129,7 +129,10 @@
 
     // Avatar section
     renderAvatar(u)
-    document.getElementById('profile-name').textContent = u.name || u.email.split('@')[0]
+    // Telegram-created accounts have no name and a synthetic tg<id>@telegram.loom
+    // email, so fall back to the Telegram first name before the email prefix.
+    document.getElementById('profile-name').textContent =
+      u.name || u.first_name || (u.email ? u.email.split('@')[0] : '')
     document.getElementById('profile-email').textContent = u.email
     document.getElementById('profile-since').textContent = AT('acc.statSince', 'С нами с') + ' ' + fmtDate(u.created_at)
 

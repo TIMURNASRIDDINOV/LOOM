@@ -424,9 +424,10 @@
     show('co-grid', 'grid');
 
     // 3. prefill contact
+    // Telegram/Mini App accounts carry first_name/last_name instead of name
     var parts = (user.name || '').split(/\s+/);
-    $('co-name').value = parts[0] || '';
-    $('co-surname').value = parts.slice(1).join(' ');
+    $('co-name').value = parts[0] || user.first_name || '';
+    $('co-surname').value = parts.slice(1).join(' ') || user.last_name || '';
     if (user.phone) $('co-phone').value = fmtPhone(user.phone);
     if (user.phone_verified) show('co-phone-badge', 'inline-flex');
     else show('co-phone-warn', 'flex');

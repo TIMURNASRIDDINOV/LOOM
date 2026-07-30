@@ -78,6 +78,14 @@
 
   async function logout() {
     clearToken()
+    // Inside the Telegram Mini App tma.js would log the visitor straight back
+    // in on the post-logout reload. Respect the logout for this app session;
+    // reopening the Mini App signs them in again (they ARE their Telegram user).
+    try {
+      if (document.documentElement.classList.contains('tma')) {
+        sessionStorage.setItem('loom_tma_logout', '1')
+      }
+    } catch (e) {}
     // Clear phone-auth cookie too
     try {
       await fetch((window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz') + '/api/auth/logout', {
@@ -100,6 +108,15 @@
     catch (e) { return fallback }
   }
 
+  // Telegram-created accounts have no profile name — only first_name from
+  // Telegram and a synthetic tg<id>@telegram.loom email, so fall back in
+  // that order rather than showing the ugly email prefix.
+  function displayNameOf(user) {
+    if (user.name) return user.name.split(' ')[0]
+    if (user.first_name) return user.first_name
+    return user.email ? user.email.split('@')[0] : '—'
+  }
+
   // Mobile menu row — on phones the nav slot is hidden, so this is the
   // ONLY visible login state (and the only way to log out) on mobile
   function renderMobileAuth(user) {
@@ -115,7 +132,7 @@
       return
     }
 
-    const displayName = user.name ? user.name.split(' ')[0] : user.email.split('@')[0]
+    const displayName = displayNameOf(user)
     const initials = displayName.slice(0, 2).toUpperCase()
     const avatarHtml = user.avatar_url
       ? `<img class="auth-nav-avatar" src="${esc(user.avatar_url)}" alt="" />`
@@ -142,7 +159,7 @@
         return
       }
 
-      const displayName = user.name ? user.name.split(' ')[0] : user.email.split('@')[0]
+      const displayName = displayNameOf(user)
       const initials = displayName.slice(0, 2).toUpperCase()
       const avatarHtml = user.avatar_url
         ? `<img class="auth-nav-avatar" src="${esc(user.avatar_url)}" alt="${esc(displayName)}" />`

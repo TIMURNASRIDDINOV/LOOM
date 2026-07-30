@@ -732,16 +732,24 @@ export async function getActiveAuthSessionByPhone(
   )
 }
 
+// Binds a session to a Telegram user, but ONLY while it is still unbound.
+// Returns false when the session already belongs to some Telegram user.
+//
+// The guard is a security control, not an optimisation: Mini App sessions are
+// bound at creation from HMAC-validated initData, and a rebind would let a
+// forwarded `t.me/<bot>?start=<session_id>` deep link move someone else's
+// session onto the victim who tapped it — whose contact would then verify it.
 export async function setAuthSessionTelegramUser(
   db: D1Database,
   id: string,
   telegramUserId: number,
-): Promise<void> {
+): Promise<boolean> {
   return safeQuery('setAuthSessionTelegramUser', async () => {
-    await db
-      .prepare('UPDATE auth_sessions SET telegram_user_id = ? WHERE id = ?')
+    const res = await db
+      .prepare('UPDATE auth_sessions SET telegram_user_id = ? WHERE id = ? AND telegram_user_id IS NULL')
       .bind(telegramUserId, id)
       .run()
+    return (res.meta.changes ?? 0) > 0
   })
 }
 
@@ -753,6 +761,41 @@ export async function getPendingAuthSessionByTelegramUser(
     db
       .prepare(
         "SELECT * FROM auth_sessions WHERE telegram_user_id = ? AND status = 'pending' AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
+      )
+      .bind(telegramUserId, Date.now())
+      .first<AuthSession>(),
+  )
+}
+
+// All live pending sessions for a Telegram user, newest first. The contact
+// webhook needs the whole set, not just the newest: a Mini App session is
+// created on page load and would otherwise shadow the website login session
+// the user deliberately started and is actively waiting on.
+export async function getPendingAuthSessionsByTelegramUser(
+  db: D1Database,
+  telegramUserId: number,
+): Promise<AuthSession[]> {
+  return safeQuery('getPendingAuthSessionsByTelegramUser', async () => {
+    const res = await db
+      .prepare(
+        "SELECT * FROM auth_sessions WHERE telegram_user_id = ? AND status = 'pending' AND expires_at > ? ORDER BY created_at DESC LIMIT 10",
+      )
+      .bind(telegramUserId, Date.now())
+      .all<AuthSession>()
+    return res.results ?? []
+  })
+}
+
+// Live pending Mini App session for a Telegram user, so repeat page loads
+// reuse one row instead of inserting an orphan per navigation.
+export async function getPendingWebappSessionByTelegramUser(
+  db: D1Database,
+  telegramUserId: number,
+): Promise<AuthSession | null> {
+  return safeQuery('getPendingWebappSessionByTelegramUser', () =>
+    db
+      .prepare(
+        "SELECT * FROM auth_sessions WHERE telegram_user_id = ? AND purpose = 'webapp' AND status = 'pending' AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
       )
       .bind(telegramUserId, Date.now())
       .first<AuthSession>(),
@@ -870,6 +913,88 @@ export async function upsertPhoneUser(
       )
       .run()
     return Number(result.meta.last_row_id)
+  })
+}
+
+// Mini App onboarding upsert. Unlike upsertPhoneUser this REFUSES to take over
+// an account that already belongs to a different Telegram user.
+//
+// users.phone is writable through PATCH /api/auth/profile without verification,
+// so matching on phone alone would let anyone squat a phone string and collect
+// the account of whoever later shares that number with the bot. Returns
+// { conflict: true } instead, and the caller keeps the visitor logged out.
+export async function upsertTelegramWebappUser(
+  db: D1Database,
+  params: {
+    phone: string
+    telegram_user_id: number
+    telegram_username: string | null
+    first_name: string | null
+    last_name: string | null
+  },
+): Promise<{ userId: number | null; conflict: boolean }> {
+  return safeQuery('upsertTelegramWebappUser', async () => {
+    const now = Date.now()
+
+    // Already linked to this Telegram identity — the trustworthy key.
+    const linked = await db
+      .prepare('SELECT id FROM users WHERE telegram_user_id = ?')
+      .bind(params.telegram_user_id)
+      .first<{ id: number }>()
+    if (linked) {
+      await db
+        .prepare('UPDATE users SET last_login_at = ?, telegram_username = ? WHERE id = ?')
+        .bind(now, params.telegram_username, linked.id)
+        .run()
+      return { userId: linked.id, conflict: false }
+    }
+
+    const byPhone = await db
+      .prepare('SELECT id, telegram_user_id FROM users WHERE phone = ?')
+      .bind(params.phone)
+      .first<{ id: number; telegram_user_id: number | null }>()
+
+    if (byPhone) {
+      // Someone else's Telegram already owns this account.
+      if (byPhone.telegram_user_id !== null) return { userId: null, conflict: true }
+
+      await db
+        .prepare(
+          `UPDATE users SET telegram_user_id = ?, telegram_username = ?,
+           first_name = COALESCE(first_name, ?), last_name = COALESCE(last_name, ?),
+           last_login_at = ? WHERE id = ? AND telegram_user_id IS NULL`,
+        )
+        .bind(
+          params.telegram_user_id,
+          params.telegram_username,
+          params.first_name,
+          params.last_name,
+          now,
+          byPhone.id,
+        )
+        .run()
+      return { userId: byPhone.id, conflict: false }
+    }
+
+    const syntheticEmail = `tg${params.telegram_user_id}@telegram.loom`
+    const result = await db
+      .prepare(
+        `INSERT INTO users (email, password_hash, phone, telegram_user_id, telegram_username,
+         first_name, last_name, role, status, created_at, last_login_at)
+         VALUES (?, 'telegram_auth', ?, ?, ?, ?, ?, 'user', 'active', ?, ?)`,
+      )
+      .bind(
+        syntheticEmail,
+        params.phone,
+        params.telegram_user_id,
+        params.telegram_username,
+        params.first_name,
+        params.last_name,
+        now,
+        now,
+      )
+      .run()
+    return { userId: Number(result.meta.last_row_id), conflict: false }
   })
 }
 

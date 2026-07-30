@@ -63,11 +63,62 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 | GET | `/api/auth/telegram/status` | `?session_id=…` | Poll status. Returns `{ status }` where status is `pending\|verified\|failed\|expired`. Sets `user_token` cookie on `verified`. |
 | POST | `/api/auth/logout` | — | Clear `user_token` cookie |
 
+### Telegram Mini App
+
+The storefront doubles as a Telegram Mini App: the bot's menu button opens
+loomdesign.uz inside Telegram's WebView with signed `initData`, and
+`assets/tma.js` logs the visitor in without a password or SMS.
+
+**Flow (linked account):** Mini App posts `initData` → HMAC signature checked
+against the bot token → user looked up by `telegram_user_id` → instant login.
+
+**Flow (first visit):** same call returns `need_contact` + a `session_id`
+(an `auth_sessions` row with `purpose='webapp'` and no phone yet). The Mini
+App shows Telegram's native "share phone" popup (`requestContact`); the shared
+contact arrives on the bot webhook, which fills in the phone, upserts the user
+and verifies the session. The Mini App polls `/api/auth/telegram/status` like
+the classic flow.
+
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| POST | `/api/auth/telegram/webapp` | `{ init_data }` | Validate Mini App `initData` (24 h max age). Returns `{ status: "ok", token }` + `user_token` cookie for linked users, `{ status: "need_contact", session_id, expires_at }` otherwise. `401` on bad signature, `403` for banned accounts. |
+
+The token is returned **in the body** as well as the cookie because in
+Telegram-Web the Mini App runs in an iframe on web.telegram.org, where the
+`SameSite=Lax` cookie is third-party and never sent — the frontend stores it
+as a Bearer token (`LOOM_AUTH.setToken`). For the same reason
+`/api/auth/telegram/status` also returns `token` when the session's purpose
+is `webapp`.
+
+**Security controls on this flow** (each has a regression test; removing any one
+of the first two re-opens a confirmed account-takeover):
+
+- A `purpose='webapp'` session is bound to its Telegram user at creation and can
+  never be rebound: `/start` refuses webapp sessions and sessions that already
+  have a `telegram_user_id`, and `setAuthSessionTelegramUser` only updates rows
+  where it `IS NULL`. Without this, an attacker could forward their own
+  `t.me/<bot>?start=<session_id>` link and have the victim who taps it verify the
+  attacker's session with their own contact.
+- Onboarding never takes over an account owned by another Telegram user
+  (`upsertTelegramWebappUser` matches on `telegram_user_id`, or on a phone whose
+  row is unlinked). `users.phone` is user-editable and unverified, so matching on
+  phone alone would let it be squatted.
+- The body token is single-use: the first `verified` poll marks the session
+  `used`, so a leaked `session_id` is not a 30-day bearer-token dispenser.
+- The contact webhook prefers a pending website login/reset session whose phone
+  matches the shared contact, so a Mini App session opened on a later page load
+  cannot swallow the login the user is actively polling.
+
+**Setup (one-shot):** `BOT_TOKEN=<token> npm run set-menu-button` points the
+bot's menu button at the Mini App URL (`APP_URL`, default
+`https://loomdesign.uz`). Optionally also create a named app via BotFather
+(`/newapp`) to get a shareable `t.me/<bot>/<name>` direct link.
+
 ### Telegram Webhook
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/telegram/webhook` | Telegram bot webhook. Requires `X-Telegram-Bot-Api-Secret-Token` header. |
+| POST | `/api/telegram/webhook` | Telegram bot webhook. Requires `X-Telegram-Bot-Api-Secret-Token` header. Handles `/start <session_id>` + shared contacts for both the classic login flow and Mini App onboarding (`purpose='webapp'`). |
 
 ---
 

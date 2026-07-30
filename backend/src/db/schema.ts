@@ -56,7 +56,7 @@ export interface AuthSession {
   telegram_user_id: number | null
   created_at: number
   expires_at: number
-  purpose: string  // login|reset
+  purpose: string  // login|reset|webapp (webapp = Telegram Mini App onboarding)
 }
 
 // Admin team roles, most→least privileged.

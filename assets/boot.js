@@ -106,7 +106,11 @@
     else if (mq.addListener) mq.addListener(onSys);
   }
 
-  window.__loomTheme = { KEY: KEY, effective: effective, set: set };
+  /* apply() without the localStorage write — for contexts that own the theme
+     only while they are open (the Telegram Mini App follows the Telegram
+     client). Persisting there would clobber the visitor's own dots choice for
+     normal browsing, and pin them out of following system changes. */
+  window.__loomTheme = { KEY: KEY, effective: effective, set: set, applyOnly: apply };
 })();
 
 (function () {
