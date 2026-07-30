@@ -299,6 +299,20 @@
     'acc.notifPromo':  { uz: 'Aksiya va yangiliklar', ru: 'Акции и новинки', en: 'Promotions & news' },
     'acc.notifPromoSub': { uz: 'Yangi mahsulotlar va maxsus takliflar', ru: 'Новые продукты и специальные предложения', en: 'New products and special offers' },
 
+    // ===== Telegram Mini App onboarding (tma.js) =====
+    'tma.welcome':      { uz: 'LOOM’ga xush kelibsiz', ru: 'Добро пожаловать в LOOM', en: 'Welcome to LOOM' },
+    'tma.sub':          { uz: 'Telegram orqali kirdingiz. Ma’lumotlarni tekshiring — buyurtmada shu ism ko‘rsatiladi.', ru: 'Вы вошли через Telegram. Проверьте данные — это имя мы укажем в заказе.', en: 'You are signed in with Telegram. Check your details — this name goes on your order.' },
+    'tma.fullName':     { uz: 'To‘liq ism', ru: 'Полное имя', en: 'Full name' },
+    'tma.namePh':       { uz: 'Ism va familiya', ru: 'Имя и фамилия', en: 'First and last name' },
+    'tma.share':        { uz: 'Raqamni ulashish', ru: 'Поделиться номером', en: 'Share my number' },
+    'tma.phoneWhy':     { uz: 'Raqam yetkazib berish uchun kerak. Keyinroq ham qo‘shsa bo‘ladi.', ru: 'Номер нужен для доставки. Можно добавить позже.', en: 'We need your number for delivery. You can add it later.' },
+    'tma.later':        { uz: 'Keyinroq', ru: 'Позже', en: 'Later' },
+    'tma.saving':       { uz: 'Saqlanmoqda…', ru: 'Сохраняем…', en: 'Saving…' },
+    'tma.done':         { uz: 'Hammasi tayyor!', ru: 'Всё готово!', en: 'All set!' },
+    'tma.doneSub':      { uz: 'Endi dizayn yaratishni boshlashingiz mumkin.', ru: 'Можно приступать к созданию дизайна.', en: 'You can start designing now.' },
+    'tma.errShare':     { uz: 'Raqam olinmadi. Yana urinib ko‘ring.', ru: 'Не удалось получить номер. Попробуйте снова.', en: 'Could not get your number. Please try again.' },
+    'tma.close':        { uz: 'Yopish', ru: 'Закрыть', en: 'Close' },
+
     // ===== Auth (login / register) =====
     'auth.loginTitle':  { uz: 'Akkauntga kirish', ru: 'Вход в аккаунт', en: 'Sign in' },
     'auth.loginSub':    { uz: 'Buyurtmalarni kuzatish uchun kiring', ru: 'Войдите, чтобы отслеживать заказы', en: 'Sign in to track your orders' },
