@@ -50,14 +50,14 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script defer src="assets/config.js?v=2"></script>
     <script defer src="assets/layout.js?v=3"></script>
-    <script defer src="assets/i18n.js?v=13"></script>
+    <script defer src="assets/i18n.js?v=15"></script>
     <script defer src="assets/auth.js?v=4"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=2"></script>
     <script defer src="assets/motion.js?v=9"></script>
     <script defer src="assets/track.js?v=2"></script>
     <script defer src="assets/cart.js?v=2"></script>
-    <script defer src="configurator.js?v=19"></script>
+    <script defer src="configurator.js?v=23"></script>
 
     <style>
       /* ============================================================
@@ -278,7 +278,130 @@
       .style-toggle-btn.active { background: var(--text); color: var(--paper); border-color: var(--text); }
       .style-toggle-btn:hover:not(.active) { color: var(--text); border-color: var(--text); }
 
-      /* Layer switch (Text / Logo) */
+      /* ── Design dock (right) ─────────────────────────────────── */
+      .design-dock {
+        /* Clears the "Сменить товар" chip above it and the save chip below */
+        position: absolute; z-index: 35; top: 134px; right: 24px;
+        width: 340px; max-width: calc(100vw - 48px);
+        max-height: calc(100vh - 64px - 140px);
+        display: flex; flex-direction: column; gap: 0.5rem;
+        padding: 0.75rem;
+        background: var(--panel-glass); backdrop-filter: blur(18px) saturate(120%);
+        -webkit-backdrop-filter: blur(18px) saturate(120%);
+        border: 1px solid var(--hairline); border-radius: 2px;
+        box-shadow: var(--shadow-lg);
+        overflow-y: auto; overscroll-behavior: contain;
+      }
+      .dock-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+      .dock-actions { gap: 0.35rem; }
+
+      /* Selected-layer strip — accent bar on the left, like the reference */
+      .dock-sel {
+        padding: 0.4rem 0.5rem; border-radius: 2px;
+        background: var(--hover-wash); border: 1px solid var(--hairline);
+        border-left: 3px solid var(--brand);
+      }
+      .dock-sel-icon { display: inline-flex; color: var(--muted); flex-shrink: 0; }
+      .dock-sel-icon svg { width: 15px; height: 15px; }
+      .dock-sel-name {
+        flex: 1; min-width: 0; font-size: 0.78rem; color: var(--muted);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .dock-close {
+        width: 26px; height: 26px; flex-shrink: 0; border: none; border-radius: 50%;
+        background: var(--field-bg); color: var(--muted); font-size: 1rem; line-height: 1;
+        cursor: pointer; transition: all 0.15s ease;
+      }
+      .dock-close:hover { background: var(--brand); color: #fff; }
+
+      /* Compact controls */
+      .dock-swatch {
+        width: 26px; height: 26px; flex-shrink: 0; padding: 0; cursor: pointer;
+        border: 1px solid var(--hairline); border-radius: 50%; background: none;
+        -webkit-appearance: none; appearance: none; overflow: hidden;
+      }
+      .dock-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+      .dock-swatch::-webkit-color-swatch { border: none; border-radius: 50%; }
+      .dock-swatch::-moz-color-swatch { border: none; border-radius: 50%; }
+      .dock-num {
+        width: 56px; flex-shrink: 0; padding: 0.32rem 0.4rem; text-align: center;
+        font-family: var(--mono); font-size: 0.78rem;
+        border: 1px solid var(--hairline); border-radius: 2px;
+        background: var(--field-bg); color: var(--text);
+      }
+      .dock-input {
+        flex: 1; min-width: 0; padding: 0.42rem 0.6rem; font-family: inherit; font-size: 0.82rem;
+        border: 1px solid var(--hairline); border-radius: 2px;
+        background: var(--field-bg); color: var(--text);
+      }
+      .dock-input:focus, .dock-num:focus { outline: none; border-color: var(--text); }
+      .dock-select {
+        flex: 1; min-width: 0; padding: 0.42rem 0.6rem; font-family: inherit; font-size: 0.82rem;
+        border: 1px solid var(--hairline); border-radius: 2px;
+        background: var(--field-bg); color: var(--text); cursor: pointer;
+      }
+      .dock-pill {
+        padding: 0.45rem 0.85rem; border-radius: 999px; border: 1px solid var(--hairline);
+        background: var(--field-bg); font-family: inherit; font-size: 0.78rem; font-weight: 500;
+        color: var(--text); cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
+      }
+      .dock-pill:hover { border-color: var(--text); }
+      .dock-pill.primary { background: var(--text); color: var(--paper); border-color: var(--text); }
+      .dock-pill.primary:hover { opacity: 0.85; }
+      .dock-tgl {
+        width: 28px; height: 28px; flex-shrink: 0; display: inline-flex; align-items: center;
+        justify-content: center; border: 1px solid var(--hairline); border-radius: 2px;
+        background: var(--field-bg); font-family: inherit; font-size: 0.82rem; font-weight: 700;
+        color: var(--muted); cursor: pointer; transition: all 0.15s ease;
+      }
+      .dock-tgl svg { width: 13px; height: 13px; }
+      .dock-tgl.italic { font-style: italic; }
+      .dock-tgl.active { background: var(--text); color: var(--paper); border-color: var(--text); }
+      .dock-tgl:hover:not(.active) { color: var(--text); border-color: var(--text); }
+
+      /* ── Position guide ──────────────────────────────────────── */
+      .dock-guide { border-top: 1px solid var(--hairline); padding-top: 0.6rem; margin-top: 0.1rem; }
+      .dock-guide-title {
+        margin: 0 0 0.5rem; text-align: center; font-size: 0.66rem; font-weight: 600;
+        letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-38);
+      }
+      .guide-faces { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+      .guide-face {
+        display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+        padding: 0.4rem 0.25rem; border: 1px solid transparent; border-radius: 2px;
+        background: none; font-family: inherit; cursor: pointer; transition: all 0.15s ease;
+      }
+      .guide-face:hover { background: var(--hover-wash); }
+      .guide-face.active { border-color: var(--brand); background: rgba(252,80,68,0.06); }
+      /* The shirt outline and the artwork canvas share this box, so the canvas
+         can be pinned to exactly where the print rect sits on the silhouette. */
+      .guide-shirt { position: relative; display: block; width: 100%; aspect-ratio: 100 / 118; }
+      .guide-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .guide-body { fill: var(--field-bg); stroke: var(--ink-38); stroke-width: 1.2; }
+      .guide-face.active .guide-body { stroke: var(--brand); }
+      .guide-neck { fill: none; stroke: var(--ink-38); stroke-width: 1.2; }
+      /* Print rect, as a share of the 100×118 viewBox (30×40 cm on the garment) */
+      .guide-canvas, .guide-rect {
+        position: absolute; left: 27%; top: 26.5%; width: 46%; height: 45.8%;
+      }
+      .guide-canvas { display: block; }
+      .guide-rect { border: 1px dashed var(--ink-38); opacity: 0.5; pointer-events: none; }
+      .guide-label {
+        font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em;
+        text-transform: uppercase; color: var(--muted);
+      }
+      .guide-face.active .guide-label { color: var(--text); }
+      .guide-face .guide-label::after {
+        content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 50%;
+        background: var(--brand); margin-left: 0.3rem; vertical-align: middle; opacity: 0;
+      }
+      .guide-face.has-design .guide-label::after { opacity: 1; }
+      .dock-hint {
+        margin: 0.5rem 0 0; font-size: 0.68rem; line-height: 1.45;
+        color: var(--muted); text-align: center;
+      }
+
+      /* Add-layer buttons (Text / Logo) */
       .layer-switch { display: flex; gap: 0.4rem; padding: 0.25rem; border-radius: 2px; background: var(--hover-wash); border: 1px solid var(--hairline); }
       .layer-btn {
         flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
@@ -287,8 +410,40 @@
         cursor: pointer; transition: all 0.18s ease;
       }
       .layer-btn svg { width: 15px; height: 15px; }
-      .layer-btn.active { background: var(--text); color: var(--paper); }
-      .layer-btn:hover:not(.active) { color: var(--text); background: var(--hover-wash); }
+      .layer-btn::before { content: "+"; font-weight: 600; opacity: 0.75; }
+      .layer-btn:hover { color: var(--text); background: var(--paper); }
+
+      /* Layer list — one row per element on the active side, topmost first */
+      .layer-empty { margin: 0; font-size: 0.76rem; color: var(--muted); text-align: center; padding: 0.5rem 0; }
+      .layer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+      .layer-row {
+        display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.5rem;
+        border: 1px solid var(--hairline); border-radius: 2px; background: var(--field-bg);
+        cursor: pointer; transition: all 0.15s ease;
+      }
+      .layer-row:hover { border-color: var(--ink-38); }
+      .layer-row.selected { border-color: var(--brand); background: rgba(252,80,68,0.06); }
+      .layer-row-icon { display: inline-flex; color: var(--muted); flex-shrink: 0; }
+      .layer-row-icon svg { width: 14px; height: 14px; }
+      .layer-row.selected .layer-row-icon { color: var(--brand); }
+      .layer-row-name {
+        flex: 1; min-width: 0; font-size: 0.8rem; color: var(--text);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .layer-row-btn {
+        flex-shrink: 0; width: 22px; height: 22px; display: inline-flex; align-items: center;
+        justify-content: center; border: none; border-radius: 2px; background: transparent;
+        color: var(--muted); font-size: 0.85rem; line-height: 1; cursor: pointer;
+      }
+      .layer-row-btn:hover:not(:disabled) { background: var(--hover-wash); color: var(--text); }
+      .layer-row-btn.danger:hover:not(:disabled) { color: var(--brand); }
+      .layer-row-btn:disabled { opacity: 0.25; cursor: default; }
+
+      /* Dot marking a side that already carries artwork */
+      .view-btn.has-design::after {
+        content: ""; width: 5px; height: 5px; border-radius: 50%;
+        background: var(--brand); margin-left: 0.35rem; display: inline-block; vertical-align: middle;
+      }
 
       /* On-shirt hint — accent-tinted */
       .shirt-hint {
@@ -472,6 +627,16 @@
           backdrop-filter: none; background: var(--bg);
           border-left: none; border-right: none; box-shadow: none;
         }
+        /* Dock stacks under the 3D view, above the product panel */
+        .design-dock {
+          position: relative; top: auto; right: auto; width: 100%; max-width: 100%;
+          max-height: none; overflow: visible; border-radius: 0;
+          backdrop-filter: none; background: var(--bg);
+          border-left: none; border-right: none; box-shadow: none;
+          padding: 0.9rem 1.25rem;
+        }
+        /* Guide gets breathing room on a full-width sheet */
+        .guide-faces { max-width: 320px; margin: 0 auto; }
         /* .studio's 64px padding-top offsets everything absolute in it */
         .view-toggle { bottom: auto; top: calc(64px + 56dvh - 52px); }
 
@@ -491,6 +656,10 @@
         .size-btn { padding: 0.65rem 0.85rem; min-width: 44px; }
         .layer-btn { padding: 0.7rem 0.4rem; }
         .style-toggle-btn { padding: 0.65rem 1rem; }
+        .dock-pill { padding: 0.6rem 0.95rem; }
+        .dock-tgl, .dock-close, .dock-swatch { width: 34px; height: 34px; }
+        .dock-input, .dock-select, .dock-num { font-size: 16px; padding: 0.55rem 0.6rem; }
+        .dock-num { width: 64px; }
         .btn-ghost, .btn-danger-outline { padding: 0.7rem 0.75rem; }
         .toggle-btn { padding: 0.85rem 1rem; }
       }
@@ -556,6 +725,73 @@
         <button id="btn-view-back" class="view-btn" aria-pressed="false" data-i18n="cfg.viewBack">Зад</button>
       </div>
 
+      <!-- ===== Design dock (right) ===== -->
+      <aside class="design-dock" id="design-dock" aria-label="Панель дизайна">
+        <!-- Selected-layer strip: mirrors what's picked on the shirt or the guide -->
+        <div class="dock-row dock-sel" id="dock-sel">
+          <span class="dock-sel-icon" id="dock-sel-icon" aria-hidden="true"></span>
+          <input type="color" id="text-color-picker" class="dock-swatch" value="#000000" aria-label="Цвет элемента" />
+          <input type="number" id="dock-sel-num" class="dock-num" min="10" max="240" step="1" aria-label="Размер элемента" />
+          <span class="dock-sel-name" id="dock-sel-name"></span>
+          <button type="button" class="dock-close" id="btn-remove-selected" title="Удалить слой" aria-label="Удалить слой">×</button>
+        </div>
+
+        <!-- Text content — appears only while a text layer is selected -->
+        <div class="dock-row dock-textrow" id="dock-textrow">
+          <input type="text" id="text-content-input" class="dock-input" placeholder="Введите текст…" data-i18n-attr="placeholder:cfg.textPlaceholder" />
+          <button id="btn-bold" class="dock-tgl" aria-pressed="false" title="Жирный">B</button>
+          <button id="btn-italic" class="dock-tgl italic" aria-pressed="false" title="Курсив">I</button>
+          <button id="btn-center-text" class="dock-tgl" type="button" title="По центру" aria-label="По центру">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+          </button>
+        </div>
+
+        <!-- Add / font -->
+        <div class="dock-row">
+          <button id="btn-add-text" class="dock-pill" type="button" data-i18n="cfg.addTextBtn">Добавить текст</button>
+          <select id="font-family-select" class="dock-select" aria-label="Шрифт"></select>
+        </div>
+
+        <!-- Actions -->
+        <div class="dock-row dock-actions">
+          <button id="btn-add-logo" class="dock-pill primary" type="button" data-i18n="cfg.uploadDesign">Загрузить дизайн</button>
+          <button id="btn-save-layout" class="dock-pill" type="button" data-i18n="cfg.saveLayout">Сохранить макет</button>
+          <button id="btn-load-layout" class="dock-pill" type="button" data-i18n="cfg.loadLayout">Открыть макет</button>
+          <button id="btn-reset-design" class="dock-pill" type="button" data-i18n="cfg.resetLayout">Сброс</button>
+          <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/svg+xml" style="display:none" />
+        </div>
+
+        <!-- Live position guide: both faces at once, click to switch, drag to place -->
+        <div class="dock-guide">
+          <p class="dock-guide-title" data-i18n="cfg.positionGuide">Схема размещения</p>
+          <div class="guide-faces">
+            <button type="button" class="guide-face active" data-view="front" aria-pressed="true">
+              <span class="guide-shirt">
+                <svg class="guide-svg" viewBox="0 0 100 118" aria-hidden="true">
+                  <path class="guide-body" d="M31 8 L18 14 L8 27 L18 36 L24 31 L24 110 L76 110 L76 31 L82 36 L92 27 L82 14 L69 8 C66 17 34 17 31 8 Z"/>
+                  <path class="guide-neck" d="M31 8 C34 17 66 17 69 8" />
+                </svg>
+                <canvas class="guide-canvas" data-view="front"></canvas>
+                <span class="guide-rect" aria-hidden="true"></span>
+              </span>
+              <span class="guide-label" data-i18n="cfg.viewFront">Перед</span>
+            </button>
+            <button type="button" class="guide-face" data-view="back" aria-pressed="false">
+              <span class="guide-shirt">
+                <svg class="guide-svg" viewBox="0 0 100 118" aria-hidden="true">
+                  <path class="guide-body" d="M31 8 L18 14 L8 27 L18 36 L24 31 L24 110 L76 110 L76 31 L82 36 L92 27 L82 14 L69 8 C67 13 33 13 31 8 Z"/>
+                  <path class="guide-neck" d="M31 8 C33 13 67 13 69 8" />
+                </svg>
+                <canvas class="guide-canvas" data-view="back"></canvas>
+                <span class="guide-rect" aria-hidden="true"></span>
+              </span>
+              <span class="guide-label" data-i18n="cfg.viewBack">Зад</span>
+            </button>
+          </div>
+          <p class="dock-hint" data-i18n="cfg.guideHint">Нажмите на сторону, чтобы её редактировать · тяните макет, чтобы двигать</p>
+        </div>
+      </aside>
+
       <!-- ===== Floating control card ===== -->
       <aside class="studio-panel" aria-label="Панель настройки">
         <div class="panel-head">
@@ -565,7 +801,6 @@
 
         <nav class="tab-nav" role="tablist">
           <button class="tab-btn active" data-tab="color" role="tab" aria-selected="true" data-i18n="cfg.tabColor">Цвет</button>
-          <button class="tab-btn" data-tab="design" role="tab" aria-selected="false" data-i18n="cfg.tabDesign">Дизайн</button>
           <button class="tab-btn" data-tab="summary" role="tab" aria-selected="false" data-i18n="cfg.tabSummary">Итог</button>
         </nav>
 
@@ -629,84 +864,6 @@
             </div>
           </div>
 
-          <!-- ── TAB: DESIGN (text + logo unified) ── -->
-          <div id="tab-design" class="tab-content" role="tabpanel" style="display:none">
-            <div class="shirt-hint">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>
-              <span data-i18n="cfg.dragHint">Перетаскивайте, чтобы двигать · углы — размер · кружок — поворот</span>
-            </div>
-
-            <!-- Layer switch -->
-            <div class="layer-switch" role="tablist" aria-label="Слой">
-              <button class="layer-btn active" data-layer="text" role="tab" aria-selected="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
-                <span data-i18n="cfg.layerText">Текст</span>
-              </button>
-              <button class="layer-btn" data-layer="image" role="tab" aria-selected="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                <span data-i18n="cfg.layerLogo">Логотип</span>
-              </button>
-            </div>
-
-            <!-- TEXT controls -->
-            <div id="design-text-controls" style="display:flex; flex-direction:column; gap:1.1rem;">
-              <div class="form-field-group">
-                <label class="field-label" for="text-content-input" data-i18n="cfg.textLabel">Текст на футболке</label>
-                <input type="text" id="text-content-input" class="form-input" placeholder="Введите текст…" data-i18n-attr="placeholder:cfg.textPlaceholder" />
-              </div>
-              <div class="form-field-group">
-                <label class="field-label" for="font-family-select" data-i18n="cfg.font">Шрифт</label>
-                <select id="font-family-select" class="form-select"></select>
-              </div>
-              <div class="slider-group">
-                <div class="slider-label"><span data-i18n="cfg.sizeSlider">Размер</span><span class="slider-value" id="font-size-display">160px</span></div>
-                <input type="range" id="font-size-slider" class="slider" min="24" max="240" value="160" />
-              </div>
-              <div style="display:flex; gap:0.9rem; align-items:flex-end;">
-                <div class="form-field-group" style="flex:1;">
-                  <label class="field-label" data-i18n="cfg.textColor">Цвет текста</label>
-                  <div class="custom-color-row">
-                    <input type="color" id="text-color-picker" value="#000000" class="color-picker-input" aria-label="Цвет текста" />
-                    <span class="color-label" id="text-color-label">#000000</span>
-                  </div>
-                </div>
-                <div class="form-field-group">
-                  <label class="field-label" data-i18n="cfg.style">Стиль</label>
-                  <div class="style-toggle-group">
-                    <button id="btn-bold" class="style-toggle-btn" aria-pressed="false" title="Жирный">B</button>
-                    <button id="btn-italic" class="style-toggle-btn italic" aria-pressed="false" title="Курсив">I</button>
-                  </div>
-                </div>
-              </div>
-              <div class="inline-actions">
-                <button id="btn-center-text" class="btn-ghost" type="button" data-i18n="cfg.center">По центру</button>
-                <button id="btn-remove-text" class="btn-danger-outline" type="button" data-i18n="cfg.removeText">Удалить текст</button>
-              </div>
-            </div>
-
-            <!-- LOGO controls -->
-            <div id="design-logo-controls" style="display:none; flex-direction:column; gap:1.1rem;">
-              <div class="upload-area" id="upload-area" role="button" tabindex="0" aria-label="Загрузить изображение">
-                <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/svg+xml" style="display:none" />
-                <div class="upload-icon-wrap">
-                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>
-                </div>
-                <p class="upload-text" data-i18n="cfg.uploadTitle">Загрузить логотип</p>
-                <p class="upload-subtext" data-i18n="cfg.uploadSubtext">PNG, JPG или SVG — нажмите или перетащите</p>
-              </div>
-              <div id="image-controls" style="display:none; flex-direction:column; gap:1.1rem;">
-                <div class="slider-group">
-                  <div class="slider-label"><span data-i18n="cfg.scale">Масштаб</span><span class="slider-value" id="image-scale-display">100%</span></div>
-                  <input type="range" id="image-scale-slider" class="slider" min="10" max="200" value="100" />
-                </div>
-                <div class="inline-actions">
-                  <button id="btn-center-logo" class="btn-ghost" type="button" data-i18n="cfg.center">По центру</button>
-                  <button id="btn-remove-image" class="btn-danger-outline" type="button" data-i18n="cfg.remove">Удалить</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- ── TAB: SUMMARY ── -->
           <div id="tab-summary" class="tab-content" role="tabpanel" style="display:none">
             <div class="summary-snapshot-wrap">
@@ -720,7 +877,6 @@
               <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumFont">Шрифт</span><span class="summary-val" id="sum-font">Arial</span></div>
               <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumLogo">Логотип</span><span class="summary-val" id="sum-image">Не загружено</span></div>
             </div>
-            <button id="btn-reset-design" class="btn-secondary-full" type="button" data-i18n="cfg.resetDesign">Сбросить дизайн</button>
           </div>
         </div>
 

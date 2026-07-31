@@ -11,12 +11,33 @@
 
 const TEX_SIZE = 2048; // Offscreen texture canvas dimensions (2048 for crisp logo quality)
 
-// Print area in texture UV space (center-chest region, scaled to 2048)
-const PRINT_AREA = { x: 560, y: 360, w: 928, h: 1120 };
+// ── Print geometry ───────────────────────────────────────────────
+// The print rect is the DTG platen projected into texture space. It cannot be one
+// shared constant: normalizeModelUVsGlobally() packs every UV island into one
+// atlas, and the front/back islands land at different offsets AND different
+// scales, so a single rect can only ever be correct for one of them. Each view's
+// rect is therefore measured off its own mesh in resolvePrintRects().
+const PLATEN_CM = { w: 30, h: 40 }; // A3 DTG platen — matches admin/assets/order-detail.js
+// The panel's full atlas width spans the garment's ~54 cm front width, so the
+// 30 cm platen is ~0.55 of it. Top margin is expressed against the platen width
+// (0.20 × 30 cm = 6 cm below the neckline) so both stay in proportion.
+const PLATEN_W_FRAC = 0.55;
+const PLATEN_TOP_FRAC = 0.20;
+
+// Pre-mesh fallback, and the unit basis for the UI's px/% sliders: a font-size of
+// 160 means 160px in a rect this tall, scaled proportionally in any real rect.
+const LEGACY_PRINT_AREA = { x: 560, y: 360, w: 928, h: 1120 };
+const REF_RECT = { w: LEGACY_PRINT_AREA.w, h: LEGACY_PRINT_AREA.h };
+
+// Resolved per view once the model's mesh is available (see resolvePrintRects).
+const PRINT_RECTS = { front: { ...LEGACY_PRINT_AREA }, back: { ...LEGACY_PRINT_AREA } };
+function printRect(view) {
+  return PRINT_RECTS[view || designState.activeView] || LEGACY_PRINT_AREA;
+}
 
 // Live bounding boxes (texture-space) of each element, recomputed on every
-// drawTexture() — used for per-element hit testing + resize handles.
-const _boxes = { front: { text: null, image: null }, back: { text: null, image: null } };
+// drawTexture() — keyed by element id, used for hit testing + resize handles.
+const _boxes = { front: {}, back: {} };
 // When true, drawTexture() paints a selection outline + corner handles for the
 // active element. Turned OFF transiently around snapshots/exports so handles
 // never bake into the saved PNG / order preview.
@@ -35,6 +56,9 @@ const INITIAL_VIEW = {
   position: null, // THREE.Vector3
   target: null, // THREE.Vector3
 };
+
+// Garment facing axis, cached at fit time (the model never moves afterwards).
+let _garmentFacing = null;
 
 // Available shirt colors
 const SHIRT_COLORS = [
@@ -84,62 +108,133 @@ SHIRT_COLORS.forEach((c) => {
 // SECTION 2 — STATE
 // ================================================================
 
-// activeView determines which face the user is editing ('front' | 'back')
+// Each view holds an ordered list of elements (text / logo), drawn back-to-front.
+// Positions are stored NORMALISED (0–1) inside that view's print rect, so front
+// and back share one coordinate space — nx 0.5 is the garment centreline on both
+// — and re-measuring a rect never moves existing artwork.
 const designState = {
   shirtColor: "#FFFFFF",
   activeView: "front",
-  activeLayer: "text", // which element the on-shirt drag + design panel edits
 
-  front: {
-    text: {
-      content: "",
-      font: "Arial",
-      size: 160,
-      color: "#000000",
-      bold: false,
-      italic: false,
-      x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.35,
-      rotation: 0,
-    },
-    image: {
-      img: null,
-      name: "",
-      x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.30,
-      scalePct: 100,
-      rotation: 0,
-    },
-  },
-
-  back: {
-    text: {
-      content: "",
-      font: "Arial",
-      size: 160,
-      color: "#000000",
-      bold: false,
-      italic: false,
-      x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.35,
-      rotation: 0,
-    },
-    image: {
-      img: null,
-      name: "",
-      x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.30,
-      scalePct: 100,
-      rotation: 0,
-    },
-  },
+  front: { elements: [], selId: null },
+  back: { elements: [], selId: null },
 };
 
-// Uploaded file metadata per view (for order submission)
-const uploadedFileData = { front: null, back: null };
+// Uploaded logo file metadata, keyed by ELEMENT id (for order submission).
+const uploadedFileData = {};
+
+let _elSeq = 0;
+function _uid() { return "e" + (++_elSeq) + "_" + Date.now().toString(36); }
+
+function newTextElement(over) {
+  return Object.assign({
+    id: _uid(), type: "text",
+    nx: 0.5, ny: 0.32, rotation: 0,
+    content: "", font: "Arial", size: 160,
+    color: "#000000", bold: false, italic: false,
+  }, over || {});
+}
+
+function newImageElement(over) {
+  return Object.assign({
+    id: _uid(), type: "image",
+    nx: 0.5, ny: 0.28, rotation: 0,
+    img: null, name: "", scalePct: 100, key: null,
+  }, over || {});
+}
+
+// ── Element accessors ────────────────────────────────────────────
+function elementsOf(view) { return designState[view || designState.activeView].elements; }
+
+function selectedElement(view) {
+  const v = view || designState.activeView;
+  const st = designState[v];
+  return st.elements.find((e) => e.id === st.selId) || null;
+}
+
+function elementById(id, view) {
+  return elementsOf(view).find((e) => e.id === id) || null;
+}
+
+/** Select an element (or null) in the active view and refresh the panel + overlay. */
+function selectElement(id, opts) {
+  const st = designState[designState.activeView];
+  if (st.selId === id) return;
+  st.selId = id;
+  syncPanelFromState();
+  if (!opts || opts.redraw !== false) redrawActive();
+}
+
+/** Does this view have anything on it? */
+function _viewHasContent(view) {
+  return elementsOf(view).some((e) => e.type === "text" ? !!e.content : !!e.img);
+}
+
+// ── Normalised ⇄ texture-space conversion ────────────────────────
+// nx/ny are fractions of the print rect; size/scalePct are expressed against
+// REF_RECT so the UI sliders keep their familiar px / % ranges on any garment.
+// The (nx, ny) → texture map is the measured grid: nx 0.5 is the garment's
+// visual centreline and ny steps are LEVEL on the garment, so placement reads
+// straight on a leaning, tilted-unwrap mesh instead of following the atlas.
+function elTexX(el, view) { return texXYAt(view, el.nx, el.ny)[0]; }
+function elTexY(el, view) { return texXYAt(view, el.nx, el.ny)[1]; }
+function elTexSize(el, view) { return el.size * (printRect(view).h / REF_RECT.h); }
+function elTexImgMax(el, view) {
+  return (el.scalePct / 100) * (TEX_SIZE * 0.30) * (printRect(view).w / REF_RECT.w);
+}
+function setElTexPos(el, tx, ty, view) {
+  // Invert texXYAt with a few Newton steps on the bilinear surface. The map is
+  // near-affine (a gently warped rectangle), so this converges in 2-3 steps;
+  // texXYAt extrapolates past the borders, keeping the derivative alive there.
+  const r = printRect(view);
+  let u = (tx - r.x) / r.w, v = (ty - r.y) / r.h;
+  for (let k = 0; k < 8; k++) {
+    const p = texXYAt(view, u, v);
+    const ex = p[0] - tx, ey = p[1] - ty;
+    if (Math.abs(ex) < 0.1 && Math.abs(ey) < 0.1) break;
+    const h = 0.01;
+    const pu = texXYAt(view, u + h, v), pv = texXYAt(view, u, v + h);
+    const a = (pu[0] - p[0]) / h, c = (pu[1] - p[1]) / h;
+    const b = (pv[0] - p[0]) / h, d = (pv[1] - p[1]) / h;
+    const det = a * d - b * c || 1e-6;
+    u -= (d * ex - b * ey) / det;
+    v -= (-c * ex + a * ey) / det;
+    u = Math.max(-0.5, Math.min(1.5, u));
+    v = Math.max(-0.5, Math.min(1.5, v));
+  }
+  el.nx = u;
+  el.ny = v;
+}
+
+/**
+ * Effective font size: the user's chosen size, capped so the string still fits
+ * the print rect. Anything wider than the rect is simply cropped out of the print
+ * master, so a long line has to shrink. Derived (never written back to el.size),
+ * which means deleting characters grows the text back to the size they picked.
+ */
+function elTextFitSize(el, view, ctx) {
+  return elTextFitSizeIn(el, printRect(view), ctx);
+}
+
+function elTextFitSizeIn(el, rect, ctx) {
+  const size = el.size * (rect.h / REF_RECT.h);
+  if (!el.content) return size;
+  const weight = el.bold ? "bold" : "normal";
+  const style = el.italic ? "italic" : "normal";
+  ctx.save();
+  ctx.font = `${style} ${weight} ${size}px "${el.font}"`;
+  const w = ctx.measureText(el.content).width;
+  ctx.restore();
+  const maxW = rect.w * 0.98;
+  return w > maxW ? Math.max(1, size * (maxW / w)) : size;
+}
 
 // Selected shirt size
 let selectedSize = "L";
+
+// True while a file pick started from "+ Логотип" (add a layer) rather than from
+// the upload area (replace the selected layer's artwork).
+let _pendingLogoIsNew = false;
 
 // ================================================================
 // SECTION 3 — THREE.JS GLOBALS
@@ -230,6 +325,35 @@ async function prepareCartEdit() {
   } catch (e) { return null; }
 }
 
+// Legacy design_json (no `v`) → element list. Old x/y are raw texture px measured
+// against LEGACY_PRINT_AREA, so normalise through THAT rect, not the live one —
+// otherwise reopening an old cart item would shift the artwork.
+function _legacyViewToElements(srcL) {
+  const L = LEGACY_PRINT_AREA;
+  const norm = (s, fbX, fbY) => ({
+    nx: ((s.x != null ? s.x : fbX) - L.x) / L.w,
+    ny: ((s.y != null ? s.y : fbY) - L.y) / L.h,
+  });
+  const out = [];
+  if (srcL.image && srcL.image.name) {
+    out.push(Object.assign(
+      { type: "image", rotation: srcL.image.rotation || 0, name: srcL.image.name, scalePct: srcL.image.scalePct || 100, key: null },
+      norm(srcL.image, TEX_SIZE / 2, TEX_SIZE * 0.30),
+    ));
+  }
+  if (srcL.text && srcL.text.content) {
+    out.push(Object.assign(
+      {
+        type: "text", rotation: srcL.text.rotation || 0,
+        content: srcL.text.content, font: srcL.text.font, size: srcL.text.size,
+        color: srcL.text.color, bold: !!srcL.text.bold, italic: !!srcL.text.italic,
+      },
+      norm(srcL.text, TEX_SIZE / 2, TEX_SIZE * 0.35),
+    ));
+  }
+  return out; // image first — matches the legacy draw order (image under text)
+}
+
 async function applyCartEditDesign(item) {
   let d = {};
   try { d = JSON.parse(item.design_json || "{}"); } catch (e) { return; }
@@ -245,55 +369,54 @@ async function applyCartEditDesign(item) {
     const srcL = d[view];
     if (!srcL) continue;
     const dst = designState[view];
-    if (srcL.text && srcL.text.content) {
-      Object.assign(dst.text, {
-        content: srcL.text.content,
-        font: srcL.text.font || dst.text.font,
-        size: srcL.text.size || dst.text.size,
-        color: srcL.text.color || dst.text.color,
-        bold: !!srcL.text.bold,
-        italic: !!srcL.text.italic,
-        x: srcL.text.x != null ? srcL.text.x : dst.text.x,
-        y: srcL.text.y != null ? srcL.text.y : dst.text.y,
-        rotation: srcL.text.rotation || 0,
-      });
-    }
-    if (srcL.image && srcL.image.name) {
-      const field = view === "front" ? "logo" : "back-logo";
+    // v2 stores an element array in normalised coords; anything older is one text
+    // + one image in raw texture px against LEGACY_PRINT_AREA.
+    const src = (d.v >= 2 && Array.isArray(srcL.elements))
+      ? srcL.elements
+      : _legacyViewToElements(srcL);
+
+    for (const s of src) {
+      if (s.type === "text") {
+        dst.elements.push(newTextElement({
+          nx: s.nx, ny: s.ny, rotation: s.rotation || 0,
+          content: s.content, font: s.font || "Arial", size: s.size || 160,
+          color: s.color || "#000000", bold: !!s.bold, italic: !!s.italic,
+        }));
+        continue;
+      }
+      // Logo pixels come back through the ownership-checked cart file route. The
+      // columns only hold the FIRST logo per side; extras keep their own R2 key.
+      const url = s.key
+        ? getApiBase() + "/api/uploads/" + encodeURIComponent(s.key)
+        : getApiBase() + "/api/cart/" + item.id + "/file/" + (view === "front" ? "logo" : "back-logo");
       try {
-        const fr = await fetch(getApiBase() + "/api/cart/" + item.id + "/file/" + field, {
-          headers: _authHeaders(false), credentials: "include",
+        const fr = await fetch(url, { headers: _authHeaders(false), credentials: "include" });
+        if (!fr.ok) continue;
+        const blob = await fr.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const R = new FileReader();
+          R.onload = () => resolve(R.result);
+          R.readAsDataURL(blob);
         });
-        if (fr.ok) {
-          const blob = await fr.blob();
-          const dataUrl = await new Promise((resolve) => {
-            const R = new FileReader();
-            R.onload = () => resolve(R.result);
-            R.readAsDataURL(blob);
-          });
-          await new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => { dst.image.img = img; resolve(); };
-            img.onerror = resolve;
-            img.src = dataUrl;
-          });
-          dst.image.name = srcL.image.name;
-          dst.image.scalePct = srcL.image.scalePct || 100;
-          dst.image.x = srcL.image.x != null ? srcL.image.x : dst.image.x;
-          dst.image.y = srcL.image.y != null ? srcL.image.y : dst.image.y;
-          dst.image.rotation = srcL.image.rotation || 0;
-          uploadedFileData[view] = { base64: dataUrl, name: srcL.image.name, type: blob.type, size: blob.size };
-        }
+        const img = await new Promise((resolve) => {
+          const im = new Image();
+          im.onload = () => resolve(im);
+          im.onerror = () => resolve(null);
+          im.src = dataUrl;
+        });
+        if (!img) continue;
+        const el = newImageElement({
+          nx: s.nx, ny: s.ny, rotation: s.rotation || 0,
+          img, name: s.name || "", scalePct: s.scalePct || 100, key: s.key || null,
+        });
+        dst.elements.push(el);
+        uploadedFileData[el.id] = { base64: dataUrl, name: s.name || "", type: blob.type, size: blob.size };
       } catch (e) { /* logo fetch failed — text still rehydrates */ }
     }
+    dst.selId = dst.elements.length ? dst.elements[dst.elements.length - 1].id : null;
   }
 
-  // reflect the active view's text in the panel controls
-  const t = designState[designState.activeView].text;
-  const textIn = document.getElementById("text-content-input");
-  if (textIn) textIn.value = t.content;
-  const imgCtrl = document.getElementById("image-controls");
-  if (imgCtrl && designState[designState.activeView].image.img) imgCtrl.style.display = "flex";
+  syncPanelFromState();
 
   drawTexture("front");
   drawTexture("back");
@@ -470,14 +593,90 @@ function drawPlainTexture() {
 }
 
 /**
+ * Paint ONE element onto a texture-space 2D context, and return its bounding box.
+ * Shared by drawTexture() (garment preview) and _renderPrintCanvas() (print
+ * master) so the proof a print shop receives matches the preview exactly.
+ * `shadow` is off for print masters — the drop-shadow is a screen-legibility aid.
+ */
+// Garment bake: warped, so artwork sits on the mesh's wandering centreline and
+// bakes LEVEL despite the atlas rows tilting ~2.5°. The print master and the
+// dock's guide call drawElementIn with a flat rect and no posFn instead — a
+// print shop must receive undistorted artwork.
+function drawElement(ctx, el, view, shadow) {
+  return drawElementIn(ctx, el, printRect(view), shadow, (nx, ny) => {
+    const p = texXYAt(view, nx, ny);
+    return { x: p[0], y: p[1], tilt: gridTiltAt(view, nx, ny) };
+  });
+}
+
+/**
+ * Paint an element into ANY target rect, in that rect's own coordinate space.
+ *
+ * `rect` is where the print area lands in the target context: the texture-space
+ * rect for the garment bake, a translated one for the print master, or the flat
+ * canvas of a position-guide face. Sizes scale off REF_RECT so the same element
+ * renders proportionally identical at every one of those resolutions.
+ */
+function drawElementIn(ctx, el, rect, shadow, posFn) {
+  // posFn (the garment bake) supplies the warped anchor plus the local tilt of
+  // the level row direction; flat targets use the rect's own linear space.
+  const pos = posFn
+    ? posFn(el.nx, el.ny)
+    : { x: rect.x + el.nx * rect.w, y: rect.y + el.ny * rect.h, tilt: 0 };
+  const cx = pos.x, cy = pos.y;
+  const rot = (el.rotation || 0) + (pos.tilt || 0);
+
+  if (el.type === "image") {
+    if (!el.img) return null;
+    const natW = el.img.naturalWidth || el.img.width;
+    const natH = el.img.naturalHeight || el.img.height;
+    if (!natW || !natH) return null;
+    // scalePct 100 → the image's long edge spans ~66% of the print rect width
+    const maxDim = (el.scalePct / 100) * (TEX_SIZE * 0.30) * (rect.w / REF_RECT.w);
+    const factor = maxDim / Math.max(natW, natH);
+    const dw = natW * factor, dh = natH * factor;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.drawImage(el.img, -dw / 2, -dh / 2, dw, dh);
+    ctx.restore();
+    return { cx, cy, w: dw, h: dh, rot };
+  }
+
+  if (!el.content) return null;
+  const size = elTextFitSizeIn(el, rect, ctx);
+  ctx.save();
+  const weight = el.bold ? "bold" : "normal";
+  const style = el.italic ? "italic" : "normal";
+  ctx.font = `${style} ${weight} ${size}px "${el.font}"`;
+  ctx.fillStyle = el.color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const tw = ctx.measureText(el.content).width;
+  if (shadow) {
+    // Subtle drop-shadow for legibility on light-colored shirts
+    ctx.shadowColor = "rgba(0,0,0,0.12)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 2;
+  }
+  ctx.translate(cx, cy);
+  ctx.rotate(rot);
+  ctx.fillText(el.content, 0, 0);
+  ctx.restore();
+  return { cx, cy, w: Math.max(tw, 40), h: size * 1.25, rot };
+}
+
+/**
  * Redraws the texture for a given view (front or back).
- * Layers: base color → uploaded image → text
+ * Layers: base color → elements, first in the list drawn first (bottom).
  * After drawing, sets needsUpdate = true so Three.js re-uploads to GPU.
  */
 function drawTexture(view) {
   const canvas = view === "front" ? frontTexCanvas : backTexCanvas;
   const texture = view === "front" ? frontTexture : backTexture;
-  const layer = designState[view];
   const ctx = canvas.getContext("2d");
 
   drawPlainTexture();
@@ -486,51 +685,16 @@ function drawTexture(view) {
   ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
   ctx.drawImage(plainTexCanvas, 0, 0, TEX_SIZE, TEX_SIZE);
 
-  // Reset this view's element boxes; they are filled in as each layer draws.
-  _boxes[view] = { text: null, image: null };
+  // Reset this view's element boxes; they are filled in as each element draws.
+  _boxes[view] = {};
 
-  // 3. Uploaded image layer
-  if (layer.image.img) {
-    ctx.save();
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    const natW = layer.image.img.naturalWidth || layer.image.img.width;
-    const natH = layer.image.img.naturalHeight || layer.image.img.height;
-    // scalePct of 100 → the image fills ~30% of texture width
-    const factor =
-      (layer.image.scalePct / 100) * ((TEX_SIZE * 0.30) / Math.max(natW, natH));
-    const dw = natW * factor;
-    const dh = natH * factor;
-    ctx.translate(layer.image.x, layer.image.y);
-    ctx.rotate(layer.image.rotation || 0);
-    ctx.drawImage(layer.image.img, -dw / 2, -dh / 2, dw, dh);
-    ctx.restore();
-    _boxes[view].image = { cx: layer.image.x, cy: layer.image.y, w: dw, h: dh, rot: layer.image.rotation || 0 };
-  }
+  // 2. Elements, bottom-of-list first
+  elementsOf(view).forEach((el) => {
+    const box = drawElement(ctx, el, view, true);
+    if (box) _boxes[view][el.id] = box;
+  });
 
-  // 4. Text layer
-  if (layer.text.content) {
-    ctx.save();
-    const weight = layer.text.bold ? "bold" : "normal";
-    const style = layer.text.italic ? "italic" : "normal";
-    ctx.font = `${style} ${weight} ${layer.text.size}px "${layer.text.font}"`;
-    ctx.fillStyle = layer.text.color;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const _tw = ctx.measureText(layer.text.content).width;
-    // Subtle drop-shadow for legibility on light-colored shirts
-    ctx.shadowColor = "rgba(0,0,0,0.12)";
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 2;
-    ctx.translate(layer.text.x, layer.text.y);
-    ctx.rotate(layer.text.rotation || 0);
-    ctx.fillText(layer.text.content, 0, 0);
-    ctx.restore();
-    _boxes[view].text = { cx: layer.text.x, cy: layer.text.y, w: Math.max(_tw, 40), h: layer.text.size * 1.25, rot: layer.text.rotation || 0 };
-  }
-
-  // 5. Selection handles are drawn on a separate 2D overlay (see SECTION 9b),
+  // 3. Selection handles are drawn on a separate 2D overlay (see SECTION 9b),
   //    NOT baked into the texture — so snapshots/exports are always clean.
 
   // Signal Three.js to re-upload
@@ -548,6 +712,8 @@ function redrawActive() {
   drawTexture(designState.activeView);
   // Keep the 2D editor overlay (selection box + handles) in sync with state.
   if (typeof drawEditor === "function" && editMode) drawEditor();
+  // …and the dock's position guide, which mirrors the same elements flat.
+  if (typeof renderPositionGuide === "function") renderPositionGuide();
 }
 
 /**
@@ -913,27 +1079,45 @@ function fitCameraToObject(object) {
   if (!(size.x > 0 && size.y > 0 && size.z > 0)) return;
 
   // Look slightly above center to keep focus on chest area.
+  // Aim x/z at the TORSO, not the full bbox — the posed sleeves drag the
+  // bbox centre sideways, which parks even a centred print off-axis.
+  const torsoMeshes = frontBodyMeshes.concat(backBodyMeshes);
+  let aim = center;
+  if (torsoMeshes.length) {
+    const tb = new THREE.Box3();
+    torsoMeshes.forEach((m) => tb.expandByObject(m));
+    aim = tb.getCenter(new THREE.Vector3());
+  }
   const chestTarget = new THREE.Vector3(
-    center.x,
+    aim.x,
     center.y + size.y * 0.16,
-    center.z,
+    aim.z,
   );
   const verticalOffset = size.y * 0.08;
 
   const fov = THREE.MathUtils.degToRad(camera.fov);
-  const fitHeightDist = (size.y * 0.5) / Math.tan(fov * 0.5);
-  const fitWidthDist =
-    (size.x * 0.5) / Math.tan(fov * 0.5) / Math.max(camera.aspect, 0.01);
+  // Frame against the distance from the AIM POINT to the furthest edge, not the
+  // half-height: the camera looks above centre, so the hem is further from the
+  // axis than size.y/2 and was being cropped (~82px of it) off the bottom.
+  const camY = chestTarget.y + verticalOffset;
+  const halfV = Math.max(camY - box.min.y, box.max.y - camY);
+  const fitHeightDist = halfV / Math.tan(fov * 0.5);
+  const fitWidthDist = (size.x * 0.5) / Math.tan(fov * 0.5) / Math.max(camera.aspect, 0.01);
 
-  // 75% viewport fill target (between 70-80%).
-  const distance = Math.max(fitHeightDist, fitWidthDist) / 0.75;
+  // 88% fill — leaves a small breathing margin around the garment.
+  const distance = Math.max(fitHeightDist, fitWidthDist) / 0.88;
 
-  CAM_VIEWS.front.x = chestTarget.x;
+  // Anchor the front/back views on the GARMENT'S facing axis, not world Z.
+  // The scan is rotated ~25° in world space; a world-axis camera views it
+  // obliquely, and from an oblique view no print placement can look centred.
+  const facing = garmentFacingDir();
+  _garmentFacing = facing.clone();
+  CAM_VIEWS.front.x = chestTarget.x + facing.x * distance;
   CAM_VIEWS.front.y = chestTarget.y + verticalOffset;
-  CAM_VIEWS.front.z = chestTarget.z + distance;
-  CAM_VIEWS.back.x = chestTarget.x;
+  CAM_VIEWS.front.z = chestTarget.z + facing.z * distance;
+  CAM_VIEWS.back.x = chestTarget.x - facing.x * distance;
   CAM_VIEWS.back.y = chestTarget.y + verticalOffset;
-  CAM_VIEWS.back.z = chestTarget.z - distance;
+  CAM_VIEWS.back.z = chestTarget.z - facing.z * distance;
 
   camera.near = Math.max(0.01, distance / 120);
   camera.far = Math.max(50, distance * 20 + size.length());
@@ -1098,238 +1282,49 @@ function refreshDesignCanvas() {
 
     // Draw print-area guide (dashed blue rectangle)
     const sc = DESIGN_CANVAS_SIZE / TEX_SIZE;
+    const pr = printRect();
     ctx.save();
     ctx.strokeStyle = "rgba(10, 132, 255, 0.55)";
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 3]);
-    ctx.strokeRect(
-      PRINT_AREA.x * sc,
-      PRINT_AREA.y * sc,
-      PRINT_AREA.w * sc,
-      PRINT_AREA.h * sc,
-    );
+    ctx.strokeRect(pr.x * sc, pr.y * sc, pr.w * sc, pr.h * sc);
     ctx.setLineDash([]);
     ctx.restore();
   });
 }
-
-// ----------------------------------------------------------------
-// Text drag on design-canvas
-// ----------------------------------------------------------------
-(function () {
-  let dragging = false,
-    ox = 0,
-    oy = 0;
-  const sc = TEX_SIZE / DESIGN_CANVAS_SIZE; // scale: canvas px → texture px
-
-  document.addEventListener("DOMContentLoaded", () => {
-    const dc = document.getElementById("design-canvas");
-    if (!dc) return;
-
-    dc.addEventListener("mousedown", (e) => {
-      dragging = true;
-      const r = dc.getBoundingClientRect();
-      ox =
-        (e.clientX - r.left) * sc - designState[designState.activeView].text.x;
-      oy =
-        (e.clientY - r.top) * sc - designState[designState.activeView].text.y;
-      dc.style.cursor = "move";
-    });
-
-    dc.addEventListener("mousemove", (e) => {
-      if (!dragging) return;
-      const r = dc.getBoundingClientRect();
-      const tx = (e.clientX - r.left) * sc - ox;
-      const ty = (e.clientY - r.top) * sc - oy;
-      const txt = designState[designState.activeView].text;
-      txt.x = Math.max(PRINT_AREA.x, Math.min(PRINT_AREA.x + PRINT_AREA.w, tx));
-      txt.y = Math.max(PRINT_AREA.y, Math.min(PRINT_AREA.y + PRINT_AREA.h, ty));
-      redrawActive();
-    });
-
-    const stopDrag = () => {
-      dragging = false;
-      dc.style.cursor = "default";
-    };
-    dc.addEventListener("mouseup", stopDrag);
-    dc.addEventListener("mouseleave", stopDrag);
-
-    // Touch
-    dc.addEventListener(
-      "touchstart",
-      (e) => {
-        e.preventDefault();
-        const t = e.touches[0],
-          r = dc.getBoundingClientRect();
-        dragging = true;
-        ox =
-          (t.clientX - r.left) * sc -
-          designState[designState.activeView].text.x;
-        oy =
-          (t.clientY - r.top) * sc - designState[designState.activeView].text.y;
-      },
-      { passive: false },
-    );
-    dc.addEventListener(
-      "touchmove",
-      (e) => {
-        if (!dragging) return;
-        e.preventDefault();
-        const t = e.touches[0],
-          r = dc.getBoundingClientRect();
-        const tx = (t.clientX - r.left) * sc - ox;
-        const ty = (t.clientY - r.top) * sc - oy;
-        const txt = designState[designState.activeView].text;
-        txt.x = Math.max(
-          PRINT_AREA.x,
-          Math.min(PRINT_AREA.x + PRINT_AREA.w, tx),
-        );
-        txt.y = Math.max(
-          PRINT_AREA.y,
-          Math.min(PRINT_AREA.y + PRINT_AREA.h, ty),
-        );
-        redrawActive();
-      },
-      { passive: false },
-    );
-    dc.addEventListener("touchend", () => {
-      dragging = false;
-    });
-  });
-})();
-
-// ----------------------------------------------------------------
-// Image drag on design-canvas-img
-// ----------------------------------------------------------------
-(function () {
-  let dragging = false,
-    ox = 0,
-    oy = 0;
-  const sc = TEX_SIZE / DESIGN_CANVAS_SIZE;
-
-  document.addEventListener("DOMContentLoaded", () => {
-    const dc = document.getElementById("design-canvas-img");
-    if (!dc) return;
-
-    dc.addEventListener("mousedown", (e) => {
-      dragging = true;
-      const r = dc.getBoundingClientRect();
-      const img = designState[designState.activeView].image;
-      ox = (e.clientX - r.left) * sc - img.x;
-      oy = (e.clientY - r.top) * sc - img.y;
-      dc.style.cursor = "move";
-    });
-
-    dc.addEventListener("mousemove", (e) => {
-      if (!dragging) return;
-      const r = dc.getBoundingClientRect();
-      const img = designState[designState.activeView].image;
-      const tx = (e.clientX - r.left) * sc - ox;
-      const ty = (e.clientY - r.top) * sc - oy;
-      img.x = Math.max(PRINT_AREA.x, Math.min(PRINT_AREA.x + PRINT_AREA.w, tx));
-      img.y = Math.max(PRINT_AREA.y, Math.min(PRINT_AREA.y + PRINT_AREA.h, ty));
-      redrawActive();
-    });
-
-    const stop = () => {
-      dragging = false;
-      dc.style.cursor = "default";
-    };
-    dc.addEventListener("mouseup", stop);
-    dc.addEventListener("mouseleave", stop);
-
-    dc.addEventListener(
-      "touchstart",
-      (e) => {
-        e.preventDefault();
-        const t = e.touches[0],
-          r = dc.getBoundingClientRect();
-        dragging = true;
-        const img = designState[designState.activeView].image;
-        ox = (t.clientX - r.left) * sc - img.x;
-        oy = (t.clientY - r.top) * sc - img.y;
-      },
-      { passive: false },
-    );
-    dc.addEventListener(
-      "touchmove",
-      (e) => {
-        if (!dragging) return;
-        e.preventDefault();
-        const t = e.touches[0],
-          r = dc.getBoundingClientRect();
-        const img = designState[designState.activeView].image;
-        const tx = (t.clientX - r.left) * sc - ox;
-        const ty = (t.clientY - r.top) * sc - oy;
-        img.x = Math.max(
-          PRINT_AREA.x,
-          Math.min(PRINT_AREA.x + PRINT_AREA.w, tx),
-        );
-        img.y = Math.max(
-          PRINT_AREA.y,
-          Math.min(PRINT_AREA.y + PRINT_AREA.h, ty),
-        );
-        redrawActive();
-      },
-      { passive: false },
-    );
-    dc.addEventListener("touchend", () => {
-      dragging = false;
-    });
-  });
-})();
 
 // ================================================================
 // SECTION 9b — ACTIVE-ELEMENT HELPERS
 // ================================================================
 
 /**
- * Returns the design element the active layer points at (if it has content).
+ * The selected element, if it currently has something to draw. Falls back to the
+ * topmost drawable element so the handles never vanish after a delete.
  */
 function _activeDraggable() {
-  const layer = designState[designState.activeView];
-  const hasText = !!(layer.text && layer.text.content);
-  const hasImg = !!(layer.image && layer.image.img);
-  const pref = designState.activeLayer;
-  if (pref === "text" && hasText) return layer.text;
-  if (pref === "image" && hasImg) return layer.image;
-  if (hasImg) return layer.image;
-  if (hasText) return layer.text;
+  const drawable = (e) => (e.type === "text" ? !!e.content : !!e.img);
+  const sel = selectedElement();
+  if (sel && drawable(sel)) return sel;
+  const list = elementsOf();
+  for (let i = list.length - 1; i >= 0; i--) if (drawable(list[i])) return list[i];
   return null;
 }
 
-// The kind ('text' | 'image') of the active, content-bearing element, or null.
-function _activeKind() {
-  const layer = designState[designState.activeView];
-  const hasText = !!(layer.text && layer.text.content);
-  const hasImg = !!(layer.image && layer.image.img);
-  const pref = designState.activeLayer;
-  if (pref === "text" && hasText) return "text";
-  if (pref === "image" && hasImg) return "image";
-  if (hasImg) return "image";
-  if (hasText) return "text";
-  return null;
+// The id of the active, content-bearing element, or null.
+function _activeId() {
+  const el = _activeDraggable();
+  return el ? el.id : null;
 }
 
-function _clampX(x) { return Math.max(PRINT_AREA.x, Math.min(PRINT_AREA.x + PRINT_AREA.w, x)); }
-function _clampY(y) { return Math.max(PRINT_AREA.y, Math.min(PRINT_AREA.y + PRINT_AREA.h, y)); }
 function _syncSlider(id, dispId, val, suffix) {
   const s = document.getElementById(id); if (s) s.value = val;
   const d = document.getElementById(dispId); if (d) d.textContent = val + suffix;
 }
-// Reflect a click-to-select layer change in the design panel UI.
-function _syncLayerUI(kind) {
-  if (designState.activeLayer === kind) return;
-  designState.activeLayer = kind;
-  document.querySelectorAll(".layer-btn").forEach((x) => {
-    const on = x.dataset.layer === kind;
-    x.classList.toggle("active", on);
-    x.setAttribute("aria-selected", on ? "true" : "false");
-  });
-  const tc = document.getElementById("design-text-controls");
-  const lc = document.getElementById("design-logo-controls");
-  if (tc) tc.style.display = kind === "text" ? "flex" : "none";
-  if (lc) lc.style.display = kind === "image" ? "flex" : "none";
+
+/** Mirror a gesture-driven size/scale change back into the dock's numeric field. */
+function _syncSelNum(el) {
+  const n = document.getElementById("dock-sel-num");
+  if (n && el) n.value = el.type === "text" ? el.size : el.scalePct;
 }
 
 // ================================================================
@@ -1409,6 +1404,369 @@ function buildMeshTris() {
     front: index(build(frontBodyMeshes)),
     back: index(build(backBodyMeshes)),
   };
+  const before = JSON.stringify(PRINT_RECTS);
+  resolvePrintRects();
+  // The textures were first painted against the legacy fallback rect, before any
+  // mesh existed to measure. Anything already placed — a cart item rehydrated
+  // while the GLB was still downloading — has to be re-baked against the real
+  // rects, or it stays at the fallback's coordinates.
+  if (JSON.stringify(PRINT_RECTS) !== before && frontTexCanvas && backTexCanvas) {
+    drawTexture("front");
+    drawTexture("back");
+    applyActiveTexture();
+  }
+}
+
+/**
+ * Measure each face's print rect off its own mesh.
+ *
+ * The garment is one globally-normalised UV atlas, so the front and back panels
+ * sit at different offsets and different scales within it — the reason a single
+ * shared rect put artwork ~150px off-centre on the front and ~250px off on the
+ * back. For each face we take:
+ *   • the panel's texture-space bbox            → the vertical scale reference
+ *   • the texture column that maps to the       → the true garment centreline
+ *     panel's mid-plane in world X
+ * and lay a PLATEN_CM-sized rect on it. The two rects differ in texture px while
+ * describing the SAME physical 30×40 cm, which is exactly the point.
+ */
+function resolvePrintRects() {
+  ["front", "back"].forEach((view) => {
+    const rect = measurePrintRect(view);
+    if (rect) PRINT_RECTS[view] = rect;
+  });
+  buildCentrelines();
+}
+
+// ── Per-height centreline ────────────────────────────────────────
+// The stock garment is a posed scan: its midline wanders ~8% of the body width
+// between hem and collar. A print rect with one fixed centre column therefore
+// reads as off-centre and lopsided at most heights. So instead of a single
+// column we measure, for each height, where the torso's own centre actually is,
+// and place artwork against THAT. nx 0.5 then sits on the garment's visual
+// centreline at whatever height the element happens to be.
+const _CENTRELINE_N = 17;                 // rows sampled down the print rect
+const _CENTRELINE_M = 5;                  // columns sampled across it
+const _centrelines = { front: null, back: null };
+
+// ── Garment-frame lateral axis ───────────────────────────────────
+// The scan is rotated ~29° in world space, so "centre in world X" is NOT the
+// garment's centre: from the head-on view it reads ~60px right of true. All
+// centring math must run along the garment's own left-right axis instead.
+function _lateralAxis() {
+  const f = _garmentFacing || garmentFacingDir();
+  return { x: f.z, z: -f.x }; // facing rotated -90° about Y; (0,0,1) → world X
+}
+function _latOf(w, L) { return w.x * L.x + w.z * L.z; }
+
+/** Torso width mid-point per world-Y band — front+back together form the tube. */
+function _buildTorsoCentreByY() {
+  const meshes = frontBodyMeshes.concat(backBodyMeshes);
+  if (!meshes.length) return null;
+  const L = _lateralAxis();
+  const box = new THREE.Box3();
+  meshes.forEach((m) => box.expandByObject(m));
+  const N = 24, span = box.max.y - box.min.y;
+  if (!(span > 0)) return null;
+  const lo = new Array(N).fill(Infinity), hi = new Array(N).fill(-Infinity);
+  const v = new THREE.Vector3();
+  meshes.forEach((m) => {
+    const p = m.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      v.set(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(m.matrixWorld);
+      const k = Math.min(N - 1, Math.max(0, Math.floor((v.y - box.min.y) / span * N)));
+      const lat = _latOf(v, L);
+      if (lat < lo[k]) lo[k] = lat;
+      if (lat > hi[k]) hi[k] = lat;
+    }
+  });
+  const mid = [];
+  for (let k = 0; k < N; k++) mid[k] = lo[k] < hi[k] ? (lo[k] + hi[k]) / 2 : null;
+  for (let k = 1; k < N; k++) if (mid[k] == null) mid[k] = mid[k - 1];
+  for (let k = N - 2; k >= 0; k--) if (mid[k] == null) mid[k] = mid[k + 1];
+  if (mid[0] == null) return null;
+  // 3-tap smooth — raw bands are noisy where the armhole cuts in
+  const sm = mid.map((m, k) => (mid[Math.max(0, k - 1)] + m + mid[Math.min(N - 1, k + 1)]) / 3);
+  return { y0: box.min.y, y1: box.max.y, mid: sm };
+}
+
+let _torsoCentre = null;
+function _torsoCentreAtY(y) {
+  if (!_torsoCentre) return 0;
+  const { y0, y1, mid } = _torsoCentre;
+  const t = Math.max(0, Math.min(1, (y - y0) / (y1 - y0))) * (mid.length - 1);
+  const i = Math.min(mid.length - 2, Math.floor(t));
+  return mid[i] + (mid[i + 1] - mid[i]) * (t - i);
+}
+
+/**
+ * Build a row × column grid of texture coordinates for the print area.
+ *
+ * Every node is solved against a WORLD target: LEVEL heights down the rect and
+ * the garment's centre at that height ± symmetric fractions of the platen's
+ * real width. Solving texture rows only (the previous scheme) left two scan
+ * artifacts visible: a constant atlas width tapers as the physical width
+ * drifts, and the atlas rows themselves tilt ~2.5° off level, which tilted the
+ * guide AND the baked artwork. Nodes are found by Newton iteration on the
+ * texture→world map (a scan line search can't solve two coordinates at once).
+ */
+function buildCentrelines() {
+  _torsoCentre = _buildTorsoCentreByY();
+  const L = _lateralAxis();
+  ["front", "back"].forEach((view) => {
+    const m = _meshTris[view];
+    if (!m || !m.all.length || !_torsoCentre) { _centrelines[view] = null; return; }
+    const r = PRINT_RECTS[view];
+
+    // Physical extents, measured at the rect's mid row / mid column.
+    const midTx = r.x + r.w / 2, midTy = r.y + r.h / 2;
+    const wTop = texToWorldMesh(view, midTx, r.y);
+    const wBot = texToWorldMesh(view, midTx, r.y + r.h);
+    const wl = texToWorldMesh(view, r.x, midTy);
+    const wr = texToWorldMesh(view, r.x + r.w, midTy);
+    if (!wTop || !wBot || !wl || !wr) { _centrelines[view] = null; return; }
+    const yTop = wTop.y, yBot = wBot.y;
+    const latL = _latOf(wl, L), latR = _latOf(wr, L);
+    const halfW = Math.abs(latR - latL) / 2;
+    // The back face is mirrored in the atlas, so +lateral is -u there.
+    const flip = latR < latL ? -1 : 1;
+
+    // Fallback Jacobian for probes that fall off the fabric.
+    const J0lat = (flip * 2 * halfW) / r.w, J0y = (yBot - yTop) / r.h;
+
+    const solve = (latT, yT, tx, ty) => {
+      for (let k = 0; k < 6; k++) {
+        const w = texToWorldMesh(view, tx, ty);
+        if (!w) { tx = (tx + midTx) / 2; ty = (ty + midTy) / 2; continue; }
+        const lat0 = _latOf(w, L);
+        const errL = lat0 - latT, errY = w.y - yT;
+        if (Math.abs(errL) < 1e-4 && Math.abs(errY) < 1e-4) break;
+        // Finite-difference Jacobian [dlat/dtx dlat/dty; dy/dtx dy/dty]
+        const h = 4;
+        let a = J0lat, b = 0, c = 0, d = J0y;
+        let p = texToWorldMesh(view, tx + h, ty), s = h;
+        if (!p) { p = texToWorldMesh(view, tx - h, ty); s = -h; }
+        if (p) { a = (_latOf(p, L) - lat0) / s; c = (p.y - w.y) / s; }
+        p = texToWorldMesh(view, tx, ty + h); s = h;
+        if (!p) { p = texToWorldMesh(view, tx, ty - h); s = -h; }
+        if (p) { b = (_latOf(p, L) - lat0) / s; d = (p.y - w.y) / s; }
+        const det = a * d - b * c;
+        if (!det) break;
+        tx -= Math.max(-r.w / 4, Math.min(r.w / 4, (d * errL - b * errY) / det));
+        ty -= Math.max(-r.h / 4, Math.min(r.h / 4, (-c * errL + a * errY) / det));
+      }
+      return [tx, ty];
+    };
+
+    // ONE centre column for the whole box — the torso centre at the box's mid
+    // height. Centring every row at its own height is per-row perfect, but the
+    // posed torso LEANS, so the box sheared sideways with it and the eye reads
+    // a sheared rectangle as off-centre. A print area is a rigid rectangle:
+    // level rows, a single vertical centreline, constant width.
+    const cLat = _torsoCentreAtY(yTop + (yBot - yTop) / 2);
+
+    const rows = [];
+    for (let i = 0; i < _CENTRELINE_N; i++) {
+      const v = i / (_CENTRELINE_N - 1);
+      const yT = yTop + (yBot - yTop) * v;
+      const cols = [];
+      for (let j = 0; j < _CENTRELINE_M; j++) {
+        const u = j / (_CENTRELINE_M - 1);
+        const latT = cLat + flip * (u - 0.5) * 2 * halfW;
+        cols.push(solve(latT, yT, r.x + u * r.w, r.y + v * r.h));
+      }
+      rows.push(cols);
+    }
+    _centrelines[view] = rows;
+  });
+}
+
+/**
+ * Texture coordinates [tx, ty] for normalised print position (u, v).
+ * Bilinear on the grid; EXTRAPOLATES past the border cells so the Newton
+ * inversion in setElTexPos keeps a live derivative at the rect edges.
+ */
+function texXYAt(view, u, v) {
+  const vw = view || designState.activeView;
+  const r = printRect(vw);
+  const grid = _centrelines[vw];
+  if (!grid) return [r.x + u * r.w, r.y + v * r.h];
+  const t = v * (grid.length - 1);
+  const i = Math.max(0, Math.min(grid.length - 2, Math.floor(t))), ft = t - i;
+  const s = u * (_CENTRELINE_M - 1);
+  const j = Math.max(0, Math.min(_CENTRELINE_M - 2, Math.floor(s))), fs = s - j;
+  const lerp2 = (k) => {
+    const a = grid[i][j][k] + (grid[i][j + 1][k] - grid[i][j][k]) * fs;
+    const b = grid[i + 1][j][k] + (grid[i + 1][j + 1][k] - grid[i + 1][j][k]) * fs;
+    return a + (b - a) * ft;
+  };
+  return [lerp2(0), lerp2(1)];
+}
+
+/**
+ * Local angle (radians) of the LEVEL row direction in texture space at (u, v).
+ * Baking artwork rotated by this keeps its baseline level on the garment even
+ * though the atlas rows tilt ~2.5°. Normalised to (-90°, 90°] so glyphs never
+ * flip on the mirrored back face.
+ */
+function gridTiltAt(view, u, v) {
+  const e = 0.05;
+  const p0 = texXYAt(view, u - e, v), p1 = texXYAt(view, u + e, v);
+  let dx = p1[0] - p0[0], dy = p1[1] - p0[1];
+  if (dx < 0) { dx = -dx; dy = -dy; }
+  if (!dx && !dy) return 0;
+  return Math.atan2(dy, dx);
+}
+
+/**
+ * LATERAL coordinate of the garment's mirror plane (garment frame, not world X —
+ * the scan is rotated ~29°, so a world-X midpoint sits visibly off-centre).
+ *
+ * Measured from the TORSO only — front + back body panels together. The full
+ * model's bbox is skewed by asymmetrically posed sleeves (0.063 on the stock
+ * model vs the true 0.004), and either panel alone is skewed the other way
+ * because each wraps around the body's sides by a different amount. The two
+ * panels as a pair form a closed tube, which is symmetric.
+ */
+function garmentSymmetryPlaneLat() {
+  const meshes = frontBodyMeshes.concat(backBodyMeshes);
+  if (!meshes.length) return 0;
+  const L = _lateralAxis();
+  let lo = Infinity, hi = -Infinity;
+  const v = new THREE.Vector3();
+  meshes.forEach((m) => {
+    const p = m.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      v.set(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(m.matrixWorld);
+      const lat = _latOf(v, L);
+      if (lat < lo) lo = lat;
+      if (lat > hi) hi = lat;
+    }
+  });
+  return lo < hi ? (lo + hi) / 2 : 0;
+}
+
+/**
+ * Horizontal unit vector pointing out of the garment's FRONT.
+ *
+ * The posed scan is rotated ~25° in world space, so cameras anchored on the
+ * world Z axis view the shirt from an angle and the print area reads
+ * off-centre no matter how correctly it is placed. Derived from panel vertex
+ * centroids (front minus back) rather than averaged normals — the cloth has
+ * an inner shell whose normals face backwards and poison any normal average.
+ */
+function garmentFacingDir() {
+  const centroid = (meshes) => {
+    const s = new THREE.Vector3(), v = new THREE.Vector3();
+    let n = 0;
+    meshes.forEach((m) => {
+      const p = m.geometry.attributes.position;
+      for (let i = 0; i < p.count; i += 7) {
+        v.set(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(m.matrixWorld);
+        s.add(v); n++;
+      }
+    });
+    return n ? s.multiplyScalar(1 / n) : null;
+  };
+  const f = centroid(frontBodyMeshes), b = centroid(backBodyMeshes);
+  if (!f || !b) return new THREE.Vector3(0, 0, 1);
+  const d = f.sub(b);
+  d.y = 0;
+  return d.lengthSq() > 1e-8 ? d.normalize() : new THREE.Vector3(0, 0, 1);
+}
+
+function measurePrintRect(view) {
+  const m = _meshTris[view];
+  if (!m || !m.all.length) return null;
+
+  // Panel bbox in texture space.
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (const t of m.all) {
+    u0 = Math.min(u0, t.ua, t.ub, t.uc); u1 = Math.max(u1, t.ua, t.ub, t.uc);
+    v0 = Math.min(v0, t.va, t.vb, t.vc); v1 = Math.max(v1, t.va, t.vb, t.vc);
+  }
+  const top = v0 * TEX_SIZE, bottom = v1 * TEX_SIZE;
+  const panelL = u0 * TEX_SIZE, panelR = u1 * TEX_SIZE;
+  const panelW = panelR - panelL, panelH = bottom - top;
+  if (!(panelW > 0) || !(panelH > 0)) return null;
+
+  // ── Centreline ────────────────────────────────────────────────
+  // The garment is mirror-symmetric, so its full bounding box gives the symmetry
+  // plane; the centreline of a face is the column that lands on it. A panel's own
+  // row extremes are NOT usable here — both islands wrap around the body's sides
+  // by different amounts, which is what put the back's artwork ~120px off.
+  const latPlane = garmentSymmetryPlaneLat();
+  const L = _lateralAxis();
+  const rowCentre = (ty) => {
+    let best = null, bestDx = Infinity;
+    for (let tx = panelL; tx <= panelR; tx += 3) {
+      const w = texToWorldMesh(view, tx, ty);
+      if (!w) continue;
+      const dx = Math.abs(_latOf(w, L) - latPlane);
+      if (dx < bestDx) { bestDx = dx; best = tx; }
+    }
+    return best;
+  };
+  const cands = [0.30, 0.45, 0.60]
+    .map((f) => rowCentre(top + panelH * f))
+    .filter((n) => n != null)
+    .sort((a, b) => a - b);
+  if (!cands.length) return null;
+  const centerTx = cands[(cands.length - 1) >> 1];
+
+  // ── Neckline on that column ───────────────────────────────────
+  // Walking down the centre column, the first row with fabric is the neckline —
+  // a far better anchor than the UV bbox top, which is the shoulder/sleeve seam.
+  let neckTy = null;
+  for (let ty = top; ty <= bottom; ty += 2) {
+    if (texToWorldMesh(view, centerTx, ty)) { neckTy = ty; break; }
+  }
+  if (neckTy == null) return null;
+
+  // ── Lay the platen on it ──────────────────────────────────────
+  // Width comes from the panel's HORIZONTAL extent: front and back are the same
+  // width in the atlas (they're the same garment width), so the printable area
+  // comes out the same size in texture px on both — only the placement differs.
+  const w = PLATEN_W_FRAC * panelW;
+  const h = w * (PLATEN_CM.h / PLATEN_CM.w);
+  let x = centerTx - w / 2;
+  let y = neckTy + PLATEN_TOP_FRAC * w;
+
+  // A model with an unexpected unwrap must not push the rect off the fabric.
+  if (!(w > 0) || !(h > 0) || w > panelW || h > panelH) return null;
+  x = Math.max(panelL, Math.min(panelR - w, x));
+  y = Math.max(top, Math.min(bottom - h, y));
+
+  return { x, y, w, h };
+}
+
+/** Barycentric texture→world lookup on a face's triangles (no camera involved). */
+function texToWorldMesh(view, tx, ty) {
+  const m = _meshTris[view];
+  if (!m || !m.all.length) return null;
+  const u = tx / TEX_SIZE, v = ty / TEX_SIZE;
+  const BN = m.bn;
+  const bi = Math.max(0, Math.min(BN - 1, (u * BN) | 0));
+  const bj = Math.max(0, Math.min(BN - 1, (v * BN) | 0));
+  const cand = m.buckets[bj * BN + bi] || m.all;
+  for (const t of cand) {
+    const v0x = t.ub - t.ua, v0y = t.vb - t.va;
+    const v1x = t.uc - t.ua, v1y = t.vc - t.va;
+    const den = v0x * v1y - v1x * v0y;
+    if (den === 0) continue;
+    const v2x = u - t.ua, v2y = v - t.va;
+    const wb = (v2x * v1y - v1x * v2y) / den;
+    const wc = (v0x * v2y - v2x * v0y) / den;
+    const wa = 1 - wb - wc;
+    if (wa >= -1e-4 && wb >= -1e-4 && wc >= -1e-4) {
+      return {
+        x: t.pa.x * wa + t.pb.x * wb + t.pc.x * wc,
+        y: t.pa.y * wa + t.pb.y * wb + t.pc.y * wc,
+        z: t.pa.z * wa + t.pb.z * wb + t.pc.z * wc,
+      };
+    }
+  }
+  return null;
 }
 
 const _projV = (typeof THREE !== "undefined") ? new THREE.Vector3() : null;
@@ -1462,7 +1820,7 @@ function texToScreenPA(tx, ty) { return texToScreenMesh(tx, ty); }
 // texture px per screen px at the print-area centre, for the live camera —
 // used for snap thresholds and keyboard nudge. Recomputed cheaply on demand.
 function _updateEditScale() {
-  const pa = PRINT_AREA;
+  const pa = printRect();
   const a = texToScreenMesh(pa.x + pa.w / 2, pa.y + pa.h / 2);
   const b = texToScreenMesh(pa.x + pa.w / 2 + 100, pa.y + pa.h / 2);
   const c = texToScreenMesh(pa.x + pa.w / 2, pa.y + pa.h / 2 + 100);
@@ -1489,9 +1847,9 @@ function _screenToTexDelta(tx, ty, dsx, dsy) {
   };
 }
 
-// The active element's 4 box corners (TL,TR,BR,BL) in TEXTURE space, rotated.
-function _elementBoxTex(kind) {
-  const box = _boxes[designState.activeView] && _boxes[designState.activeView][kind];
+// An element's 4 box corners (TL,TR,BR,BL) in TEXTURE space, rotated.
+function _elementBoxTex(id) {
+  const box = _boxes[designState.activeView] && _boxes[designState.activeView][id];
   if (!box) return null;
   const rot = box.rot || 0;
   const cs = Math.cos(rot), sn = Math.sin(rot);
@@ -1503,8 +1861,8 @@ function _elementBoxTex(kind) {
   return { cx: box.cx, cy: box.cy, rot, pts };
 }
 
-function _boxQuadPage(kind) {
-  const b = _elementBoxTex(kind);
+function _boxQuadPage(id) {
+  const b = _elementBoxTex(id);
   if (!b) return null;
   const pts = b.pts.map((p) => texToScreenMesh(p.tx, p.ty));
   return pts.every(Boolean) ? pts : null;
@@ -1520,16 +1878,16 @@ function _pointInQuad(px, py, q) {
   return inside;
 }
 
-// Is there a (non-active) element under the pointer? Return its kind for select.
-function _otherKindAt(px, py) {
-  const cur = _activeKind();
-  for (const k of ["text", "image"]) {
-    if (k === cur) continue;
-    const layer = designState[designState.activeView][k];
-    const has = k === "text" ? !!layer.content : !!layer.img;
-    if (!has) continue;
-    const q = _boxQuadPage(k);
-    if (q && _pointInQuad(px, py, q)) return k;
+// Topmost OTHER element under the pointer, for click-to-select. Walks the list
+// back-to-front so the element drawn on top wins, matching what the user sees.
+function _otherElementAt(px, py) {
+  const cur = _activeId();
+  const list = elementsOf();
+  for (let i = list.length - 1; i >= 0; i--) {
+    const el = list[i];
+    if (el.id === cur) continue;
+    const q = _boxQuadPage(el.id);
+    if (q && _pointInQuad(px, py, q)) return el.id;
   }
   return null;
 }
@@ -1547,31 +1905,44 @@ function drawEditor() {
   _ui = null;
   const ready = _meshTris[designState.activeView] && _meshTris[designState.activeView].all.length;
   if (!editMode || !ready) return;
+  // The overlay has no depth test, so when the user orbits to the far side the
+  // active face's chrome would float over the fabric. Hide it (and its handles —
+  // _ui stays null, so hit-testing goes quiet too) until the face turns back.
+  if (_garmentFacing && controls) {
+    const camDir = camera.position.clone().sub(controls.target).normalize();
+    const sign = designState.activeView === "front" ? 1 : -1;
+    if (_garmentFacing.dot(camDir) * sign < 0.06) return;
+  }
   _updateEditScale();
   const toL = (p) => ({ x: p.x - rect.left, y: p.y - rect.top }); // page → canvas-local
 
-  // Print-area guide — sample its border live via mesh projection (follows orbit)
-  const pa = PRINT_AREA, SEG = 10;
-  const edge = [];
-  for (let i = 0; i <= SEG; i++) edge.push([pa.x + (i / SEG) * pa.w, pa.y]);
-  for (let i = 1; i <= SEG; i++) edge.push([pa.x + pa.w, pa.y + (i / SEG) * pa.h]);
-  for (let i = SEG - 1; i >= 0; i--) edge.push([pa.x + (i / SEG) * pa.w, pa.y + pa.h]);
-  for (let i = SEG - 1; i >= 1; i--) edge.push([pa.x, pa.y + (i / SEG) * pa.h]);
-  ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,0.22)";
-  ctx.lineWidth = 1; ctx.setLineDash([6, 6]);
-  ctx.beginPath();
-  let started = false;
-  for (const [tx, ty] of edge) {
-    const s = texToScreenMesh(tx, ty); if (!s) continue;
-    const l = toL(s); started ? ctx.lineTo(l.x, l.y) : (ctx.moveTo(l.x, l.y), started = true);
+  // Print-area guide — a STRAIGHT-edged quad between the four measured corners,
+  // the same treatment the selection box gets. Tracing the border along the mesh
+  // made the dashes ride every fold and wrinkle, which read as a crooked box even
+  // when the placement was correct. The corners still come off the centreline
+  // grid, so the quad stays centred on the garment's true printable band.
+  const view = designState.activeView;
+  const corners = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => {
+    const p = texXYAt(view, u, v);
+    return texToScreenMesh(p[0], p[1]);
+  });
+  if (corners.every(Boolean)) {
+    const scr = corners.map(toL);
+    ctx.save();
+    ctx.lineWidth = 1; ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    scr.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.closePath();
+    // Dark-on-light stroke: a white dash was invisible on a white garment, which is
+    // the default colour — the user could not see where the printable area ended.
+    ctx.strokeStyle = "rgba(0,0,0,0.30)";
+    ctx.stroke();
+    ctx.restore();
   }
-  ctx.closePath(); ctx.stroke();
-  ctx.restore();
 
   // Active-element selection box + handles
-  const kind = _activeKind();
-  const box = kind ? _elementBoxTex(kind) : null;
+  const activeId = _activeId();
+  const box = activeId ? _elementBoxTex(activeId) : null;
   if (box) {
     const cornersPage = box.pts.map((p) => texToScreenMesh(p.tx, p.ty)); // TL,TR,BR,BL
     if (cornersPage.some((p) => !p)) return; // box partly off the visible mesh
@@ -1616,7 +1987,7 @@ function drawEditor() {
 
   // Center snap guides (while moving)
   if (_gesture && (_gesture.snapX || _gesture.snapY)) {
-    const c = toL(texToScreenPA(PRINT_AREA.x + PRINT_AREA.w / 2, PRINT_AREA.y + PRINT_AREA.h / 2));
+    const c = toL(texToScreenPA(...at(0.5, 0.5)));
     ctx.save();
     ctx.strokeStyle = "rgba(255,90,90,0.85)";
     ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
@@ -1659,10 +2030,10 @@ function _onEdPointerDown(e) {
     if (_pointers.size >= 2) { e.preventDefault(); e.stopPropagation(); _startPinch(); }
     return;
   }
-  let hit = _activeKind() ? _hitTest(e.clientX, e.clientY) : null;
+  let hit = _activeId() ? _hitTest(e.clientX, e.clientY) : null;
   if (!hit) {
-    const other = _otherKindAt(e.clientX, e.clientY);
-    if (other) { _syncLayerUI(other); drawEditor(); hit = { type: "move" }; }
+    const otherId = _otherElementAt(e.clientX, e.clientY);
+    if (otherId) { selectElement(otherId, { redraw: false }); drawEditor(); hit = { type: "move" }; }
   }
   if (!hit) return; // empty shirt/background → let OrbitControls orbit
   // TAKE OVER this gesture: suppress orbit, capture the pointer.
@@ -1670,14 +2041,15 @@ function _onEdPointerDown(e) {
   if (controls) controls.enabled = false;
   _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) {}
-  const kind = _activeKind();
-  const el = designState[designState.activeView][kind];
-  const center = texToScreenMesh(el.x, el.y) || { x: e.clientX, y: e.clientY };
+  const el = _activeDraggable();
+  if (!el) return;
+  const tx = elTexX(el), ty = elTexY(el);
+  const center = texToScreenMesh(tx, ty) || { x: e.clientX, y: e.clientY };
   if (hit.type === "move") {
-    _gesture = { type: "move", lastX: e.clientX, lastY: e.clientY, rawX: el.x, rawY: el.y };
+    _gesture = { type: "move", lastX: e.clientX, lastY: e.clientY, rawX: tx, rawY: ty };
   } else if (hit.type === "scale") {
     const d0 = Math.hypot(e.clientX - center.x, e.clientY - center.y);
-    _gesture = { type: "scale", d0: Math.max(8, d0), startSize: kind === "text" ? el.size : el.scalePct };
+    _gesture = { type: "scale", d0: Math.max(8, d0), startSize: el.type === "text" ? el.size : el.scalePct };
   } else if (hit.type === "rotate") {
     const a0 = Math.atan2(e.clientY - center.y, e.clientX - center.x);
     _gesture = { type: "rotate", a0, startRot: el.rotation || 0 };
@@ -1689,39 +2061,47 @@ function _onEdPointerMove(e) {
   if (!editMode) return;
   if (_pinch) { _updatePinch(); e.preventDefault(); return; }
   if (!_gesture) { _updateHoverCursor(e); return; }
-  const kind = _activeKind();
-  if (!kind) return;
-  const el = designState[designState.activeView][kind];
+  const el = _activeDraggable();
+  if (!el) return;
 
   if (_gesture.type === "move") {
     // Accumulate the UNSNAPPED position so centre-snap magnetism never pins the
     // element (it starts at centre-X); snap only adjusts the displayed value.
     const d = _screenToTexDelta(_gesture.rawX, _gesture.rawY, e.clientX - _gesture.lastX, e.clientY - _gesture.lastY);
     _gesture.lastX = e.clientX; _gesture.lastY = e.clientY;
-    _gesture.rawX = _clampX(_gesture.rawX + d.dtx);
-    _gesture.rawY = _clampY(_gesture.rawY + d.dty);
-    let nx = _gesture.rawX, ny = _gesture.rawY;
-    const cxp = PRINT_AREA.x + PRINT_AREA.w / 2, cyp = PRINT_AREA.y + PRINT_AREA.h / 2;
-    const thr = 8 * _editScale;
-    _gesture.snapX = !e.ctrlKey && Math.abs(nx - cxp) < thr;
-    _gesture.snapY = !e.ctrlKey && Math.abs(ny - cyp) < thr;
-    if (_gesture.snapX) nx = cxp;
-    if (_gesture.snapY) ny = cyp;
-    el.x = nx; el.y = ny;
+    _gesture.rawX += d.dtx;
+    _gesture.rawY += d.dty;
+    // Clamp and snap in NORMALISED space — nx 0.5 IS the garment centreline
+    // and ny 0.5 the level mid-height, by construction of the grid.
+    setElTexPos(el, _gesture.rawX, _gesture.rawY);
+    const u = Math.max(0, Math.min(1, el.nx));
+    const v = Math.max(0, Math.min(1, el.ny));
+    if (u !== el.nx || v !== el.ny) {
+      const back = texXYAt(designState.activeView, u, v);
+      _gesture.rawX = back[0]; _gesture.rawY = back[1];
+    }
+    const r = printRect();
+    const thrU = (8 * _editScale) / r.w, thrV = (8 * _editScale) / r.h;
+    _gesture.snapX = !e.ctrlKey && Math.abs(u - 0.5) < thrU;
+    _gesture.snapY = !e.ctrlKey && Math.abs(v - 0.5) < thrV;
+    el.nx = _gesture.snapX ? 0.5 : u;
+    el.ny = _gesture.snapY ? 0.5 : v;
     scheduleRedraw();
   } else if (_gesture.type === "scale") {
-    const center = texToScreenPA(el.x, el.y);
+    const center = texToScreenPA(elTexX(el), elTexY(el));
+    if (!center) return;
     const ratio = Math.hypot(e.clientX - center.x, e.clientY - center.y) / _gesture.d0;
-    if (kind === "text") {
+    if (el.type === "text") {
       el.size = Math.round(Math.max(24, Math.min(240, _gesture.startSize * ratio)));
-      _syncSlider("font-size-slider", "font-size-display", el.size, "px");
+      _syncSelNum(el);
     } else {
       el.scalePct = Math.round(Math.max(10, Math.min(200, _gesture.startSize * ratio)));
-      _syncSlider("image-scale-slider", "image-scale-display", el.scalePct, "%");
+      _syncSelNum(el);
     }
     scheduleRedraw();
   } else if (_gesture.type === "rotate") {
-    const center = texToScreenPA(el.x, el.y);
+    const center = texToScreenPA(elTexX(el), elTexY(el));
+    if (!center) return;
     const a = Math.atan2(e.clientY - center.y, e.clientX - center.x);
     let rot = _gesture.startRot + (a - _gesture.a0);
     if (e.shiftKey) {
@@ -1751,8 +2131,8 @@ function _onEdPointerUp(e) {
 
 function _updateHoverCursor(e) {
   if (!_stage) return;
-  let hit = _activeKind() ? _hitTest(e.clientX, e.clientY) : null;
-  if (!hit && _otherKindAt(e.clientX, e.clientY)) hit = { type: "move" };
+  let hit = _activeId() ? _hitTest(e.clientX, e.clientY) : null;
+  if (!hit && _otherElementAt(e.clientX, e.clientY)) hit = { type: "move" };
   // No design hit → leave it to OrbitControls' grab cursor (empty = orbit).
   _stage.style.cursor = !hit ? ""
     : hit.type === "rotate" ? "grab"
@@ -1761,30 +2141,28 @@ function _updateHoverCursor(e) {
 
 // ── Two-finger pinch (scale + rotate) ───────────────────────────
 function _startPinch() {
-  const kind = _activeKind();
-  if (!kind) return;
-  const el = designState[designState.activeView][kind];
+  const el = _activeDraggable();
+  if (!el) return;
   const pts = [..._pointers.values()];
   const d0 = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
   const a0 = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
-  _pinch = { d0: Math.max(8, d0), a0, startSize: kind === "text" ? el.size : el.scalePct, startRot: el.rotation || 0 };
+  _pinch = { d0: Math.max(8, d0), a0, startSize: el.type === "text" ? el.size : el.scalePct, startRot: el.rotation || 0 };
   _gesture = null;
 }
 function _updatePinch() {
-  const kind = _activeKind();
-  if (!kind || !_pinch) return;
-  const el = designState[designState.activeView][kind];
+  const el = _activeDraggable();
+  if (!el || !_pinch) return;
   const pts = [..._pointers.values()];
   if (pts.length < 2) return;
   const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
   const a = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
   const ratio = d / _pinch.d0;
-  if (kind === "text") {
+  if (el.type === "text") {
     el.size = Math.round(Math.max(24, Math.min(240, _pinch.startSize * ratio)));
-    _syncSlider("font-size-slider", "font-size-display", el.size, "px");
+    _syncSelNum(el);
   } else {
     el.scalePct = Math.round(Math.max(10, Math.min(200, _pinch.startSize * ratio)));
-    _syncSlider("image-scale-slider", "image-scale-display", el.scalePct, "%");
+    _syncSelNum(el);
   }
   el.rotation = _pinch.startRot + (a - _pinch.a0);
   scheduleRedraw();
@@ -1795,36 +2173,41 @@ function _onEdKeyDown(e) {
   if (!editMode) return;
   const ae = document.activeElement;
   if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
-  const kind = _activeKind();
-  if (!kind) return;
-  const el = designState[designState.activeView][kind];
-  const step = (e.shiftKey ? 10 : 1) * _editScale;
-  if (e.key === "ArrowLeft") el.x = _clampX(el.x - step);
-  else if (e.key === "ArrowRight") el.x = _clampX(el.x + step);
-  else if (e.key === "ArrowUp") el.y = _clampY(el.y - step);
-  else if (e.key === "ArrowDown") el.y = _clampY(el.y + step);
-  else if (e.key === "Delete" || e.key === "Backspace") { _deleteActiveElement(); e.preventDefault(); return; }
+  const el = _activeDraggable();
+  if (!el) return;
+  const r = printRect();
+  const du = ((e.shiftKey ? 10 : 1) * _editScale) / r.w;
+  const dv = ((e.shiftKey ? 10 : 1) * _editScale) / r.h;
+  if (e.key === "ArrowLeft") el.nx -= du;
+  else if (e.key === "ArrowRight") el.nx += du;
+  else if (e.key === "ArrowUp") el.ny -= dv;
+  else if (e.key === "ArrowDown") el.ny += dv;
+  else if (e.key === "Delete" || e.key === "Backspace") { deleteElement(el.id); e.preventDefault(); return; }
   else return;
+  el.nx = Math.max(0, Math.min(1, el.nx));
+  el.ny = Math.max(0, Math.min(1, el.ny));
   e.preventDefault();
   redrawActive();
 }
 
-function _deleteActiveElement() {
-  const view = designState.activeView;
-  const kind = _activeKind();
-  if (!kind) return;
-  if (kind === "text") {
-    designState[view].text.content = "";
-    const ti = document.getElementById("text-content-input");
-    if (ti) ti.value = "";
-  } else {
-    designState[view].image.img = null;
-    designState[view].image.name = "";
-    uploadedFileData[view] = null;
-    const ic = document.getElementById("image-controls");
-    if (ic) ic.style.display = "none";
-  }
+/** Remove an element from the active view, then select its neighbour. */
+function deleteElement(id) {
+  const st = designState[designState.activeView];
+  const i = st.elements.findIndex((e) => e.id === id);
+  if (i < 0) return;
+  st.elements.splice(i, 1);
+  delete uploadedFileData[id];
+  delete _boxes[designState.activeView][id];
+  const next = st.elements[Math.min(i, st.elements.length - 1)];
+  st.selId = next ? next.id : null;
+  syncPanelFromState();
   redrawActive();
+  updateViewToggleMarkers();
+}
+
+function _deleteActiveElement() {
+  const el = _activeDraggable();
+  if (el) deleteElement(el.id);
 }
 
 // ── Edit / preview (handles on/off) ─────────────────────────────
@@ -1855,22 +2238,16 @@ function enterPreviewMode() {
 }
 
 function togglePreview() {
-  if (!designTabActive) return;
   if (editMode) enterPreviewMode(); else enterEditMode();
 }
 
-// Called by the tab navigation when the Design tab opens/closes.
+// The design dock is always on screen now (it replaced the Design tab), so
+// editing is always available — the chip just shows/hides the handles.
 function setDesignEditing(active) {
   designTabActive = active;
   const chip = document.getElementById("btn-toggle-preview");
-  if (chip) chip.style.display = active ? "inline-flex" : "none";
-  if (active) {
-    // Start face-on for a clean placing view; the user can orbit freely after.
-    setCameraView(designState.activeView);
-    enterEditMode();
-  } else {
-    enterPreviewMode();
-  }
+  if (chip) chip.style.display = "inline-flex";
+  if (active) enterEditMode(); else enterPreviewMode();
 }
 
 function initDesignEditor() {
@@ -1915,10 +2292,14 @@ function initUI() {
   bindMobileNav();
   bindSizeSelector();
   bindCenterButtons();
-  bindLayerSwitch();
+  bindLayerControls();
+  bindPositionGuide();
   bindCart();
   bindSizeGuide();
   bindLangChange();
+  syncPanelFromState();
+  // The dock replaced the Design tab, so editing is live from page load.
+  setDesignEditing(true);
 }
 
 // Expand/collapse the size guide under the size picker
@@ -1943,27 +2324,344 @@ function bindLangChange() {
 }
 
 // ----------------------------------------------------------------
-// Layer switch (Text / Logo) in the unified Design tab
+// Dock toolbar — add layers, the shared numeric field, layout save/load
 // ----------------------------------------------------------------
-function bindLayerSwitch() {
-  const btns = document.querySelectorAll(".layer-btn");
-  const textCtl = document.getElementById("design-text-controls");
-  const logoCtl = document.getElementById("design-logo-controls");
-  btns.forEach((b) => {
-    b.addEventListener("click", () => {
-      const layer = b.dataset.layer; // 'text' | 'image'
-      designState.activeLayer = layer;
-      btns.forEach((x) => {
-        const on = x.dataset.layer === layer;
-        x.classList.toggle("active", on);
-        x.setAttribute("aria-selected", on ? "true" : "false");
+function bindLayerControls() {
+  const on = (id, ev, fn) => {
+    const n = document.getElementById(id);
+    if (n) n.addEventListener(ev, fn);
+  };
+
+  on("btn-add-text", "click", () => addTextElement());
+  on("btn-add-logo", "click", () => {
+    // "Загрузить дизайн" always adds a NEW layer.
+    _pendingLogoIsNew = true;
+    const fi = document.getElementById("logo-file-input");
+    if (fi) { fi.value = ""; fi.click(); }
+  });
+  on("btn-remove-selected", "click", () => {
+    const el = selectedElement();
+    if (el) deleteElement(el.id);
+  });
+
+  // One numeric field for both layer types: font px for text, scale % for a logo.
+  on("dock-sel-num", "input", (e) => {
+    const el = selectedElement();
+    if (!el) return;
+    const v = parseInt(e.target.value, 10);
+    if (!Number.isFinite(v)) return;
+    if (el.type === "text") el.size = Math.max(24, Math.min(240, v));
+    else el.scalePct = Math.max(10, Math.min(200, v));
+    scheduleRedraw();
+  });
+
+  on("btn-save-layout", "click", saveLayout);
+  on("btn-load-layout", "click", loadLayout);
+  on("btn-reset-design", "click", resetDesign);
+}
+
+// ── Layout save / load (this browser only) ──────────────────────
+// Stores the design — including logo pixels — under one localStorage key. Logos
+// are data URLs, so a big upload can blow the ~5MB quota; that's caught and
+// reported rather than failing silently.
+const LAYOUT_KEY = "loom.configurator.layout";
+
+function saveLayout() {
+  try {
+    const payload = {
+      design: JSON.parse(_buildDesignJson()),
+      files: {},
+      savedAt: new Date().toISOString(),
+    };
+    ["front", "back"].forEach((v) => elementsOf(v).forEach((el) => {
+      const f = uploadedFileData[el.id];
+      if (f && f.base64) payload.files[el.id] = f;
+    }));
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify(payload));
+    showToast(CT("cfg.layoutSaved", "Макет сохранён"));
+  } catch (e) {
+    const quota = e && (e.name === "QuotaExceededError" || e.code === 22);
+    showToast(quota
+      ? CT("cfg.layoutTooBig", "Макет слишком большой для сохранения")
+      : CT("cfg.layoutSaveError", "Не удалось сохранить макет"), "error");
+  }
+}
+
+async function loadLayout() {
+  let payload = null;
+  try { payload = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null"); }
+  catch (e) { /* corrupt entry — treated as none */ }
+  if (!payload || !payload.design) {
+    showToast(CT("cfg.layoutNone", "Сохранённых макетов нет"), "error");
+    return;
+  }
+
+  const d = payload.design;
+  if (d.shirtColor) selectShirtColor(d.shirtColor, null);
+  if (d.size) {
+    selectedSize = d.size;
+    document.querySelectorAll(".size-btn").forEach((b) =>
+      b.classList.toggle("active", b.dataset.size === d.size));
+  }
+
+  for (const view of ["front", "back"]) {
+    const st = designState[view];
+    st.elements = [];
+    st.selId = null;
+    const src = (d.v >= 2 && Array.isArray(d[view]?.elements))
+      ? d[view].elements
+      : _legacyViewToElements(d[view] || {});
+    for (const s of src) {
+      if (s.type === "text") { st.elements.push(newTextElement(s)); continue; }
+      const f = payload.files && payload.files[s.id];
+      if (!f || !f.base64) continue;
+      const img = await new Promise((resolve) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = () => resolve(null);
+        im.src = f.base64;
       });
-      if (textCtl) textCtl.style.display = layer === "text" ? "flex" : "none";
-      if (logoCtl) logoCtl.style.display = layer === "image" ? "flex" : "none";
-      _selectedKind = layer;
-      redrawActive(); // move the selection box to the newly active element
+      if (!img) continue;
+      const el = newImageElement(Object.assign({}, s, { img, key: null }));
+      st.elements.push(el);
+      uploadedFileData[el.id] = f;
+    }
+    st.selId = st.elements.length ? st.elements[st.elements.length - 1].id : null;
+  }
+
+  syncPanelFromState();
+  drawTexture("front");
+  drawTexture("back");
+  applyActiveTexture();
+  redrawActive();
+  showToast(CT("cfg.layoutLoaded", "Макет загружен"));
+}
+
+/**
+ * Where to drop a new element: just under whatever is already on this side, using
+ * the real drawn heights so a second layer never lands on top of the first.
+ * `ownH` is the newcomer's own normalised height.
+ */
+function _stackNy(view, ownH) {
+  const gap = 0.02;
+  return Math.min(0.94 - ownH / 2, _stackTopNy(view) + gap + ownH / 2);
+}
+
+/** Bottom edge (normalised) of the lowest element already on this side. */
+function _stackTopNy(view) {
+  const r = printRect(view);
+  const boxes = _boxes[view] || {};
+  let lowest = 0;
+  elementsOf(view).forEach((el) => {
+    const b = boxes[el.id];
+    const h = b ? b.h / r.h : 0.18;
+    lowest = Math.max(lowest, el.ny + h / 2);
+  });
+  return lowest;
+}
+
+function addTextElement() {
+  const st = designState[designState.activeView];
+  const proto = newTextElement({ content: CT("cfg.newTextDefault", "Ваш текст") });
+  // Text box height is size × 1.25, expressed against REF_RECT (see elTexSize).
+  const ownH = (proto.size * 1.25) / REF_RECT.h;
+  const el = Object.assign(proto, {
+    ny: st.elements.length ? _stackNy(designState.activeView, ownH) : 0.32,
+  });
+  st.elements.push(el);
+  st.selId = el.id;
+  syncPanelFromState();
+  redrawActive();
+  updateViewToggleMarkers();
+  const ti = document.getElementById("text-content-input");
+  if (ti) { ti.focus(); ti.select(); }
+  return el;
+}
+
+const _ICON_TEXT =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>';
+const _ICON_IMG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+
+// ================================================================
+// POSITION GUIDE — flat FRONT/BACK schematics in the dock
+// ----------------------------------------------------------------
+// Shows BOTH faces at once, which is the whole point: an empty back is visible
+// at a glance instead of being hidden behind a view toggle. Each face's canvas
+// IS the print rect, so drawing is the same call the garment bake uses, and a
+// drag maps to nx/ny directly — no mesh projection, no warp.
+
+/** Repaint both guide faces from designState. */
+function renderPositionGuide() {
+  document.querySelectorAll(".guide-canvas").forEach((cv) => {
+    const view = cv.dataset.view;
+    const box = cv.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(box.width), h = Math.round(box.height);
+    if (cv.width !== w * dpr || cv.height !== h * dpr) {
+      cv.width = w * dpr; cv.height = h * dpr;
+    }
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const rect = { x: 0, y: 0, w, h };
+    const sel = designState[view].selId;
+    elementsOf(view).forEach((el) => {
+      const b = drawElementIn(ctx, el, rect, false);
+      if (!b || el.id !== sel || view !== designState.activeView) return;
+      ctx.save();
+      ctx.strokeStyle = "rgba(10,132,255,0.9)";
+      ctx.lineWidth = 1;
+      ctx.translate(b.cx, b.cy);
+      ctx.rotate(b.rot);
+      ctx.strokeRect(-b.w / 2 - 2, -b.h / 2 - 2, b.w + 4, b.h + 4);
+      ctx.restore();
     });
   });
+
+  document.querySelectorAll(".guide-face").forEach((f) => {
+    const on = f.dataset.view === designState.activeView;
+    f.classList.toggle("active", on);
+    f.setAttribute("aria-pressed", String(on));
+    f.classList.toggle("has-design", _viewHasContent(f.dataset.view));
+  });
+}
+
+/** Hit-test a guide face at normalised (nx, ny); topmost element wins. */
+function _guideElementAt(view, nx, ny, cw, ch) {
+  const list = elementsOf(view);
+  const boxes = _boxes[view] || {};
+  const r = printRect(view);
+  for (let i = list.length - 1; i >= 0; i--) {
+    const el = list[i];
+    const b = boxes[el.id];
+    if (!b) continue;
+    // Element extents are cached in texture px against the live print rect;
+    // convert to this canvas's space before testing.
+    const hw = (b.w / r.w) * cw / 2, hh = (b.h / r.h) * ch / 2;
+    const dx = nx * cw - el.nx * cw, dy = ny * ch - el.ny * ch;
+    const rot = -(el.rotation || 0);
+    const lx = dx * Math.cos(rot) - dy * Math.sin(rot);
+    const ly = dx * Math.sin(rot) + dy * Math.cos(rot);
+    if (Math.abs(lx) <= hw && Math.abs(ly) <= hh) return el;
+  }
+  return null;
+}
+
+function bindPositionGuide() {
+  const faces = document.querySelectorAll(".guide-face");
+  if (!faces.length) return;
+
+  faces.forEach((face) => {
+    const view = face.dataset.view;
+    const cv = face.querySelector(".guide-canvas");
+    let drag = null;
+
+    const norm = (e) => {
+      const b = cv.getBoundingClientRect();
+      return { nx: (e.clientX - b.left) / b.width, ny: (e.clientY - b.top) / b.height, w: b.width, h: b.height };
+    };
+
+    face.addEventListener("pointerdown", (e) => {
+      // Editing always applies to the active face — clicking the other one
+      // switches to it first, so a drag never edits the side you can't see.
+      if (view !== designState.activeView) {
+        setActiveView(view);
+        renderPositionGuide();
+        return;
+      }
+      const p = norm(e);
+      if (p.nx < 0 || p.nx > 1 || p.ny < 0 || p.ny > 1) return;
+      const hit = _guideElementAt(view, p.nx, p.ny, p.w, p.h);
+      if (!hit) return;
+      e.preventDefault();
+      selectElement(hit.id);
+      drag = { id: hit.id, ox: hit.nx - p.nx, oy: hit.ny - p.ny };
+      try { face.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+
+    face.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const el = elementById(drag.id, view);
+      if (!el) { drag = null; return; }
+      const p = norm(e);
+      el.nx = Math.max(0, Math.min(1, p.nx + drag.ox));
+      el.ny = Math.max(0, Math.min(1, p.ny + drag.oy));
+      scheduleRedraw();
+    });
+
+    const end = (e) => {
+      if (!drag) return;
+      drag = null;
+      try { face.releasePointerCapture(e.pointerId); } catch (_) {}
+    };
+    face.addEventListener("pointerup", end);
+    face.addEventListener("pointercancel", end);
+  });
+
+  // The faces are percentage-sized, so a viewport change needs a repaint.
+  window.addEventListener("resize", () => renderPositionGuide());
+}
+
+/**
+ * Push the selected element's values into the design panel.
+ *
+ * Every control is write-only against designState, so anything that changes the
+ * selection — flipping Перед/Зад, clicking another element on the shirt, adding
+ * or deleting a layer — must call this or the form goes stale and silently edits
+ * the wrong element.
+ */
+function syncPanelFromState() {
+  const el = selectedElement();
+  const isText = !!el && el.type === "text";
+  const isImg = !!el && el.type === "image";
+
+  const show = (id, on, mode) => {
+    const n = document.getElementById(id);
+    if (n) n.style.display = on ? (mode || "flex") : "none";
+  };
+  show("dock-sel", !!el);
+  show("dock-textrow", isText);
+
+  const icon = document.getElementById("dock-sel-icon");
+  if (icon) icon.innerHTML = el ? (isText ? _ICON_TEXT : _ICON_IMG) : "";
+
+  const name = document.getElementById("dock-sel-name");
+  if (name) name.textContent = el ? (isText ? "" : (el.name || "")) : "";
+
+  const swatch = document.getElementById("text-color-picker");
+  if (swatch) {
+    // Only a text layer has a colour; keep the control in place for a logo so the
+    // strip doesn't reflow, but disable it.
+    swatch.style.visibility = isText ? "visible" : "hidden";
+    if (isText) swatch.value = el.color;
+  }
+
+  // One numeric field drives font size for text and scale % for a logo.
+  const num = document.getElementById("dock-sel-num");
+  if (num && el) {
+    if (isText) { num.min = 24; num.max = 240; num.value = el.size; num.title = "Размер шрифта, px"; }
+    else { num.min = 10; num.max = 200; num.value = el.scalePct; num.title = "Масштаб, %"; }
+  }
+
+  const ti = document.getElementById("text-content-input");
+  if (ti) ti.value = isText ? el.content : "";
+
+  if (isText) {
+    const fs = document.getElementById("font-family-select");
+    if (fs) fs.value = el.font;
+    [["btn-bold", "bold"], ["btn-italic", "italic"]].forEach(([id, prop]) => {
+      const b = document.getElementById(id);
+      if (!b) return;
+      b.classList.toggle("active", !!el[prop]);
+      b.setAttribute("aria-pressed", String(!!el[prop]));
+    });
+  }
+
+  updateViewToggleMarkers();
+  renderPositionGuide();
 }
 
 // ================================================================
@@ -1983,19 +2681,44 @@ function _authHeaders(json) {
   if (token) h["Authorization"] = "Bearer " + token;
   return h;
 }
+// Serialise one element. Positions stay NORMALISED; the view's printRect ships
+// alongside so the admin can convert to cm without re-deriving the geometry.
+function _serializeElement(el) {
+  const base = {
+    id: el.id, type: el.type,
+    nx: +el.nx.toFixed(5), ny: +el.ny.toFixed(5),
+    rotation: el.rotation || 0,
+  };
+  if (el.type === "text") {
+    return Object.assign(base, {
+      content: el.content, font: el.font, size: el.size,
+      color: el.color, bold: !!el.bold, italic: !!el.italic,
+    });
+  }
+  return Object.assign(base, { name: el.name, scalePct: el.scalePct, key: el.key || null });
+}
+
+function _serializeView(view) {
+  const r = printRect(view);
+  return {
+    printRect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) },
+    elements: elementsOf(view).filter((e) => e.type === "text" ? !!e.content : !!e.img).map(_serializeElement),
+  };
+}
+
+// v2 = normalised, multi-element. Readers must branch on `v`: anything without it
+// is the legacy single text + single image in raw texture px (see
+// admin/assets/order-detail.js), and must keep rendering against LEGACY_PRINT_AREA.
 function _buildDesignJson() {
-  const front = designState.front, back = designState.back;
   return JSON.stringify({
+    v: 2,
     shirtColor: designState.shirtColor,
     size: selectedSize,
-    front: {
-      text: { content: front.text.content, font: front.text.font, size: front.text.size, color: front.text.color, bold: front.text.bold, italic: front.text.italic, x: front.text.x, y: front.text.y, rotation: front.text.rotation || 0 },
-      image: { name: front.image.name, scalePct: front.image.scalePct, x: front.image.x, y: front.image.y, rotation: front.image.rotation || 0 },
-    },
-    back: {
-      text: { content: back.text.content, font: back.text.font, size: back.text.size, color: back.text.color, bold: back.text.bold, italic: back.text.italic, x: back.text.x, y: back.text.y, rotation: back.text.rotation || 0 },
-      image: { name: back.image.name, scalePct: back.image.scalePct, x: back.image.x, y: back.image.y, rotation: back.image.rotation || 0 },
-    },
+    texSize: TEX_SIZE,
+    refRect: { w: REF_RECT.w, h: REF_RECT.h },
+    platenCm: { w: PLATEN_CM.w, h: PLATEN_CM.h },
+    front: _serializeView("front"),
+    back: _serializeView("back"),
   });
 }
 // Generic R2 upload from any data URL (logo, flat print PNG, 3D mockup JPEG).
@@ -2016,15 +2739,55 @@ async function _uploadDataUrl(dataUrl, filename) {
   return null;
 }
 
-// Upload the uploaded logo file for ONE view (front/back), or null if none.
-function _uploadLogoFor(view) {
-  const f = uploadedFileData[view];
-  return (f && f.base64) ? _uploadDataUrl(f.base64, f.name || view + "-logo.png") : Promise.resolve(null);
+// The image elements on a view that still carry pixels, in draw order.
+function _imageElements(view) {
+  return elementsOf(view).filter((e) => e.type === "image" && e.img && uploadedFileData[e.id]);
 }
 
-function _viewHasContent(view) {
-  const l = designState[view];
-  return !!(l && (l.text.content || l.image.img));
+/**
+ * Upload every logo on a view and stamp each element's R2 key onto it (so
+ * _buildDesignJson can reference them). Resolves to the FIRST key, which is what
+ * goes in the order's logo_key / back_logo_key column — those hold one logo per
+ * side, and the print master PNG already bakes all of them, so extra logos ride
+ * along inside design_json rather than needing a schema change.
+ */
+async function _uploadLogoFor(view) {
+  const els = _imageElements(view);
+  if (!els.length) return null;
+  const keys = await Promise.all(els.map((el) => {
+    const f = uploadedFileData[el.id];
+    return _uploadDataUrl(f.base64, f.name || view + "-logo.png");
+  }));
+  els.forEach((el, i) => { el.key = keys[i] || null; });
+  return keys[0] || null;
+}
+
+/** Did any logo on this view fail to upload? */
+function _logoUploadIncomplete(view) {
+  return _imageElements(view).some((el) => !el.key);
+}
+
+// ── Plain-text summaries (order modal, Telegram payload) ─────────
+// A view can now carry several texts/logos, so these join them instead of
+// reaching for a single hard-coded slot.
+function _viewTexts(view) {
+  return elementsOf(view).filter((e) => e.type === "text" && e.content);
+}
+function _textSummary(view) {
+  return _viewTexts(view).map((e) => e.content).join(" · ");
+}
+function _fontSummary(view) {
+  return [...new Set(_viewTexts(view).map((e) => e.font))].join(", ");
+}
+function _logoSummary(view) {
+  return elementsOf(view).filter((e) => e.type === "image" && e.img)
+    .map((e) => e.name || "logo").join(" · ");
+}
+/** Average logo scale on a view — the modal shows one number. */
+function _scaleSummary(view) {
+  const imgs = elementsOf(view).filter((e) => e.type === "image" && e.img);
+  if (!imgs.length) return 100;
+  return Math.round(imgs.reduce((a, e) => a + e.scalePct, 0) / imgs.length);
 }
 
 // Render the PRINT master for a view: ONLY the artwork (logo + text), cropped to
@@ -2035,40 +2798,19 @@ function _viewHasContent(view) {
 const PRINT_SCALE = 3; // 928×1120 → 2784×3360 px (~235 dpi at 30×40 cm)
 function _renderPrintCanvas(view) {
   if (!_viewHasContent(view)) return null;
-  const layer = designState[view];
+  const r = printRect(view);
   const c = document.createElement("canvas");
-  c.width = PRINT_AREA.w * PRINT_SCALE;
-  c.height = PRINT_AREA.h * PRINT_SCALE;
+  c.width = Math.round(r.w * PRINT_SCALE);
+  c.height = Math.round(r.h * PRINT_SCALE);
   const ctx = c.getContext("2d");
   ctx.scale(PRINT_SCALE, PRINT_SCALE);
-  ctx.translate(-PRINT_AREA.x, -PRINT_AREA.y); // texture coords → print-area-local
+  ctx.translate(-r.x, -r.y); // texture coords → print-area-local
 
-  if (layer.image.img) {
-    ctx.save();
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    const natW = layer.image.img.naturalWidth || layer.image.img.width;
-    const natH = layer.image.img.naturalHeight || layer.image.img.height;
-    const factor = (layer.image.scalePct / 100) * ((TEX_SIZE * 0.30) / Math.max(natW, natH));
-    const dw = natW * factor, dh = natH * factor;
-    ctx.translate(layer.image.x, layer.image.y);
-    ctx.rotate(layer.image.rotation || 0);
-    ctx.drawImage(layer.image.img, -dw / 2, -dh / 2, dw, dh);
-    ctx.restore();
-  }
-  if (layer.text.content) {
-    ctx.save();
-    const weight = layer.text.bold ? "bold" : "normal";
-    const style = layer.text.italic ? "italic" : "normal";
-    ctx.font = `${style} ${weight} ${layer.text.size}px "${layer.text.font}"`;
-    ctx.fillStyle = layer.text.color;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.translate(layer.text.x, layer.text.y);
-    ctx.rotate(layer.text.rotation || 0);
-    ctx.fillText(layer.text.content, 0, 0);
-    ctx.restore();
-  }
+  // Same painter as the on-garment preview, minus the screen-only drop shadow —
+  // but with the FLAT mapping, not the warped one: the centreline warp corrects
+  // the posed 3D scan, and a real shirt isn't posed. nx 0.5 must land on the
+  // physical platen centre in the file a print shop receives.
+  elementsOf(view).forEach((el) => drawElementIn(ctx, el, r, false));
   return c.toDataURL("image/png");
 }
 
@@ -2096,6 +2838,9 @@ async function captureProofs() {
     applyActiveTexture();
     ["front", "back"].forEach((v) => {
       camera.position.set(CAM_VIEWS[v].x, CAM_VIEWS[v].y, CAM_VIEWS[v].z);
+      // Pin the look-at too — CAM_VIEWS anchors assume the fitted target, and a
+      // user-panned orbit target would tilt both mockups off-axis.
+      if (INITIAL_VIEW.target) controls.target.copy(INITIAL_VIEW.target);
       controls.update();
       renderer.render(scene, camera);
       mockData[v] = _snapshotURL("image/jpeg", 0.85);
@@ -2243,26 +2988,18 @@ function bindSizeSelector() {
 // ----------------------------------------------------------------
 // Center buttons for text and logo
 // ----------------------------------------------------------------
+// "По центру" — nx 0.5 is the garment's measured centreline on BOTH faces, so
+// this now actually centres the artwork instead of landing ~150px (front) /
+// ~250px (back) to one side, as a fixed TEX_SIZE/2 did.
 function bindCenterButtons() {
-  const btnCenterText = document.getElementById("btn-center-text");
-  if (btnCenterText) {
-    btnCenterText.addEventListener("click", () => {
-      const txt = designState[designState.activeView].text;
-      txt.x = TEX_SIZE / 2;
-      txt.y = TEX_SIZE * 0.35;
-      redrawActive();
-    });
-  }
-
-  const btnCenterLogo = document.getElementById("btn-center-logo");
-  if (btnCenterLogo) {
-    btnCenterLogo.addEventListener("click", () => {
-      const img = designState[designState.activeView].image;
-      img.x = TEX_SIZE / 2;
-      img.y = TEX_SIZE * 0.30;
-      redrawActive();
-    });
-  }
+  const centerSelected = () => {
+    const el = selectedElement();
+    if (!el) return;
+    el.nx = 0.5;
+    redrawActive();
+  };
+  const b = document.getElementById("btn-center-text");
+  if (b) b.addEventListener("click", centerSelected);
 }
 
 // ----------------------------------------------------------------
@@ -2306,9 +3043,6 @@ function bindTabNav() {
         else tc.style.display = "none";
       });
 
-      // Enter the flat 2D edit mode on the Design tab; leave it elsewhere.
-      setDesignEditing(target === "design");
-
       // Update summary when that tab opens
       if (target === "summary") updateSummaryTab();
     });
@@ -2319,24 +3053,23 @@ function bindTabNav() {
 // Front / Back view toggle
 // ----------------------------------------------------------------
 function bindViewToggle() {
-  const btnFront = document.getElementById("btn-view-front");
-  const btnBack = document.getElementById("btn-view-back");
-  if (!btnFront || !btnBack) return;
-
-  btnFront.addEventListener("click", () =>
-    switchView("front", btnFront, btnBack),
-  );
-  btnBack.addEventListener("click", () =>
-    switchView("back", btnBack, btnFront),
-  );
+  [["btn-view-front", "front"], ["btn-view-back", "back"]].forEach(([id, v]) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener("click", () => setActiveView(v));
+  });
 }
 
-function switchView(view, activeBtn, inactiveBtn) {
+/** Single entry point for changing face — used by the toggle AND the guide. */
+function setActiveView(view) {
+  if (designState.activeView === view) return;
   designState.activeView = view;
-  activeBtn.classList.add("active");
-  activeBtn.setAttribute("aria-pressed", "true");
-  inactiveBtn.classList.remove("active");
-  inactiveBtn.setAttribute("aria-pressed", "false");
+
+  [["btn-view-front", "front"], ["btn-view-back", "back"]].forEach(([id, v]) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.toggle("active", v === view);
+    btn.setAttribute("aria-pressed", String(v === view));
+  });
 
   // Animate camera to selected view
   setCameraView(view);
@@ -2344,11 +3077,23 @@ function switchView(view, activeBtn, inactiveBtn) {
   // Swap texture so the material shows the correct design face
   applyActiveTexture();
 
+  // Re-point the panel at THIS side's layers. Without this the form keeps showing
+  // the other side's text, which reads as "the back won't take a design".
+  syncPanelFromState();
+
   // Refresh the design preview
   refreshDesignCanvas();
 
   // Re-pin the live overlay to the new face.
   if (editMode) drawEditor();
+}
+
+/** Dot on the Перед/Зад buttons marking a side that already carries artwork. */
+function updateViewToggleMarkers() {
+  [["btn-view-front", "front"], ["btn-view-back", "back"]].forEach(([id, v]) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle("has-design", _viewHasContent(v));
+  });
 }
 
 // ================================================================
@@ -2402,63 +3147,51 @@ function selectShirtColor(hex, clickedBtn) {
 function bindTextControls() {
   const textIn = document.getElementById("text-content-input");
   const fontSel = document.getElementById("font-family-select");
-  const sizeSldr = document.getElementById("font-size-slider");
-  const sizeDisp = document.getElementById("font-size-display");
   const colorPkr = document.getElementById("text-color-picker");
-  const colorLbl = document.getElementById("text-color-label");
   const btnBold = document.getElementById("btn-bold");
   const btnItal = document.getElementById("btn-italic");
-  const btnRmTxt = document.getElementById("btn-remove-text");
 
   if (!textIn) return;
 
-  const getTxt = () => designState[designState.activeView].text;
+  // The selected TEXT element, or null when a logo (or nothing) is selected.
+  const getTxt = () => {
+    const el = selectedElement();
+    return el && el.type === "text" ? el : null;
+  };
 
   textIn.addEventListener("input", () => {
-    getTxt().content = textIn.value;
+    const t = getTxt();
+    if (!t) return;
+    t.content = textIn.value;
+    updateViewToggleMarkers();
     scheduleRedraw(); // coalesce — fast typing must not re-upload per keystroke
   });
 
-  fontSel.addEventListener("change", () => {
-    getTxt().font = fontSel.value;
+  if (fontSel) fontSel.addEventListener("change", () => {
+    const t = getTxt();
+    if (!t) return;
+    t.font = fontSel.value;
     // Pre-load the font in the browser before redrawing
     document.fonts.load(`24px "${fontSel.value}"`).then(() => redrawActive());
   });
 
-  sizeSldr.addEventListener("input", () => {
-    const sz = parseInt(sizeSldr.value);
-    getTxt().size = sz;
-    sizeDisp.textContent = sz + "px";
+  if (colorPkr) colorPkr.addEventListener("input", () => {
+    const t = getTxt();
+    if (!t) return;
+    t.color = colorPkr.value;
     scheduleRedraw();
   });
 
-  colorPkr.addEventListener("input", () => {
-    getTxt().color = colorPkr.value;
-    colorLbl.textContent = colorPkr.value.toUpperCase();
-    scheduleRedraw();
-  });
-
-  btnBold.addEventListener("click", () => {
-    const txt = getTxt();
-    txt.bold = !txt.bold;
-    btnBold.classList.toggle("active", txt.bold);
-    btnBold.setAttribute("aria-pressed", txt.bold);
-    redrawActive();
-  });
-
-  btnItal.addEventListener("click", () => {
-    const txt = getTxt();
-    txt.italic = !txt.italic;
-    btnItal.classList.toggle("active", txt.italic);
-    btnItal.setAttribute("aria-pressed", txt.italic);
-    redrawActive();
-  });
-
-  btnRmTxt.addEventListener("click", () => {
-    const txt = getTxt();
-    txt.content = "";
-    textIn.value = "";
-    redrawActive();
+  [[btnBold, "bold"], [btnItal, "italic"]].forEach(([btn, prop]) => {
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      const t = getTxt();
+      if (!t) return;
+      t[prop] = !t[prop];
+      btn.classList.toggle("active", t[prop]);
+      btn.setAttribute("aria-pressed", String(t[prop]));
+      redrawActive();
+    });
   });
 }
 
@@ -2467,57 +3200,31 @@ function bindTextControls() {
 // ================================================================
 
 function bindImageControls() {
-  const uploadArea = document.getElementById("upload-area");
   const fileInput = document.getElementById("logo-file-input");
-  const scaleSldr = document.getElementById("image-scale-slider");
-  const scaleDisp = document.getElementById("image-scale-display");
-  const imgControls = document.getElementById("image-controls");
-  const btnRmImg = document.getElementById("btn-remove-image");
-
-  if (!uploadArea || !fileInput) return;
-
-  // Click on upload area triggers file picker
-  uploadArea.addEventListener("click", () => fileInput.click());
-  uploadArea.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      fileInput.click();
-    }
-  });
-
-  // Drag-and-drop onto upload zone
-  uploadArea.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    uploadArea.classList.add("drag-over");
-  });
-  uploadArea.addEventListener("dragleave", () =>
-    uploadArea.classList.remove("drag-over"),
-  );
-  uploadArea.addEventListener("drop", (e) => {
-    e.preventDefault();
-    uploadArea.classList.remove("drag-over");
-    if (e.dataTransfer.files[0]) handleImageFile(e.dataTransfer.files[0]);
-  });
+  const stage = document.getElementById("three-container");
+  if (!fileInput) return;
 
   fileInput.addEventListener("change", function () {
     if (this.files && this.files[0]) handleImageFile(this.files[0]);
   });
 
-  scaleSldr.addEventListener("input", () => {
-    const pct = parseInt(scaleSldr.value);
-    designState[designState.activeView].image.scalePct = pct;
-    scaleDisp.textContent = pct + "%";
-    scheduleRedraw();
-  });
-
-  btnRmImg.addEventListener("click", () => {
-    designState[designState.activeView].image.img = null;
-    designState[designState.activeView].image.name = "";
-    fileInput.value = "";
-    uploadedFileData[designState.activeView] = null;
-    if (imgControls) imgControls.style.display = "none";
-    redrawActive();
-  });
+  // Drop an image anywhere on the 3D stage to add it as a new logo layer —
+  // the dedicated upload well went away with the dock redesign.
+  if (stage) {
+    stage.addEventListener("dragover", (e) => {
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes("Files")) return;
+      e.preventDefault();
+      stage.classList.add("drag-over");
+    });
+    stage.addEventListener("dragleave", () => stage.classList.remove("drag-over"));
+    stage.addEventListener("drop", (e) => {
+      if (!e.dataTransfer || !e.dataTransfer.files[0]) return;
+      e.preventDefault();
+      stage.classList.remove("drag-over");
+      _pendingLogoIsNew = true;
+      handleImageFile(e.dataTransfer.files[0]);
+    });
+  }
 }
 
 function handleImageFile(file) {
@@ -2556,35 +3263,43 @@ function handleImageFile(file) {
       }
 
       const apply = () => {
-      const layer = designState[designState.activeView].image;
-      layer.img = finalImg;
-      layer.name = file.name;
-      layer.scalePct = 100;
-      layer.x = TEX_SIZE / 2;
-      layer.y = TEX_SIZE * 0.30;
-      layer.rotation = 0;
-      // Make sure the logo layer is the active selection when freshly added.
-      if (typeof _syncLayerUI === "function") _syncLayerUI("image");
+      const st = designState[designState.activeView];
+      const sel = selectedElement();
+      // "+ Логотип" adds a layer; the upload area swaps the selected layer's art.
+      let el = (!_pendingLogoIsNew && sel && sel.type === "image") ? sel : null;
+      let scalePct = 100;
+      if (!el) {
+        // A 100% logo's long edge is 0.30 × TEX_SIZE against REF_RECT's width.
+        const fullH = (TEX_SIZE * 0.30) / REF_RECT.h;
+        // Shrink a freshly added logo to whatever room is left under the existing
+        // layers, so it doesn't land on top of them at its default size.
+        const free = Math.max(0, 0.94 - _stackTopNy(designState.activeView));
+        if (st.elements.length && free < fullH) {
+          scalePct = Math.max(25, Math.round(100 * (free / fullH)));
+        }
+        const ownH = fullH * (scalePct / 100);
+        el = newImageElement({
+          ny: st.elements.length ? _stackNy(designState.activeView, ownH) : 0.28,
+        });
+        st.elements.push(el);
+        st.selId = el.id;
+      }
+      _pendingLogoIsNew = false;
 
-      // Store (possibly downscaled) file data per view for order submission
-      uploadedFileData[designState.activeView] = {
+      el.img = finalImg;
+      el.name = file.name;
+      el.scalePct = scalePct;
+      el.key = null; // re-uploaded on the next order
+
+      // Store (possibly downscaled) file data per ELEMENT for order submission
+      uploadedFileData[el.id] = {
         base64: finalData,
         name: file.name,
         type: file.type,
         size: file.size,
       };
 
-      // Show scale + drag controls
-      const ctrl = document.getElementById("image-controls");
-      if (ctrl) ctrl.style.display = "flex";
-
-      // Reset scale slider
-      const sl = document.getElementById("image-scale-slider");
-      if (sl) {
-        sl.value = 100;
-        document.getElementById("image-scale-display").textContent = "100%";
-      }
-
+      syncPanelFromState();
       redrawActive();
       }; // apply()
 
@@ -2656,12 +3371,22 @@ function updateSummaryTab() {
 
   setEl("sum-color", getColorName(designState.shirtColor));
   setEl("sum-size", selectedSize);
-  setEl("sum-text", designState.front.text.content || "—");
-  setEl(
-    "sum-font",
-    designState.front.text.content ? designState.front.text.font : "—",
-  );
-  setEl("sum-image", designState.front.image.name || CT("cfg.notUploaded", "Не загружено"));
+
+  // Summarise BOTH sides — a back-only design used to show as an empty summary.
+  const texts = [], logos = [];
+  ["front", "back"].forEach((v) => {
+    const label = v === "front" ? CT("cfg.viewFront", "Перед") : CT("cfg.viewBack", "Зад");
+    elementsOf(v).forEach((el) => {
+      if (el.type === "text" && el.content) texts.push(`${label}: ${el.content}`);
+      if (el.type === "image" && el.img) logos.push(`${label}: ${el.name || "logo"}`);
+    });
+  });
+  const fonts = [...new Set(
+    ["front", "back"].flatMap((v) => elementsOf(v).filter((e) => e.type === "text" && e.content).map((e) => e.font)),
+  )];
+  setEl("sum-text", texts.join(" · ") || "—");
+  setEl("sum-font", fonts.join(", ") || "—");
+  setEl("sum-image", logos.join(" · ") || CT("cfg.notUploaded", "Не загружено"));
 }
 
 function resetDesign() {
@@ -2669,25 +3394,8 @@ function resetDesign() {
   selectedSize = "L";
 
   ["front", "back"].forEach((v) => {
-    designState[v].text = {
-      content: "",
-      font: "Arial",
-      size: 160,
-      color: "#000000",
-      bold: false,
-      italic: false,
-      x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.35,
-      rotation: 0,
-    };
-    designState[v].image = {
-      img: null,
-      name: "",
-      x: TEX_SIZE / 2,
-      y: TEX_SIZE * 0.30,
-      scalePct: 100,
-      rotation: 0,
-    };
+    designState[v].elements = [];
+    designState[v].selId = null;
   });
 
   // Reset size buttons
@@ -2695,8 +3403,7 @@ function resetDesign() {
     b.classList.toggle("active", b.dataset.size === "L");
   });
 
-  uploadedFileData.front = null;
-  uploadedFileData.back = null;
+  Object.keys(uploadedFileData).forEach((k) => delete uploadedFileData[k]);
 
   // Reset UI controls to defaults
   const ids = ["text-content-input", "custom-color-hex"];
@@ -2707,39 +3414,22 @@ function resetDesign() {
 
   const cp = document.getElementById("custom-color-picker");
   if (cp) cp.value = "#FFFFFF";
-  const fs = document.getElementById("font-size-slider");
-  if (fs) {
-    fs.value = 160;
-  }
-  const fl = document.getElementById("font-size-display");
-  if (fl) fl.textContent = "160px";
-  const is = document.getElementById("image-scale-slider");
-  if (is) {
-    is.value = 100;
-  }
-  const id2 = document.getElementById("image-scale-display");
-  if (id2) id2.textContent = "100%";
-  const ic = document.getElementById("image-controls");
-  if (ic) ic.style.display = "none";
   const fi = document.getElementById("logo-file-input");
   if (fi) fi.value = "";
 
-  const bb = document.getElementById("btn-bold");
-  if (bb) {
-    bb.classList.remove("active");
-    bb.setAttribute("aria-pressed", "false");
-  }
-  const bi = document.getElementById("btn-italic");
-  if (bi) {
-    bi.classList.remove("active");
-    bi.setAttribute("aria-pressed", "false");
-  }
+  ["btn-bold", "btn-italic"].forEach((id) => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.classList.remove("active");
+    b.setAttribute("aria-pressed", "false");
+  });
 
   // Reselect white swatch
   document.querySelectorAll(".swatch-btn").forEach((b) => {
     b.classList.toggle("selected", b.dataset.hex === "#FFFFFF");
   });
 
+  syncPanelFromState();
   drawTexture("front");
   drawTexture("back");
   applyActiveTexture();
@@ -2817,7 +3507,6 @@ function _openOrderModalInner(cartMode) {
   updateSummaryTab(); // ensures snapshot + summary info are fresh
 
   // Populate the existing order modal's summary section
-  const front = designState.front;
   const setTxt = (id, v) => {
     const el = document.getElementById(id);
     if (el) el.textContent = v;
@@ -2825,10 +3514,10 @@ function _openOrderModalInner(cartMode) {
 
   setTxt("summaryColor", getColorName(designState.shirtColor));
   setTxt("summarySize", selectedSize);
-  setTxt("summaryScale", front.image.scalePct + "%");
-  setTxt("summaryText", front.text.content || CT("order.textNone", "Не указан"));
-  setTxt("summaryFont", front.text.font);
-  setTxt("summaryImage", front.image.name || CT("cfg.notUploaded", "Не загружено"));
+  setTxt("summaryScale", _scaleSummary("front") + "%");
+  setTxt("summaryText", _textSummary("front") || CT("order.textNone", "Не указан"));
+  setTxt("summaryFont", _fontSummary("front") || "—");
+  setTxt("summaryImage", _logoSummary("front") || CT("cfg.notUploaded", "Не загружено"));
   const _price = currentProduct ? currentProduct.price : 150000;
   setTxt("summaryPrice", window.LOOM_I18N ? window.LOOM_I18N.formatPrice(_price) : (_price.toLocaleString("ru-RU") + " " + CT("cfg.currency", "сум")));
 
@@ -2895,12 +3584,12 @@ function _openOrderModalInner(cartMode) {
     color: designState.shirtColor,
     colorName: getColorName(designState.shirtColor),
     size: selectedSize,
-    text: front.text.content,
-    font: front.text.font,
-    imageName: front.image.name || "Не загружено",
-    scale: front.image.scalePct,
-    frontText: designState.front.text.content,
-    backText: designState.back.text.content,
+    text: _textSummary("front"),
+    font: _fontSummary("front"),
+    imageName: _logoSummary("front") || "Не загружено",
+    scale: _scaleSummary("front"),
+    frontText: _textSummary("front"),
+    backText: _textSummary("back"),
     timestamp: new Date().toISOString(),
   };
   localStorage.setItem("loomDesignConfig", JSON.stringify(config));
@@ -3295,7 +3984,7 @@ async function handleOrderSubmit(event) {
 
     // ── 1. Upload both logos to R2 (front + back, independently) ──────────
     const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
-    if ((uploadedFileData.front?.base64 && !logoKey) || (uploadedFileData.back?.base64 && !backLogoKey)) {
+    if (_logoUploadIncomplete("front") || _logoUploadIncomplete("back")) {
       showToast("Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.", "error");
       btn.disabled = false;
       if (txt) txt.style.display = "block";
@@ -3366,10 +4055,10 @@ async function handleOrderSubmit(event) {
       item: currentProduct ? currentProduct.name_ru : "Футболка",
       color: getColorName(designState.shirtColor),
       size: selectedSize,
-      frontText: designState.front.text.content || "",
-      backText: designState.back.text.content || "",
-      frontImage: designState.front.image.name || "Не загружено",
-      backImage: designState.back.image.name || "Не загружено",
+      frontText: _textSummary("front"),
+      backText: _textSummary("back"),
+      frontImage: _logoSummary("front") || "Не загружено",
+      backImage: _logoSummary("back") || "Не загружено",
       mapCoordinates: coords,
       customerName: nameVal,
       phone: phoneFmt,

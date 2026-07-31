@@ -25,9 +25,9 @@ function renderOrderItems(items, anchorCard) {
       const d = parseDesign(it.design_json)
       const color = d.shirtColor || '—'
       const size = d.size || '—'
-      const text = d.front?.text?.content || ''
-      const font = d.front?.text?.font || ''
-      const logoName = d.front?.image?.name || d.back?.image?.name || ''
+      const text = summaryText(d, 'front')
+      const font = summaryFonts(d, 'front')
+      const logoName = summaryLogos(d, 'front') || summaryLogos(d, 'back')
       const meta = [
         `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${escHtml(color)};border:1px solid var(--input-border);vertical-align:middle;margin-right:5px"></span>${escHtml(color)}`,
         escHtml(size),
@@ -162,10 +162,10 @@ async function loadOrder(id) {
     const design = parseDesign(o.design_json)
     const color = design.shirtColor || '—'
     const size = design.size || '—'
-    const frontText = design.front?.text?.content || '—'
-    const backText = design.back?.text?.content || '—'
-    const fontName = design.front?.text?.font || '—'
-    const logoName = design.front?.image?.name || design.back?.image?.name || '—'
+    const frontText = summaryText(design, 'front') || '—'
+    const backText = summaryText(design, 'back') || '—'
+    const fontName = summaryFonts(design, 'front') || '—'
+    const logoName = summaryLogos(design, 'front') || summaryLogos(design, 'back') || '—'
 
     document.getElementById('design-color').innerHTML =
       `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${escHtml(color)};border:1px solid var(--input-border);vertical-align:middle;margin-right:6px"></span>${escHtml(color)}`
@@ -270,17 +270,70 @@ window.LOOM_LAYOUT.onReady(() => {
 // ════════════════════════════════════════════════════════════════════════════
 
 const TEX_SIZE = 2048
-const PRINT_AREA = { x: 560, y: 360, w: 928, h: 1120 } // texture px (matches configurator.js)
+// Legacy print rect: what design_json without a `v` field was measured against,
+// and the reference the UI's px/% units are expressed in. Must not change —
+// orders already in the database are stored in these coordinates.
+const LEGACY_PRINT_AREA = { x: 560, y: 360, w: 928, h: 1120 }
+const REF_RECT = { w: LEGACY_PRINT_AREA.w, h: LEGACY_PRINT_AREA.h }
 const PHYS_CM = { w: 30, h: 40 }                        // real-world print area (A3 DTG platen)
 
-// Position of a texture-space coordinate relative to the print-area top-left.
-function relPct(px, axis) {
-  const origin = axis === 'x' ? PRINT_AREA.x : PRINT_AREA.y
-  const span = axis === 'x' ? PRINT_AREA.w : PRINT_AREA.h
-  return ((px - origin) / span) * 100
+/**
+ * Normalise either design_json shape into one form: a print rect plus an ordered
+ * element list in 0–1 rect coordinates.
+ *
+ * v2 (configurator.js _buildDesignJson) already stores normalised positions and
+ * ships the per-view rect it measured off the garment mesh. Anything older is a
+ * single text + single image in raw texture px against LEGACY_PRINT_AREA.
+ */
+function viewModel(d, view) {
+  const vd = d && d[view]
+  if (!vd) return { rect: { ...LEGACY_PRINT_AREA }, elements: [], platenCm: PHYS_CM }
+  const platenCm = (d.v >= 2 && d.platenCm) ? d.platenCm : PHYS_CM
+
+  if (d.v >= 2 && Array.isArray(vd.elements)) {
+    return { rect: vd.printRect || { ...LEGACY_PRINT_AREA }, elements: vd.elements, platenCm }
+  }
+
+  const L = LEGACY_PRINT_AREA
+  const norm = (o, fbX, fbY) => ({
+    nx: ((o.x != null ? o.x : fbX) - L.x) / L.w,
+    ny: ((o.y != null ? o.y : fbY) - L.y) / L.h,
+    saved: o.x != null && o.y != null,
+  })
+  const els = []
+  if (vd.image && vd.image.name) {
+    els.push(Object.assign(
+      { type: 'image', rotation: vd.image.rotation || 0, name: vd.image.name, scalePct: vd.image.scalePct },
+      norm(vd.image, TEX_SIZE / 2, TEX_SIZE * 0.30),
+    ))
+  }
+  if (vd.text && vd.text.content) {
+    els.push(Object.assign(
+      {
+        type: 'text', rotation: vd.text.rotation || 0, content: vd.text.content,
+        font: vd.text.font, size: vd.text.size, color: vd.text.color,
+        bold: vd.text.bold, italic: vd.text.italic,
+      },
+      norm(vd.text, TEX_SIZE / 2, TEX_SIZE * 0.35),
+    ))
+  }
+  return { rect: { ...L }, elements: els, platenCm }
 }
-function relCm(px, axis) {
-  return (relPct(px, axis) / 100) * (axis === 'x' ? PHYS_CM.w : PHYS_CM.h)
+
+// ── Plain-text summaries (order list rows, design card) ─────────────────────
+// A side can carry several layers now, so these join them rather than reading a
+// single slot. Both design_json shapes flow through viewModel first.
+function summaryText(d, view) {
+  return viewModel(d, view).elements
+    .filter((e) => e.type === 'text' && e.content).map((e) => e.content).join(' · ')
+}
+function summaryFonts(d, view) {
+  return [...new Set(viewModel(d, view).elements
+    .filter((e) => e.type === 'text' && e.content).map((e) => e.font).filter(Boolean))].join(', ')
+}
+function summaryLogos(d, view) {
+  return viewModel(d, view).elements
+    .filter((e) => e.type === 'image').map((e) => e.name).filter(Boolean).join(' · ')
 }
 
 // Fetch an admin-protected media URL and return a blob URL (or null).
@@ -350,8 +403,8 @@ async function buildDesignBlock(design, urls, opts) {
   ])
 
   const views = document.createElement('div'); views.className = 'ps-views'
-  views.appendChild(await buildView('front', design.front, fMock, fPrint, fLogo))
-  views.appendChild(await buildView('back', design.back, bMock, bPrint, bLogo))
+  views.appendChild(await buildView('front', viewModel(design, 'front'), fMock, fPrint, fLogo))
+  views.appendChild(await buildView('back', viewModel(design, 'back'), bMock, bPrint, bLogo))
   el.appendChild(views)
   el.appendChild(buildSpecTable(design))
   return el
@@ -466,10 +519,10 @@ function fitCameraToObject(obj, camera, controls, renderer) {
   if (renderer) renderer.render(obj.parent || obj, camera)
 }
 
-async function buildView(name, vd, mockUrl, printUrl, logoUrl) {
+async function buildView(name, vm, mockUrl, printUrl, logoUrl) {
   const col = document.createElement('div')
   const label = name === 'front' ? 'Перёд' : 'Спина'
-  const hasContent = vd && ((vd.text && vd.text.content) || (vd.image && vd.image.name))
+  const hasContent = !!(vm && vm.elements.length)
   col.innerHTML = `<p class="ps-view-h">${label}</p>`
 
   if (mockUrl) {
@@ -481,7 +534,7 @@ async function buildView(name, vd, mockUrl, printUrl, logoUrl) {
   if (printUrl) {
     fig.innerHTML = `<div class="ps-print-wrap"><img src="${printUrl}" alt="Печать ${label}"></div>`
     const cap = document.createElement('figcaption'); cap.className = 'ps-figcap'
-    cap.innerHTML = `<span>Печать · ${PHYS_CM.w} × ${PHYS_CM.h} см</span>`
+    cap.innerHTML = `<span>Печать · ${vm.platenCm.w} × ${vm.platenCm.h} см</span>`
     const dl = document.createElement('a')
     dl.className = 'ps-dl'; dl.href = printUrl; dl.download = `print-${name}.png`; dl.textContent = 'Скачать PNG'
     cap.appendChild(dl)
@@ -492,7 +545,7 @@ async function buildView(name, vd, mockUrl, printUrl, logoUrl) {
     fig.appendChild(wrap)
     fig.insertAdjacentHTML('beforeend',
       `<figcaption class="ps-figcap"><span class="ps-recon-note">реконструкция (приблизительно)</span></figcaption>`)
-    await drawReconstruction(canvas, vd, logoUrl)
+    await drawReconstruction(canvas, vm, logoUrl)
   } else {
     fig.innerHTML = `<div class="ps-empty">Нет дизайна на этой стороне</div>`
   }
@@ -500,55 +553,65 @@ async function buildView(name, vd, mockUrl, printUrl, logoUrl) {
   return col
 }
 
-// Re-draw the print artwork from design_json for legacy orders that have no saved
-// print master. Uses the SAME geometry as configurator.js _renderPrintCanvas.
-async function drawReconstruction(canvas, vd, logoUrl) {
-  const scale = 0.55 // 928×1120 → ~510×616 internal px (display-only)
-  canvas.width = Math.round(PRINT_AREA.w * scale)
-  canvas.height = Math.round(PRINT_AREA.h * scale)
+// Re-draw the print artwork from design_json for orders that have no saved print
+// master. Uses the SAME geometry as configurator.js drawElement/_renderPrintCanvas.
+// In practice this is the legacy path: every v2 order ships a print master.
+async function drawReconstruction(canvas, vm, logoUrl) {
+  const r = vm.rect
+  const scale = 0.55 // ~510×616 internal px (display-only)
+  canvas.width = Math.round(r.w * scale)
+  canvas.height = Math.round(r.h * scale)
   const ctx = canvas.getContext('2d')
   ctx.scale(scale, scale)
-  ctx.translate(-PRINT_AREA.x, -PRINT_AREA.y)
 
-  if (vd && vd.image && logoUrl) {
-    await new Promise((resolve) => {
-      const img = new Image()
-      img.onload = () => {
-        const natW = img.naturalWidth || img.width, natH = img.naturalHeight || img.height
-        const factor = ((vd.image.scalePct || 100) / 100) * ((TEX_SIZE * 0.30) / Math.max(natW, natH))
-        const dw = natW * factor, dh = natH * factor
-        const x = vd.image.x ?? (PRINT_AREA.x + PRINT_AREA.w / 2)
-        const y = vd.image.y ?? (PRINT_AREA.y + PRINT_AREA.h / 2)
-        ctx.save(); ctx.translate(x, y); ctx.rotate(vd.image.rotation || 0)
-        ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh); ctx.restore()
-        resolve()
-      }
-      img.onerror = resolve
-      img.src = logoUrl
-    })
-  }
+  // The configurator expresses font px and logo scale against REF_RECT, so a rect
+  // of a different size scales them proportionally.
+  const kW = r.w / REF_RECT.w, kH = r.h / REF_RECT.h
+  let usedLogo = false
 
-  if (vd && vd.text && vd.text.content) {
-    const size = vd.text.size || 160, font = vd.text.font || 'Arial'
+  for (const el of vm.elements) {
+    const cx = el.nx * r.w, cy = el.ny * r.h
+
+    if (el.type === 'image') {
+      // Only the first logo has a resolvable URL here (logo_key / back_logo_key).
+      if (usedLogo || !logoUrl) continue
+      usedLogo = true
+      await new Promise((resolve) => {
+        const img = new Image()
+        img.onload = () => {
+          const natW = img.naturalWidth || img.width, natH = img.naturalHeight || img.height
+          const factor = ((el.scalePct || 100) / 100) * (TEX_SIZE * 0.30 * kW) / Math.max(natW, natH)
+          const dw = natW * factor, dh = natH * factor
+          ctx.save(); ctx.translate(cx, cy); ctx.rotate(el.rotation || 0)
+          ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh); ctx.restore()
+          resolve()
+        }
+        img.onerror = resolve
+        img.src = logoUrl
+      })
+      continue
+    }
+
+    if (!el.content) continue
+    const size = (el.size || 160) * kH, font = el.font || 'Arial'
     try { await document.fonts.load(`${size}px "${font}"`) } catch { /* fallback face */ }
     ctx.save()
-    const weight = vd.text.bold ? 'bold' : 'normal'
-    const style = vd.text.italic ? 'italic' : 'normal'
+    const weight = el.bold ? 'bold' : 'normal'
+    const style = el.italic ? 'italic' : 'normal'
     ctx.font = `${style} ${weight} ${size}px "${font}"`
-    ctx.fillStyle = vd.text.color || '#000'
+    ctx.fillStyle = el.color || '#000'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    const x = vd.text.x ?? (PRINT_AREA.x + PRINT_AREA.w / 2)
-    const y = vd.text.y ?? (PRINT_AREA.y + PRINT_AREA.h * 0.35)
-    ctx.translate(x, y); ctx.rotate(vd.text.rotation || 0)
-    ctx.fillText(vd.text.content, 0, 0)
+    ctx.translate(cx, cy); ctx.rotate(el.rotation || 0)
+    ctx.fillText(el.content, 0, 0)
     ctx.restore()
   }
 }
 
-function posStr(x, y, rot) {
-  if (x == null || y == null) return 'не сохранено (старый заказ)'
-  const r = rot ? ` · ${Math.round((rot * 180) / Math.PI)}°` : ''
-  return `${relCm(x, 'x').toFixed(1)}×${relCm(y, 'y').toFixed(1)} см · ${relPct(x, 'x').toFixed(0)}%×${relPct(y, 'y').toFixed(0)}%${r}`
+function posStr(el, platenCm) {
+  if (el.saved === false) return 'не сохранено (старый заказ)'
+  const rot = el.rotation ? ` · ${Math.round((el.rotation * 180) / Math.PI)}°` : ''
+  const cmX = (el.nx * platenCm.w).toFixed(1), cmY = (el.ny * platenCm.h).toFixed(1)
+  return `${cmX}×${cmY} см · ${(el.nx * 100).toFixed(0)}%×${(el.ny * 100).toFixed(0)}%${rot}`
 }
 
 function buildSpecTable(d) {
@@ -559,22 +622,26 @@ function buildSpecTable(d) {
     `<tr><td>Размер</td><td colspan="2">${escHtml(d.size || '—')}</td></tr>`,
   ]
   ;['front', 'back'].forEach((v) => {
-    const vd = d[v]; if (!vd) return
-    const label = v === 'front' ? 'Перёд' : 'Спина'
-    if (vd.text && vd.text.content) {
-      const t = vd.text
-      const wstyle = [t.bold ? 'Bold' : '', t.italic ? 'Italic' : ''].filter(Boolean).join(' ') || 'Regular'
-      rows.push(`<tr><td>${label} · текст</td><td colspan="2">«${escHtml(t.content)}»</td></tr>`)
-      rows.push(`<tr><td></td><td>Шрифт</td><td>${escHtml(t.font || '—')} · ${wstyle} · ${t.size || '—'}px</td></tr>`)
-      rows.push(`<tr><td></td><td>Цвет</td><td><span class="ps-swatch" style="background:${escHtml(t.color || '#000')}"></span>${escHtml(t.color || '—')}</td></tr>`)
-      rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${posStr(t.x, t.y, t.rotation)}</td></tr>`)
-    }
-    if (vd.image && vd.image.name) {
-      const im = vd.image
-      rows.push(`<tr><td>${label} · логотип</td><td colspan="2">${escHtml(im.name)}</td></tr>`)
-      rows.push(`<tr><td></td><td>Масштаб</td><td>${im.scalePct ?? '—'}%</td></tr>`)
-      rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${posStr(im.x, im.y, im.rotation)}</td></tr>`)
-    }
+    const vm = viewModel(d, v)
+    if (!vm.elements.length) return
+    const side = v === 'front' ? 'Перёд' : 'Спина'
+    // Number the rows when a side carries several layers, so the print shop can
+    // match each spec block to the right element.
+    const many = vm.elements.length > 1
+    vm.elements.forEach((el, i) => {
+      const label = many ? `${side} · ${i + 1}` : side
+      if (el.type === 'text') {
+        const wstyle = [el.bold ? 'Bold' : '', el.italic ? 'Italic' : ''].filter(Boolean).join(' ') || 'Regular'
+        rows.push(`<tr><td>${label} · текст</td><td colspan="2">«${escHtml(el.content)}»</td></tr>`)
+        rows.push(`<tr><td></td><td>Шрифт</td><td>${escHtml(el.font || '—')} · ${wstyle} · ${el.size || '—'}px</td></tr>`)
+        rows.push(`<tr><td></td><td>Цвет</td><td><span class="ps-swatch" style="background:${escHtml(el.color || '#000')}"></span>${escHtml(el.color || '—')}</td></tr>`)
+        rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${posStr(el, vm.platenCm)}</td></tr>`)
+      } else {
+        rows.push(`<tr><td>${label} · логотип</td><td colspan="2">${escHtml(el.name || '—')}</td></tr>`)
+        rows.push(`<tr><td></td><td>Масштаб</td><td>${el.scalePct ?? '—'}%</td></tr>`)
+        rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${posStr(el, vm.platenCm)}</td></tr>`)
+      }
+    })
   })
   wrap.innerHTML = `<table class="ps-spec"><thead><tr><th>Параметр</th><th></th><th>Значение</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
   return wrap
