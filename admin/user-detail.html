@@ -11,8 +11,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Клиент — LOOM Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=26" />
-  <script src="assets/theme-init.js?v=26"></script>
+  <link rel="stylesheet" href="assets/theme.css?v=28" />
+  <script src="assets/theme-init.js?v=28"></script>
   <style>
     /* Reference details as labelled pairs that wrap into columns, rather than
        one tall two-column list. Only genuinely technical values are monospaced
@@ -41,20 +41,10 @@
     .ud-block-icon { display: inline-flex; }
     .ud-block-icon svg { width: 15px; height: 15px; stroke-width: 1.9; }
 
-    /* One strip, one style. Views sit left, the things you can do sit right,
-       and every item is the same kind of control: click it and its content
-       takes the region below, underlined while it is showing. */
-    .content-bar {
-      display: flex; align-items: flex-end; justify-content: space-between;
-      gap: 0 var(--sp-5); flex-wrap: wrap;
-      border-bottom: 1px solid var(--hairline); margin-bottom: var(--sp-4);
-    }
-    .content-actions { flex-wrap: wrap; }
-    /* Actions are secondary to the views, so they start a shade quieter — the
-       selected underline still reads identically on both groups. */
-    .content-actions .tab { color: var(--text-dim); }
-    .content-actions .tab:hover,
-    .content-actions .tab[aria-selected="true"] { color: var(--text); }
+    /* Actions belong to the entity, so they sit in its header — a menu plus the
+       one destructive action kept in the open. Two controls of fixed width, so
+       the header keeps its shape no matter how many actions exist. */
+    .ud-controls { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; flex-wrap: wrap; }
     .ud-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--hairline); }
     .ud-avatar-ph { display: flex; align-items: center; justify-content: center; background: var(--hover-bg); font-size: var(--fs-lg); font-weight: 600; color: var(--text-secondary); }
     .ud-name { font-size: var(--fs-lg); font-weight: 600; color: var(--text); }
@@ -101,10 +91,24 @@
            injected later than the shell's gating pass never get cleared. -->
       <div class="ud-identity">
         <div id="user-identity" class="ud-identity-main"></div>
-        <button class="btn btn--sm btn--danger ud-block" id="btn-toggle-status" data-cap="users.status">
-          <span class="ud-block-icon" id="btn-toggle-icon" aria-hidden="true"></span>
-          <span id="btn-toggle-label">Заблокировать</span>
-        </button>
+        <div class="ud-controls">
+          <div class="menu-wrap" id="actions-menu-wrap">
+            <button type="button" class="btn btn--sm" id="actions-trigger" aria-haspopup="true" aria-expanded="false">
+              Действия
+              <span aria-hidden="true" style="font-size:0.6rem">▼</span>
+            </button>
+            <div class="menu-pop" id="actions-menu" role="menu" hidden>
+              <button type="button" class="menu-item" role="menuitem" id="btn-notify" data-cap="notifications.send">Написать в Telegram</button>
+              <button type="button" class="menu-item" role="menuitem" id="btn-edit-profile" data-cap="users.edit">Изменить данные</button>
+              <button type="button" class="menu-item" role="menuitem" id="btn-edit-location" data-cap="users.edit">Адрес доставки</button>
+              <button type="button" class="menu-item" role="menuitem" id="btn-reset-password" data-cap="users.password">Сбросить пароль</button>
+            </div>
+          </div>
+          <button class="btn btn--sm btn--danger ud-block" id="btn-toggle-status" data-cap="users.status">
+            <span class="ud-block-icon" id="btn-toggle-icon" aria-hidden="true"></span>
+            <span id="btn-toggle-label">Заблокировать</span>
+          </button>
+        </div>
       </div>
 
       <!-- Two numbers worth reading at a glance, then the reference details. -->
@@ -117,26 +121,16 @@
       </div>
     </div>
 
-    <!-- One bar governs the content area below it: what to LOOK at on the left,
-         what to DO on the right, every item styled and behaving the same way.
-         Whichever one is showing carries the underline, and its content owns
-         the region — see SEGMENTS in user-detail.js, which drives all six from
-         a single list so no path can leave two panels open or none selected. -->
-    <div class="content-bar">
-      <div class="tabs tabs--bare" role="tablist">
-        <button class="tab" role="tab" id="tab-orders" aria-selected="true" aria-controls="panel-orders">
-          Заказы <span class="count" id="orders-count"></span>
-        </button>
-        <button class="tab" role="tab" id="tab-activity" aria-selected="false" aria-controls="panel-activity">
-          Активность
-        </button>
-      </div>
-      <div class="tabs tabs--bare content-actions" role="tablist" id="user-actions">
-        <button class="tab" role="tab" aria-selected="false" id="btn-notify" aria-controls="notif-form" data-cap="notifications.send">Написать в Telegram</button>
-        <button class="tab" role="tab" aria-selected="false" id="btn-edit-profile" aria-controls="edit-profile-card" data-cap="users.edit">Изменить данные</button>
-        <button class="tab" role="tab" aria-selected="false" id="btn-edit-location" aria-controls="edit-location-card" data-cap="users.edit">Адрес доставки</button>
-        <button class="tab" role="tab" aria-selected="false" id="btn-reset-password" aria-controls="reset-password-card" data-cap="users.password">Сбросить пароль</button>
-      </div>
+    <!-- Views only. Tabs answer "what am I looking at"; they are not a place to
+         park actions, which is what made this bar read as eight unrelated
+         items. Actions live with the entity, in the card header above. -->
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-orders" aria-selected="true" aria-controls="panel-orders">
+        Заказы <span class="count" id="orders-count"></span>
+      </button>
+      <button class="tab" role="tab" id="tab-activity" aria-selected="false" aria-controls="panel-activity">
+        Активность
+      </button>
     </div>
 
     <section id="panel-orders" role="tabpanel" aria-labelledby="tab-orders">
@@ -274,11 +268,11 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="assets/app.js?v=26"></script>
-  <script src="assets/ui.js?v=26"></script>
-  <script src="assets/layout.js?v=26"></script>
+  <script src="assets/app.js?v=28"></script>
+  <script src="assets/ui.js?v=28"></script>
+  <script src="assets/layout.js?v=28"></script>
   <script>LOOM_LAYOUT.init('users', { title: 'Клиент', crumbs: [{ label: 'Клиенты', href: 'users.html' }] })</script>
-  <script src="assets/user-detail.js?v=26"></script>
-  <script src="assets/admin-map-picker.js?v=26"></script>
+  <script src="assets/user-detail.js?v=28"></script>
+  <script src="assets/admin-map-picker.js?v=28"></script>
 </body>
 </html>

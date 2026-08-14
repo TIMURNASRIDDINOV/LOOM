@@ -270,11 +270,15 @@
     if (seg.view) lastViewSegment = i
 
     SEGMENTS.forEach((s2, j) => {
-      const control = document.getElementById(s2.control)
       const panel = document.getElementById(s2.panel)
-      // Either may be absent: capability gating removes controls outright.
-      if (control) control.setAttribute('aria-selected', i === j ? 'true' : 'false')
+      // Panels may be absent: capability gating removes controls and, with the
+      // forms they belong to, sometimes the panels too.
       if (panel) panel.hidden = i !== j
+      // Only the view tabs carry a selected state. A menu item is a command,
+      // not a place, so nothing in the menu is ever "current".
+      if (!s2.view) return
+      const control = document.getElementById(s2.control)
+      if (control) control.setAttribute('aria-selected', i === j ? 'true' : 'false')
     })
 
     if (!opened.has(i)) {
@@ -285,12 +289,40 @@
 
   function closePanels() { selectSegment(lastViewSegment) }
 
+  // The actions menu. Selecting an item closes it and hands the content region
+  // to that item's form, exactly as choosing a tab does — same single list
+  // decides what is on screen, so the two entry points cannot disagree.
+  function wireActionsMenu() {
+    const trigger = document.getElementById('actions-trigger')
+    const menu = document.getElementById('actions-menu')
+    const wrap = document.getElementById('actions-menu-wrap')
+    if (!trigger || !menu || !wrap) return
+
+    // Capability gating deletes items outright; a trigger opening an empty menu
+    // is worse than no trigger at all.
+    if (!menu.querySelector('.menu-item')) { wrap.remove(); return }
+
+    const setOpen = (open) => {
+      menu.hidden = !open
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false')
+    }
+    trigger.addEventListener('click', (e) => { e.stopPropagation(); setOpen(menu.hidden) })
+    menu.addEventListener('click', () => setOpen(false))
+    document.addEventListener('click', (e) => {
+      if (!menu.hidden && !wrap.contains(e.target)) setOpen(false)
+    })
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !menu.hidden) { setOpen(false); trigger.focus() }
+    })
+  }
+
   function wireContentStrip() {
     SEGMENTS.forEach((seg, i) => {
       const control = document.getElementById(seg.control)
       if (control) control.addEventListener('click', () => selectSegment(i))
     })
     document.querySelectorAll('[data-close-panel]').forEach((b) => b.addEventListener('click', closePanels))
+    wireActionsMenu()
   }
 
   on('btn-toggle-status', 'click', async () => {

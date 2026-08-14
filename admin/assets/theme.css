@@ -520,6 +520,35 @@ body.sidebar-collapsed .sidebar-collapse-btn span:last-child { display: none; }
 }
 .tab[aria-selected="true"] .count { color: var(--text); }
 
+/* ── Dropdown menu ──────────────────────────────────────────────────────
+   Collects an entity's actions behind one trigger. A page gains actions over
+   time; a row of five buttons wraps and turns into visual noise, while a menu
+   keeps the header a fixed, readable shape however many there are. */
+.menu-wrap { position: relative; display: inline-flex; }
+.menu-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 80;
+  min-width: 232px; max-width: calc(100vw - 2rem); padding: var(--sp-1);
+  background: var(--bg-elevated); border: 1px solid var(--hairline);
+  border-radius: var(--radius); box-shadow: var(--shadow-pop);
+}
+.menu-pop[hidden] { display: none; }
+/* Right-anchoring pushes the menu off the left edge once the trigger sits near
+   the start of a narrow screen, so flip it to hang from the left there. */
+@media (max-width: 560px) {
+  .menu-pop { right: auto; left: 0; }
+}
+.menu-item {
+  display: flex; width: 100%; align-items: center; gap: var(--sp-2);
+  padding: 0.55rem 0.7rem; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text);
+  font-family: inherit; font-size: var(--fs-base); text-align: left;
+  cursor: pointer; white-space: nowrap; min-height: 38px;
+}
+.menu-item:hover { background: var(--hover-bg); }
+.menu-item--danger { color: var(--danger); }
+.menu-item--danger:hover { background: var(--danger-bg); }
+.menu-sep { height: 1px; margin: var(--sp-1) 0; background: var(--hairline2); }
+
 /* ── Danger zone ────────────────────────────────────────────────────────
    Irreversible actions get their own separated block rather than sitting in
    the same row as everyday ones — the standard back-office convention, so a
