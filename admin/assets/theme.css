@@ -498,6 +498,41 @@ body.sidebar-collapsed .sidebar-collapse-btn span:last-child { display: none; }
 .section-title { font-size: var(--fs-lg); font-weight: 600; margin: 0; letter-spacing: -0.01em; }
 .section-sub { font-size: var(--fs-sm); color: var(--text-muted); margin: 0; }
 
+/* ── Tabs ───────────────────────────────────────────────────────────────
+   One content area, one panel at a time. Used by the dashboard and the client
+   card; promoted out of a page <style> once the second page needed it. */
+.tabs { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--hairline); margin-bottom: var(--sp-4); }
+.tab {
+  padding: var(--sp-3) var(--sp-4); background: none; border: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  color: var(--text-muted); font-family: inherit; font-size: var(--fs-base); font-weight: 500;
+  cursor: pointer; transition: color 0.12s, border-color 0.12s;
+  display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 44px;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tab .count {
+  font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-muted);
+  background: var(--hover-bg); border: 1px solid var(--hairline2);
+  border-radius: 999px; padding: 1px 7px;
+}
+.tab[aria-selected="true"] .count { color: var(--text); }
+
+/* ── Danger zone ────────────────────────────────────────────────────────
+   Irreversible actions get their own separated block rather than sitting in
+   the same row as everyday ones — the standard back-office convention, so a
+   destructive button is never one slip away from a routine click. */
+.danger-zone { border-color: var(--danger-border); }
+.danger-zone .card-title { color: var(--danger); }
+.danger-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-4); flex-wrap: wrap;
+}
+.danger-row + .danger-row { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--hairline2); }
+.danger-row .danger-text { flex: 1; min-width: 240px; }
+.danger-row .danger-text strong { display: block; font-size: var(--fs-base); color: var(--text); font-weight: 500; }
+.danger-row .danger-text span { display: block; font-size: var(--fs-sm); color: var(--text-muted); margin-top: 2px; line-height: var(--lh-loose); }
+
 /* Toolbar above tables. Inputs default to width:100% for stacked forms, which
    inside a flex row makes every control claim a line of its own — so opt them
    back to intrinsic width here. */

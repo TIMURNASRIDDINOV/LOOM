@@ -11,19 +11,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Клиент — LOOM Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=23" />
-  <script src="assets/theme-init.js?v=23"></script>
+  <link rel="stylesheet" href="assets/theme.css?v=24" />
+  <script src="assets/theme-init.js?v=24"></script>
   <style>
-    .info-grid { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-base); }
-    .info-grid .info-label { color: var(--text-muted); white-space: nowrap; }
-    .info-grid .info-value { font-family: var(--mono); }
+    /* Reference details as labelled pairs that wrap into columns, rather than
+       one tall two-column list. Only genuinely technical values are monospaced
+       — a person's name set in DM Mono is harder to read, not more precise. */
+    .info-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: var(--sp-4) var(--sp-5);
+      padding-top: var(--sp-4); margin-top: var(--sp-4);
+      border-top: 1px solid var(--hairline2);
+    }
+    .info-grid .info-label { display: block; font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 2px; }
+    .info-grid .info-value { display: block; font-size: var(--fs-base); color: var(--text); }
+    .info-grid .info-value.is-technical { font-family: var(--mono); }
+
+    /* The two numbers an operator actually scans for. */
+    .ud-stats { display: flex; gap: var(--sp-5); flex-wrap: wrap; }
+    .ud-stat-label { display: block; font-size: var(--fs-sm); color: var(--text-muted); }
+    .ud-stat-value { display: block; font-family: var(--mono); font-size: var(--fs-xl); color: var(--text); margin-top: 2px; }
 
     /* Identity header */
     .ud-identity { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-4); padding-bottom: var(--sp-4); border-bottom: 1px solid var(--hairline); }
     .ud-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--hairline); }
     .ud-avatar-ph { display: flex; align-items: center; justify-content: center; background: var(--hover-bg); font-size: var(--fs-lg); font-weight: 600; color: var(--text-secondary); }
     .ud-name { font-size: var(--fs-lg); font-weight: 600; color: var(--text); }
-    .ud-email { font-size: var(--fs-base); color: var(--text-muted); font-family: var(--mono); margin-top: 2px; }
+    .ud-email { font-size: var(--fs-base); color: var(--text-muted); margin-top: 2px; word-break: break-all; }
     .ud-badges { display: flex; gap: var(--sp-2); align-items: center; margin-top: var(--sp-2); flex-wrap: wrap; }
 
     .actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-4); }
@@ -65,17 +79,20 @@
 
     <div id="user-info-card" class="card">
       <div id="user-identity" class="ud-identity"></div>
+
+      <!-- Two numbers worth reading at a glance, then the reference details. -->
+      <div class="ud-stats" id="user-stats"></div>
       <div id="user-info" class="info-grid"><span class="muted">Загрузка…</span></div>
 
-      <!-- One action bar with words on the buttons. Each entry is gated on the
-           capability its endpoint actually enforces, so an admin never sees a
-           button that would come back 403. -->
+      <!-- Everyday actions only. Blocking lives in its own zone at the bottom —
+           an irreversible action does not belong in the same row as «Изменить
+           данные». Each button is gated on the capability its endpoint
+           enforces, so an admin never sees one that would come back 403. -->
       <div class="actions" id="user-actions">
         <button class="btn" id="btn-notify" data-cap="notifications.send">Написать в Telegram</button>
         <button class="btn" id="btn-edit-profile" data-cap="users.edit">Изменить данные</button>
         <button class="btn" id="btn-edit-location" data-cap="users.edit">Адрес доставки</button>
         <button class="btn" id="btn-reset-password" data-cap="users.password">Сбросить пароль</button>
-        <button class="btn btn--danger" id="btn-toggle-status" data-cap="users.status">Заблокировать</button>
       </div>
       <div class="notice" data-cap-not="users.edit" style="margin-top:var(--sp-4)">
         <span aria-hidden="true">👁</span>
@@ -181,25 +198,48 @@
       </div>
     </div>
 
-    <div class="card card--flush">
-      <div style="padding:var(--sp-5) var(--sp-5) 0"><h3 class="card-title">Заказы клиента</h3></div>
-      <div class="table-wrap" style="border:none;box-shadow:none;margin-top:var(--sp-4)">
-        <table class="table">
-          <thead><tr><th>№</th><th>Дата</th><th>Статус</th><th class="right">Сумма</th></tr></thead>
-          <tbody id="orders-tbody"><tr><td colspan="4"><div class="state">Загрузка…</div></td></tr></tbody>
-        </table>
-      </div>
+    <!-- One content area at a time. Orders is what an operator opens a client
+         card for; the activity log is the audit trail you go looking for. -->
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-orders" aria-selected="true" aria-controls="panel-orders">
+        Заказы <span class="count" id="orders-count"></span>
+      </button>
+      <button class="tab" role="tab" id="tab-activity" aria-selected="false" aria-controls="panel-activity">
+        Активность
+      </button>
     </div>
 
-    <div class="card card--flush">
-      <div class="card-head" style="padding:var(--sp-5) var(--sp-5) 0;margin-bottom:var(--sp-4)">
-        <h3 class="card-title">Активность</h3>
+    <section id="panel-orders" role="tabpanel" aria-labelledby="tab-orders">
+      <div class="card card--flush">
+        <div class="table-wrap" style="border:none;box-shadow:none">
+          <table class="table">
+            <thead><tr><th>№</th><th>Дата</th><th>Статус</th><th class="right">Сумма</th></tr></thead>
+            <tbody id="orders-tbody"><tr><td colspan="4"><div class="state">Загрузка…</div></td></tr></tbody>
+          </table>
+        </div>
       </div>
-      <div class="table-wrap" style="border:none;box-shadow:none">
-        <table class="table">
-          <thead><tr><th>Что произошло</th><th style="width:12rem">Когда</th></tr></thead>
-          <tbody id="activity-tbody"><tr><td colspan="2"><div class="state">Загрузка…</div></td></tr></tbody>
-        </table>
+    </section>
+
+    <section id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+      <div class="card card--flush">
+        <div class="table-wrap" style="border:none;box-shadow:none">
+          <table class="table">
+            <thead><tr><th>Что произошло</th><th style="width:12rem">Когда</th></tr></thead>
+            <tbody id="activity-tbody"><tr><td colspan="2"><div class="state">Загрузка…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Separated on purpose: irreversible, and stated in plain terms. -->
+    <div class="card danger-zone" style="margin-top:var(--sp-5)" data-cap="users.status">
+      <div class="card-head"><h3 class="card-title">Доступ клиента</h3></div>
+      <div class="danger-row">
+        <span class="danger-text">
+          <strong id="danger-title">Заблокировать клиента</strong>
+          <span id="danger-desc">Клиент не сможет войти в личный кабинет и оформлять заказы. Блокировку можно снять в любой момент.</span>
+        </span>
+        <button class="btn btn--danger" id="btn-toggle-status">Заблокировать</button>
       </div>
     </div>
   </main>
@@ -217,11 +257,11 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="assets/app.js?v=23"></script>
-  <script src="assets/ui.js?v=23"></script>
-  <script src="assets/layout.js?v=23"></script>
+  <script src="assets/app.js?v=24"></script>
+  <script src="assets/ui.js?v=24"></script>
+  <script src="assets/layout.js?v=24"></script>
   <script>LOOM_LAYOUT.init('users', { title: 'Клиент', crumbs: [{ label: 'Клиенты', href: 'users.html' }] })</script>
-  <script src="assets/user-detail.js?v=23"></script>
-  <script src="assets/admin-map-picker.js?v=23"></script>
+  <script src="assets/user-detail.js?v=24"></script>
+  <script src="assets/admin-map-picker.js?v=24"></script>
 </body>
 </html>

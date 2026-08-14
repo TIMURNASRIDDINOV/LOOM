@@ -31,16 +31,15 @@
       || (u.phone ? formatPhone(u.phone) : u.email) || `Клиент #${u.id}`
     document.getElementById('page-title').textContent = title
 
+    // «Имя» is dropped: the header already shows it, and repeating it is noise.
+    // `technical` marks values that earn a monospace face (identifiers, digits).
     const rows = [
-      ['Номер клиента', String(u.id)],
-      ['Телефон', u.phone ? formatPhone(u.phone) : '—'],
-      ['Имя', [u.first_name, u.last_name].filter(Boolean).join(' ') || '—'],
-      ['Telegram-аккаунт', u.telegram_username ? '@' + u.telegram_username : '—'],
-      ['Telegram', u.telegram_user_id ? 'привязан' : 'не привязан'],
-      ['Заказов', String(u.orders_count ?? 0)],
-      ['Потрачено', formatPrice(u.total_spent ?? 0)],
-      ['Регистрация', formatDate(u.created_at)],
-      ['Последний вход', u.last_login_at ? formatDate(u.last_login_at) : '—'],
+      ['Телефон', u.phone ? formatPhone(u.phone) : '—', true],
+      ['Telegram', u.telegram_username ? '@' + u.telegram_username
+        : (u.telegram_user_id ? 'привязан' : 'не привязан'), false],
+      ['Регистрация', formatDate(u.created_at), false],
+      ['Последний вход', u.last_login_at ? formatDate(u.last_login_at) : 'ни разу', false],
+      ['Номер клиента', String(u.id), true],
     ]
 
     // Identity header (avatar/initials + name + email + status)
@@ -62,18 +61,31 @@
          </div>`
     }
 
+    document.getElementById('user-stats').innerHTML = `
+      <span><span class="ud-stat-label">Заказов</span>
+            <span class="ud-stat-value">${u.orders_count ?? 0}</span></span>
+      <span><span class="ud-stat-label">Потрачено</span>
+            <span class="ud-stat-value">${escHtml(formatPrice(u.total_spent ?? 0))}</span></span>`
+
     document.getElementById('user-info').innerHTML =
-      rows.map(([label, val]) => `
-        <span class="info-label">${escHtml(label)}</span>
-        <span class="info-value">${escHtml(val)}</span>
+      rows.map(([label, val, technical]) => `
+        <span>
+          <span class="info-label">${escHtml(label)}</span>
+          <span class="info-value${technical ? ' is-technical' : ''}">${escHtml(val)}</span>
+        </span>
       `).join('')
 
+    // The danger zone states what the button will do, in both directions.
     const toggleStatusBtn = document.getElementById('btn-toggle-status')
     if (toggleStatusBtn) {
       const banned = u.status === 'banned'
       toggleStatusBtn.textContent = banned ? 'Разблокировать' : 'Заблокировать'
       toggleStatusBtn.className = banned ? 'btn' : 'btn btn--danger'
-      toggleStatusBtn.setAttribute('data-cap-ok', '')
+      document.getElementById('danger-title').textContent =
+        banned ? 'Разблокировать клиента' : 'Заблокировать клиента'
+      document.getElementById('danger-desc').textContent = banned
+        ? 'Сейчас клиент заблокирован и не может войти. Разблокировка вернёт ему доступ сразу.'
+        : 'Клиент не сможет войти в личный кабинет и оформлять заказы. Блокировку можно снять в любой момент.'
     }
 
     const noTgNote = document.getElementById('notif-no-tg-note')
@@ -131,6 +143,8 @@
     try {
       const data = await apiJSON(`/api/admin/users/${userId}/orders`)
       const tbody = document.getElementById('orders-tbody')
+      const countEl = document.getElementById('orders-count')
+      if (countEl) countEl.textContent = data.orders?.length ?? 0
       if (!data.orders?.length) {
         tbody.innerHTML = '<tr><td colspan="4"><div class="state">У этого клиента ещё нет заказов</div></td></tr>'
         return
@@ -439,6 +453,30 @@
     })
   }
 
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  // Orders is the default: it is what an operator opens a client card for.
+  // The activity log is an audit trail you go looking for, so it is fetched the
+  // first time it is opened rather than on every page load.
+  let activityLoaded = false
+
+  function wireTabs() {
+    const tabs = [
+      { tab: document.getElementById('tab-orders'), panel: document.getElementById('panel-orders') },
+      { tab: document.getElementById('tab-activity'), panel: document.getElementById('panel-activity') },
+    ]
+    tabs.forEach(({ tab }, i) => {
+      if (!tab) return
+      tab.addEventListener('click', () => {
+        tabs.forEach((t, j) => {
+          if (!t.tab) return
+          t.tab.setAttribute('aria-selected', i === j ? 'true' : 'false')
+          t.panel.hidden = i !== j
+        })
+        if (i === 1 && !activityLoaded) { activityLoaded = true; loadActivity() }
+      })
+    })
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   window.LOOM_LAYOUT.onReady(async () => {
@@ -458,6 +496,7 @@
     const phoneInput = document.getElementById('edit-phone')
     if (phoneInput) applyPhoneMask(phoneInput)
 
-    await Promise.all([loadOrders(), loadActivity()])
+    wireTabs()
+    await loadOrders()
   })
 })()
