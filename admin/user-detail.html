@@ -11,8 +11,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Клиент — LOOM Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=22" />
-  <script src="assets/theme-init.js?v=22"></script>
+  <link rel="stylesheet" href="assets/theme.css?v=23" />
+  <script src="assets/theme-init.js?v=23"></script>
   <style>
     .info-grid { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-base); }
     .info-grid .info-label { color: var(--text-muted); white-space: nowrap; }
@@ -41,17 +41,6 @@
     #admin-map-hint { font-size: var(--fs-base); color: var(--text-muted); flex: 1; }
     #admin-map-selected { font-size: var(--fs-sm); color: var(--text-secondary); flex: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #admin-map-el { flex: 1; }
-
-    /* Segmented time filter on the activity log */
-    .filter-row { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
-    .activity-filter-btn {
-      padding: 0.35rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--input-border);
-      background: transparent; color: var(--text-muted); font-family: inherit;
-      font-size: var(--fs-sm); cursor: pointer; transition: color 0.12s, border-color 0.12s, background 0.12s;
-      min-height: 32px;
-    }
-    .activity-filter-btn:hover { color: var(--text); border-color: var(--btn-hover-border); }
-    .activity-filter-btn.active { color: var(--text); border-color: var(--accent); background: var(--link-active-bg); font-weight: 500; }
 
     /* Activity log: a headline sentence with the clarifying detail underneath,
        so the eye scans WHAT happened without wading through metadata. */
@@ -205,13 +194,6 @@
     <div class="card card--flush">
       <div class="card-head" style="padding:var(--sp-5) var(--sp-5) 0;margin-bottom:var(--sp-4)">
         <h3 class="card-title">Активность</h3>
-        <div class="filter-row">
-          <button class="activity-filter-btn active" data-since="">Всё время</button>
-          <button class="activity-filter-btn" data-since="day">День</button>
-          <button class="activity-filter-btn" data-since="week">Неделя</button>
-          <button class="activity-filter-btn" data-since="month">Месяц</button>
-          <button class="activity-filter-btn" data-since="year">Год</button>
-        </div>
       </div>
       <div class="table-wrap" style="border:none;box-shadow:none">
         <table class="table">
@@ -235,11 +217,11 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="assets/app.js?v=22"></script>
-  <script src="assets/ui.js?v=22"></script>
-  <script src="assets/layout.js?v=22"></script>
+  <script src="assets/app.js?v=23"></script>
+  <script src="assets/ui.js?v=23"></script>
+  <script src="assets/layout.js?v=23"></script>
   <script>LOOM_LAYOUT.init('users', { title: 'Клиент', crumbs: [{ label: 'Клиенты', href: 'users.html' }] })</script>
-  <script src="assets/user-detail.js?v=22"></script>
-  <script src="assets/admin-map-picker.js?v=22"></script>
+  <script src="assets/user-detail.js?v=23"></script>
+  <script src="assets/admin-map-picker.js?v=23"></script>
 </body>
 </html>

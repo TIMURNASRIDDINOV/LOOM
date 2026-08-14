@@ -181,15 +181,17 @@
     return map[id] || 'администратор #' + id
   }
 
-  async function loadActivity(since) {
+  // No time filter: every row carries its own date, so a row of period buttons
+  // above a short log was chrome without a job. The endpoint returns the full
+  // history when `since` is omitted.
+  async function loadActivity() {
     const tbody = document.getElementById('activity-tbody')
     tbody.innerHTML = '<tr><td colspan="2"><div class="state">Загрузка…</div></td></tr>'
     try {
-      const qs = since ? `?since=${since}` : ''
-      const data = await apiJSON(`/api/admin/users/${userId}/activity${qs}`)
+      const data = await apiJSON(`/api/admin/users/${userId}/activity`)
 
       if (!data.items?.length) {
-        tbody.innerHTML = '<tr><td colspan="2"><div class="state">За этот период активности не было</div></td></tr>'
+        tbody.innerHTML = '<tr><td colspan="2"><div class="state">По этому клиенту пока ничего не происходило</div></td></tr>'
         return
       }
 
@@ -455,14 +457,6 @@
 
     const phoneInput = document.getElementById('edit-phone')
     if (phoneInput) applyPhoneMask(phoneInput)
-
-    document.querySelectorAll('.activity-filter-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.activity-filter-btn').forEach((b) => b.classList.remove('active'))
-        btn.classList.add('active')
-        loadActivity(btn.dataset.since || undefined)
-      })
-    })
 
     await Promise.all([loadOrders(), loadActivity()])
   })
