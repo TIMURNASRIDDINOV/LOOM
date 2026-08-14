@@ -11,8 +11,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Клиент — LOOM Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=20" />
-  <script src="assets/theme-init.js?v=20"></script>
+  <link rel="stylesheet" href="assets/theme.css?v=22" />
+  <script src="assets/theme-init.js?v=22"></script>
   <style>
     .info-grid { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-base); }
     .info-grid .info-label { color: var(--text-muted); white-space: nowrap; }
@@ -52,6 +52,12 @@
     }
     .activity-filter-btn:hover { color: var(--text); border-color: var(--btn-hover-border); }
     .activity-filter-btn.active { color: var(--text); border-color: var(--accent); background: var(--link-active-bg); font-weight: 500; }
+
+    /* Activity log: a headline sentence with the clarifying detail underneath,
+       so the eye scans WHAT happened without wading through metadata. */
+    .act-title { font-size: var(--fs-base); color: var(--text); }
+    .act-sub { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 2px; line-height: var(--lh-loose); }
+    .act-sub--failed { color: var(--danger); }
 
     /* Only one editing panel is ever open, so the page never becomes a stack
        of half-finished forms the way four independently-toggled cards did. */
@@ -209,8 +215,8 @@
       </div>
       <div class="table-wrap" style="border:none;box-shadow:none">
         <table class="table">
-          <thead><tr><th>Действие</th><th>Дата</th><th>Детали</th></tr></thead>
-          <tbody id="activity-tbody"><tr><td colspan="3"><div class="state">Загрузка…</div></td></tr></tbody>
+          <thead><tr><th>Что произошло</th><th style="width:12rem">Когда</th></tr></thead>
+          <tbody id="activity-tbody"><tr><td colspan="2"><div class="state">Загрузка…</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -229,11 +235,11 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="assets/app.js?v=20"></script>
-  <script src="assets/ui.js?v=20"></script>
-  <script src="assets/layout.js?v=20"></script>
+  <script src="assets/app.js?v=22"></script>
+  <script src="assets/ui.js?v=22"></script>
+  <script src="assets/layout.js?v=22"></script>
   <script>LOOM_LAYOUT.init('users', { title: 'Клиент', crumbs: [{ label: 'Клиенты', href: 'users.html' }] })</script>
-  <script src="assets/user-detail.js?v=20"></script>
-  <script src="assets/admin-map-picker.js?v=20"></script>
+  <script src="assets/user-detail.js?v=22"></script>
+  <script src="assets/admin-map-picker.js?v=22"></script>
 </body>
 </html>

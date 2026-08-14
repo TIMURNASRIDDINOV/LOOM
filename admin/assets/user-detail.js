@@ -1,7 +1,7 @@
 'use strict'
 
 ;(function () {
-  const { apiJSON, formatPrice, formatDate, formatPhone, statusBadge } = window.LOOM
+  const { apiJSON, formatPrice, formatDate, formatPhone, statusBadge, describeActivity } = window.LOOM
   const { toast, confirmDialog, apiErrorMessage } = window.LOOM_UI
 
   // Every action button below lives behind a data-cap and may be absent from
@@ -22,8 +22,7 @@
   }
 
   function roleBadge(role) {
-    const labels = { owner: 'OWNER', super_admin: 'SUPER ADMIN', admin: 'ADMIN', user: 'USER' }
-    return `<span class="badge">${labels[role] || escHtml(role || '?')}</span>`
+    return `<span class="badge">${escHtml(window.LOOM.userRoleLabel(role))}</span>`
   }
 
   function renderUserInfo(u) {
@@ -33,11 +32,11 @@
     document.getElementById('page-title').textContent = title
 
     const rows = [
-      ['ID', String(u.id)],
+      ['Номер клиента', String(u.id)],
       ['Телефон', u.phone ? formatPhone(u.phone) : '—'],
       ['Имя', [u.first_name, u.last_name].filter(Boolean).join(' ') || '—'],
-      ['Telegram', u.telegram_username ? '@' + u.telegram_username : '—'],
-      ['Telegram ID', u.telegram_user_id ? String(u.telegram_user_id) : '—'],
+      ['Telegram-аккаунт', u.telegram_username ? '@' + u.telegram_username : '—'],
+      ['Telegram', u.telegram_user_id ? 'привязан' : 'не привязан'],
       ['Заказов', String(u.orders_count ?? 0)],
       ['Потрачено', formatPrice(u.total_spent ?? 0)],
       ['Регистрация', formatDate(u.created_at)],
@@ -153,35 +152,71 @@
     }
   }
 
+  // by_admin_id is a bare number in the log. Resolving it to an email is the
+  // difference between «by_admin_id: 1» and «Изменил: admin@loomdesign.uz».
+  //
+  // Memoise the PROMISE, not the result: every row resolves its actor
+  // concurrently, so caching the result object meant the first caller published
+  // an empty map before its fetch returned and the other rows all fell through
+  // to the numeric fallback. Awaiting one shared promise keeps it to a single
+  // request and gives every row the same answer.
+  let adminsPromise = null
+  function adminDirectory() {
+    if (!adminsPromise) {
+      adminsPromise = apiJSON('/api/admin/admins')
+        .then(({ admins }) => {
+          const map = {}
+          admins.forEach((a) => { map[a.id] = a.email })
+          return map
+        })
+        // A failed lookup must cost us the names, not the whole log.
+        .catch(() => ({}))
+    }
+    return adminsPromise
+  }
+
+  async function adminName(id) {
+    if (id == null) return ''
+    const map = await adminDirectory()
+    return map[id] || 'администратор #' + id
+  }
+
   async function loadActivity(since) {
     const tbody = document.getElementById('activity-tbody')
-    tbody.innerHTML = '<tr><td colspan="3"><div class="state">Загрузка…</div></td></tr>'
+    tbody.innerHTML = '<tr><td colspan="2"><div class="state">Загрузка…</div></td></tr>'
     try {
       const qs = since ? `?since=${since}` : ''
       const data = await apiJSON(`/api/admin/users/${userId}/activity${qs}`)
 
       if (!data.items?.length) {
-        tbody.innerHTML = '<tr><td colspan="3"><div class="state">За этот период активности не было</div></td></tr>'
+        tbody.innerHTML = '<tr><td colspan="2"><div class="state">За этот период активности не было</div></td></tr>'
         return
       }
-      tbody.innerHTML = data.items.map(a => {
-        let meta = ''
-        if (a.metadata) {
-          try {
-            const m = JSON.parse(a.metadata)
-            meta = Object.entries(m).map(([k, v]) => `${k}: ${v}`).join(', ')
-          } catch { meta = a.metadata }
-        }
-        return `
-          <tr>
-            <td class="mono">${escHtml(a.action)}</td>
-            <td class="muted">${formatDate(a.created_at)}</td>
-            <td class="muted">${escHtml(meta)}</td>
-          </tr>
-        `
-      }).join('')
+
+      // Resolve every actor first so the rows render in one pass.
+      const rows = await Promise.all(data.items.map(async (a) => {
+        let meta = {}
+        if (a.metadata) { try { meta = JSON.parse(a.metadata) } catch { meta = {} } }
+
+        const d = describeActivity(a.action, meta)
+        const actor = await adminName(meta.by_admin_id)
+
+        // The second line carries the clarifying detail and, when an admin did
+        // it rather than the customer, who that was.
+        const sub = [d.note, actor ? 'Изменил: ' + actor : ''].filter(Boolean).join(' · ')
+
+        return '<tr>' +
+          '<td>' +
+            '<div class="act-title">' + escHtml(d.title) + '</div>' +
+            (sub ? '<div class="act-sub' + (d.failed ? ' act-sub--failed' : '') + '">' + escHtml(sub) + '</div>' : '') +
+          '</td>' +
+          '<td class="muted">' + formatDate(a.created_at) + '</td>' +
+        '</tr>'
+      }))
+
+      tbody.innerHTML = rows.join('')
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="3"><div class="state state--error">${escHtml(apiErrorMessage(err))}</div></td></tr>`
+      tbody.innerHTML = `<tr><td colspan="2"><div class="state state--error">${escHtml(apiErrorMessage(err))}</div></td></tr>`
     }
   }
 

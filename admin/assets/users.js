@@ -35,7 +35,7 @@
   // Customer roles are the shop's own roles, not admin roles — kept as a plain
   // badge so they cannot be mistaken for admin-panel access.
   function roleBadge(role) {
-    return '<span class="badge">' + esc(role) + '</span>'
+    return '<span class="badge">' + esc(window.LOOM.userRoleLabel(role)) + '</span>'
   }
 
   function renderUsers(users, total, page, limit) {

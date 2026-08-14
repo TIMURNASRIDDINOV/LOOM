@@ -89,6 +89,117 @@ function formatPhone(phone) {
   return phone
 }
 
+// ─── Human vocabulary ─────────────────────────────────────────────────────────
+// The activity log stores raw machine values — action slugs like
+// `password_reset_requested` and metadata like `by_admin_id: 1`. Those are for
+// the database, not for a person reading a customer's history. Everything an
+// operator sees gets translated here, in one place, so the wording cannot drift
+// between the customers list and the customer card.
+
+// Roles on the SHOP side (a customer's role), not admin-panel roles.
+const USER_ROLE_LABELS = {
+  user: 'Клиент',
+  customer: 'Клиент',
+  admin: 'Администратор',
+  super_admin: 'Старший администратор',
+  owner: 'Владелец',
+}
+
+const PROFILE_FIELD_LABELS = {
+  first_name: 'имя',
+  last_name: 'фамилия',
+  name: 'имя',
+  email: 'email',
+  phone: 'телефон',
+  location_preset: 'адрес доставки',
+}
+
+const LOGIN_VIA_LABELS = {
+  telegram: 'через Telegram',
+  telegram_webapp: 'через Telegram, мини-приложение',
+}
+
+function userRoleLabel(role) {
+  return USER_ROLE_LABELS[role] || role || '—'
+}
+
+// Turn one activity row into a sentence plus an optional clarifying line.
+// An action this function has never heard of must still read sensibly rather
+// than leaking a slug, so the default case cleans it up instead of giving up.
+function describeActivity(action, meta) {
+  const m = meta && typeof meta === 'object' ? meta : {}
+
+  const fieldList = () => {
+    const raw = Array.isArray(m.fields) ? m.fields : String(m.fields || '').split(',')
+    return raw
+      .map((f) => PROFILE_FIELD_LABELS[String(f).trim()] || String(f).trim())
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  const addressOf = (preset) => {
+    if (!preset) return ''
+    if (typeof preset === 'string') { try { preset = JSON.parse(preset) } catch { return '' } }
+    return (preset && preset.address) || ''
+  }
+
+  switch (action) {
+    case 'login':
+      return { title: 'Вход в аккаунт', note: LOGIN_VIA_LABELS[m.via] || '' }
+
+    case 'banned':
+      return { title: 'Аккаунт заблокирован', note: '' }
+
+    case 'unbanned':
+      return { title: 'Аккаунт разблокирован', note: '' }
+
+    case 'role_changed':
+      return {
+        title: 'Изменена роль',
+        note: userRoleLabel(m.from_role) + ' → ' + userRoleLabel(m.to_role) +
+          (m.reason === 'owner_transfer' ? ' · передача владения' : ''),
+      }
+
+    case 'notified':
+      return {
+        title: 'Отправлено сообщение',
+        note: m.status === 'failed' ? 'не доставлено' : 'доставлено в Telegram',
+        failed: m.status === 'failed',
+      }
+
+    case 'profile_updated': {
+      const f = fieldList()
+      return { title: 'Изменены данные клиента', note: f ? 'Поля: ' + f : '' }
+    }
+
+    case 'location_updated': {
+      const addr = addressOf(m.location_preset)
+      return m.location_preset
+        ? { title: 'Изменён адрес доставки', note: addr }
+        : { title: 'Адрес доставки очищен', note: '' }
+    }
+
+    case 'password_reset_requested':
+      return {
+        title: 'Запрошен сброс пароля',
+        note: m.sent === false ? 'сообщение не отправлено' : 'клиенту отправлен запрос в Telegram',
+        failed: m.sent === false,
+      }
+
+    case 'password_reset':
+      return { title: 'Клиент сменил пароль', note: LOGIN_VIA_LABELS[m.via] || '' }
+
+    case 'password_reset_verified':
+      return { title: 'Номер телефона подтверждён', note: LOGIN_VIA_LABELS[m.via] || '' }
+
+    default: {
+      // e.g. "some_new_action" → "Some new action" — still readable, never a slug.
+      const s = String(action || '').replace(/_/g, ' ').trim()
+      return { title: s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Действие', note: '' }
+    }
+  }
+}
+
 // ─── Boot failure surface ─────────────────────────────────────────────────────
 // A page script that throws on its very first statement — typically destructuring
 // a global whose file did not load — dies before it renders anything. The table
@@ -230,4 +341,4 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 // Export for other scripts
-window.LOOM = { API_BASE, apiFetch, apiJSON, checkAuth, logout, statusBadge, formatPrice, formatDate, formatPhone, STATUS_LABELS, STATUS_COLORS, showBootError }
+window.LOOM = { API_BASE, apiFetch, apiJSON, checkAuth, logout, statusBadge, formatPrice, formatDate, formatPhone, STATUS_LABELS, STATUS_COLORS, showBootError, describeActivity, userRoleLabel, USER_ROLE_LABELS }
