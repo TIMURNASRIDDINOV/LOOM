@@ -75,17 +75,22 @@
         </span>
       `).join('')
 
-    // The danger zone states what the button will do, in both directions.
+    // The button says what it will DO, and the title carries the consequence,
+    // so a destructive click is never ambiguous even sitting beside the name.
     const toggleStatusBtn = document.getElementById('btn-toggle-status')
     if (toggleStatusBtn) {
       const banned = u.status === 'banned'
-      toggleStatusBtn.textContent = banned ? 'Разблокировать' : 'Заблокировать'
-      toggleStatusBtn.className = banned ? 'btn' : 'btn btn--danger'
-      document.getElementById('danger-title').textContent =
-        banned ? 'Разблокировать клиента' : 'Заблокировать клиента'
-      document.getElementById('danger-desc').textContent = banned
-        ? 'Сейчас клиент заблокирован и не может войти. Разблокировка вернёт ему доступ сразу.'
-        : 'Клиент не сможет войти в личный кабинет и оформлять заказы. Блокировку можно снять в любой момент.'
+      const BAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>'
+      const UNBAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.4l2.6 2.6L16 9.6"/></svg>'
+
+      document.getElementById('btn-toggle-label').textContent = banned ? 'Разблокировать' : 'Заблокировать'
+      document.getElementById('btn-toggle-icon').innerHTML = banned ? UNBAN_ICON : BAN_ICON
+      toggleStatusBtn.className = banned ? 'btn btn--sm ud-block' : 'btn btn--sm btn--danger ud-block'
+      toggleStatusBtn.title = banned
+        ? 'Вернуть клиенту доступ в личный кабинет'
+        : 'Закрыть клиенту вход и оформление заказов'
     }
 
     const noTgNote = document.getElementById('notif-no-tg-note')
@@ -239,13 +244,32 @@
   // ── Actions ────────────────────────────────────────────────────────────────
   // Exactly one editing panel is open at a time; the previous layout let four
   // stack up and the page turned into a column of half-finished forms.
+  // An action form and a tab view compete for the same region, so opening one
+  // puts the other away — otherwise "one thing at a time" quietly stops being
+  // true the moment someone clicks «Изменить данные».
+  function setTabPanelsVisible(visible) {
+    const orders = document.getElementById('panel-orders')
+    const activity = document.getElementById('panel-activity')
+    if (!orders || !activity) return
+    if (!visible) { orders.hidden = true; activity.hidden = true; return }
+    orders.hidden = activeTab !== 0
+    activity.hidden = activeTab !== 1
+  }
+
   function openPanel(id) {
     document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('open', p.id === id))
+    setTabPanelsVisible(false)
+    // Deselect the tabs while a form owns the region: nothing should look
+    // current when its content is not on screen.
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', 'false'))
     const panel = document.getElementById(id)
     if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
+
   function closePanels() {
     document.querySelectorAll('.panel').forEach((p) => p.classList.remove('open'))
+    setTabPanelsVisible(true)
+    selectTab(activeTab)
   }
   function togglePanel(id) {
     const panel = document.getElementById(id)
@@ -458,21 +482,29 @@
   // The activity log is an audit trail you go looking for, so it is fetched the
   // first time it is opened rather than on every page load.
   let activityLoaded = false
+  let activeTab = 0
 
-  function wireTabs() {
+  function selectTab(i) {
+    activeTab = i
     const tabs = [
       { tab: document.getElementById('tab-orders'), panel: document.getElementById('panel-orders') },
       { tab: document.getElementById('tab-activity'), panel: document.getElementById('panel-activity') },
     ]
-    tabs.forEach(({ tab }, i) => {
-      if (!tab) return
-      tab.addEventListener('click', () => {
-        tabs.forEach((t, j) => {
-          if (!t.tab) return
-          t.tab.setAttribute('aria-selected', i === j ? 'true' : 'false')
-          t.panel.hidden = i !== j
-        })
-        if (i === 1 && !activityLoaded) { activityLoaded = true; loadActivity() }
+    tabs.forEach((t, j) => {
+      if (!t.tab) return
+      t.tab.setAttribute('aria-selected', i === j ? 'true' : 'false')
+      t.panel.hidden = i !== j
+    })
+    if (i === 1 && !activityLoaded) { activityLoaded = true; loadActivity() }
+  }
+
+  function wireTabs() {
+    ;['tab-orders', 'tab-activity'].forEach((id, i) => {
+      const tab = document.getElementById(id)
+      // Choosing a view also dismisses any open form — same region, one owner.
+      if (tab) tab.addEventListener('click', () => {
+        document.querySelectorAll('.panel').forEach((p) => p.classList.remove('open'))
+        selectTab(i)
       })
     })
   }

@@ -502,6 +502,8 @@ body.sidebar-collapsed .sidebar-collapse-btn span:last-child { display: none; }
    One content area, one panel at a time. Used by the dashboard and the client
    card; promoted out of a page <style> once the second page needed it. */
 .tabs { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--hairline); margin-bottom: var(--sp-4); }
+/* When the tab strip shares a bar with other controls, the bar owns the rule. */
+.tabs--bare { border-bottom: none; margin-bottom: 0; }
 .tab {
   padding: var(--sp-3) var(--sp-4); background: none; border: none;
   border-bottom: 2px solid transparent; margin-bottom: -1px;
