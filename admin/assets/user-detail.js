@@ -241,48 +241,57 @@
     }
   }
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-  // Exactly one editing panel is open at a time; the previous layout let four
-  // stack up and the page turned into a column of half-finished forms.
-  // An action form and a tab view compete for the same region, so opening one
-  // puts the other away — otherwise "one thing at a time" quietly stops being
-  // true the moment someone clicks «Изменить данные».
-  function setTabPanelsVisible(visible) {
-    const orders = document.getElementById('panel-orders')
-    const activity = document.getElementById('panel-activity')
-    if (!orders || !activity) return
-    if (!visible) { orders.hidden = true; activity.hidden = true; return }
-    orders.hidden = activeTab !== 0
-    activity.hidden = activeTab !== 1
+  // ── Content strip ─────────────────────────────────────────────────────────
+  // Six controls, one style, one region beneath them. Two are views (Заказы,
+  // Активность) and four open a form, but from the operator's side they behave
+  // identically: click one, its content takes the region and it shows selected.
+  // Modelling them as a single list is what keeps that promise honest — with
+  // two parallel mechanisms it is only a matter of time before some path leaves
+  // two things on screen or nothing selected.
+  const SEGMENTS = [
+    { control: 'tab-orders',         panel: 'panel-orders',       view: true },
+    { control: 'tab-activity',       panel: 'panel-activity',     view: true, onFirstOpen: () => loadActivity() },
+    { control: 'btn-notify',         panel: 'notif-form' },
+    { control: 'btn-edit-profile',   panel: 'edit-profile-card' },
+    { control: 'btn-edit-location',  panel: 'edit-location-card' },
+    { control: 'btn-reset-password', panel: 'reset-password-card' },
+  ]
+
+  const opened = new Set()
+  let activeSegment = 0
+  // Closing a form returns you to the view you were reading, not to a fixed
+  // default — landing back on Заказы after checking Активность loses your place.
+  let lastViewSegment = 0
+
+  function selectSegment(i) {
+    const seg = SEGMENTS[i]
+    if (!seg) return
+    activeSegment = i
+    if (seg.view) lastViewSegment = i
+
+    SEGMENTS.forEach((s2, j) => {
+      const control = document.getElementById(s2.control)
+      const panel = document.getElementById(s2.panel)
+      // Either may be absent: capability gating removes controls outright.
+      if (control) control.setAttribute('aria-selected', i === j ? 'true' : 'false')
+      if (panel) panel.hidden = i !== j
+    })
+
+    if (!opened.has(i)) {
+      opened.add(i)
+      if (seg.onFirstOpen) seg.onFirstOpen()
+    }
   }
 
-  function openPanel(id) {
-    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('open', p.id === id))
-    setTabPanelsVisible(false)
-    // Deselect the tabs while a form owns the region: nothing should look
-    // current when its content is not on screen.
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', 'false'))
-    const panel = document.getElementById(id)
-    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }
+  function closePanels() { selectSegment(lastViewSegment) }
 
-  function closePanels() {
-    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('open'))
-    setTabPanelsVisible(true)
-    selectTab(activeTab)
+  function wireContentStrip() {
+    SEGMENTS.forEach((seg, i) => {
+      const control = document.getElementById(seg.control)
+      if (control) control.addEventListener('click', () => selectSegment(i))
+    })
+    document.querySelectorAll('[data-close-panel]').forEach((b) => b.addEventListener('click', closePanels))
   }
-  function togglePanel(id) {
-    const panel = document.getElementById(id)
-    if (panel && panel.classList.contains('open')) closePanels()
-    else openPanel(id)
-  }
-
-  document.querySelectorAll('[data-close-panel]').forEach((b) => b.addEventListener('click', closePanels))
-
-  on('btn-notify', 'click', () => togglePanel('notif-form'))
-  on('btn-edit-profile', 'click', () => togglePanel('edit-profile-card'))
-  on('btn-edit-location', 'click', () => togglePanel('edit-location-card'))
-  on('btn-reset-password', 'click', () => togglePanel('reset-password-card'))
 
   on('btn-toggle-status', 'click', async () => {
     if (!currentUser) return
@@ -477,38 +486,6 @@
     })
   }
 
-  // ── Tabs ──────────────────────────────────────────────────────────────────
-  // Orders is the default: it is what an operator opens a client card for.
-  // The activity log is an audit trail you go looking for, so it is fetched the
-  // first time it is opened rather than on every page load.
-  let activityLoaded = false
-  let activeTab = 0
-
-  function selectTab(i) {
-    activeTab = i
-    const tabs = [
-      { tab: document.getElementById('tab-orders'), panel: document.getElementById('panel-orders') },
-      { tab: document.getElementById('tab-activity'), panel: document.getElementById('panel-activity') },
-    ]
-    tabs.forEach((t, j) => {
-      if (!t.tab) return
-      t.tab.setAttribute('aria-selected', i === j ? 'true' : 'false')
-      t.panel.hidden = i !== j
-    })
-    if (i === 1 && !activityLoaded) { activityLoaded = true; loadActivity() }
-  }
-
-  function wireTabs() {
-    ;['tab-orders', 'tab-activity'].forEach((id, i) => {
-      const tab = document.getElementById(id)
-      // Choosing a view also dismisses any open form — same region, one owner.
-      if (tab) tab.addEventListener('click', () => {
-        document.querySelectorAll('.panel').forEach((p) => p.classList.remove('open'))
-        selectTab(i)
-      })
-    })
-  }
-
   // ── Init ───────────────────────────────────────────────────────────────────
 
   window.LOOM_LAYOUT.onReady(async () => {
@@ -528,7 +505,8 @@
     const phoneInput = document.getElementById('edit-phone')
     if (phoneInput) applyPhoneMask(phoneInput)
 
-    wireTabs()
+    wireContentStrip()
+    selectSegment(0)
     await loadOrders()
   })
 })()

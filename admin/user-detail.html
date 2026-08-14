@@ -11,8 +11,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Клиент — LOOM Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=25" />
-  <script src="assets/theme-init.js?v=25"></script>
+  <link rel="stylesheet" href="assets/theme.css?v=26" />
+  <script src="assets/theme-init.js?v=26"></script>
   <style>
     /* Reference details as labelled pairs that wrap into columns, rather than
        one tall two-column list. Only genuinely technical values are monospaced
@@ -41,17 +41,20 @@
     .ud-block-icon { display: inline-flex; }
     .ud-block-icon svg { width: 15px; height: 15px; stroke-width: 1.9; }
 
-    /* One bar: views on the left, actions on the right, one shared underline. */
+    /* One strip, one style. Views sit left, the things you can do sit right,
+       and every item is the same kind of control: click it and its content
+       takes the region below, underlined while it is showing. */
     .content-bar {
       display: flex; align-items: flex-end; justify-content: space-between;
-      gap: var(--sp-3) var(--sp-4); flex-wrap: wrap;
+      gap: 0 var(--sp-5); flex-wrap: wrap;
       border-bottom: 1px solid var(--hairline); margin-bottom: var(--sp-4);
     }
-    .content-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; padding-bottom: var(--sp-2); }
-    @media (max-width: 720px) {
-      .content-bar { align-items: stretch; }
-      .content-actions { padding-bottom: var(--sp-3); }
-    }
+    .content-actions { flex-wrap: wrap; }
+    /* Actions are secondary to the views, so they start a shade quieter — the
+       selected underline still reads identically on both groups. */
+    .content-actions .tab { color: var(--text-dim); }
+    .content-actions .tab:hover,
+    .content-actions .tab[aria-selected="true"] { color: var(--text); }
     .ud-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--hairline); }
     .ud-avatar-ph { display: flex; align-items: center; justify-content: center; background: var(--hover-bg); font-size: var(--fs-lg); font-weight: 600; color: var(--text-secondary); }
     .ud-name { font-size: var(--fs-lg); font-weight: 600; color: var(--text); }
@@ -80,10 +83,6 @@
     .act-sub { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 2px; line-height: var(--lh-loose); }
     .act-sub--failed { color: var(--danger); }
 
-    /* Only one editing panel is ever open, so the page never becomes a stack
-       of half-finished forms the way four independently-toggled cards did. */
-    .panel { display: none; }
-    .panel.open { display: block; }
   </style>
 </head>
 <body>
@@ -118,11 +117,11 @@
       </div>
     </div>
 
-    <!-- One bar governs the whole content area below it: what to LOOK at on the
-         left, what to DO on the right. Everything it opens — a tab panel or an
-         action form — renders in the same place, so only one thing is ever on
-         screen. Actions stay buttons rather than tabs: they change data, tabs
-         only change the view, and blurring that is how people misclick. -->
+    <!-- One bar governs the content area below it: what to LOOK at on the left,
+         what to DO on the right, every item styled and behaving the same way.
+         Whichever one is showing carries the underline, and its content owns
+         the region — see SEGMENTS in user-detail.js, which drives all six from
+         a single list so no path can leave two panels open or none selected. -->
     <div class="content-bar">
       <div class="tabs tabs--bare" role="tablist">
         <button class="tab" role="tab" id="tab-orders" aria-selected="true" aria-controls="panel-orders">
@@ -132,11 +131,11 @@
           Активность
         </button>
       </div>
-      <div class="content-actions" id="user-actions">
-        <button class="btn btn--sm" id="btn-notify" data-cap="notifications.send">Написать в Telegram</button>
-        <button class="btn btn--sm" id="btn-edit-profile" data-cap="users.edit">Изменить данные</button>
-        <button class="btn btn--sm" id="btn-edit-location" data-cap="users.edit">Адрес доставки</button>
-        <button class="btn btn--sm" id="btn-reset-password" data-cap="users.password">Сбросить пароль</button>
+      <div class="tabs tabs--bare content-actions" role="tablist" id="user-actions">
+        <button class="tab" role="tab" aria-selected="false" id="btn-notify" aria-controls="notif-form" data-cap="notifications.send">Написать в Telegram</button>
+        <button class="tab" role="tab" aria-selected="false" id="btn-edit-profile" aria-controls="edit-profile-card" data-cap="users.edit">Изменить данные</button>
+        <button class="tab" role="tab" aria-selected="false" id="btn-edit-location" aria-controls="edit-location-card" data-cap="users.edit">Адрес доставки</button>
+        <button class="tab" role="tab" aria-selected="false" id="btn-reset-password" aria-controls="reset-password-card" data-cap="users.password">Сбросить пароль</button>
       </div>
     </div>
 
@@ -162,7 +161,7 @@
       </div>
     </section>
 
-    <div class="card panel" id="notif-form">
+    <div class="card panel" id="notif-form" hidden>
       <div class="card-head">
         <div>
           <h3 class="card-title">Сообщение клиенту</h3>
@@ -190,7 +189,7 @@
       </div>
     </div>
 
-    <div class="card panel" id="edit-profile-card">
+    <div class="card panel" id="edit-profile-card" hidden>
       <div class="card-head">
         <h3 class="card-title">Данные клиента</h3>
         <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
@@ -220,7 +219,7 @@
       </div>
     </div>
 
-    <div class="card panel" id="edit-location-card">
+    <div class="card panel" id="edit-location-card" hidden>
       <div class="card-head">
         <h3 class="card-title">Адрес доставки</h3>
         <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
@@ -246,7 +245,7 @@
       </div>
     </div>
 
-    <div class="card panel" id="reset-password-card">
+    <div class="card panel" id="reset-password-card" hidden>
       <div class="card-head">
         <h3 class="card-title">Сброс пароля</h3>
         <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
@@ -275,11 +274,11 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="assets/app.js?v=25"></script>
-  <script src="assets/ui.js?v=25"></script>
-  <script src="assets/layout.js?v=25"></script>
+  <script src="assets/app.js?v=26"></script>
+  <script src="assets/ui.js?v=26"></script>
+  <script src="assets/layout.js?v=26"></script>
   <script>LOOM_LAYOUT.init('users', { title: 'Клиент', crumbs: [{ label: 'Клиенты', href: 'users.html' }] })</script>
-  <script src="assets/user-detail.js?v=25"></script>
-  <script src="assets/admin-map-picker.js?v=25"></script>
+  <script src="assets/user-detail.js?v=26"></script>
+  <script src="assets/admin-map-picker.js?v=26"></script>
 </body>
 </html>
