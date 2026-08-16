@@ -39,7 +39,7 @@
     return 'other'
   }
 
-  function send() {
+  function send(event) {
     const API = window.LOOM_CONFIG
       ? window.LOOM_CONFIG.API_BASE
       : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -53,6 +53,7 @@
       os: detectOs(),
       browser: detectBrowser(),
       referrer: document.referrer || null,
+      event: event || null,
     }
 
     // Use sendBeacon for reliability; fall back to fetch
@@ -65,12 +66,28 @@
     }
   }
 
+  // ── Funnel events ──────────────────────────────────────────────
+  // Each step fires at most ONCE per session. A funnel wants "did this visitor
+  // reach this step", not how many times they nudged a control, and once-only
+  // also keeps a long design session from flooding the table.
+  function track(event) {
+    if (!event) return
+    const key = 'loom_evt_' + event
+    try {
+      if (sessionStorage.getItem(key)) return
+      sessionStorage.setItem(key, '1')
+    } catch (e) { /* private mode — send anyway */ }
+    send(event)
+  }
+
+  window.LOOM_TRACK = { event: track }
+
   // Send once per session per page load (don't re-track on SPA navigation for now)
   const trackKey = 'loom_tracked_' + window.location.pathname
   if (!sessionStorage.getItem(trackKey)) {
     sessionStorage.setItem(trackKey, '1')
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', send)
+      document.addEventListener('DOMContentLoaded', function () { send() })
     } else {
       send()
     }

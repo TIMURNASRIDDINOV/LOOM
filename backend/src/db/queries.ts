@@ -1387,12 +1387,14 @@ export async function trackPageVisit(
     os: string | null
     browser: string | null
     referrer: string | null
+    /** NULL for a plain pageview; a funnel step name otherwise. */
+    event?: string | null
   },
 ): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO page_visits (session_id, page, device_type, os, browser, referrer, visited_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO page_visits (session_id, page, device_type, os, browser, referrer, event, visited_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       params.session_id,
@@ -1401,6 +1403,7 @@ export async function trackPageVisit(
       params.os,
       params.browser,
       params.referrer,
+      params.event ?? null,
       Date.now(),
     )
     .run()
