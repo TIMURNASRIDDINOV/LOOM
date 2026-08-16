@@ -221,3 +221,68 @@ body.loom-modal-open { overflow: hidden; }
   color: var(--ink-55, rgba(19,19,17,0.55));
   margin: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   MAXIMALIST SKIN — phone-login modal
+   Matches assets/theme.css §11 (tokens come from there).
+   Last in the file: order beats specificity.
+   ═══════════════════════════════════════════════════════════════ */
+.loom-modal {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  box-shadow: var(--hard, 3px 3px 0 var(--ink));
+}
+.loom-modal__title {
+  font-family: var(--font-display, sans-serif);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+/* Mono eyebrow above the title, matching the configurator rail */
+.loom-modal__title::before {
+  content: "LOOM / ВХОД";
+  display: block;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: var(--accent-deep, #c8352b);
+}
+.loom-modal__phone-wrap {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.loom-modal__phone-wrap:focus-within {
+  border-color: var(--accent, #fc5044);
+  box-shadow: var(--hard-accent, 3px 3px 0 var(--accent));
+}
+.loom-modal__phone-prefix {
+  border-right: var(--rule, 2px solid var(--ink));
+  font-weight: 600;
+  color: var(--ink, #131311);
+}
+.loom-modal__btn, .loom-modal__cancel-btn {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  font-family: var(--font-display, sans-serif);
+  font-weight: 700;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: background 0.2s, color 0.2s, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.loom-modal__btn:hover:not(:disabled),
+.loom-modal__cancel-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--hard, 3px 3px 0 var(--ink));
+}
+.loom-modal__btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+.loom-modal__close { border-radius: 0; }
+.loom-modal__timeout-bar { border: 1.5px solid var(--ink, #131311); border-radius: 0; background: transparent; }
+.loom-modal__timeout-fill { background: var(--accent, #fc5044); }
+.loom-modal__success-icon { border-radius: 0; border: var(--rule, 2px solid var(--ink)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .loom-modal__btn:hover, .loom-modal__cancel-btn:hover,
+  .loom-modal__btn:active { transform: none; }
+}

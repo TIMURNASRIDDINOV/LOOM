@@ -32,12 +32,12 @@
       const card = document.createElement('div')
       card.className = 'product-card product-card--skeleton'
       card.innerHTML = `
-        <div class="product-card__image-container" style="background:rgba(19,19,17,0.04)">
-          <div style="width:100%;height:100%;background:linear-gradient(90deg,rgba(19,19,17,0.04) 25%,rgba(19,19,17,0.09) 50%,rgba(19,19,17,0.04) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite"></div>
+        <div class="product-card__image-container" style="background:var(--hover-wash)">
+          <div style="width:100%;height:100%;background:linear-gradient(90deg,var(--hover-wash) 25%,var(--line-soft) 50%,var(--hover-wash) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite"></div>
         </div>
         <div class="product-card__content">
-          <div style="height:18px;background:rgba(19,19,17,0.08);border-radius:2px;margin-bottom:0.5rem;animation:shimmer 1.4s infinite"></div>
-          <div style="height:14px;width:60%;background:rgba(19,19,17,0.05);border-radius:2px;animation:shimmer 1.4s infinite"></div>
+          <div style="height:18px;background:var(--line-soft);border-radius:0;margin-bottom:0.5rem;animation:shimmer 1.4s infinite"></div>
+          <div style="height:14px;width:60%;background:var(--hover-wash);border-radius:0;animation:shimmer 1.4s infinite"></div>
         </div>
       `
       grid.appendChild(card)
@@ -56,12 +56,13 @@
   // ── Error state ───────────────────────────────────────────────────────────
   function renderError(container, onRetry) {
     const wrap = document.createElement('div')
-    wrap.style.cssText = 'text-align:center;padding:4rem 1.5rem;color:rgba(19,19,17,0.55)'
+    wrap.style.cssText = 'text-align:center;padding:4rem 1.5rem;color:var(--ink-55)'
     wrap.innerHTML = `
       <p style="margin-bottom:1rem">${T('catalog.loadError', 'Не удалось загрузить каталог.')}</p>
       <button id="catalog-retry" style="
-        padding:0.85rem 1.6rem;border:1px solid rgba(19,19,17,0.85);
-        background:transparent;color:rgba(19,19,17,0.85);border-radius:2px;font-family:inherit;
+        padding:0.85rem 1.6rem;border:var(--rule);
+        background:transparent;color:var(--ink);border-radius:0;font-family:var(--font-display,inherit);
+        font-weight:700;box-shadow:var(--hard-sm);
         font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;
         transition:background 0.2s">${T('catalog.retry', 'Повторить')}</button>
     `
@@ -98,11 +99,11 @@
       img.className = 'product-card__image'
       img.onerror = function () {
         this.style.display = 'none'
-        imageContainer.style.background = 'rgba(19,19,17,0.04)'
+        imageContainer.style.background = 'var(--hover-wash)'
       }
       imageContainer.appendChild(img)
     } else {
-      imageContainer.style.background = 'rgba(19,19,17,0.04)'
+      imageContainer.style.background = 'var(--hover-wash)'
     }
 
     // Hover swap: no second photo in the API yet, so the "back" is a
@@ -402,7 +403,7 @@
     container.innerHTML = ''
 
     if (!products.length) {
-      container.innerHTML = `<p style="text-align:center;color:rgba(19,19,17,0.4);padding:3rem">${T('catalog.empty', 'Каталог пуст.')}</p>`
+      container.innerHTML = `<p style="text-align:center;color:var(--ink-38);padding:3rem">${T('catalog.empty', 'Каталог пуст.')}</p>`
       return
     }
 

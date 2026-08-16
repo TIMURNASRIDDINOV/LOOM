@@ -135,25 +135,29 @@
   // Minimal styles (scoped to .lr-*) — light editorial system
   const css = document.createElement('style');
   css.textContent =
-    '.lr-overlay{position:fixed;inset:0;z-index:5000;background:rgba(19,19,17,0.45);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:1.25rem}' +
-    '.lr-card{width:100%;max-width:380px;background:#fff;border:1px solid rgba(19,19,17,0.16);border-radius:2px;padding:1.75rem;position:relative;font-family:"Inter",-apple-system,sans-serif;color:#131311;box-shadow:0 30px 80px rgba(19,19,17,0.18)}' +
-    '.lr-close{position:absolute;top:0.2rem;right:0.2rem;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:rgba(19,19,17,0.38);font-size:1.5rem;cursor:pointer;line-height:1;padding:0}' +
-    '.lr-close:hover{color:#131311}' +
-    '.lr-title{color:#131311;font-size:1.15rem;font-weight:600;margin:0 0 0.4rem}' +
-    '.lr-sub{color:rgba(19,19,17,0.55);font-size:0.85rem;line-height:1.5;margin:0 0 1rem}' +
-    '.lr-ok{color:#15803d}' +
+    /* Theme tokens, not hex: this modal was authored entirely in light-theme
+       colours (#fff card, #131311 text), so in dark mode it rendered as a
+       white card of near-invisible text. Everything below resolves per theme.
+       Also carries the maximalist skin so it matches the rest of the site. */
+    '.lr-overlay{position:fixed;inset:0;z-index:5000;background:var(--scrim);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:1.25rem}' +
+    '.lr-card{width:100%;max-width:380px;background:var(--paper-3);border:var(--rule);border-radius:0;padding:1.75rem;position:relative;font-family:var(--font-body);color:var(--ink);box-shadow:var(--hard)}' +
+    '.lr-close{position:absolute;top:0.2rem;right:0.2rem;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:var(--ink-38);font-size:1.5rem;cursor:pointer;line-height:1;padding:0}' +
+    '.lr-close:hover{color:var(--ink)}' +
+    '.lr-title{color:var(--ink);font-family:var(--font-display);font-size:1.15rem;font-weight:700;letter-spacing:-0.02em;margin:0 0 0.4rem}' +
+    '.lr-sub{color:var(--ink-55);font-size:0.85rem;line-height:1.5;margin:0 0 1rem}' +
+    '.lr-ok{color:var(--ok)}' +
     '.lr-phone{display:flex;gap:0.5rem;align-items:stretch}' +
-    '.lr-cc{display:flex;align-items:center;padding:0 0.75rem;border:1px solid rgba(19,19,17,0.16);border-radius:2px;background:#f4f2ed;color:rgba(19,19,17,0.7);font-size:0.9rem}' +
-    '.lr-input{width:100%;padding:0.7rem 0.9rem;border-radius:2px;border:1px solid rgba(19,19,17,0.16);background:#f4f2ed;color:#131311;font-family:inherit;font-size:1rem;outline:none}' + /* ≥16px: no iOS zoom */
-    '.lr-input:focus{border-color:#131311}' +
-    '.lr-err{color:#d6382d;font-size:0.78rem;min-height:1em;margin:0.5rem 0}' +
-    '.lr-btn{width:100%;padding:0.8rem;border-radius:2px;border:1px solid #131311;background:#131311;color:#fff;font-family:inherit;font-size:0.8rem;font-weight:600;letter-spacing:0.04em;cursor:pointer;margin-top:0.6rem}' +
-    '.lr-btn:hover:not(:disabled){background:#fc5044;border-color:#fc5044}' +
+    '.lr-cc{display:flex;align-items:center;padding:0 0.75rem;border:var(--rule);border-radius:0;background:var(--paper-2);color:var(--ink-70);font-size:0.9rem}' +
+    '.lr-input{width:100%;padding:0.7rem 0.9rem;border-radius:0;border:var(--rule);background:var(--field-bg);color:var(--ink);font-family:inherit;font-size:1rem;outline:none;box-shadow:var(--hard-sm)}' + /* >=16px: no iOS zoom */
+    '.lr-input:focus{border-color:var(--accent);box-shadow:var(--hard-accent)}' +
+    '.lr-err{color:var(--danger);font-size:0.78rem;min-height:1em;margin:0.5rem 0}' +
+    '.lr-btn{width:100%;padding:0.8rem;border-radius:0;border:var(--rule);background:var(--ink);color:var(--paper);font-family:var(--font-display);font-size:0.8rem;font-weight:700;letter-spacing:0.04em;cursor:pointer;margin-top:0.6rem;box-shadow:var(--hard-sm)}' +
+    '.lr-btn:hover:not(:disabled){background:var(--accent);border-color:var(--ink);color:var(--on-accent);box-shadow:var(--hard)}' +
     '.lr-btn:disabled{opacity:0.5;cursor:default}' +
-    '.lr-btn-tg{background:#229ED9;border-color:#229ED9;color:#fff}' +
-    '.lr-btn-tg:hover:not(:disabled){background:#1b8ec2;border-color:#1b8ec2}' +
-    '.lr-link{display:block;text-align:center;color:rgba(19,19,17,0.55);font-size:0.8rem;margin-top:0.9rem;text-decoration:underline}' +
-    '.lr-spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(19,19,17,0.12);border-top-color:#229ED9;animation:lrspin 0.8s linear infinite;margin:1rem auto}' +
+    '.lr-btn-tg{background:#1A78A5;border-color:var(--ink);color:#fff}' +
+    '.lr-btn-tg:hover:not(:disabled){background:#1b8ec2;border-color:var(--ink)}' +
+    '.lr-link{display:block;text-align:center;color:var(--ink-55);font-size:0.8rem;margin-top:0.9rem;text-decoration:underline}' +
+    '.lr-spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:#229ED9;animation:lrspin 0.8s linear infinite;margin:1rem auto}' +
     '@keyframes lrspin{to{transform:rotate(360deg)}}';
   document.head.appendChild(css);
 

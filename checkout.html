@@ -21,10 +21,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
   <!-- Design system -->
-  <link rel="stylesheet" href="assets/theme.css?v=10" />
-  <link rel="stylesheet" href="assets/nav.css?v=4" />
-  <link rel="stylesheet" href="assets/auth.css?v=5" />
-  <link rel="stylesheet" href="assets/login-modal.css?v=4" />
+  <link rel="stylesheet" href="assets/theme.css?v=12" />
+  <link rel="stylesheet" href="assets/nav.css?v=12" />
+  <link rel="stylesheet" href="assets/auth.css?v=12" />
+  <link rel="stylesheet" href="assets/login-modal.css?v=5" />
   <script src="assets/boot.js?v=8"></script>
 
   <!-- Page scripts: deferred so the parser is never blocked and the
@@ -35,12 +35,12 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script defer src="assets/config.js?v=2"></script>
   <script defer src="assets/layout.js?v=3"></script>
-  <script defer src="assets/i18n.js?v=15"></script>
+  <script defer src="assets/i18n.js?v=19"></script>
   <script defer src="assets/auth.js?v=4"></script>
   <script defer src="assets/tma.js?v=3"></script>
   <script defer src="assets/nav.js?v=2"></script>
   <script defer src="assets/motion.js?v=9"></script>
-  <script defer src="assets/track.js?v=2"></script>
+  <script defer src="assets/track.js?v=3"></script>
   <script defer src="assets/login-modal.js?v=2"></script>
   <script defer src="assets/cart.js?v=2"></script>
   <script defer src="assets/address-picker.js?v=2"></script>
@@ -220,6 +220,39 @@
     @media (max-width: 960px) {
       .co-summary { position: static; }
       .co-place { padding: 1.1rem 1.25rem; }
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       MAXIMALIST SKIN — checkout
+       Matches assets/theme.css §11 (tokens come from there).
+       Last in the block so it wins on order, not specificity.
+       ═══════════════════════════════════════════════════════════ */
+    .co-summary, .co-saved, .co-banner {
+      border: var(--rule); border-radius: 0; box-shadow: var(--hard-sm);
+    }
+    .co-pay-tile {
+      border: var(--rule); border-radius: 0; box-shadow: var(--hard-sm);
+      transition: border-color 0.2s ease, transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .co-pay-tile:hover:not(.disabled) { transform: translate(-1px, -1px); box-shadow: var(--hard); }
+    .co-pay-tile.active { box-shadow: var(--hard-accent); }
+    .co-pay-name { font-family: var(--font-display); font-weight: 700; }
+    .co-item-thumb { border: var(--rule); border-radius: 0; }
+    .co-place {
+      border: var(--rule); border-radius: 0;
+      background: var(--accent); color: var(--on-accent);
+      font-family: var(--font-display); font-weight: 700;
+      /* white on --accent is 3.3:1 — only passes AA as LARGE text,
+         so this size is load-bearing, not decorative */
+      font-size: 1.25rem; text-transform: uppercase; letter-spacing: 0.02em;
+      box-shadow: var(--hard);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .co-place:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+    .co-place:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
+    .co-saved-chip { border-radius: 0; border: 1.5px solid var(--ink); font-family: var(--font-mono); }
+    @media (prefers-reduced-motion: reduce) {
+      .co-pay-tile:hover, .co-place:hover, .co-place:active { transform: none; }
     }
   </style>
 </head>

@@ -14,16 +14,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=10" />
-  <link rel="stylesheet" href="assets/nav.css?v=4" />
-  <link rel="stylesheet" href="assets/auth.css?v=5" />
-  <link rel="stylesheet" href="assets/login-modal.css?v=4" />
+  <link rel="stylesheet" href="assets/theme.css?v=12" />
+  <link rel="stylesheet" href="assets/nav.css?v=12" />
+  <link rel="stylesheet" href="assets/auth.css?v=12" />
+  <link rel="stylesheet" href="assets/login-modal.css?v=5" />
   <script src="assets/boot.js?v=8"></script>
 
   <!-- Page scripts: deferred, document order preserved. -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script defer src="assets/config.js?v=2"></script>
-  <script defer src="assets/i18n.js?v=15"></script>
+  <script defer src="assets/i18n.js?v=19"></script>
   <script defer src="assets/auth.js?v=4"></script>
   <script defer src="assets/tma.js?v=3"></script>
   <script defer src="assets/motion.js?v=9"></script>
@@ -35,8 +35,8 @@
     .auth-back { font-size: 0.78rem; color: var(--ink-55); text-decoration: none; transition: color 0.15s; }
     .auth-back:hover { color: var(--accent-deep); }
     .auth-btn-tg {
-      width: 100%; padding: 0.85rem; border-radius: var(--radius); border: 1px solid #229ED9;
-      background: #229ED9; color: #fff; font-family: inherit; font-size: 0.82rem; font-weight: 600;
+      width: 100%; padding: 0.85rem; border-radius: var(--radius); border: 1px solid #1A78A5;
+      background: #1A78A5; color: #fff; font-family: inherit; font-size: 0.82rem; font-weight: 600;
       letter-spacing: 0.04em; cursor: pointer; display: flex; align-items: center;
       justify-content: center; gap: 0.55rem; transition: background 0.2s, border-color 0.2s;
     }
@@ -128,6 +128,84 @@
       <span data-i18n="auth.haveAccount">Уже есть аккаунт?</span> <a href="login.html" data-i18n="auth.loginBtn">Войти</a>
     </p>
   </div>
+
+  <!-- Decorative: a CSS-only conveyor of boxed tees, wordmarks and accent
+       blocks. aria-hidden because it carries no information the form needs. -->
+  <aside class="auth-show" aria-hidden="true">
+    <div class="auth-show__rows">
+    <div class="auth-show__row">
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">СВОЙ<br>ДИЗАЙН</span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">СВОЙ<br>ДИЗАЙН</span>
+    </div>
+    <div class="auth-show__row auth-show__row--rev">
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">ПЕЧАТЬ<br>30×40</span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">ПЕЧАТЬ<br>30×40</span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--tee"></span>
+    </div>
+    <div class="auth-show__row auth-show__row--slow">
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">ТАШКЕНТ</span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">ТАШКЕНТ</span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+    </div>
+    <div class="auth-show__row auth-show__row--fast">
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">3D<br>ПРИМЕРКА</span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">3D<br>ПРИМЕРКА</span>
+      <span class="auth-tile auth-tile--tee"></span>
+    </div>
+    <div class="auth-show__row auth-show__row--rev2">
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">ДОСТАВКА<br>ПО УЗБ</span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--accent"></span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--label">ДОСТАВКА<br>ПО УЗБ</span>
+      <span class="auth-tile auth-tile--tee"></span>
+      <span class="auth-tile auth-tile--word">LOOM<span class="slash">/</span></span>
+    </div>
+    </div>
+    <p class="auth-show__stamp">Носи то, что ты придумал</p>
+  </aside>
 
   <!-- Depends on the deferred bundle above, so it waits for that queue -->
   <script>

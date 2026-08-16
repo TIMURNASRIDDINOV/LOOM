@@ -306,3 +306,219 @@
   font-size: 0.7rem; font-weight: 500;
   letter-spacing: 0.04em;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   MAXIMALIST SKIN — auth + account
+   Matches assets/theme.css §11. Tokens (--rule, --hard, --hard-sm,
+   --hard-accent) come from theme.css, which every auth page loads;
+   the fallbacks keep this readable if it is ever loaded standalone.
+   Appended last so it wins on source order, not specificity.
+   ═══════════════════════════════════════════════════════════════ */
+.auth-card, .account-card {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  box-shadow: var(--hard, 3px 3px 0 var(--ink));
+}
+.auth-label {
+  font-family: var(--font-mono, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
+  color: var(--ink-70, rgba(19,19,17,0.7));
+}
+.auth-input {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  background: var(--field-bg, #fff);
+}
+.auth-input:focus {
+  border-color: var(--accent, #fc5044);
+  box-shadow: var(--hard-accent, 3px 3px 0 var(--accent));
+}
+.auth-input.error { box-shadow: var(--hard-accent, 3px 3px 0 var(--accent)); }
+.auth-btn, .btn-tg, .auth-dropdown-btn, .account-logout {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  font-family: var(--font-display, sans-serif);
+  font-weight: 700;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: background 0.2s, color 0.2s, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.auth-btn:hover:not(:disabled),
+.btn-tg:hover, .account-logout:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--hard, 3px 3px 0 var(--ink));
+}
+.auth-btn:active:not(:disabled), .btn-tg:active {
+  transform: translate(2px, 2px); box-shadow: none;
+}
+.auth-dropdown-menu { border: var(--rule, 2px solid var(--ink)); border-radius: 0; box-shadow: var(--hard, 3px 3px 0 var(--ink)); }
+.auth-title, .account-title { letter-spacing: -0.03em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-btn, .btn-tg, .account-logout { transition: background 0.2s, color 0.2s; }
+  .auth-btn:hover, .btn-tg:hover, .account-logout:hover,
+  .auth-btn:active, .btn-tg:active { transform: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DESKTOP SPLIT — form left, kinetic showcase right
+   ------------------------------------------------------------------
+   Phones keep the single centred card (the showcase is decorative and
+   would only push the form below the fold). From 900px the page
+   becomes two halves: the card sits left, and the right half runs a
+   CSS-only conveyor of boxed tees, wordmarks and accent blocks.
+
+   CSS-only on purpose — no JS, no rAF, nothing to leak. Each row
+   duplicates its tiles and translates exactly -50%, so the loop is
+   seamless without measuring anything.
+   ═══════════════════════════════════════════════════════════════ */
+.auth-show { display: none; }
+
+@media (min-width: 900px) {
+  .auth-page {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* Explicit 1fr row, not an implicit auto one. The panel filling the
+       viewport was relying on an auto row stretching to the container's
+       min-height — Chrome does that, Safari has long been unreliable about
+       it, which left a band of --paper under the panel. 1fr resolves to
+       minmax(auto, 1fr): fills the height, still grows if the card is
+       taller. */
+    grid-template-rows: 1fr;
+    align-items: stretch;
+    align-content: stretch;
+    padding: 0;
+    gap: 0;
+  }
+  /* Left half: the card, centred in its own column.
+     Wider than the phone card on purpose — the column is ~680px and the
+     420px card was leaving ~260px unused horizontally while overflowing
+     vertically (952px of card in an 860px viewport). Spending the spare
+     width pairs the fields up and brings the whole form above the fold. */
+  .auth-page > .auth-card {
+    justify-self: center; align-self: center;
+    width: 100%; max-width: 560px;
+    margin: 1.5rem; padding: 1.9rem 2.1rem;
+  }
+  /* Fields sit two-up; everything else spans the full card */
+  .auth-card form {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.1rem;
+  }
+  .auth-card form > * { grid-column: 1 / -1; }
+  .auth-card form > .auth-field { grid-column: auto; }
+  /* A lone trailing field would otherwise sit half-width and look truncated */
+  .auth-card form > .auth-field:last-of-type:nth-of-type(odd) { grid-column: 1 / -1; }
+
+  .auth-show {
+    display: block; position: relative; overflow: hidden;
+    /* second line of defence: cover the column whatever the row does */
+    min-height: 100vh; min-height: 100svh; height: 100%;
+    background: var(--surface-ink, #131311);
+    border-left: var(--rule, 2px solid var(--ink));
+  }
+  /* Rows sit on a slight tilt so the conveyor reads as motion even in a
+     still screenshot. They STRETCH to fill the panel rather than sitting
+     centred at a fixed height — centring left a dead black band at the
+     bottom on tall viewports. Tiles take their size from the row, so the
+     grid stays edge-to-edge at any window height. */
+  .auth-show__rows {
+    position: absolute; inset: -14% -20%;
+    display: flex; flex-direction: column;
+    gap: clamp(0.7rem, 1.5vw, 1.3rem);
+    transform: rotate(-8deg);
+  }
+  .auth-show__row {
+    flex: 1 1 0; min-height: 0;
+    display: flex; align-items: stretch;
+    gap: clamp(0.7rem, 1.5vw, 1.3rem); width: max-content;
+    animation: authSlide 34s linear infinite;
+    will-change: transform;
+  }
+  .auth-show__row--rev  { animation-direction: reverse; animation-duration: 44s; }
+  .auth-show__row--slow { animation-duration: 56s; }
+  .auth-show__row--fast { animation-duration: 26s; }
+  .auth-show__row--rev2 { animation-direction: reverse; animation-duration: 38s; }
+  @keyframes authSlide {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  .auth-tile {
+    flex: 0 0 auto;
+    height: 100%; width: auto; aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    border: var(--rule, 2px solid var(--ink));
+    border-color: var(--on-ink, #f4f2ed);
+    box-shadow: 4px 4px 0 var(--accent, #fc5044);
+    background: var(--paper-3, #fff);
+    overflow: hidden;
+  }
+  /* The tee is a CSS background declared INSIDE this media query, not an
+     <img> in the markup: the panel is display:none on phones, but the image
+     was still being fetched there — 39KB downloaded for something never
+     shown. Declared here, phones never request it at all. */
+  .auth-tile--tee {
+    background-image: url('../configuratorprodutcs/tshirt_flat_white_600.png');
+    background-size: 86% 86%;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  /* Wordmark tile — the brand, boxed like the product */
+  .auth-tile--word {
+    background: var(--surface-ink, #131311);
+    color: var(--on-ink, #f4f2ed);
+    font-family: var(--font-display, sans-serif);
+    font-weight: 800; font-size: clamp(0.9rem, 1.3vw, 1.2rem);
+    letter-spacing: 0.04em;
+    box-shadow: 4px 4px 0 var(--on-ink, #f4f2ed);
+  }
+  .auth-tile--word .slash { color: var(--accent, #fc5044); }
+  /* Solid accent block — punctuation in the rhythm */
+  .auth-tile--accent { background: var(--accent, #fc5044); box-shadow: 4px 4px 0 var(--on-ink, #f4f2ed); }
+  /* Mono label tile */
+  .auth-tile--label {
+    background: transparent; color: var(--on-ink, #f4f2ed);
+    font-family: var(--font-mono, monospace);
+    font-size: clamp(0.52rem, 0.72vw, 0.68rem);
+    letter-spacing: 0.2em; text-align: center; padding: 0.5rem;
+    box-shadow: 4px 4px 0 var(--accent, #fc5044);
+  }
+
+  /* Static stamp over the conveyor so the panel has an anchor */
+  .auth-show__stamp {
+    position: absolute; left: 0; right: 0; bottom: clamp(1.5rem, 4vh, 3rem);
+    text-align: center; pointer-events: none;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.62rem; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--on-ink-55, rgba(244,242,237,0.55));
+  }
+  /* keeps the tiles from fighting the stamp for attention */
+  .auth-show::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.55) 100%);
+  }
+}
+
+/* A conveyor is exactly the thing to stop when motion is unwelcome */
+@media (prefers-reduced-motion: reduce) {
+  .auth-show__row { animation: none; }
+}
+
+/* ── Short desktops: compress the rhythm, keep it above the fold ──
+   The split layout fits comfortably at 1366×860, but 1280×720 is a very
+   common laptop and the card ran ~55px over there. Rather than cramping
+   every screen, the spacing only tightens when vertical room is actually
+   short. Nothing shrinks below a comfortable tap size. */
+@media (min-width: 900px) and (max-height: 820px) {
+  .auth-page > .auth-card { margin: 1rem 1.5rem; padding: 1.4rem 1.9rem; }
+  .auth-topbar { margin-bottom: 0.5rem; }
+  .auth-logo { margin-bottom: 0.9rem; }
+  .auth-title { margin-bottom: 0.15rem; }
+  .auth-subtitle { margin-bottom: 1rem; }
+  .auth-tg-hint { margin-top: 0.4rem; font-size: 0.7rem; }
+  .auth-divider { margin: 0.9rem 0; }
+  .auth-field { margin-bottom: 0.7rem; }
+  .auth-footer { margin-top: 0.9rem; }
+}

@@ -27,7 +27,10 @@
 
   /* Accent — disciplined: links, hovers, active states, key CTAs */
   --accent: #fc5044;
-  --accent-deep: #d63a2f;        /* small text on paper needs the deeper cut */
+  /* Small accent text on paper. Cut deeper than #d63a2f, which measured
+     4.17:1 against --paper and so missed AA (4.5) for normal-size text —
+     the eyebrows use this colour, so the miss was site-wide. Now ~4.5:1. */
+  --accent-deep: #c8352b;
   --accent-tint: rgba(252, 80, 68, 0.08);
   --accent-55: rgba(252, 80, 68, 0.55);
   --on-accent: #ffffff;          /* text sitting on accent fills */
@@ -992,4 +995,91 @@ html.page-reveal::after {
   html.motion-hold body { opacity: 1; }
   html.page-covered::after { content: none; }
   .wipe, .cursor { display: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   11. MAXIMALIST SKIN — site-wide
+   ------------------------------------------------------------------
+   Editorial brutalism in the register the brand already speaks:
+   Inter Tight display, Plex Mono micro-labels, the coral accent as
+   FIELDS rather than hints, 2px rules, hard offset shadows that
+   collapse on press, numbered indices.
+
+   Deliberately LAST in this file. Everything here restyles shared
+   components (.btn, .pcard, .f-input, .eyebrow …), so it reaches every
+   customer page at once — and sitting at the bottom means it wins on
+   source order without specificity hacks, which is the trap that bit
+   the configurator three times.
+
+   Tokens are exported so page-level stylesheets can match rather than
+   reinvent these values.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --hard: 3px 3px 0 var(--ink);
+  --hard-sm: 2px 2px 0 var(--ink);
+  --hard-accent: 3px 3px 0 var(--accent);
+  --rule: 2px solid var(--ink);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn {
+  border: var(--rule);
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  box-shadow: var(--hard-sm);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.btn:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
+.btn:active { transform: translate(2px, 2px); box-shadow: none; }
+.btn--solid:hover { color: var(--on-accent); }
+.btn--on-ink { box-shadow: 3px 3px 0 var(--on-ink); }
+.btn--on-ink:hover { box-shadow: 5px 5px 0 var(--on-ink); }
+
+/* ── Eyebrows: accent, not whisper-grey ──────────────────────────── */
+.eyebrow { color: var(--accent-deep); font-weight: 600; }
+.sect--ink .eyebrow { color: var(--accent); }
+
+/* ── Section titles: tighter and heavier ─────────────────────────── */
+.h2, .display { letter-spacing: -0.035em; }
+
+/* ── Product cards: framed tiles that lift ───────────────────────── */
+.pcard {
+  border-right: var(--rule);
+  border-bottom: var(--rule);
+  transition: background var(--dur-fast) ease, transform 0.15s ease;
+}
+.pcard__media { border: var(--rule); box-shadow: var(--hard-sm); }
+.pcard:hover .pcard__media { box-shadow: 6px 6px 0 var(--accent); }
+
+/* ── Form fields ─────────────────────────────────────────────────── */
+.f-label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
+  color: var(--ink-70);
+}
+.f-input {
+  border: var(--rule);
+  border-radius: 0;
+  box-shadow: var(--hard-sm);
+}
+.f-input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--hard-accent);
+}
+
+/* ── Marquee + footer: thicker seams ─────────────────────────────── */
+.marquee { border-top: var(--rule); border-bottom: var(--rule); }
+.site-footer { border-top: var(--rule); }
+
+/* Someone who asked for less motion should not get press-jumps */
+@media (prefers-reduced-motion: reduce) {
+  .btn, .pcard { transition: background var(--dur-fast) ease; }
+  .btn:hover, .btn:active { transform: none; }
 }

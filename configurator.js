@@ -61,10 +61,22 @@ const INITIAL_VIEW = {
 let _garmentFacing = null;
 
 // Available shirt colors
+// Garment colours. Adding one is a single entry here — the swatches, the order
+// summary name, the reset default and the flat editor's tint all read from this
+// list. `i18n` is the dictionary key for the human name; `light` marks colours
+// that need an outline on a light background to be visible as a swatch.
 const SHIRT_COLORS = [
-  { name: "Белый", hex: "#FFFFFF" },
-  { name: "Чёрный", hex: "#1F2937" },
+  { hex: "#FFFFFF", name: "Белый",  i18n: "cfg.colorWhite", light: true },
+  { hex: "#1F2937", name: "Чёрный", i18n: "cfg.colorBlack" },
 ];
+
+/** The colour a fresh design starts on, and the one Reset returns to. */
+const DEFAULT_SHIRT_COLOR = SHIRT_COLORS[0].hex;
+
+function shirtColorDef(hex) {
+  const h = String(hex || "").toUpperCase();
+  return SHIRT_COLORS.find((c) => c.hex.toUpperCase() === h) || null;
+}
 
 // Font options (system + Google)
 const FONT_OPTIONS = [
@@ -90,6 +102,15 @@ function getApiBase() {
 }
 
 // i18n helper — translate a key with a Russian fallback when i18n.js is absent
+/**
+ * Funnel step. Fires at most once per session (track.js dedupes), never throws,
+ * and does nothing at all if track.js failed to load — analytics must never be
+ * able to break the configurator.
+ */
+function trackStep(event) {
+  try { if (window.LOOM_TRACK) window.LOOM_TRACK.event(event); } catch (e) {}
+}
+
 function CT(key, fallback) {
   try { return (window.LOOM_I18N ? window.LOOM_I18N.t(key) : fallback) || fallback; }
   catch (e) { return fallback; }
@@ -113,7 +134,7 @@ SHIRT_COLORS.forEach((c) => {
 // and back share one coordinate space — nx 0.5 is the garment centreline on both
 // — and re-measuring a rect never moves existing artwork.
 const designState = {
-  shirtColor: "#FFFFFF",
+  shirtColor: DEFAULT_SHIRT_COLOR,
   activeView: "front",
 
   front: { elements: [], selId: null },
@@ -712,8 +733,8 @@ function redrawActive() {
   drawTexture(designState.activeView);
   // Keep the 2D editor overlay (selection box + handles) in sync with state.
   if (typeof drawEditor === "function" && editMode) drawEditor();
-  // …and the dock's position guide, which mirrors the same elements flat.
-  if (typeof renderPositionGuide === "function") renderPositionGuide();
+  // …and the flat editor, which is the surface the user actually works on.
+  if (typeof renderFlatEditor === "function") renderFlatEditor();
 }
 
 /**
@@ -815,9 +836,59 @@ function normalizeModelUVsGlobally(object) {
 // SECTION 7 — MODEL LOADING
 // ================================================================
 
+/**
+ * Show which product is being configured. Entering from the nav carries no
+ * ?slug, and a price with no product attached ("Создайте свой дизайн — 150 000
+ * сум") reads like placeholder text, so the header names the real garment.
+ */
+function applyProductToHeader(product) {
+  if (!product) return;
+  const numFmt = new Intl.NumberFormat("ru-RU").format(product.price);
+  const fmt = numFmt + " сум";
+  document
+    .querySelectorAll(".summary-price .summary-val, .summary-price .summary-value, .configurator-price")
+    .forEach((el) => { el.textContent = fmt; });
+  ["panel-price", "foot-price-num", "sheet-price-num"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = numFmt;
+  });
+  if (!product.name_ru) return;
+  // Drop the i18n key so a language switch won't overwrite the product name
+  ["panel-product-name", "sheet-product-name"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) { el.removeAttribute("data-i18n"); el.textContent = product.name_ru; }
+  });
+}
+
+/** First customisable product in the catalog — the implicit default garment. */
+async function fetchDefaultProduct() {
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  if (ctrl) setTimeout(() => ctrl.abort(), 5000);
+  const res = await fetch(getApiBase() + "/api/products", ctrl ? { signal: ctrl.signal } : undefined);
+  if (!res.ok) return null;
+  const list = await res.json();
+  const items = Array.isArray(list) ? list : (list && list.products) || [];
+  return items.find((p) => (p.product_type || "custom") !== "ready") || null;
+}
+
 async function loadProductFromSlug() {
   const slug = new URLSearchParams(window.location.search).get("slug");
   let glbUrl = "assets/models/t_shirt.glb?v=1";
+
+  if (!slug) {
+    // No slug → name the default garment instead of leaving the placeholder.
+    // Purely cosmetic: the model still comes from the bundled default, so a
+    // failed or slow catalog call costs nothing but the generic headline.
+    try {
+      const def = await fetchDefaultProduct();
+      if (def) {
+        currentProduct = def;
+        applyProductToHeader(def);
+      }
+    } catch (e) {
+      console.warn("Default product lookup failed, keeping generic header:", e);
+    }
+  }
 
   if (slug) {
     try {
@@ -835,19 +906,7 @@ async function loadProductFromSlug() {
         }
         currentProduct = product;
         if (product.glb_url) glbUrl = product.glb_url;
-        // Update price display
-        const priceEls = document.querySelectorAll(".summary-price .summary-val, .summary-price .summary-value, .configurator-price");
-        const fmt = new Intl.NumberFormat("ru-RU").format(product.price) + " сум";
-        priceEls.forEach(el => { el.textContent = fmt; });
-        // New studio panel header + footer price
-        const numFmt = new Intl.NumberFormat("ru-RU").format(product.price);
-        const nameEl = document.getElementById("panel-product-name");
-        // Drop the i18n key so a language switch won't overwrite the product name
-        if (nameEl && product.name_ru) { nameEl.removeAttribute("data-i18n"); nameEl.textContent = product.name_ru; }
-        ["panel-price", "foot-price-num"].forEach((id) => {
-          const el = document.getElementById(id);
-          if (el) el.textContent = numFmt;
-        });
+        applyProductToHeader(product);
       }
     } catch (e) {
       console.warn("Product fetch failed, using default model:", e);
@@ -1207,7 +1266,11 @@ function animate() {
   }
 
   controls.update();
-  renderer.render(scene, camera);
+  // While the flat editor is up the 3D canvas is display:none, so drawing it
+  // every frame burns battery on a phone for pixels nobody can see. In split
+  // mode it IS on screen, so it draws. Snapshots and exports call
+  // renderer.render() explicitly, so they are unaffected either way.
+  if (!flatMode) renderer.render(scene, camera);
   // Keep the 2D handles glued to the design as the shirt orbits — but only redraw
   // when the camera actually moved (state changes redraw via redrawActive).
   if (editMode && typeof drawEditor === "function") {
@@ -2022,7 +2085,7 @@ function _normAngle(a) { // → (-π, π]
 // stopping propagation — when it lands on the design or a handle. Otherwise the
 // event flows through to OrbitControls and the user ORBITS the shirt.
 function _onEdPointerDown(e) {
-  if (!editMode) return;
+  if (!EDIT_ON_3D || !editMode) return;
   if (e.pointerType === "mouse" && e.button != null && e.button !== 0) return;
   // Second finger during an active edit gesture → pinch (scale + rotate)
   if (_gesture && _pointers.size >= 1) {
@@ -2169,15 +2232,17 @@ function _updatePinch() {
 }
 
 // ── Keyboard (nudge / delete) ───────────────────────────────────
+// Nudge/delete now target the flat editor, so the step is measured against the
+// flat print rect in CSS px — one arrow press moves one on-screen pixel.
 function _onEdKeyDown(e) {
-  if (!editMode) return;
+  if (!flatMode) return;
   const ae = document.activeElement;
   if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
-  const el = _activeDraggable();
+  const el = _flatActiveEl();
   if (!el) return;
-  const r = printRect();
-  const du = ((e.shiftKey ? 10 : 1) * _editScale) / r.w;
-  const dv = ((e.shiftKey ? 10 : 1) * _editScale) / r.h;
+  const r = _flatRect || printRect();
+  const du = (e.shiftKey ? 10 : 1) / r.w;
+  const dv = (e.shiftKey ? 10 : 1) / r.h;
   if (e.key === "ArrowLeft") el.nx -= du;
   else if (e.key === "ArrowRight") el.nx += du;
   else if (e.key === "ArrowUp") el.ny -= dv;
@@ -2195,6 +2260,7 @@ function deleteElement(id) {
   const st = designState[designState.activeView];
   const i = st.elements.findIndex((e) => e.id === id);
   if (i < 0) return;
+  markUndo("delete");
   st.elements.splice(i, 1);
   delete uploadedFileData[id];
   delete _boxes[designState.activeView][id];
@@ -2203,6 +2269,7 @@ function deleteElement(id) {
   syncPanelFromState();
   redrawActive();
   updateViewToggleMarkers();
+  showUndoToast(CT("cfg.deleted", "Слой удалён"));
 }
 
 function _deleteActiveElement() {
@@ -2221,6 +2288,7 @@ function _updatePreviewChip() {
 }
 
 function enterEditMode() {
+  if (!EDIT_ON_3D) return enterPreviewMode();
   editMode = true;
   if (controls) controls.enabled = true; // orbit stays available while editing
   if (_ov) _ov.style.display = "block";
@@ -2241,13 +2309,12 @@ function togglePreview() {
   if (editMode) enterPreviewMode(); else enterEditMode();
 }
 
-// The design dock is always on screen now (it replaced the Design tab), so
-// editing is always available — the chip just shows/hides the handles.
+// Editing now lives on the flat face (SECTION 9c). The chip swaps surfaces
+// rather than toggling handles, and the 3D shirt stays in preview at all times.
 function setDesignEditing(active) {
   designTabActive = active;
-  const chip = document.getElementById("btn-toggle-preview");
-  if (chip) chip.style.display = "inline-flex";
-  if (active) enterEditMode(); else enterPreviewMode();
+  enterPreviewMode();          // 3D never carries handles any more
+  setFlatMode(true);           // owns the chip's visibility, split-aware
 }
 
 function initDesignEditor() {
@@ -2269,7 +2336,7 @@ function initDesignEditor() {
   window.addEventListener("pointercancel", _onEdPointerUp);
   window.addEventListener("keydown", _onEdKeyDown);
   const chip = document.getElementById("btn-toggle-preview");
-  if (chip) chip.addEventListener("click", togglePreview);
+  if (chip) chip.addEventListener("click", toggleFlatMode);
 }
 
 // ================================================================
@@ -2293,13 +2360,17 @@ function initUI() {
   bindSizeSelector();
   bindCenterButtons();
   bindLayerControls();
-  bindPositionGuide();
+  bindFlatEditor();
+  bindSurfaceToggle();
+  bindSheet();
+  bindMoreMenu();
   bindCart();
   bindSizeGuide();
   bindLangChange();
   syncPanelFromState();
   // The dock replaced the Design tab, so editing is live from page load.
   setDesignEditing(true);
+  trackStep("cfg_open");
 }
 
 // Expand/collapse the size guide under the size picker
@@ -2320,6 +2391,10 @@ function bindLangChange() {
     // Summary tab (if visible) + order-modal summary use translated color/labels
     try { if (typeof updateSummaryTab === "function") updateSummaryTab(); } catch (e) {}
     try { if (typeof renderCart === "function") renderCart(); } catch (e) {}
+    // JS-written labels: the CTA swaps between two keys by state, and the
+    // flat editor paints its "область печати" caption into a canvas.
+    try { if (typeof updateCartCta === "function") updateCartCta(); } catch (e) {}
+    try { if (typeof renderFlatEditor === "function") renderFlatEditor(); } catch (e) {}
   });
 }
 
@@ -2462,7 +2537,12 @@ function _stackTopNy(view) {
 
 function addTextElement() {
   const st = designState[designState.activeView];
-  const proto = newTextElement({ content: CT("cfg.newTextDefault", "Ваш текст") });
+  const proto = newTextElement({
+    content: CT("cfg.newTextDefault", "Ваш текст"),
+    // Black-on-black is invisible; start new text with a colour that reads on
+    // the current garment. The user can still pick anything afterwards.
+    color: _flatDarkGarment() ? "#FFFFFF" : "#000000",
+  });
   // Text box height is size × 1.25, expressed against REF_RECT (see elTexSize).
   const ownH = (proto.size * 1.25) / REF_RECT.h;
   const el = Object.assign(proto, {
@@ -2473,6 +2553,10 @@ function addTextElement() {
   syncPanelFromState();
   redrawActive();
   updateViewToggleMarkers();
+  trackStep("cfg_design_add");
+  // No 3D reward here on purpose: adding text focuses the input so the user can
+  // type, and swapping the surface out from under a focused field is hostile.
+  // The reward fires on the image path, where the action is already finished.
   const ti = document.getElementById("text-content-input");
   if (ti) { ti.focus(); ti.select(); }
   return el;
@@ -2484,125 +2568,954 @@ const _ICON_IMG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
 
 // ================================================================
-// POSITION GUIDE — flat FRONT/BACK schematics in the dock
+// SECTION 9c — FLAT FACE EDITOR (the primary editing surface)
 // ----------------------------------------------------------------
-// Shows BOTH faces at once, which is the whole point: an empty back is visible
-// at a glance instead of being hidden behind a view toggle. Each face's canvas
-// IS the print rect, so drawing is the same call the garment bake uses, and a
-// drag maps to nx/ny directly — no mesh projection, no warp.
+// One face at a time, at full size, over flat garment art. This is where the
+// user actually designs; the 3D shirt is a preview they can flip to.
+//
+// Why flat and not the 3D mesh: this canvas maps 1:1 onto the print rect, so a
+// drag is a straight nx/ny change — no mesh projection, no unwrap warp, and
+// what you see is literally what the print master bakes. The 3D editing path
+// (SECTION 9b) is kept in the file but switched off by EDIT_ON_3D; two
+// draggable surfaces for one design is what made this confusing to begin with.
 
-/** Repaint both guide faces from designState. */
-function renderPositionGuide() {
-  document.querySelectorAll(".guide-canvas").forEach((cv) => {
-    const view = cv.dataset.view;
-    const box = cv.getBoundingClientRect();
-    if (!box.width || !box.height) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.round(box.width), h = Math.round(box.height);
-    if (cv.width !== w * dpr || cv.height !== h * dpr) {
-      cv.width = w * dpr; cv.height = h * dpr;
-    }
-    const ctx = cv.getContext("2d");
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
+/** Master switch for the legacy 3D drag/scale/rotate path. Kept for reference. */
+const EDIT_ON_3D = false;
 
-    const rect = { x: 0, y: 0, w, h };
-    const sel = designState[view].selId;
-    elementsOf(view).forEach((el) => {
-      const b = drawElementIn(ctx, el, rect, false);
-      if (!b || el.id !== sel || view !== designState.activeView) return;
-      ctx.save();
-      ctx.strokeStyle = "rgba(10,132,255,0.9)";
-      ctx.lineWidth = 1;
-      ctx.translate(b.cx, b.cy);
-      ctx.rotate(b.rot);
-      ctx.strokeRect(-b.w / 2 - 2, -b.h / 2 - 2, b.w + 4, b.h + 4);
-      ctx.restore();
-    });
-  });
+// Flat garment art per face, plus where the printable area sits ON that art,
+// expressed as fractions of the drawn garment box.
+//
+// `back` has no art yet — the source PNG only ships a front view — so the back
+// face falls back to the schematic outline below. Drop a back PNG in here and
+// it starts using it; nothing else needs to change.
+const FLAT_ART = {
+  front: {
+    src: "configuratorprodutcs/tshirt_flat_white_1200.png",
+    srcSmall: "configuratorprodutcs/tshirt_flat_white_600.png",
+    aspect: 1, // source is square
+    // Measured against the art: torso x 0.278–0.723, collar ≈0.26, hem 0.863.
+    // A 30 cm print on the ~50 cm torso → w ≈ 0.267 of the image, from just
+    // below the collar. `h` is nominal: the drawn rect's height is derived at
+    // render time from the REAL texture print rect so both spaces agree.
+    print: { x: 0.3665, y: 0.285, w: 0.267, h: 0.322 },
+  },
+  // No back photograph exists, so the back is DERIVED from the front art: same
+  // silhouette, sleeves and shading, with the front collar painted out and a
+  // shallow back neckline drawn in. Measured from the source: the collar's ink
+  // is confined to x 0.300–0.698 / y ≤ 0.255 and the torso under it is pure
+  // #FFFFFF, so the patch is seamless. Replace with real back art when you have
+  // it — drop `deriveBack` and point src/srcSmall at the new file.
+  back: {
+    src: "configuratorprodutcs/tshirt_flat_white_1200.png",
+    srcSmall: "configuratorprodutcs/tshirt_flat_white_600.png",
+    aspect: 1,
+    print: { x: 0.3665, y: 0.285, w: 0.267, h: 0.322 },
+    deriveBack: {
+      // band to flatten (source-atop keeps it inside the garment silhouette)
+      patch: { x: 0.28, y: 0.09, w: 0.44, h: 0.18 },
+      // The front art's silhouette bulges upward where the collar sits (top
+      // edge y 0.140 at centre vs 0.156 at x 0.39). A back has no such bulge,
+      // so that hump is cut away and replaced by a shallow neckline curve:
+      // endpoints on the shoulder line, quadratic control pulling it down.
+      neck: { x1: 0.39, x2: 0.61, y: 0.156, cy: 0.202, seam: 0.015 },
+    },
+  },
+};
 
-  document.querySelectorAll(".guide-face").forEach((f) => {
-    const on = f.dataset.view === designState.activeView;
-    f.classList.toggle("active", on);
-    f.setAttribute("aria-pressed", String(on));
-    f.classList.toggle("has-design", _viewHasContent(f.dataset.view));
-  });
+// Schematic fallback: the same silhouette the dock used to draw, as a path in a
+// 100×118 viewBox, so a face with no photographic art still reads as a garment.
+const FLAT_OUTLINE = {
+  aspect: 100 / 118,
+  body: "M31 8 L18 14 L8 27 L18 36 L24 31 L24 110 L76 110 L76 31 L82 36 L92 27 L82 14 L69 8 C67 13 33 13 31 8 Z",
+  neck: "M31 8 C33 13 67 13 69 8",
+  // Sized so a design occupies the same share of the garment as on the front
+  // art (whose print band is 0.267 of the full box; this box is 0.74-shrunk).
+  print: { x: 0.32, y: 0.265, w: 0.36, h: 0.4 },
+};
+
+const FLAT_HANDLE_R = 7;        // drawn handle half-size (CSS px)
+const FLAT_ROTATE_OFFSET = 34;  // rotate handle distance above the box (CSS px)
+const FLAT_ACCENT = "rgba(10,132,255,0.95)";
+
+let _flatCv = null, _flatCtx = null;
+let _flatBox = null;    // garment box in CSS px
+let _flatRect = null;   // print rect in CSS px — the space elements live in
+let _flatUI = null;     // { corners:[4], rotate:{x,y} } in CSS px, for hit testing
+let _flatBoxes = {};    // element id → drawn box, this face, this render
+let _flatGesture = null;
+let _flatPinch = null;
+const _flatPointers = new Map();
+// Keyed by SRC, not by face: front and back share one file (the back is derived
+// from it), so this keeps it to a single fetch and a single decode.
+const _flatImgCache = {};
+
+// ── Garment art ─────────────────────────────────────────────────
+
+/** The loaded art for a face, or null if there is none / it failed. */
+function _flatArtImg(face) {
+  const def = FLAT_ART[face];
+  if (!def) return null;
+  // The editor is never wider than ~600 CSS px, so the 1200 asset covers retina
+  // and the 600 covers everything else. The 4713px original is never shipped.
+  const hi = (window.devicePixelRatio || 1) > 1.5;
+  const src = (hi ? def.src : def.srcSmall) || def.src;
+  if (!(src in _flatImgCache)) {
+    const img = new Image();
+    img.decoding = "async";
+    _flatImgCache[src] = img;
+    img.onload = () => renderFlatEditor();
+    img.onerror = () => { _flatImgCache[src] = null; renderFlatEditor(); };
+    img.src = src;
+  }
+  return _flatImgCache[src];
 }
 
-/** Hit-test a guide face at normalised (nx, ny); topmost element wins. */
-function _guideElementAt(view, nx, ny, cw, ch) {
-  const list = elementsOf(view);
-  const boxes = _boxes[view] || {};
-  const r = printRect(view);
+/** The garment's drawn box: aspect-correct, centred, contained in the canvas. */
+function _flatGarmentBox(face, W, H) {
+  const img = _flatArtImg(face);
+  const usingArt = !!(img && img.complete && img.naturalWidth);
+  const aspect = usingArt ? FLAT_ART[face].aspect : FLAT_OUTLINE.aspect;
+  let w = W, h = W / aspect;
+  if (h > H) { h = H; w = H * aspect; }
+  if (!usingArt) {
+    // The photographic art carries transparent margins (the garment fills ~72%
+    // of its box); the outline path fills its box edge to edge. Shrink it so
+    // switching to a face without art doesn't make the garment jump in size.
+    w *= 0.74; h *= 0.74;
+  }
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h, usingArt };
+}
+
+// Tinting a 1200px image every pointermove is far too slow, so the coloured
+// garment is composited once into an offscreen canvas and reused until the
+// face, size or colour actually changes.
+const _flatTint = { key: null, cv: null };
+
+function _flatGarmentLayer(face, box, color) {
+  const w = Math.max(1, Math.round(box.w)), h = Math.max(1, Math.round(box.h));
+  const key = face + "|" + w + "x" + h + "|" + color;
+  if (_flatTint.key === key && _flatTint.cv) return _flatTint.cv;
+
+  const cv = document.createElement("canvas");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const img = _flatArtImg(face);
+  if (box.usingArt) {
+    c.drawImage(img, 0, 0, w, h);
+
+    // Turn the front art into a back view before tinting, so the colour
+    // multiply lands on the finished garment rather than half of one.
+    const der = FLAT_ART[face] && FLAT_ART[face].deriveBack;
+    if (der) {
+      const n = der.neck;
+      // 1. Flatten the front collar. source-atop paints only where the garment
+      //    already is, so it can never spill into the transparent background.
+      c.globalCompositeOperation = "source-atop";
+      c.fillStyle = "#FFFFFF";
+      c.fillRect(der.patch.x * w, der.patch.y * h, der.patch.w * w, der.patch.h * h);
+
+      // 2. Cut the collar hump out of the silhouette, leaving a back neckline.
+      c.globalCompositeOperation = "destination-out";
+      c.beginPath();
+      c.moveTo(n.x1 * w, 0);
+      c.lineTo(n.x2 * w, 0);
+      c.lineTo(n.x2 * w, n.y * h);
+      c.quadraticCurveTo(0.5 * w, n.cy * h, n.x1 * w, n.y * h);
+      c.closePath();
+      c.fill();
+
+      // 3. Neckband seam, tucked just under the new edge.
+      c.globalCompositeOperation = "source-atop";
+      c.beginPath();
+      c.moveTo(n.x1 * w, (n.y + n.seam) * h);
+      c.quadraticCurveTo(0.5 * w, (n.cy + n.seam) * h, n.x2 * w, (n.y + n.seam) * h);
+      c.strokeStyle = "rgba(0,0,0,0.16)";
+      c.lineWidth = Math.max(1, w * 0.004);
+      c.stroke();
+      c.globalCompositeOperation = "source-over";
+    }
+
+    // The art is white with soft shading, so multiply gives a coloured garment
+    // that keeps its folds; destination-in then restores the cut-out alpha.
+    // Both are safe here because this offscreen canvas holds nothing else.
+    if (String(color).toUpperCase() !== "#FFFFFF") {
+      c.globalCompositeOperation = "multiply";
+      c.fillStyle = color;
+      c.fillRect(0, 0, w, h);
+      c.globalCompositeOperation = "destination-in";
+      c.drawImage(img, 0, 0, w, h);
+      c.globalCompositeOperation = "source-over";
+    }
+  } else {
+    const s = w / 100; // outline viewBox is 100 wide
+    c.save();
+    c.scale(s, s);
+    c.fillStyle = color;
+    c.strokeStyle = "rgba(0,0,0,0.22)";
+    c.lineWidth = 1.6 / s;
+    const body = new Path2D(FLAT_OUTLINE.body);
+    c.fill(body); c.stroke(body);
+    c.stroke(new Path2D(FLAT_OUTLINE.neck));
+    c.restore();
+  }
+
+  _flatTint.key = key; _flatTint.cv = cv;
+  return cv;
+}
+
+// ── Render ──────────────────────────────────────────────────────
+
+/** Repaint the active face: garment, print rect, elements, selection chrome. */
+function renderFlatEditor() {
+  const cv = _flatCv || (_flatCv = document.getElementById("flat-canvas"));
+  if (!cv) return;
+  // Measure the CANVAS, not its parent. The parent's clientWidth/Height are
+  // padding-box values, but the canvas is laid out in the content box, so
+  // using the parent's numbers drew a surface wider and taller than the space
+  // it actually occupies — and the garment, centred in that oversized surface,
+  // sat off-centre by half the padding. CSS sizes the element (width/height
+  // 100%); we only size the backing store, which does not affect layout.
+  const cvRect = cv.getBoundingClientRect();
+  if (!cvRect.width || !cvRect.height) return;
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.round(cvRect.width), H = Math.round(cvRect.height);
+  if (cv.width !== W * dpr || cv.height !== H * dpr) {
+    cv.width = W * dpr; cv.height = H * dpr;
+  }
+  const ctx = _flatCtx || (_flatCtx = cv.getContext("2d"));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const face = designState.activeView;
+  _flatArtImg(face); // kicks off the load on first use; repaints on arrival
+
+  const box = _flatGarmentBox(face, W, H);
+  _flatBox = box;
+  ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
+
+  const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
+  const rect = {
+    x: box.x + pf.x * box.w, y: box.y + pf.y * box.h,
+    w: pf.w * box.w, h: pf.h * box.h,
+  };
+  // WYSIWYG contract: text sizes against rect.h, images against rect.w, and the
+  // bake does the same against the texture print rect — so this rect must keep
+  // that rect's aspect or the two surfaces quietly disagree about proportions.
+  const pr = printRect(face);
+  if (pr && pr.w && pr.h) rect.h = rect.w / (pr.w / pr.h);
+  _flatRect = rect;
+
+  // Print boundary — dashed, always visible, so the printable band is a fact
+  // the user can see rather than something they discover by getting clamped.
+  ctx.save();
+  ctx.setLineDash([6, 6]);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = _flatDarkGarment() ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.30)";
+  ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.restore();
+
+  // Elements, bottom-of-list first — same call the garment bake uses.
+  _flatBoxes = {};
+  const sel = designState[face].selId;
+  elementsOf(face).forEach((el) => {
+    const b = drawElementIn(ctx, el, rect, false);
+    if (b) _flatBoxes[el.id] = b;
+  });
+
+  _flatDrawLabel(ctx, rect);
+  _flatUI = null;
+  const active = _flatActiveId();
+  if (active && _flatBoxes[active]) _flatDrawChrome(ctx, _flatBoxes[active]);
+  if (_flatGesture && (_flatGesture.snapX || _flatGesture.snapY)) _flatDrawSnap(ctx, rect);
+
+  _flatSyncEmptyState();
+  updateViewToggleMarkers();
+}
+
+function _flatDarkGarment() {
+  const h = String(designState.shirtColor || DEFAULT_SHIRT_COLOR).replace("#", "");
+  if (h.length !== 6) return false;
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+}
+
+function _flatDrawLabel(ctx, rect) {
+  ctx.save();
+  // canvas font strings cannot resolve CSS variables — use a concrete stack
+  ctx.font = '500 10px system-ui, -apple-system, sans-serif';
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = _flatDarkGarment() ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.38)";
+  ctx.fillText(CT("cfg.printArea", "область печати"), rect.x + rect.w / 2, rect.y - 5);
+  ctx.restore();
+}
+
+/** The element the handles belong to, or null. */
+function _flatActiveId() {
+  const st = designState[designState.activeView];
+  const drawable = (e) => (e.type === "text" ? !!e.content : !!e.img);
+  const sel = st.elements.find((e) => e.id === st.selId);
+  if (sel && drawable(sel)) return sel.id;
+  return null;
+}
+
+function _flatActiveEl() {
+  const id = _flatActiveId();
+  return id ? elementById(id, designState.activeView) : null;
+}
+
+/** Box corners (TL,TR,BR,BL) in CSS px, rotated. */
+function _flatCorners(b) {
+  const rot = b.rot || 0, cs = Math.cos(rot), sn = Math.sin(rot);
+  const hw = b.w / 2 + 4, hh = b.h / 2 + 4;
+  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([dx, dy]) => ({
+    x: b.cx + dx * cs - dy * sn,
+    y: b.cy + dx * sn + dy * cs,
+  }));
+}
+
+/** Selection box + 4 scale corners + rotate handle — same language as the 3D overlay. */
+function _flatDrawChrome(ctx, b) {
+  const c = _flatCorners(b);
+  const topMid = { x: (c[0].x + c[1].x) / 2, y: (c[0].y + c[1].y) / 2 };
+  const botMid = { x: (c[2].x + c[3].x) / 2, y: (c[2].y + c[3].y) / 2 };
+  let nx = topMid.x - botMid.x, ny = topMid.y - botMid.y;
+  const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+  const rotL = { x: topMid.x + nx * FLAT_ROTATE_OFFSET, y: topMid.y + ny * FLAT_ROTATE_OFFSET };
+
+  ctx.save();
+  ctx.strokeStyle = FLAT_ACCENT;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(c[0].x, c[0].y);
+  for (let i = 1; i < 4; i++) ctx.lineTo(c[i].x, c[i].y);
+  ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(topMid.x, topMid.y); ctx.lineTo(rotL.x, rotL.y); ctx.stroke();
+
+  ctx.fillStyle = "#fff";
+  c.forEach((p) => {
+    ctx.beginPath();
+    ctx.rect(p.x - FLAT_HANDLE_R, p.y - FLAT_HANDLE_R, FLAT_HANDLE_R * 2, FLAT_HANDLE_R * 2);
+    ctx.fill(); ctx.stroke();
+  });
+  ctx.beginPath();
+  ctx.arc(rotL.x, rotL.y, FLAT_HANDLE_R, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  _flatUI = { corners: c, rotate: rotL };
+}
+
+function _flatDrawSnap(ctx, rect) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,90,90,0.85)";
+  ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+  if (_flatGesture.snapX) {
+    const x = rect.x + rect.w / 2;
+    ctx.beginPath(); ctx.moveTo(x, rect.y); ctx.lineTo(x, rect.y + rect.h); ctx.stroke();
+  }
+  if (_flatGesture.snapY) {
+    const y = rect.y + rect.h / 2;
+    ctx.beginPath(); ctx.moveTo(rect.x, y); ctx.lineTo(rect.x + rect.w, y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── Hit testing ─────────────────────────────────────────────────
+
+function _flatPointInQuad(px, py, q) {
+  let inside = false;
+  for (let i = 0, j = 3; i < 4; j = i++) {
+    const xi = q[i].x, yi = q[i].y, xj = q[j].x, yj = q[j].y;
+    if (((yi > py) !== (yj > py)) &&
+        (px < ((xj - xi) * (py - yi)) / ((yj - yi) || 1e-6) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+/** Canvas-local coords for a pointer event. */
+function _flatLocal(e) {
+  const r = _flatCv.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function _flatHitTest(x, y) {
+  if (!_flatUI) return null;
+  const R = _coarsePointer() ? 24 : 16;
+  if (Math.hypot(x - _flatUI.rotate.x, y - _flatUI.rotate.y) <= R) return { type: "rotate" };
+  for (let i = 0; i < 4; i++) {
+    const c = _flatUI.corners[i];
+    if (Math.hypot(x - c.x, y - c.y) <= R) return { type: "scale", corner: i };
+  }
+  if (_flatPointInQuad(x, y, _flatUI.corners)) return { type: "move" };
+  return null;
+}
+
+/** Topmost OTHER element under the pointer, for click-to-select. */
+function _flatElementAt(x, y) {
+  const cur = _flatActiveId();
+  const list = elementsOf(designState.activeView);
   for (let i = list.length - 1; i >= 0; i--) {
     const el = list[i];
-    const b = boxes[el.id];
-    if (!b) continue;
-    // Element extents are cached in texture px against the live print rect;
-    // convert to this canvas's space before testing.
-    const hw = (b.w / r.w) * cw / 2, hh = (b.h / r.h) * ch / 2;
-    const dx = nx * cw - el.nx * cw, dy = ny * ch - el.ny * ch;
-    const rot = -(el.rotation || 0);
-    const lx = dx * Math.cos(rot) - dy * Math.sin(rot);
-    const ly = dx * Math.sin(rot) + dy * Math.cos(rot);
-    if (Math.abs(lx) <= hw && Math.abs(ly) <= hh) return el;
+    if (el.id === cur) continue;
+    const b = _flatBoxes[el.id];
+    if (b && _flatPointInQuad(x, y, _flatCorners(b))) return el.id;
   }
   return null;
 }
 
-function bindPositionGuide() {
-  const faces = document.querySelectorAll(".guide-face");
-  if (!faces.length) return;
+// ── Gestures ────────────────────────────────────────────────────
 
-  faces.forEach((face) => {
-    const view = face.dataset.view;
-    const cv = face.querySelector(".guide-canvas");
-    let drag = null;
+function _flatOnPointerDown(e) {
+  if (!_flatCv) return;
+  if (e.pointerType === "mouse" && e.button != null && e.button !== 0) return;
 
-    const norm = (e) => {
-      const b = cv.getBoundingClientRect();
-      return { nx: (e.clientX - b.left) / b.width, ny: (e.clientY - b.top) / b.height, w: b.width, h: b.height };
-    };
+  // Second finger on an active gesture → pinch (scale + rotate).
+  if (_flatGesture && _flatPointers.size >= 1) {
+    _flatPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (_flatPointers.size >= 2) { e.preventDefault(); _flatStartPinch(); }
+    return;
+  }
 
-    face.addEventListener("pointerdown", (e) => {
-      // Editing always applies to the active face — clicking the other one
-      // switches to it first, so a drag never edits the side you can't see.
-      if (view !== designState.activeView) {
-        setActiveView(view);
-        renderPositionGuide();
-        return;
+  const p = _flatLocal(e);
+  let hit = _flatActiveId() ? _flatHitTest(p.x, p.y) : null;
+  if (!hit) {
+    const other = _flatElementAt(p.x, p.y);
+    if (other) { selectElement(other, { redraw: false }); renderFlatEditor(); hit = { type: "move" }; }
+  }
+  if (!hit) {
+    // Empty garment → drop the selection, the way every canvas editor does.
+    if (_flatActiveId()) { selectElement(null); renderFlatEditor(); }
+    return;
+  }
+
+  e.preventDefault();
+  _flatPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { _flatCv.setPointerCapture(e.pointerId); } catch (_) {}
+
+  const el = _flatActiveEl();
+  if (!el) return;
+  const b = _flatBoxes[el.id];
+  const center = b ? { x: b.cx, y: b.cy } : p;
+
+  if (hit.type === "move") {
+    _flatGesture = { type: "move", lastX: p.x, lastY: p.y };
+  } else if (hit.type === "scale") {
+    const d0 = Math.hypot(p.x - center.x, p.y - center.y);
+    _flatGesture = { type: "scale", d0: Math.max(8, d0), startSize: el.type === "text" ? el.size : el.scalePct };
+  } else {
+    const a0 = Math.atan2(p.y - center.y, p.x - center.x);
+    _flatGesture = { type: "rotate", a0, startRot: el.rotation || 0 };
+  }
+}
+
+function _flatOnPointerMove(e) {
+  if (!_flatCv) return;
+  if (_flatPointers.has(e.pointerId)) _flatPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (_flatPinch) { _flatUpdatePinch(); e.preventDefault(); return; }
+  if (!_flatGesture) { _flatHoverCursor(e); return; }
+
+  const el = _flatActiveEl();
+  if (!el || !_flatRect) return;
+  const p = _flatLocal(e);
+  const r = _flatRect;
+
+  if (_flatGesture.type === "move") {
+    // On a flat, unwarped canvas a screen delta IS a normalised delta.
+    el.nx += (p.x - _flatGesture.lastX) / r.w;
+    el.ny += (p.y - _flatGesture.lastY) / r.h;
+    _flatGesture.lastX = p.x; _flatGesture.lastY = p.y;
+    const u = Math.max(0, Math.min(1, el.nx));
+    const v = Math.max(0, Math.min(1, el.ny));
+    const thr = 8;
+    _flatGesture.snapX = !e.ctrlKey && Math.abs(u - 0.5) * r.w < thr;
+    _flatGesture.snapY = !e.ctrlKey && Math.abs(v - 0.5) * r.h < thr;
+    el.nx = _flatGesture.snapX ? 0.5 : u;
+    el.ny = _flatGesture.snapY ? 0.5 : v;
+  } else if (_flatGesture.type === "scale") {
+    const b = _flatBoxes[el.id];
+    if (!b) return;
+    const ratio = Math.hypot(p.x - b.cx, p.y - b.cy) / _flatGesture.d0;
+    _flatApplyScale(el, _flatGesture.startSize * ratio);
+  } else if (_flatGesture.type === "rotate") {
+    const b = _flatBoxes[el.id];
+    if (!b) return;
+    const a = Math.atan2(p.y - b.cy, p.x - b.cx);
+    let rot = _flatGesture.startRot + (a - _flatGesture.a0);
+    if (e.shiftKey) {
+      const s = Math.PI / 12; rot = Math.round(rot / s) * s; // 15° steps
+    } else {
+      for (const s of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        if (Math.abs(_normAngle(rot - s)) < (4 * Math.PI) / 180) { rot = s; break; }
       }
-      const p = norm(e);
-      if (p.nx < 0 || p.nx > 1 || p.ny < 0 || p.ny > 1) return;
-      const hit = _guideElementAt(view, p.nx, p.ny, p.w, p.h);
-      if (!hit) return;
-      e.preventDefault();
-      selectElement(hit.id);
-      drag = { id: hit.id, ox: hit.nx - p.nx, oy: hit.ny - p.ny };
-      try { face.setPointerCapture(e.pointerId); } catch (_) {}
-    });
+    }
+    el.rotation = rot;
+  }
 
-    face.addEventListener("pointermove", (e) => {
-      if (!drag) return;
-      const el = elementById(drag.id, view);
-      if (!el) { drag = null; return; }
-      const p = norm(e);
-      el.nx = Math.max(0, Math.min(1, p.nx + drag.ox));
-      el.ny = Math.max(0, Math.min(1, p.ny + drag.oy));
-      scheduleRedraw();
-    });
+  e.preventDefault();
+  scheduleRedraw();
+}
 
-    const end = (e) => {
-      if (!drag) return;
-      drag = null;
-      try { face.releasePointerCapture(e.pointerId); } catch (_) {}
-    };
-    face.addEventListener("pointerup", end);
-    face.addEventListener("pointercancel", end);
+function _flatApplyScale(el, raw) {
+  if (el.type === "text") el.size = Math.round(Math.max(24, Math.min(240, raw)));
+  else el.scalePct = Math.round(Math.max(10, Math.min(200, raw)));
+  _syncSelNum(el);
+}
+
+function _flatOnPointerUp(e) {
+  if (!_flatPointers.has(e.pointerId)) return;
+  _flatPointers.delete(e.pointerId);
+  if (_flatPinch && _flatPointers.size < 2) _flatPinch = null;
+  if (_flatPointers.size === 0) {
+    _flatGesture = null;
+    renderFlatEditor();
+  }
+  try { _flatCv.releasePointerCapture(e.pointerId); } catch (_) {}
+}
+
+function _flatHoverCursor(e) {
+  if (!_flatCv || _coarsePointer()) return;
+  const p = _flatLocal(e);
+  let hit = _flatActiveId() ? _flatHitTest(p.x, p.y) : null;
+  if (!hit && _flatElementAt(p.x, p.y)) hit = { type: "move" };
+  _flatCv.style.cursor = !hit ? "default"
+    : hit.type === "rotate" ? "grab"
+    : hit.type === "scale" ? "nwse-resize" : "move";
+}
+
+function _flatStartPinch() {
+  const el = _flatActiveEl();
+  if (!el) return;
+  const pts = [..._flatPointers.values()];
+  const d0 = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  const a0 = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+  _flatPinch = {
+    d0: Math.max(8, d0), a0,
+    startSize: el.type === "text" ? el.size : el.scalePct,
+    startRot: el.rotation || 0,
+  };
+  _flatGesture = null;
+}
+
+function _flatUpdatePinch() {
+  const el = _flatActiveEl();
+  if (!el || !_flatPinch) return;
+  const pts = [..._flatPointers.values()];
+  if (pts.length < 2) return;
+  const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  const a = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+  _flatApplyScale(el, _flatPinch.startSize * (d / _flatPinch.d0));
+  el.rotation = _flatPinch.startRot + (a - _flatPinch.a0);
+  scheduleRedraw();
+}
+
+// ── Empty state ─────────────────────────────────────────────────
+// An untouched face used to be a bare dashed rectangle with nothing to press.
+// The first tap should do something, and the target should be the thing the
+// user is already looking at.
+
+function _flatSyncEmptyState() {
+  const btn = document.getElementById("flat-empty");
+  if (!btn || !_flatRect) return;
+  const empty = !_viewHasContent(designState.activeView);
+  btn.style.display = empty ? "flex" : "none";
+  if (!empty) return;
+  // This is the beginner's first action, so it has to be readable ON the
+  // garment — light grey on a white tee was almost invisible.
+  btn.classList.toggle("on-dark", _flatDarkGarment());
+  // _flatRect is canvas-local; the button is positioned in the stagebox, whose
+  // padding offsets the canvas — offsetLeft/Top bridge the two spaces.
+  btn.style.left = (_flatCv.offsetLeft + _flatRect.x) + "px";
+  btn.style.top = (_flatCv.offsetTop + _flatRect.y) + "px";
+  btn.style.width = _flatRect.w + "px";
+  btn.style.height = _flatRect.h + "px";
+  // The print rect is a real 30cm print area, so on a phone it is only ~75px
+  // wide. A fixed label size overflowed it; scale the prompt to the rect so it
+  // stays inside whatever the garment and viewport make of it.
+  const s = Math.max(9, Math.min(17, _flatRect.w * 0.085));
+  btn.style.fontSize = s.toFixed(1) + "px";
+  // Under ~90px the longest word cannot fit on one line at any legible size,
+  // so the prompt becomes just the "+" — which still reads as "tap here".
+  btn.classList.toggle("compact", _flatRect.w < 90);
+  const plus = btn.querySelector(".flat-empty-plus");
+  if (plus) {
+    const d = Math.max(24, Math.min(52, _flatRect.w * 0.26));
+    plus.style.width = plus.style.height = d.toFixed(0) + "px";
+    plus.style.fontSize = (d * 0.5).toFixed(0) + "px";
+  }
+}
+
+function _flatOpenAddSheet() {
+  const sheet = document.getElementById("flat-add-sheet");
+  if (sheet) sheet.classList.add("open");
+}
+
+function _flatCloseAddSheet() {
+  const sheet = document.getElementById("flat-add-sheet");
+  if (sheet) sheet.classList.remove("open");
+}
+
+// ── Wiring ──────────────────────────────────────────────────────
+
+function bindFlatEditor() {
+  const cv = document.getElementById("flat-canvas");
+  if (!cv) return;
+  _flatCv = cv;
+  _flatCtx = cv.getContext("2d");
+
+  cv.addEventListener("pointerdown", _flatOnPointerDown);
+  window.addEventListener("pointermove", _flatOnPointerMove);
+  window.addEventListener("pointerup", _flatOnPointerUp);
+  window.addEventListener("pointercancel", _flatOnPointerUp);
+
+  const empty = document.getElementById("flat-empty");
+  if (empty) empty.addEventListener("click", _flatOpenAddSheet);
+
+  const addText = document.getElementById("flat-add-text");
+  if (addText) addText.addEventListener("click", () => { _flatCloseAddSheet(); addTextElement(); });
+
+  const addImg = document.getElementById("flat-add-image");
+  if (addImg) addImg.addEventListener("click", () => {
+    _flatCloseAddSheet();
+    _pendingLogoIsNew = true;
+    const fi = document.getElementById("logo-file-input");
+    if (fi) { fi.value = ""; fi.click(); }
   });
 
-  // The faces are percentage-sized, so a viewport change needs a repaint.
-  window.addEventListener("resize", () => renderPositionGuide());
+  const back = document.getElementById("flat-add-backdrop");
+  if (back) back.addEventListener("click", _flatCloseAddSheet);
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") _flatCloseAddSheet(); });
+
+  // The canvas is percentage-sized, so a viewport change needs a repaint.
+  window.addEventListener("resize", () => renderFlatEditor());
+  if (window.ResizeObserver && cv.parentElement) {
+    new ResizeObserver(() => renderFlatEditor()).observe(cv.parentElement);
+  }
+  renderFlatEditor();
+}
+
+// The dock's old mini-diagram is gone; anything still calling into it lands here.
+function renderPositionGuide() { renderFlatEditor(); }
+
+// ================================================================
+// SECTION 9d — MOBILE SHEET + STEPS
+// ----------------------------------------------------------------
+// Design → Цвет и размер → Заказ, landing on Design because that is what the
+// visitor clicked "Кастомизация" for. The sheet slides over the garment rather
+// than pushing it, and the price + CTA never leave the base.
+
+const SHEET_STEPS = ["design", "color", "order"];
+// Three resting heights, one per step's actual need. Colour deliberately does
+// NOT go full height: the entire point of a configurator is watching the
+// garment change, and a sheet that covers the shirt while you pick its colour
+// is the same mistake as a full-screen wizard page.
+// Must match --peek in the phone stylesheet: the CSS derives the stage height
+// and the Перед/Зад position from it, and this drives the snap points.
+const SHEET_PEEK = 54;      // dvh — design: garment gets the screen
+const SHEET_MID  = 62;      // dvh — colour/size: garment still visible above
+const SHEET_FULL = 86;      // dvh — order: a summary, nothing to watch
+const SHEET_H = { design: SHEET_PEEK, color: SHEET_MID, order: SHEET_FULL };
+let currentStep = "design";
+let _sheetOpen = false;
+
+function _isSheetLayout() {
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function setStep(step) {
+  if (SHEET_STEPS.indexOf(step) < 0) step = "design";
+  currentStep = step;
+
+  const sheet = document.getElementById("studio-sheet");
+  if (sheet) sheet.dataset.step = step;
+
+  document.querySelectorAll(".step-btn").forEach((b) => {
+    const on = b.dataset.step === step;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+
+  // Steps 2 and 3 reuse the existing tab bodies, so the desktop tabs and the
+  // mobile steps can never drift apart — there is only one set of markup.
+  const want = step === "order" ? "summary" : "color";
+  document.querySelectorAll(".tab-content").forEach((tc) => {
+    const on = tc.id === "tab-" + want;
+    tc.classList.toggle("active", on);
+    tc.style.display = on ? "flex" : "none";
+  });
+  document.querySelectorAll(".tab-btn").forEach((b) => {
+    const on = b.dataset.tab === want;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  if (step === "order") updateSummaryTab();
+
+  markStepsDone();
+  snapSheetToStep();
+}
+
+/** Rest the sheet at the height this step actually needs. */
+function snapSheetToStep() {
+  const sheet = document.getElementById("studio-sheet");
+  if (!sheet) return;
+  const h = SHEET_H[currentStep] || SHEET_PEEK;
+  _sheetOpen = h >= SHEET_FULL;
+  sheet.style.setProperty("--sheet-h", h + "dvh");
+}
+
+/**
+ * Tick only what the user has genuinely done. Colour and size always hold a
+ * valid value, so ticking them would claim credit for work nobody did — which
+ * is exactly the kind of small lie that makes a wizard feel untrustworthy.
+ * Design is the only step that can be meaningfully incomplete.
+ */
+function markStepsDone() {
+  const hasDesign = _viewHasContent("front") || _viewHasContent("back");
+  document.querySelectorAll(".step-btn").forEach((b) => {
+    b.classList.toggle(
+      "done",
+      b.dataset.step === "design" && hasDesign && currentStep !== "design",
+    );
+  });
+}
+
+function setSheetOpen(open) {
+  _sheetOpen = !!open;
+  const sheet = document.getElementById("studio-sheet");
+  if (!sheet) return;
+  const rest = SHEET_H[currentStep] || SHEET_PEEK;
+  sheet.style.setProperty("--sheet-h", (_sheetOpen ? SHEET_FULL : rest) + "dvh");
+}
+
+function bindSheet() {
+  document.querySelectorAll(".step-btn").forEach((b) => {
+    b.addEventListener("click", () => setStep(b.dataset.step));
+  });
+
+  const sheet = document.getElementById("studio-sheet");
+  const handle = document.getElementById("sheet-handle");
+  if (!sheet || !handle) return;
+  sheet.dataset.step = currentStep;
+  snapSheetToStep();
+
+  // Drag the handle to resize; release snaps to whichever height is nearer.
+  let drag = null;
+  handle.addEventListener("pointerdown", (e) => {
+    if (!_isSheetLayout()) return;
+    drag = { y: e.clientY, h: sheet.getBoundingClientRect().height, moved: false };
+    sheet.classList.add("dragging");
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dy = drag.y - e.clientY;
+    if (Math.abs(dy) > 3) drag.moved = true;
+    const vh = window.innerHeight;
+    const min = (SHEET_PEEK / 100) * vh * 0.72;
+    const max = (SHEET_FULL / 100) * vh;
+    const h = Math.max(min, Math.min(max, drag.h + dy));
+    sheet.style.setProperty("--sheet-h", h + "px");
+    e.preventDefault();
+  });
+  const end = (e) => {
+    if (!drag) return;
+    const h = sheet.getBoundingClientRect().height;
+    const mid = ((SHEET_PEEK + SHEET_FULL) / 2 / 100) * window.innerHeight;
+    sheet.classList.remove("dragging");
+    // A tap (no movement) toggles — dragging a sheet is not obvious to everyone.
+    setSheetOpen(drag.moved ? h > mid : !_sheetOpen);
+    drag = null;
+    try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+  };
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+}
+
+// ── Cart CTA state ──────────────────────────────────────────────
+// A blank shirt is a real product, so the button is never disabled — but it
+// should say what it will actually do, which doubles as a nudge that nothing
+// has been designed yet.
+function updateCartCta() {
+  const btn = document.getElementById("btn-add-to-cart");
+  if (!btn) return;
+  const label = btn.querySelector("span[data-i18n]");
+  if (!label) return;
+  const empty = !_viewHasContent("front") && !_viewHasContent("back");
+  const key = empty ? "cfg.orderBlank" : "cfg.addToCart";
+  label.setAttribute("data-i18n", key);
+  label.textContent = CT(key, empty ? "Заказать без принта" : "В корзину");
+  btn.classList.toggle("is-blank", empty);
+}
+
+// ── "⋯" overflow menu ───────────────────────────────────────────
+function bindMoreMenu() {
+  const wrap = document.querySelector(".dock-more");
+  const btn = document.getElementById("btn-more");
+  if (!wrap || !btn) return;
+  const menu = document.getElementById("dock-more-menu");
+  // Out of the dock entirely — see the CSS note on backdrop-filter.
+  if (menu && menu.parentElement !== document.body) document.body.appendChild(menu);
+  const close = () => {
+    if (menu) menu.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
+  };
+
+  /** Anchor the fixed menu to the button, flipping up if it would overflow. */
+  const place = () => {
+    if (!menu) return;
+    const r = btn.getBoundingClientRect();
+    menu.style.visibility = "hidden";
+    menu.style.left = "0px"; menu.style.top = "0px";
+    const mh = menu.offsetHeight, mw = menu.offsetWidth;
+    const below = window.innerHeight - r.bottom;
+    menu.style.top = (below < mh + 12 ? r.top - mh - 6 : r.bottom + 6) + "px";
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.right - mw)) + "px";
+    menu.style.visibility = "";
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!menu) return;
+    const open = !menu.classList.contains("open");
+    menu.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+    if (open) place();
+  });
+  window.addEventListener("resize", () => { if (menu && menu.classList.contains("open")) place(); });
+  window.addEventListener("scroll", close, true);
+  if (menu) menu.querySelectorAll(".dock-more-item").forEach((i) => i.addEventListener("click", close));
+  document.addEventListener("click", (e) => {
+    if (!wrap.contains(e.target) && !(menu && menu.contains(e.target))) close();
+  });
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+}
+
+// ── Flat ⇄ 3D ───────────────────────────────────────────────────
+// The chip that used to toggle handles now swaps the working surface, because
+// the 3D shirt is a preview: you look at it, you do not edit on it.
+
+let flatMode = true;
+
+/**
+ * The stage shows exactly one surface. Showing the flat editor and the 3D at
+ * once read as two different products competing for the screen, and gave each
+ * of them half the space — so they take turns instead.
+ */
+function setFlatMode(on) {
+  flatMode = !!on;
+  const flat = document.getElementById("flat-editor");
+  const three = document.getElementById("three-container");
+  if (flat) flat.style.display = flatMode ? "block" : "none";
+  if (three) three.style.display = flatMode ? "none" : "block";
+
+  document.querySelectorAll(".surface-btn").forEach((b) => {
+    const on2 = (b.dataset.surface === "flat") === flatMode;
+    b.classList.toggle("active", on2);
+    b.setAttribute("aria-selected", String(on2));
+  });
+
+  if (flatMode) renderFlatEditor();
+  else if (typeof onWindowResize === "function") onWindowResize();
+}
+
+function toggleFlatMode() {
+  if (flatMode) trackStep("cfg_preview_3d"); // about to show the 3D
+  setFlatMode(!flatMode);
+}
+
+function bindSurfaceToggle() {
+  document.querySelectorAll(".surface-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      const wantFlat = b.dataset.surface === "flat";
+      if (wantFlat === flatMode) return;
+      if (!wantFlat) trackStep("cfg_preview_3d");
+      setFlatMode(wantFlat);
+    });
+  });
+}
+
+// First design placed → show it on the shirt, once. The payoff is the reason
+// people came; they should not have to discover the 3D toggle to get it.
+let _flatRewardShown = false;
+function maybeShowFirstDesignReward() {
+  if (_flatRewardShown || !_viewHasContent(designState.activeView)) return;
+  _flatRewardShown = true;
+  setFlatMode(false);
+  setTimeout(() => { if (!flatMode) setFlatMode(true); }, 2200);
+}
+
+// ── Undo (single level) ─────────────────────────────────────────
+// Covers the realistic beginner mistake: something was deleted or everything
+// was reset, by accident. Not a history stack — one step back, offered in a
+// toast at the moment it is useful.
+
+let _undoSnap = null;
+
+function _snapDesign() {
+  const clone = (list) => list.map((e) => Object.assign({}, e));
+  return {
+    front: { elements: clone(designState.front.elements), selId: designState.front.selId },
+    back: { elements: clone(designState.back.elements), selId: designState.back.selId },
+    activeView: designState.activeView,
+    shirtColor: designState.shirtColor,
+    files: Object.assign({}, uploadedFileData),
+  };
+}
+
+/** Remember the current design before a destructive action. */
+function markUndo(label) {
+  _undoSnap = { label: label || "", state: _snapDesign() };
+}
+
+function performUndo() {
+  if (!_undoSnap) return;
+  const s = _undoSnap.state;
+  _undoSnap = null;
+  designState.front.elements = s.front.elements;
+  designState.front.selId = s.front.selId;
+  designState.back.elements = s.back.elements;
+  designState.back.selId = s.back.selId;
+  designState.shirtColor = s.shirtColor;
+  Object.keys(uploadedFileData).forEach((k) => delete uploadedFileData[k]);
+  Object.assign(uploadedFileData, s.files);
+  if (designState.activeView !== s.activeView) setActiveView(s.activeView);
+  syncPanelFromState();
+  redrawActive();
+  updateViewToggleMarkers();
+}
+
+/** Toast with an action. The plain showToast() is pointer-events:none. */
+function showUndoToast(message) {
+  const old = document.getElementById("loom-undo-toast");
+  if (old) old.remove();
+
+  const t = document.createElement("div");
+  t.id = "loom-undo-toast";
+  t.className = "undo-toast";
+  const label = document.createElement("span");
+  label.textContent = message;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "undo-toast-btn";
+  btn.textContent = CT("cfg.undo", "Отменить");
+  t.appendChild(label);
+  t.appendChild(btn);
+  document.body.appendChild(t);
+
+  let done = false;
+  const close = () => {
+    if (done) return;
+    done = true;
+    t.classList.remove("show");
+    setTimeout(() => t.remove(), 300);
+  };
+  btn.addEventListener("click", () => { performUndo(); close(); });
+  requestAnimationFrame(() => t.classList.add("show"));
+  setTimeout(close, 6000);
 }
 
 /**
@@ -2942,12 +3855,13 @@ async function addToCart(opts) {
 // "Купить сейчас" — Amazon-style buy-now: add the live design to the bag,
 // then jump straight to checkout (skipping the drawer).
 async function buyNow() {
+  trackStep("cfg_order");
   const ok = await addToCart({ openDrawer: false });
   if (ok) location.href = "checkout.html";
 }
 function bindCart() {
   // drawer, badge, checkout handoff → assets/cart.js; we only own "add"
-  document.getElementById("btn-add-to-cart")?.addEventListener("click", () => addToCart());
+  document.getElementById("btn-add-to-cart")?.addEventListener("click", () => { trackStep("cfg_cart"); addToCart(); });
 }
 
 // ----------------------------------------------------------------
@@ -2957,14 +3871,14 @@ function buildColorSwatches() {
   const container = document.getElementById("color-swatches");
   if (!container) return;
 
-  SHIRT_COLORS.forEach(({ name, hex }) => {
+  SHIRT_COLORS.forEach(({ name, hex, i18n, light }) => {
     const btn = document.createElement("button");
     btn.className =
       "swatch-btn" + (hex === designState.shirtColor ? " selected" : "");
-    btn.title = name;
+    btn.title = i18n ? CT(i18n, name) : name;
     btn.dataset.hex = hex;
     btn.style.background = hex;
-    if (hex === "#FFFFFF") btn.style.border = "2px solid #D1D5DB";
+    if (light) btn.style.border = "2px solid #D1D5DB";
 
     btn.addEventListener("click", () => selectShirtColor(hex, btn));
     container.appendChild(btn);
@@ -2977,6 +3891,7 @@ function buildColorSwatches() {
 function bindSizeSelector() {
   document.querySelectorAll(".size-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
+      trackStep("cfg_style");
       selectedSize = btn.dataset.size;
       document.querySelectorAll(".size-btn").forEach((b) => {
         b.classList.toggle("active", b.dataset.size === selectedSize);
@@ -3094,6 +4009,11 @@ function updateViewToggleMarkers() {
     const btn = document.getElementById(id);
     if (btn) btn.classList.toggle("has-design", _viewHasContent(v));
   });
+  // Everything that changes "is there a design?" funnels through here, so the
+  // CTA wording and the step ticks ride along rather than needing their own
+  // call sites scattered through the add/delete/undo paths.
+  if (typeof updateCartCta === "function") updateCartCta();
+  if (typeof markStepsDone === "function") markStepsDone();
 }
 
 // ================================================================
@@ -3120,6 +4040,7 @@ function bindColorControls() {
 }
 
 function selectShirtColor(hex, clickedBtn) {
+  trackStep("cfg_style");
   designState.shirtColor = hex;
 
   // Update swatch selection highlight
@@ -3137,7 +4058,10 @@ function selectShirtColor(hex, clickedBtn) {
   drawTexture("front");
   drawTexture("back");
   applyActiveTexture();
-  if (renderer && camera && scene) renderer.render(scene, camera);
+  // The flat editor is the surface the user is actually looking at while they
+  // pick a colour, so it has to repaint too — the 3D alone is not enough.
+  renderFlatEditor();
+  if (renderer && camera && scene && !flatMode) renderer.render(scene, camera);
 }
 
 // ================================================================
@@ -3301,6 +4225,9 @@ function handleImageFile(file) {
 
       syncPanelFromState();
       redrawActive();
+      updateViewToggleMarkers();
+      trackStep("cfg_design_add");
+      maybeShowFirstDesignReward();
       }; // apply()
 
       if (finalImg === img) apply();
@@ -3390,7 +4317,8 @@ function updateSummaryTab() {
 }
 
 function resetDesign() {
-  designState.shirtColor = "#FFFFFF";
+  markUndo("reset");
+  designState.shirtColor = DEFAULT_SHIRT_COLOR;
   selectedSize = "L";
 
   ["front", "back"].forEach((v) => {
@@ -3413,7 +4341,7 @@ function resetDesign() {
   });
 
   const cp = document.getElementById("custom-color-picker");
-  if (cp) cp.value = "#FFFFFF";
+  if (cp) cp.value = DEFAULT_SHIRT_COLOR;
   const fi = document.getElementById("logo-file-input");
   if (fi) fi.value = "";
 
@@ -3426,13 +4354,16 @@ function resetDesign() {
 
   // Reselect white swatch
   document.querySelectorAll(".swatch-btn").forEach((b) => {
-    b.classList.toggle("selected", b.dataset.hex === "#FFFFFF");
+    b.classList.toggle("selected", b.dataset.hex === DEFAULT_SHIRT_COLOR);
   });
 
   syncPanelFromState();
   drawTexture("front");
   drawTexture("back");
   applyActiveTexture();
+  renderFlatEditor();
+  updateViewToggleMarkers();
+  showUndoToast(CT("cfg.wasReset", "Дизайн сброшен"));
 }
 
 // ================================================================
@@ -3460,13 +4391,11 @@ function bindSaveDesign() {
 // SECTION 16 — ORDER MODAL
 // ================================================================
 
-// Map hex → Russian color name for order display
+// Map hex → display name for the order summary.
 function getColorName(hex) {
-  // Translate the two base colors; fall back to stored name / hex for custom colors
-  const h = (hex || "").toUpperCase();
-  if (h === "#FFFFFF") return CT("cfg.colorWhite", "Белый");
-  if (h === "#1F2937") return CT("cfg.colorBlack", "Чёрный");
-  return COLOR_NAMES[hex] || hex;
+  const def = shirtColorDef(hex);
+  if (def) return def.i18n ? CT(def.i18n, def.name) : def.name;
+  return COLOR_NAMES[hex] || hex; // custom picker colours keep their stored name
 }
 
 async function openOrderModal(cartMode) {

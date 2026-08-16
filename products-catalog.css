@@ -290,3 +290,54 @@
 
 /* ready cards: single primary buy button fills the row */
 .bag-btn--primary { flex: 1; }
+
+/* ══════════════════════════════════════════════════════════════════
+   MAXIMALIST SKIN — catalog
+   Matches assets/theme.css §11 (tokens come from there).
+   Last in the file so it wins on order, not specificity.
+   ═══════════════════════════════════════════════════════════════ */
+.catalog-tab {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  font-family: var(--font-display, sans-serif);
+  font-weight: 700;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.catalog-tab:hover { transform: translate(-1px, -1px); box-shadow: var(--hard, 3px 3px 0 var(--ink)); }
+.catalog-tab.active,
+.catalog-tab[aria-selected="true"] { box-shadow: var(--hard-accent, 3px 3px 0 var(--accent)); }
+
+.catalog-section__title { letter-spacing: -0.03em; }
+.catalog-section__head { border-bottom: var(--rule, 2px solid var(--ink)); }
+
+.bag-btn, .customize-btn, .quick-size-btn, .carousel-arrow {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  font-family: var(--font-display, sans-serif);
+  font-weight: 700;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.bag-btn:hover, .customize-btn:hover, .quick-size-btn:hover, .carousel-arrow:hover {
+  transform: translate(-1px, -1px); box-shadow: var(--hard, 3px 3px 0 var(--ink));
+}
+.bag-btn:active, .customize-btn:active, .quick-size-btn:active {
+  transform: translate(2px, 2px); box-shadow: none;
+}
+.quick-size-btn.active { box-shadow: var(--hard-accent, 3px 3px 0 var(--accent)); }
+
+/* "Готовый дизайн" chip reads as a stamp */
+.pcard__ready-chip {
+  border: 1.5px solid var(--ink, #131311);
+  border-radius: 0;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-tab:hover, .bag-btn:hover, .customize-btn:hover,
+  .quick-size-btn:hover, .carousel-arrow:hover,
+  .bag-btn:active, .customize-btn:active, .quick-size-btn:active { transform: none; }
+}

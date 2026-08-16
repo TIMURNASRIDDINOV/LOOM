@@ -290,3 +290,47 @@ body.menu-open { overflow: hidden; }
 .mobile-theme .theme-dots { gap: 14px; }
 .mobile-theme .theme-dot { width: 26px; height: 26px; }
 @media (hover: none) { .theme-dot:hover { transform: none; } }
+
+/* ══════════════════════════════════════════════════════════════════
+   MAXIMALIST SKIN — navigation
+   Matches assets/theme.css §11. The nav sits on every page, so it is
+   the one surface that has to carry the language everywhere.
+   Deliberately last in the file: order beats specificity.
+   ═══════════════════════════════════════════════════════════════ */
+.nav { border-bottom: var(--rule, 2px solid var(--ink)); }
+
+.nav-cta, .nav-cart-btn, .lang-btn {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: background 0.25s ease, color 0.25s ease,
+              border-color 0.25s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.nav-cta { font-family: var(--font-display, sans-serif); font-weight: 700; }
+.nav-cta:hover, .nav-cart-btn:hover, .lang-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--hard, 3px 3px 0 var(--ink));
+}
+.nav-cta:active, .nav-cart-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* Cart badge as a hard accent chip rather than a soft dot */
+.cart-count { border-radius: 0; border: 1px solid var(--ink, #131311); font-weight: 700; }
+
+/* Menus and the mobile sheet join the system */
+.lang-menu, .auth-dropdown-menu {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  box-shadow: var(--hard, 3px 3px 0 var(--ink));
+}
+.mobile-menu { border-left: var(--rule, 2px solid var(--ink)); }
+.mobile-menu-link { font-family: var(--font-display, sans-serif); font-weight: 700; letter-spacing: -0.01em; }
+.mobile-menu-link--cta {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-cta:hover, .nav-cart-btn:hover, .lang-btn:hover,
+  .nav-cta:active, .nav-cart-btn:active { transform: none; }
+}
