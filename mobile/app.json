@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "LOOM",
+    "slug": "loom",
+    "scheme": "loom",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f4f2ed",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f4f2ed"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "uz.loomdesign.app",
+      "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true,
+        "NSPhotoLibraryUsageDescription": "LOOM использует доступ к фото, чтобы вы могли загрузить свою графику для печати."
+      }
+    },
+    "android": {
+      "package": "uz.loomdesign.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f4f2ed"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-splash-screen",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "LOOM использует доступ к фото, чтобы вы могли загрузить свою графику для печати."
+        }
+      ]
+    ],
+    "extra": {
+      "apiBase": "https://api.loomdesign.uz",
+      "router": {},
+      "eas": {
+        "projectId": "9eb62be1-7ef4-446d-81a3-f77a45d68be5"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "owner": "temurnasriddinov"
+  }
+}
