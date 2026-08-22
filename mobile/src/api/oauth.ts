@@ -46,36 +46,21 @@ const ENDPOINTS: Record<ProviderId, Endpoints> = {
   },
 }
 
-/**
- * The Worker's client id for a provider. The app needs it to build the
- * authorization URL, and it is public by definition — only the secret matters.
- */
-type ProviderInfo = { id: ProviderId; clientId: string }
+/** A provider this deployment can complete, with its public client id. */
+export type ProviderInfo = { id: ProviderId; clientId: string }
 
-/** Which providers this deployment can actually complete a sign-in for. */
+/**
+ * Which providers the Worker can actually finish a sign-in for, and the client
+ * id to build each authorization URL with. Served rather than hardcoded so the
+ * app can never disagree with the deployment about what is live.
+ */
 export async function fetchProviders(): Promise<ProviderInfo[]> {
-  const res = await api<{ providers: { id: ProviderId; client_id: string }[] | ProviderId[] }>(
+  const res = await api<{ providers: { id: ProviderId; client_id: string }[] }>(
     '/api/auth/oauth/providers',
   )
-  // The Worker returns bare ids; the client id travels in app config so the
-  // authorization URL can be built without a second round trip.
-  return (res.providers as ProviderId[])
-    .filter((p): p is ProviderId => typeof p === 'string')
-    .map((id) => ({ id, clientId: CLIENT_IDS[id] ?? '' }))
-    .filter((p) => !!p.clientId)
-}
-
-/**
- * Public OAuth client ids, mirrored from the Worker's env.
- *
- * These are not secrets, but they are deployment-specific: fill them in when
- * you register the apps in Google Cloud Console / Meta / Discord, using the
- * redirect URI that `redirectUri()` below prints.
- */
-export const CLIENT_IDS: Partial<Record<ProviderId, string>> = {
-  // google: '1234567890-abcdef.apps.googleusercontent.com',
-  // facebook: '000000000000000',
-  // discord: '0000000000000000000',
+  return (res.providers ?? [])
+    .filter((p) => p && typeof p.client_id === 'string' && p.client_id.length > 0)
+    .map((p) => ({ id: p.id, clientId: p.client_id }))
 }
 
 export function redirectUri(): string {

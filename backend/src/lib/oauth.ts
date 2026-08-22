@@ -96,8 +96,17 @@ export function providerConfigured(
   return !!env[c.clientIdVar] && !!env[c.clientSecretVar]
 }
 
-export function configuredProviders(env: Record<string, string | undefined>): ProviderId[] {
-  return (Object.keys(PROVIDERS) as ProviderId[]).filter((p) => providerConfigured(p, env))
+/**
+ * The providers this deployment can complete, each with its public client id.
+ * The app needs the id to build the authorization URL; only the secret is
+ * sensitive, and that never leaves the Worker.
+ */
+export function configuredProviders(
+  env: Record<string, string | undefined>,
+): { id: ProviderId; client_id: string }[] {
+  return (Object.keys(PROVIDERS) as ProviderId[])
+    .filter((p) => providerConfigured(p, env))
+    .map((id) => ({ id, client_id: env[PROVIDERS[id].clientIdVar] as string }))
 }
 
 export class OAuthError extends Error {

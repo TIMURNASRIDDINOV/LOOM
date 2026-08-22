@@ -20,7 +20,12 @@ import { SocialButton } from '../src/components/SocialButtons'
 import { Button, T, Tap, Toast, Wordmark } from '../src/components/ui'
 import { useAuth } from '../src/state/auth'
 import { useToast } from '../src/state/toast'
-import { CLIENT_IDS, OAuthCancelled, fetchProviders, type ProviderId } from '../src/api/oauth'
+import {
+  OAuthCancelled,
+  fetchProviders,
+  type ProviderId,
+  type ProviderInfo,
+} from '../src/api/oauth'
 
 const SESSION_SECONDS = 600
 
@@ -36,7 +41,7 @@ export default function Login() {
   // Which providers the Worker actually holds credentials for. Anything absent
   // still renders, greyed out with «скоро», so the sheet does not silently
   // shrink between deployments.
-  const [live, setLive] = useState<ProviderId[]>([])
+  const [live, setLive] = useState<ProviderInfo[]>([])
   const [more, setMore] = useState(false)
   const [oauthBusy, setOauthBusy] = useState<ProviderId | null>(null)
   const [register, setRegister] = useState(false)
@@ -52,7 +57,7 @@ export default function Login() {
   useEffect(() => {
     let alive = true
     fetchProviders()
-      .then((ps) => alive && setLive(ps.map((p) => p.id)))
+      .then((ps) => alive && setLive(ps))
       .catch(() => {
         // Offline or an old Worker — every social button just shows «скоро».
       })
@@ -67,14 +72,14 @@ export default function Login() {
   }
 
   const social = async (provider: ProviderId) => {
-    const clientId = CLIENT_IDS[provider]
-    if (!clientId) {
+    const info = live.find((p) => p.id === provider)
+    if (!info) {
       flash('Этот способ входа ещё не настроен')
       return
     }
     setOauthBusy(provider)
     try {
-      await signInWithOAuth(provider, clientId)
+      await signInWithOAuth(provider, info.clientId)
       flash('Вы вошли')
       router.back()
     } catch (e) {
@@ -236,7 +241,7 @@ export default function Login() {
                 email sit behind the overflow row so the sheet stays two-choice. */}
             <SocialButton
               kind="google"
-              disabled={!live.includes('google')}
+              disabled={!live.some((p) => p.id === 'google')}
               busy={oauthBusy === 'google'}
               onPress={() => social('google')}
             />
@@ -245,13 +250,13 @@ export default function Login() {
               <>
                 <SocialButton
                   kind="facebook"
-                  disabled={!live.includes('facebook')}
+                  disabled={!live.some((p) => p.id === 'facebook')}
                   busy={oauthBusy === 'facebook'}
                   onPress={() => social('facebook')}
                 />
                 <SocialButton
                   kind="discord"
-                  disabled={!live.includes('discord')}
+                  disabled={!live.some((p) => p.id === 'discord')}
                   busy={oauthBusy === 'discord'}
                   onPress={() => social('discord')}
                 />
