@@ -14,7 +14,15 @@ Both client ids are set as Worker secrets (`GOOGLE_CLIENT_ID_ANDROID`,
 `GOOGLE_CLIENT_ID_IOS`) and `GET /api/auth/oauth/providers?platform=…` returns
 the right one per platform.
 
-**Two things to know:**
+**Custom URI scheme had to be enabled by hand.** Google now ships new Android
+clients with custom schemes *disabled*, so the first live test failed with
+`invalid_request — Custom URI scheme is not enabled for your Android client`.
+The fix is the **Enable custom URI scheme** checkbox under *Advanced settings*
+on the Android client. It is on now. iOS clients need no equivalent — the
+custom scheme is their normal redirect. If you ever recreate the Android
+client, re-tick this or Google sign-in breaks for every user.
+
+**Two more things to know:**
 
 1. **Published to production.** The consent screen started in Testing, which
    admits only listed test users — that would have blocked every sign-in. It is
