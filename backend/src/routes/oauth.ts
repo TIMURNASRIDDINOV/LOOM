@@ -13,7 +13,9 @@ import {
   OAuthError,
   configuredProviders,
   exchangeCode,
+  isPlatform,
   isProviderId,
+  type Platform,
 } from '../lib/oauth'
 import type { BaseEnv } from '../types'
 
@@ -31,7 +33,10 @@ const router = new Hono<BaseEnv>()
 
 router.get('/oauth/providers', (c) => {
   const env = c.env as unknown as Record<string, string | undefined>
-  return c.json({ providers: configuredProviders(env) })
+  // Google's client id differs per platform, so the app says which build it is.
+  const q = c.req.query('platform')
+  const platform: Platform = isPlatform(q) ? q : 'android'
+  return c.json({ platform, providers: configuredProviders(env, platform) })
 })
 
 // ─── POST /api/auth/oauth/:provider ──────────────────────────────────────────
@@ -60,6 +65,7 @@ router.post('/oauth/:provider', async (c) => {
   const code = typeof body.code === 'string' ? body.code : ''
   const redirectUri = typeof body.redirect_uri === 'string' ? body.redirect_uri : ''
   const codeVerifier = typeof body.code_verifier === 'string' ? body.code_verifier : undefined
+  const platform: Platform = isPlatform(body.platform) ? body.platform : 'android'
   if (!code || !redirectUri) {
     return c.json({ error: 'code and redirect_uri are required' }, 400)
   }
@@ -68,7 +74,7 @@ router.post('/oauth/:provider', async (c) => {
 
   let profile
   try {
-    profile = await exchangeCode(provider, { code, codeVerifier, redirectUri }, env)
+    profile = await exchangeCode(provider, { code, codeVerifier, redirectUri, platform }, env)
   } catch (e) {
     if (e instanceof OAuthError) return c.json({ error: e.message }, e.status as 400)
     console.error('oauth exchange threw:', e)

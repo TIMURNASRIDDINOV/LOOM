@@ -20,11 +20,28 @@ export type OAuthProfile = {
   avatarUrl: string | null
 }
 
+export type Platform = 'android' | 'ios' | 'web'
+
 type ProviderConfig = {
   tokenUrl: string
   userInfoUrl: string
   clientIdVar: string
   clientSecretVar: string
+  /**
+   * Google issues a separate client id per platform, and a code obtained with
+   * one can only be redeemed by that same id. When set, the env var for a
+   * platform is `<clientIdVar>_<PLATFORM>` and the app says which it used.
+   */
+  perPlatform?: boolean
+  /**
+   * True when the provider issues codes to public clients that hold no secret.
+   * Google's Android and iOS OAuth clients are the case that matters: they are
+   * the only Google client types that accept a custom-scheme redirect like
+   * `loom://redirect`, they have no secret, and a code issued to one can only
+   * be redeemed by that same client id. Sending a secret there is an error.
+   * PKCE is what secures the exchange instead.
+   */
+  allowPublicClient?: boolean
   /** Discord wants the token in the body as form data; all three do, actually. */
   profile: (raw: Record<string, unknown>) => OAuthProfile
 }
@@ -35,6 +52,8 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     userInfoUrl: 'https://openidconnect.googleapis.com/v1/userinfo',
     clientIdVar: 'GOOGLE_CLIENT_ID',
     clientSecretVar: 'GOOGLE_CLIENT_SECRET',
+    allowPublicClient: true,
+    perPlatform: true,
     profile: (r) => ({
       providerUserId: String(r.sub),
       email: typeof r.email === 'string' ? r.email : null,
@@ -80,6 +99,19 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
   },
 }
 
+/**
+ * The env var holding the client id for this provider on this platform.
+ * Google: GOOGLE_CLIENT_ID_ANDROID / _IOS / _WEB. Everyone else: one id.
+ */
+function idVarFor(provider: ProviderId, platform: Platform): string {
+  const cfg = PROVIDERS[provider]
+  return cfg.perPlatform ? `${cfg.clientIdVar}_${platform.toUpperCase()}` : cfg.clientIdVar
+}
+
+export function isPlatform(v: unknown): v is Platform {
+  return v === 'android' || v === 'ios' || v === 'web'
+}
+
 export function isProviderId(v: string): v is ProviderId {
   return v === 'google' || v === 'facebook' || v === 'discord'
 }
@@ -91,9 +123,12 @@ export function isProviderId(v: string): v is ProviderId {
 export function providerConfigured(
   provider: ProviderId,
   env: Record<string, string | undefined>,
+  platform: Platform = 'android',
 ): boolean {
   const c = PROVIDERS[provider]
-  return !!env[c.clientIdVar] && !!env[c.clientSecretVar]
+  if (!env[idVarFor(provider, platform)]) return false
+  // A public client is complete with just an id; everyone else needs the pair.
+  return c.allowPublicClient ? true : !!env[c.clientSecretVar]
 }
 
 /**
@@ -103,10 +138,11 @@ export function providerConfigured(
  */
 export function configuredProviders(
   env: Record<string, string | undefined>,
+  platform: Platform = 'android',
 ): { id: ProviderId; client_id: string }[] {
   return (Object.keys(PROVIDERS) as ProviderId[])
-    .filter((p) => providerConfigured(p, env))
-    .map((id) => ({ id, client_id: env[PROVIDERS[id].clientIdVar] as string }))
+    .filter((p) => providerConfigured(p, env, platform))
+    .map((id) => ({ id, client_id: env[idVarFor(id, platform)] as string }))
 }
 
 export class OAuthError extends Error {
@@ -124,13 +160,14 @@ export class OAuthError extends Error {
  */
 export async function exchangeCode(
   provider: ProviderId,
-  params: { code: string; codeVerifier?: string; redirectUri: string },
+  params: { code: string; codeVerifier?: string; redirectUri: string; platform?: Platform },
   env: Record<string, string | undefined>,
 ): Promise<OAuthProfile> {
   const cfg = PROVIDERS[provider]
-  const clientId = env[cfg.clientIdVar]
+  const platform = params.platform ?? 'android'
+  const clientId = env[idVarFor(provider, platform)]
   const clientSecret = env[cfg.clientSecretVar]
-  if (!clientId || !clientSecret) {
+  if (!clientId || (!clientSecret && !cfg.allowPublicClient)) {
     throw new OAuthError(`${provider} sign-in is not configured`, 503)
   }
 
@@ -139,8 +176,10 @@ export async function exchangeCode(
     code: params.code,
     redirect_uri: params.redirectUri,
     client_id: clientId,
-    client_secret: clientSecret,
   })
+  // Omitted entirely for a public client — Google rejects the exchange if a
+  // secret is sent for an Android/iOS client id.
+  if (clientSecret) form.set('client_secret', clientSecret)
   if (params.codeVerifier) form.set('code_verifier', params.codeVerifier)
 
   const tokenRes = await fetch(cfg.tokenUrl, {

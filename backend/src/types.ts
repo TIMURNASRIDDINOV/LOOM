@@ -46,7 +46,11 @@ export type Bindings = {
   // Social sign-in (migration 0017). A provider is offered to the app only
   // once both of its values are set:
   //   wrangler secret put GOOGLE_CLIENT_SECRET   (etc.)
-  GOOGLE_CLIENT_ID?: string
+  // Google issues one client id per platform and a code is only redeemable by
+  // the id that obtained it. Android/iOS are public clients with no secret.
+  GOOGLE_CLIENT_ID_ANDROID?: string
+  GOOGLE_CLIENT_ID_IOS?: string
+  GOOGLE_CLIENT_ID_WEB?: string
   GOOGLE_CLIENT_SECRET?: string
   FACEBOOK_CLIENT_ID?: string
   FACEBOOK_CLIENT_SECRET?: string
