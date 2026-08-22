@@ -8,6 +8,7 @@ import { disp, mono } from '../theme/type'
 import { GARMENT_FLAT } from '../api/catalog'
 import { useStudio } from '../state/studio'
 import { ArtPattern } from './ArtPattern'
+import { Model3D } from './Model3D'
 import { T, Tap } from './ui'
 
 // The print rect is 46% of the garment's width, 4:5, starting 30% down — the
@@ -16,7 +17,14 @@ import { T, Tap } from './ui'
 const PRINT_W = 0.46
 const PRINT_TOP = 0.3
 
-export function Stage({ readyImage }: { readyImage?: string | null }) {
+export function Stage({
+  readyImage,
+  glbUrl,
+}: {
+  readyImage?: string | null
+  /** `glb_url` from the product API — drives the real 3D preview. */
+  glbUrl?: string | null
+}) {
   const { s, active, surface, artSelected, selectArt, updateArt, pickTool, closeTool } = useStudio()
   const art = active.art
   const text = active.text
@@ -32,6 +40,28 @@ export function Stage({ readyImage }: { readyImage?: string | null }) {
     })
 
   if (surface === '3d') {
+    // Real GLB when the product has one; the photo is only the fallback for
+    // garments whose model has not been uploaded yet.
+    if (glbUrl) {
+      return (
+        <View style={styles.preview3d}>
+          <Model3D
+            glbUrl={glbUrl}
+            color={s.color}
+            artUrl={art?.uri ?? null}
+            placement={{
+              // design_json v2 space: the studio's percentage offset from the
+              // centre of the print rect, normalised to 0–1.
+              nx: 0.5 + (art?.offset.x ?? 0) / 100,
+              ny: 0.5 + (art?.offset.y ?? 0) / 100,
+              scale: (art?.sizePct ?? 58) / 100,
+              rotation: art?.rotation ?? 0,
+            }}
+          />
+        </View>
+      )
+    }
+
     return (
       <View style={styles.preview3d}>
         <Image
@@ -53,7 +83,7 @@ export function Stage({ readyImage }: { readyImage?: string | null }) {
           </View>
         ) : null}
         <View style={styles.badge3d}>
-          <T style={mono(8.5, 1, { ls: 0.18, upper: true, color: C.i38 })}>превью 3D</T>
+          <T style={mono(8.5, 1, { ls: 0.18, upper: true, color: C.i38 })}>фото · 3D скоро</T>
         </View>
       </View>
     )

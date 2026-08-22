@@ -8,12 +8,12 @@ import {
   View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import Svg, { Line as SvgLine } from 'react-native-svg'
 
 import { C, RULE, fmt, noShadow, offset } from '../../src/theme/tokens'
 import { body, disp, label as labelType, mono, monoMed, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
-import { Check, ChevronRight, Crosshair } from '../../src/components/icons'
+import { Check, ChevronRight } from '../../src/components/icons'
+import { MapPicker, type Pin } from '../../src/components/MapPicker'
 import { Button, Panel, SlashTitle, T, Tap } from '../../src/components/ui'
 import { ApiError, api } from '../../src/api/client'
 import { useAuth } from '../../src/state/auth'
@@ -39,6 +39,7 @@ export default function Checkout() {
   const [flat, setFlat] = useState('')
   const [floor, setFloor] = useState('')
   const [intercom, setIntercom] = useState('')
+  const [pin, setPin] = useState<Pin | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -47,8 +48,15 @@ export default function Checkout() {
       // The web stores the last delivery pin on the profile.
       if (user.location_preset) {
         try {
-          const p = JSON.parse(user.location_preset) as { address?: string }
+          const p = JSON.parse(user.location_preset) as {
+            address?: string
+            lat?: number
+            lng?: number
+          }
           if (p.address) setStreet(p.address)
+          if (typeof p.lat === 'number' && typeof p.lng === 'number') {
+            setPin({ lat: p.lat, lng: p.lng, address: p.address })
+          }
         } catch {
           // Malformed preset — the user types the address instead.
         }
@@ -84,6 +92,10 @@ export default function Checkout() {
           customerName: name.trim(),
           customerPhone: phone.trim(),
           address: street.trim(),
+          // The courier app reads these; checkout used to send none because the
+          // map was a drawing.
+          addressLat: pin?.lat,
+          addressLng: pin?.lng,
           addressDetails: {
             entrance: entrance.trim() || null,
             flat: flat.trim() || null,
@@ -186,7 +198,15 @@ export default function Checkout() {
           summary={street || 'Адрес'}
           onToggle={() => setStep(step === 2 ? 0 : 2)}
         >
-          <MapPlate />
+          <MapPicker
+            value={pin}
+            onChange={(next) => {
+              setPin(next)
+              // Reverse geocoding fills the field, but never clobbers an
+              // address the user has already typed by hand.
+              if (next.address && !street.trim()) setStreet(next.address)
+            }}
+          />
           <Field label="Адрес" value={street} onChange={setStreet} placeholder="Ташкент, ул. Навои 12" />
           <View style={styles.grid2}>
             <View style={{ flex: 1 }}>
@@ -312,42 +332,6 @@ function Field({
   )
 }
 
-/** The design's grid-paper map plate with a coral pin. */
-function MapPlate() {
-  return (
-    <View style={styles.map}>
-      <Svg width="100%" height="100%">
-        {Array.from({ length: 14 }).map((_, i) => (
-          <SvgLine
-            key={`v${i}`}
-            x1={i * 26}
-            y1={0}
-            x2={i * 26}
-            y2={150}
-            stroke="rgba(19,19,17,.07)"
-            strokeWidth={1}
-          />
-        ))}
-        {Array.from({ length: 7 }).map((_, i) => (
-          <SvgLine
-            key={`h${i}`}
-            x1={0}
-            y1={i * 26}
-            x2={400}
-            y2={i * 26}
-            stroke="rgba(19,19,17,.07)"
-            strokeWidth={1}
-          />
-        ))}
-      </Svg>
-      <View style={styles.pin} />
-      <View style={styles.locateBtn}>
-        <Crosshair />
-      </View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   page: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 32 },
 
@@ -391,42 +375,6 @@ const styles = StyleSheet.create({
   },
   grid2: { flexDirection: 'row', gap: 9 },
 
-  map: {
-    height: 150,
-    borderWidth: RULE,
-    borderColor: C.ink,
-    backgroundColor: '#ebe8e1',
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  pin: {
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    marginLeft: -8,
-    marginTop: -20,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderTopWidth: 20,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: C.coral,
-  },
-  locateBtn: {
-    position: 'absolute',
-    right: 8,
-    bottom: 8,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 
   payRow: {
     flexDirection: 'row',

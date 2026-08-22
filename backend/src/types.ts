@@ -43,6 +43,15 @@ export type Bindings = {
   CLICK_SECRET?: string
   UZUM_MERCHANT_ID?: string
   UZUM_SECRET?: string
+  // Social sign-in (migration 0017). A provider is offered to the app only
+  // once both of its values are set:
+  //   wrangler secret put GOOGLE_CLIENT_SECRET   (etc.)
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
+  FACEBOOK_CLIENT_ID?: string
+  FACEBOOK_CLIENT_SECRET?: string
+  DISCORD_CLIENT_ID?: string
+  DISCORD_CLIENT_SECRET?: string
   // Google Gemini image API ("Nano Banana") — optional. When unset, the paid
   // Google models are refused by the budget guard and disabled in the admin UI.
   // Set via: wrangler secret put GEMINI_API_KEY

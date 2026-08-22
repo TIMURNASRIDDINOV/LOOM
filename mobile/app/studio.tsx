@@ -90,7 +90,7 @@ export default function Studio() {
       </View>
 
       <View style={styles.stageWrap}>
-        <Stage readyImage={product?.thumbnail_url ?? null} />
+        <Stage readyImage={product?.thumbnail_url ?? null} glbUrl={product?.glb_url ?? null} />
         <View style={styles.faceToggle}>
           <Segmented
             value={face}

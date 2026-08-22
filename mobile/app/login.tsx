@@ -15,10 +15,12 @@ import * as WebBrowser from 'expo-web-browser'
 
 import { C, RULE } from '../src/theme/tokens'
 import { body, disp, label as labelType, mono } from '../src/theme/type'
-import { Close, Telegram } from '../src/components/icons'
+import { Close, DotsIcon, Telegram } from '../src/components/icons'
+import { SocialButton } from '../src/components/SocialButtons'
 import { Button, T, Tap, Toast, Wordmark } from '../src/components/ui'
 import { useAuth } from '../src/state/auth'
 import { useToast } from '../src/state/toast'
+import { CLIENT_IDS, OAuthCancelled, fetchProviders, type ProviderId } from '../src/api/oauth'
 
 const SESSION_SECONDS = 600
 
@@ -27,10 +29,16 @@ type Mode = 'phone' | 'wait' | 'email'
 export default function Login() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { startTelegram, pollTelegram, stopPolling, signInWithEmail } = useAuth()
+  const { startTelegram, pollTelegram, stopPolling, signInWithEmail, signInWithOAuth } = useAuth()
   const { message, flash } = useToast()
 
   const [step, setStep] = useState<Mode>('phone')
+  // Which providers the Worker actually holds credentials for. Anything absent
+  // still renders, greyed out with «скоро», so the sheet does not silently
+  // shrink between deployments.
+  const [live, setLive] = useState<ProviderId[]>([])
+  const [more, setMore] = useState(false)
+  const [oauthBusy, setOauthBusy] = useState<ProviderId | null>(null)
   const [register, setRegister] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -41,9 +49,40 @@ export default function Login() {
   const [left, setLeft] = useState(SESSION_SECONDS)
   const session = useRef<string | null>(null)
 
+  useEffect(() => {
+    let alive = true
+    fetchProviders()
+      .then((ps) => alive && setLive(ps.map((p) => p.id)))
+      .catch(() => {
+        // Offline or an old Worker — every social button just shows «скоро».
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const close = () => {
     stopPolling()
     router.back()
+  }
+
+  const social = async (provider: ProviderId) => {
+    const clientId = CLIENT_IDS[provider]
+    if (!clientId) {
+      flash('Этот способ входа ещё не настроен')
+      return
+    }
+    setOauthBusy(provider)
+    try {
+      await signInWithOAuth(provider, clientId)
+      flash('Вы вошли')
+      router.back()
+    } catch (e) {
+      // Backing out of the browser sheet is not an error worth shouting about.
+      if (!(e instanceof OAuthCancelled)) flash((e as Error).message)
+    } finally {
+      setOauthBusy(null)
+    }
   }
 
   const start = async () => {
@@ -69,8 +108,15 @@ export default function Login() {
   }
 
   const submitEmail = async () => {
-    if (!email.trim() || password.length < 6) {
-      flash('Введите email и пароль от 6 символов')
+    // The backend rejects anything under 8 characters (routes/auth.ts), so
+    // validating at 6 here just turned a fixable field error into a server
+    // error the user could not act on.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      flash('Введите корректный email')
+      return
+    }
+    if (password.length < 8) {
+      flash('Пароль — минимум 8 символов')
       return
     }
     setBusy(true)
@@ -182,17 +228,42 @@ export default function Login() {
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <T style={body(11.5, 1, { ls: 0.06, color: C.i38 })}>или по email</T>
+              <T style={body(11.5, 1, { ls: 0.06, color: C.i38 })}>или</T>
               <View style={styles.dividerLine} />
             </View>
 
-            <Button
-              title="Войти по email"
-              variant="outline"
-              size={12.5}
-              vPad={15}
-              onPress={() => setStep('email')}
+            {/* Google rides above the fold with Telegram; Facebook, Discord and
+                email sit behind the overflow row so the sheet stays two-choice. */}
+            <SocialButton
+              kind="google"
+              disabled={!live.includes('google')}
+              busy={oauthBusy === 'google'}
+              onPress={() => social('google')}
             />
+
+            {more ? (
+              <>
+                <SocialButton
+                  kind="facebook"
+                  disabled={!live.includes('facebook')}
+                  busy={oauthBusy === 'facebook'}
+                  onPress={() => social('facebook')}
+                />
+                <SocialButton
+                  kind="discord"
+                  disabled={!live.includes('discord')}
+                  busy={oauthBusy === 'discord'}
+                  onPress={() => social('discord')}
+                />
+                <SocialButton kind="email" onPress={() => setStep('email')} />
+              </>
+            ) : (
+              <Tap haptic style={styles.moreRow} onPress={() => setMore(true)} hitSlop={6}>
+                <DotsIcon color={C.i55} />
+                <T style={body(12.5, 1, { color: C.i55 })}>Другие способы входа</T>
+              </Tap>
+            )}
+
             <T style={[body(12.5, 1.5, { color: C.i55, align: 'center' }), { marginTop: 18 }]}>
               Нет аккаунта?{' '}
               <T
@@ -232,7 +303,7 @@ export default function Login() {
               label="Пароль"
               value={password}
               onChange={setPassword}
-              placeholder="Минимум 6 символов"
+              placeholder="Минимум 8 символов"
               secure
             />
 
@@ -424,6 +495,13 @@ const styles = StyleSheet.create({
     color: C.ink,
   },
 
+  moreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    paddingVertical: 14,
+  },
   waitCopy: { maxWidth: 260, marginBottom: 24 },
   spinner: {
     width: 44,

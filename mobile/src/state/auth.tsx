@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { api, setToken, getToken, ApiError } from '../api/client'
 import type { Me, TelegramStart, TelegramStatus } from '../api/types'
+import { signInWithProvider, type ProviderId } from '../api/oauth'
 
 type AuthState = {
   user: Me | null
@@ -14,6 +15,12 @@ type AuthState = {
     creds: { email: string; password: string; name?: string },
     register: boolean,
   ) => Promise<void>
+  /** Social sign-in. Throws OAuthCancelled if the user backs out. */
+  signInWithOAuth: (provider: ProviderId, clientId: string) => Promise<void>
+  /** True once the user has opted in as a designer — gates artwork upload. */
+  isDesigner: boolean
+  /** Claim a designer handle; resolves with the updated profile. */
+  applyAsDesigner: (handle: string, bio?: string) => Promise<void>
   startTelegram: (phone: string) => Promise<TelegramStart>
   pollTelegram: (sessionId: string) => Promise<TelegramStatus>
   stopPolling: () => void
@@ -60,9 +67,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         { method: 'POST', body: creds },
       )
       await setToken(res.token)
-      setUser(res.user)
+      // register/login return only {id,email,name}. Storing that as the whole
+      // user left `telegram_user_id` undefined, so checkout wrongly demanded
+      // phone verification from an already-verified account. Refetch /me.
+      await refresh()
     },
-    [],
+    [refresh],
+  )
+
+  const signInWithOAuth = useCallback<AuthState['signInWithOAuth']>(
+    async (provider, clientId) => {
+      const res = await signInWithProvider(provider, clientId)
+      await setToken(res.token)
+      await refresh()
+    },
+    [refresh],
+  )
+
+  const applyAsDesigner = useCallback<AuthState['applyAsDesigner']>(
+    async (handle, bio) => {
+      await api('/api/designer/apply', { method: 'POST', auth: true, body: { handle, bio } })
+      await refresh()
+    },
+    [refresh],
   )
 
   const startTelegram = useCallback(async (phone: string) => {
@@ -116,6 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phoneVerified: !!user?.telegram_user_id,
         refresh,
         signInWithEmail,
+        signInWithOAuth,
+        isDesigner: !!user?.is_designer,
+        applyAsDesigner,
         startTelegram,
         pollTelegram,
         stopPolling,

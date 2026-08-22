@@ -1,21 +1,43 @@
 import React from 'react'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 
 import { C, RULE, fmt, offset } from '../../src/theme/tokens'
 import { body, disp, mono } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
-import { ArtPattern } from '../../src/components/ArtPattern'
 import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
-import { ARTWORKS } from '../../src/api/market'
+import { fetchArtworks, useAsync } from '../../src/api/catalog'
+import type { Artwork } from '../../src/api/types'
+import { useAuth } from '../../src/state/auth'
 import { useStudio } from '../../src/state/studio'
 import { useToast } from '../../src/state/toast'
 
-/** Designer marketplace. Artwork is mock data — see `src/api/market.ts`. */
+/**
+ * Designer marketplace — approved artwork from `GET /api/artworks`.
+ * Tapping a piece loads it into the studio as the active artwork layer.
+ */
 export default function Market() {
   const router = useRouter()
   const { setArt } = useStudio()
   const { flash } = useToast()
+  const { isDesigner, signedIn } = useAuth()
+  const { data, loading, error, reload } = useAsync(fetchArtworks, [])
+
+  const items = data ?? []
+
+  const apply = (a: Artwork) => {
+    setArt({
+      name: a.title,
+      uri: a.image_url,
+      // The buyer is applying someone else's approved artwork, so there is no
+      // upload of ours to attach — the order references it by URL.
+      uploadKey: null,
+      price: a.markup,
+      author: a.author,
+    })
+    flash(`${a.title} примерена · +${fmt(a.markup)} сум`)
+    router.push('/studio')
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -26,49 +48,65 @@ export default function Market() {
           Выберите графику — примерим её на любую вещь в студии.
         </T>
 
-        <View style={styles.grid}>
-          {ARTWORKS.map((a) => (
-            <Tap
-              key={a.id}
-              style={styles.card}
-              onPress={() => {
-                setArt({
-                  name: a.name,
-                  uri: null,
-                  uploadKey: null,
-                  price: a.price,
-                  author: a.author,
-                  pattern: { angle: a.pattern.angle, color: a.pattern.color, gap: a.pattern.gap },
-                })
-                flash(`${a.name} примерена · +${fmt(a.price)} сум`)
-                router.push('/studio')
-              }}
-            >
-              <ArtPattern {...a.pattern} background={C.white} style={styles.swatch} />
-              <View style={{ paddingHorizontal: 10, paddingVertical: 9 }}>
-                <T style={disp(13.5, 1.15)} numberOfLines={1}>
-                  {a.name}
-                </T>
-                <T style={[mono(10, 1.2, { color: C.i55 }), { marginTop: 3, marginBottom: 7 }]}>
-                  {a.author}
-                </T>
-                <View style={styles.priceChip}>
-                  <T style={{ ...mono(10, 1, { ls: 0.08, color: C.white }), fontFamily: 'IBMPlexMono_600SemiBold' }}>
-                    {`+${fmt(a.price)} сум`}
+        {loading ? (
+          <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
+        ) : error ? (
+          <View style={{ gap: 16 }}>
+            <T style={body(14, 1.6, { color: C.i55 })}>{error.message}</T>
+            <Button title="Повторить" variant="ink" size={12.5} vPad={14} onPress={reload} />
+          </View>
+        ) : items.length === 0 ? (
+          <View style={styles.empty}>
+            <T style={[disp(24, 1.1, { ls: -0.02, color: C.coral }), { maxWidth: 280 }]}>
+              Здесь пока пусто. Станьте первым дизайнером.
+            </T>
+            <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 12 }]}>
+              Работы появляются после проверки модератором.
+            </T>
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {items.map((a) => (
+              <Tap key={a.id} style={styles.card} onPress={() => apply(a)}>
+                <Image source={{ uri: a.image_url }} style={styles.swatch} resizeMode="cover" />
+                <View style={{ paddingHorizontal: 10, paddingVertical: 9 }}>
+                  <T style={disp(13.5, 1.15)} numberOfLines={1}>
+                    {a.title}
                   </T>
+                  <T style={[mono(10, 1.2, { color: C.i55 }), { marginTop: 3, marginBottom: 7 }]}>
+                    {a.author}
+                  </T>
+                  <View style={styles.priceChip}>
+                    <T
+                      style={{
+                        ...mono(10, 1, { ls: 0.08, color: C.white }),
+                        fontFamily: 'IBMPlexMono_600SemiBold',
+                      }}
+                    >
+                      {a.markup > 0 ? `+${fmt(a.markup)} сум` : 'бесплатно'}
+                    </T>
+                  </View>
                 </View>
-              </View>
-            </Tap>
-          ))}
-        </View>
+              </Tap>
+            ))}
+          </View>
+        )}
 
         <Button
-          title="Опубликовать свою работу"
+          title={isDesigner ? 'Мои работы' : 'Стать дизайнером'}
           variant="ink"
           size={12.5}
           vPad={16}
           style={[{ marginTop: 18 }, offset(3, C.ink)]}
-          onPress={() => router.push('/publish')}
+          onPress={() => {
+            // Publishing is designer-only; an anonymous visitor signs in first.
+            if (!signedIn) {
+              flash('Войдите, чтобы публиковать работы')
+              router.push('/login')
+              return
+            }
+            router.push('/publish')
+          }}
         />
       </ScrollView>
     </View>
@@ -85,6 +123,17 @@ const styles = StyleSheet.create({
     borderColor: C.ink,
     backgroundColor: C.white,
   },
-  swatch: { aspectRatio: 1, borderBottomWidth: RULE, borderBottomColor: C.ink },
-  priceChip: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 5, backgroundColor: C.coral },
+  swatch: {
+    width: '100%',
+    aspectRatio: 1,
+    borderBottomWidth: RULE,
+    borderBottomColor: C.ink,
+  },
+  priceChip: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    backgroundColor: C.coral,
+  },
+  empty: { paddingVertical: 30 },
 })

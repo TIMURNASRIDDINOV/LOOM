@@ -47,6 +47,29 @@ export type Me = {
   location_preset?: string | null
   orders_count?: number
   total_spent?: number
+  // Migration 0017 — designer opt-in
+  is_designer?: number
+  designer_handle?: string | null
+  designer_bio?: string | null
+}
+
+/** A graphic published by a designer, as the marketplace serves it. */
+export type Artwork = {
+  id: number
+  title: string
+  tags: string | null
+  markup: number
+  width: number | null
+  height: number | null
+  image_url: string
+  author: string
+  created_at: number
+}
+
+/** The designer's own view, which also carries moderation state. */
+export type MyArtwork = Artwork & {
+  status: 'pending' | 'approved' | 'rejected'
+  reject_note: string | null
 }
 
 export type TelegramStart = {

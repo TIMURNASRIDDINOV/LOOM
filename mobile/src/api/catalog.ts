@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ImageSourcePropType } from 'react-native'
 import { api } from './client'
-import type { Order, Product } from './types'
+import type { Artwork, MyArtwork, Order, Product } from './types'
 
 // Product photography ships in the bundle so the catalog paints instantly and
 // still reads correctly offline. A product's own `thumbnail_url` wins when the
@@ -104,4 +104,31 @@ export function invalidateProducts() {
 
 export function fetchMyOrders() {
   return api<{ orders: Order[] }>('/api/me/orders', { auth: true }).then((r) => r.orders)
+}
+
+// ─── Designer marketplace (migration 0017) ───────────────────────────────────
+
+/** Approved artwork, as the marketplace lists it. */
+export function fetchArtworks() {
+  return api<{ items: Artwork[] }>('/api/artworks').then((r) => r.items)
+}
+
+/** The signed-in designer's own submissions, in every moderation state. */
+export function fetchMyArtworks() {
+  return api<{ items: MyArtwork[] }>('/api/designer/artworks', { auth: true }).then((r) => r.items)
+}
+
+export function submitArtwork(body: {
+  title: string
+  tags?: string | null
+  image_key: string
+  width?: number | null
+  height?: number | null
+  markup: number
+}) {
+  return api<{ id: number; status: string }>('/api/designer/artworks', {
+    method: 'POST',
+    auth: true,
+    body,
+  })
 }

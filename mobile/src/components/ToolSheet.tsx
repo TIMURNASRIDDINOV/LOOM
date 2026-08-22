@@ -1,14 +1,13 @@
 import React, { useState } from 'react'
-import { ActivityIndicator, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 
 import { C, COLORS, RULE, SIZES, fmt, noShadow, offset } from '../theme/tokens'
 import { body, disp, label as labelType, mono } from '../theme/type'
-import { ARTWORKS } from '../api/market'
 import { uploadFile } from '../api/client'
+import { fetchArtworks, useAsync } from '../api/catalog'
 import { useStudio } from '../state/studio'
 import { useToast } from '../state/toast'
-import { ArtPattern } from './ArtPattern'
 import { Upload } from './icons'
 import { Button, Panel, T, Tap } from './ui'
 
@@ -184,36 +183,56 @@ function ImageTool() {
 
       <View>
         <Label>От дизайнеров</Label>
-        <View style={styles.artGrid}>
-          {ARTWORKS.map((a) => (
-            <Tap
-              key={a.id}
-              style={styles.artCard}
-              onPress={() => {
-                setArt({
-                  name: a.name,
-                  uri: null,
-                  uploadKey: null,
-                  price: a.price,
-                  author: a.author,
-                  pattern: { angle: a.pattern.angle, color: a.pattern.color, gap: a.pattern.gap },
-                })
-                flash(`${a.name} · +${fmt(a.price)} сум`)
-              }}
-            >
-              <ArtPattern {...a.pattern} background={C.white} style={styles.artThumb} />
-              <View style={{ paddingHorizontal: 8, paddingVertical: 7 }}>
-                <T style={disp(11.5, 1.15)} numberOfLines={1}>
-                  {a.name}
-                </T>
-                <T style={[mono(9, 1.2, { color: C.i55 }), { marginTop: 2 }]} numberOfLines={1}>
-                  {`${a.author} · +${fmt(a.price)}`}
-                </T>
-              </View>
-            </Tap>
-          ))}
-        </View>
+        <DesignerGrid />
       </View>
+    </View>
+  )
+}
+
+/** Approved marketplace artwork, applied to the garment in one tap. */
+function DesignerGrid() {
+  const { setArt } = useStudio()
+  const { flash } = useToast()
+  const { data, loading } = useAsync(fetchArtworks, [])
+  const items = data ?? []
+
+  if (loading) return <ActivityIndicator color={C.coral} style={{ marginVertical: 16 }} />
+  if (!items.length) {
+    return (
+      <T style={mono(10, 1.5, { color: C.i38 })}>
+        Работ пока нет — загрузите свою графику выше.
+      </T>
+    )
+  }
+
+  return (
+    <View style={styles.artGrid}>
+      {items.slice(0, 8).map((a) => (
+        <Tap
+          key={a.id}
+          style={styles.artCard}
+          onPress={() => {
+            setArt({
+              name: a.title,
+              uri: a.image_url,
+              uploadKey: null,
+              price: a.markup,
+              author: a.author,
+            })
+            flash(a.markup > 0 ? `${a.title} · +${fmt(a.markup)} сум` : a.title)
+          }}
+        >
+          <Image source={{ uri: a.image_url }} style={styles.artThumb} resizeMode="cover" />
+          <View style={{ paddingHorizontal: 8, paddingVertical: 7 }}>
+            <T style={disp(11.5, 1.15)} numberOfLines={1}>
+              {a.title}
+            </T>
+            <T style={[mono(9, 1.2, { color: C.i55 }), { marginTop: 2 }]} numberOfLines={1}>
+              {a.markup > 0 ? `${a.author} · +${fmt(a.markup)}` : a.author}
+            </T>
+          </View>
+        </Tap>
+      ))}
     </View>
   )
 }
@@ -334,7 +353,7 @@ const styles = StyleSheet.create({
     borderColor: C.ink,
     backgroundColor: C.white,
   },
-  artThumb: { aspectRatio: 1, borderBottomWidth: RULE, borderBottomColor: C.ink },
+  artThumb: { width: '100%', aspectRatio: 1, borderBottomWidth: RULE, borderBottomColor: C.ink },
   colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   colorSwatch: { width: '14.5%', aspectRatio: 1, borderWidth: RULE, borderColor: C.ink },
   sizeBtn: {

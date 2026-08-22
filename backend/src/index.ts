@@ -12,6 +12,8 @@ import cartRoutes from './routes/cart'
 import paymentsRoutes from './routes/payments'
 import filesRoutes from './routes/files'
 import userProfile from './routes/user-profile'
+import oauthRoutes from './routes/oauth'
+import designerRoutes from './routes/designers'
 import type { BaseEnv } from './types'
 
 const PROD_ORIGINS = [
@@ -55,6 +57,8 @@ app.route('/api/admin', adminAiRoutes)        // /api/admin/ai/{models,budget,ru
 app.route('/api/ai', aiCutoutRoutes)          // GET /api/ai/cutout/* (admin-only)
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 app.route('/api/auth', userProfile)
+app.route('/api/auth', oauthRoutes)         // GET /api/auth/oauth/providers, POST /api/auth/oauth/:provider
+app.route('/api', designerRoutes)             // GET /api/artworks, /api/designer/{apply,artworks}
 app.route('/api/auth', telegramAuthRoutes)     // POST /api/auth/telegram/{start,status}, /api/auth/logout
 app.route('/api/telegram', webhookRouter)      // POST /api/telegram/webhook
 

@@ -6,11 +6,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { C, RULE, fmt, offset } from '../../src/theme/tokens'
 import { body, disp, kicker, mono, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
-import { ArtPattern } from '../../src/components/ArtPattern'
 import { ArrowUpRight } from '../../src/components/icons'
 import { Button, Panel, SectionHead, T, Tap } from '../../src/components/ui'
-import { GARMENT_FLAT, fetchProducts, productImage, useAsync } from '../../src/api/catalog'
-import { ARTWORKS } from '../../src/api/market'
+import {
+  GARMENT_FLAT,
+  fetchArtworks,
+  fetchProducts,
+  productImage,
+  useAsync,
+} from '../../src/api/catalog'
 import { useStudio } from '../../src/state/studio'
 import { ONBOARD_KEY } from '../onboarding'
 
@@ -18,6 +22,7 @@ export default function Home() {
   const router = useRouter()
   const { s, layerCount } = useStudio()
   const { data: products } = useAsync(fetchProducts, [])
+  const { data: artworks } = useAsync(fetchArtworks, [])
 
   // First launch goes through onboarding once, then never again.
   useEffect(() => {
@@ -101,27 +106,26 @@ export default function Home() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.rail}
           >
-            {ARTWORKS.slice(0, 2).map((a) => (
+            {(artworks ?? []).slice(0, 6).map((a) => (
               <Tap key={a.id} style={styles.artCard} onPress={() => router.push('/market')}>
-                <View style={styles.artSwatch}>
-                  <ArtPattern {...a.pattern} background={C.white} style={StyleSheet.absoluteFill} />
-                  <T
-                    style={[
-                      mono(8.5, 1.3, { ls: 0.14, upper: true, color: C.i55 }),
-                      styles.artSwatchLabel,
-                    ]}
-                  >
-                    {`art · 0${ARTWORKS.indexOf(a) + 1}`}
-                  </T>
-                </View>
+                <Image source={{ uri: a.image_url }} style={styles.artSwatch} resizeMode="cover" />
                 <View style={{ paddingHorizontal: 10, paddingVertical: 9 }}>
-                  <T style={disp(13.5, 1.15)}>{a.name}</T>
-                  <T style={[mono(10, 1.3, { color: C.i55 }), { marginTop: 3 }]}>
-                    {`${a.author} · +${fmt(a.price)}`}
+                  <T style={disp(13.5, 1.15)} numberOfLines={1}>
+                    {a.title}
+                  </T>
+                  <T style={[mono(10, 1.3, { color: C.i55 }), { marginTop: 3 }]} numberOfLines={1}>
+                    {`${a.author}${a.markup > 0 ? ` · +${fmt(a.markup)}` : ''}`}
                   </T>
                 </View>
               </Tap>
             ))}
+            {(artworks ?? []).length === 0 ? (
+              <View style={styles.artEmpty}>
+                <T style={mono(9.5, 1.5, { ls: 0.14, upper: true, color: C.i38 })}>
+                  Скоро здесь появятся работы дизайнеров
+                </T>
+              </View>
+            ) : null}
           </ScrollView>
         </View>
 
@@ -140,7 +144,7 @@ export default function Home() {
             size={12.5}
             vPad={15}
             style={{ alignSelf: 'flex-start', paddingHorizontal: 26 }}
-            onPress={() => router.push('/publish')}
+            onPress={() => router.push('/market')}
           />
         </View>
       </ScrollView>
@@ -224,13 +228,20 @@ const styles = StyleSheet.create({
 
   artCard: { width: 150, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white },
   artSwatch: {
+    width: '100%',
     aspectRatio: 1,
     borderBottomWidth: RULE,
     borderBottomColor: C.ink,
-    justifyContent: 'flex-end',
-    padding: 8,
   },
-  artSwatchLabel: { alignSelf: 'flex-start' },
+  artEmpty: {
+    width: 240,
+    paddingVertical: 26,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: C.line,
+    justifyContent: 'center',
+  },
 
   marquee: {
     overflow: 'hidden',

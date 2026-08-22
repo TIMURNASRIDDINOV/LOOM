@@ -45,6 +45,21 @@ export interface User {
   role: string
   status: string
   last_login_at: number | null
+  // Added in migration 0017 — designer opt-in for the artwork marketplace
+  is_designer: number
+  designer_handle: string | null
+  designer_bio: string | null
+}
+
+/** A social sign-in linked to a user. Added in migration 0017. */
+export interface UserIdentity {
+  id: number
+  user_id: number
+  provider: string   // google|facebook|discord
+  provider_user_id: string
+  email: string | null
+  avatar_url: string | null
+  created_at: number
 }
 
 export interface AuthSession {

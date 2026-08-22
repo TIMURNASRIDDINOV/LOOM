@@ -147,3 +147,112 @@ export function Telegram({ size = 18, color = C.white }: P) {
     </Svg>
   )
 }
+
+// ─── Tab bar ─────────────────────────────────────────────────────────────────
+// The first cut labelled the tabs in 9px mono at 38% opacity with no glyph,
+// which read as disabled text rather than navigation. These give each tab a
+// silhouette that survives at thumb distance.
+
+export function HomeIcon({ size = 20, color = C.ink, width = 1.8 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M3 10.5 12 3l9 7.5" {...stroke(color, width)} />
+      <Path d="M5.5 9.5V20h13V9.5" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+export function GridIcon({ size = 20, color = C.ink, width = 1.8 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Rect x="3.5" y="3.5" width="7" height="7" {...stroke(color, width)} />
+      <Rect x="13.5" y="3.5" width="7" height="7" {...stroke(color, width)} />
+      <Rect x="3.5" y="13.5" width="7" height="7" {...stroke(color, width)} />
+      <Rect x="13.5" y="13.5" width="7" height="7" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+export function BoxIcon({ size = 20, color = C.ink, width = 1.8 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M3.5 7.5 12 3.5l8.5 4v9L12 20.5l-8.5-4z" {...stroke(color, width)} />
+      <Path d="M3.5 7.5 12 11.5l8.5-4M12 11.5v9" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+export function UserIcon({ size = 20, color = C.ink, width = 1.8 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Circle cx="12" cy="8" r="4" {...stroke(color, width)} />
+      <Path d="M4.5 20.5c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+/** Overflow affordance for the sign-in sheet's hidden providers. */
+export function DotsIcon({ size = 18, color = C.ink }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Circle cx="5" cy="12" r="1.6" fill={color} />
+      <Circle cx="12" cy="12" r="1.6" fill={color} />
+      <Circle cx="19" cy="12" r="1.6" fill={color} />
+    </Svg>
+  )
+}
+
+/** Google's four-colour G, drawn as filled paths so it reads at 18px. */
+export function Google({ size = 18 }: P) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Path
+        fill="#FFC107"
+        d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.0 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"
+      />
+      <Path
+        fill="#FF3D00"
+        d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.0 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+      />
+      <Path
+        fill="#4CAF50"
+        d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"
+      />
+      <Path
+        fill="#1976D2"
+        d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C36.9 40.2 44 35 44 24c0-1.3-.1-2.6-.4-3.9z"
+      />
+    </Svg>
+  )
+}
+
+export function Facebook({ size = 18, color = '#1877F2' }: P) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill={color}
+        d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.96H15.83c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"
+      />
+    </Svg>
+  )
+}
+
+export function Discord({ size = 18, color = '#5865F2' }: P) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill={color}
+        d="M20.32 4.57A19.8 19.8 0 0 0 15.43 3c-.24.42-.5.98-.69 1.43a18.3 18.3 0 0 0-5.48 0C9.07 3.98 8.8 3.42 8.57 3a19.7 19.7 0 0 0-4.9 1.57C.56 9.23-.28 13.77.14 18.25a19.9 19.9 0 0 0 6.05 3.06c.49-.67.92-1.38 1.3-2.13-.72-.27-1.4-.6-2.05-.99.17-.13.34-.26.5-.4a14.2 14.2 0 0 0 12.13 0c.17.14.33.27.5.4-.65.39-1.34.72-2.06.99.38.75.81 1.46 1.3 2.13a19.9 19.9 0 0 0 6.05-3.06c.5-5.2-.84-9.7-3.54-13.68zM8.02 15.52c-1.18 0-2.15-1.08-2.15-2.4 0-1.33.95-2.41 2.15-2.41 1.2 0 2.17 1.09 2.15 2.4 0 1.33-.95 2.41-2.15 2.41zm7.96 0c-1.18 0-2.15-1.08-2.15-2.4 0-1.33.95-2.41 2.15-2.41 1.2 0 2.17 1.09 2.15 2.4 0 1.33-.94 2.41-2.15 2.41z"
+      />
+    </Svg>
+  )
+}
+
+export function Mail({ size = 18, color = C.ink, width = 1.8 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Rect x="2.5" y="5" width="19" height="14" rx="1.5" {...stroke(color, width)} />
+      <Path d="m3 6.5 9 6 9-6" {...stroke(color, width)} />
+    </Svg>
+  )
+}

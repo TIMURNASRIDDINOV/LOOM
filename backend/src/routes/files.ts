@@ -19,6 +19,24 @@ files.get('/models/:key{.+}', async (c) => {
   return new Response(object.body, { headers })
 })
 
+// ─── GET /api/files/artwork/:key  (public, long-cached) ──────────────────────
+// Designer artwork lives in loom-uploads alongside order logos. Only keys that
+// an approved artwork row points at are ever handed out as URLs, so serving the
+// bucket object directly is safe and keeps the marketplace on the CDN.
+
+files.get('/artwork/:key{.+}', async (c) => {
+  const key = c.req.param('key')
+  const object = await c.env.LOOM_UPLOADS.get(key)
+  if (!object) return c.json({ error: 'Not found' }, 404)
+
+  const headers = new Headers()
+  object.writeHttpMetadata(headers)
+  headers.set('etag', object.httpEtag)
+  headers.set('cache-control', 'public, max-age=31536000, immutable')
+
+  return new Response(object.body, { headers })
+})
+
 // ─── GET /api/files/avatars/:key  (public, short-cached) ─────────────────────
 
 files.get('/avatars/:key{.+}', async (c) => {

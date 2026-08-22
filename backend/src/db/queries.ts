@@ -1671,3 +1671,273 @@ export async function listAiRuns(
     return results
   })
 }
+
+// ─── Federated identities (migration 0017) ───────────────────────────────────
+
+export async function getUserByIdentity(
+  db: D1Database,
+  provider: string,
+  providerUserId: string,
+): Promise<User | null> {
+  return safeQuery('getUserByIdentity', async () => {
+    return await db
+      .prepare(
+        `SELECT u.* FROM users u
+         JOIN user_identities i ON i.user_id = u.id
+         WHERE i.provider = ? AND i.provider_user_id = ?`,
+      )
+      .bind(provider, providerUserId)
+      .first<User>()
+  })
+}
+
+export async function linkIdentity(
+  db: D1Database,
+  params: {
+    user_id: number
+    provider: string
+    provider_user_id: string
+    email: string | null
+    avatar_url: string | null
+  },
+): Promise<void> {
+  return safeQuery('linkIdentity', async () => {
+    // OR IGNORE: the unique index on (provider, provider_user_id) makes a
+    // repeat sign-in a no-op rather than an error.
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO user_identities
+           (user_id, provider, provider_user_id, email, avatar_url, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        params.user_id,
+        params.provider,
+        params.provider_user_id,
+        params.email,
+        params.avatar_url,
+        Date.now(),
+      )
+      .run()
+  })
+}
+
+/**
+ * Create a user that arrived through a social provider. They have no password,
+ * so `password_hash` carries a sentinel the password verifier can never match —
+ * the same shape the Telegram flow uses.
+ */
+export async function createOAuthUser(
+  db: D1Database,
+  params: {
+    provider: string
+    provider_user_id: string
+    email: string | null
+    name: string | null
+  },
+): Promise<number> {
+  return safeQuery('createOAuthUser', async () => {
+    const now = Date.now()
+    // A provider that withholds the email still needs a unique, non-null one.
+    const email = params.email ?? `${params.provider}_${params.provider_user_id}@oauth.loom`
+    const result = await db
+      .prepare(
+        `INSERT INTO users (email, password_hash, name, role, status, created_at, last_login_at)
+         VALUES (?, ?, ?, 'user', 'active', ?, ?)`,
+      )
+      .bind(email.toLowerCase(), `oauth_${params.provider}`, params.name, now, now)
+      .run()
+    return Number(result.meta.last_row_id)
+  })
+}
+
+export async function listUserIdentities(
+  db: D1Database,
+  userId: number,
+): Promise<{ provider: string; email: string | null; created_at: number }[]> {
+  return safeQuery('listUserIdentities', async () => {
+    const { results } = await db
+      .prepare(
+        'SELECT provider, email, created_at FROM user_identities WHERE user_id = ? ORDER BY created_at',
+      )
+      .bind(userId)
+      .all<{ provider: string; email: string | null; created_at: number }>()
+    return results
+  })
+}
+
+// ─── Designers + artwork (migration 0017) ────────────────────────────────────
+
+export interface Artwork {
+  id: number
+  user_id: number
+  title: string
+  tags: string | null
+  image_key: string
+  width: number | null
+  height: number | null
+  markup: number
+  status: 'pending' | 'approved' | 'rejected'
+  reject_note: string | null
+  reviewed_by: number | null
+  reviewed_at: number | null
+  created_at: number
+  updated_at: number
+}
+
+/** Artwork as the marketplace shows it — joined to its designer's handle. */
+export interface ArtworkWithAuthor extends Artwork {
+  author_handle: string | null
+  author_name: string | null
+}
+
+export async function becomeDesigner(
+  db: D1Database,
+  userId: number,
+  handle: string,
+  bio: string | null,
+): Promise<void> {
+  return safeQuery('becomeDesigner', async () => {
+    await db
+      .prepare('UPDATE users SET is_designer = 1, designer_handle = ?, designer_bio = ? WHERE id = ?')
+      .bind(handle, bio, userId)
+      .run()
+  })
+}
+
+export async function getDesignerByHandle(db: D1Database, handle: string): Promise<User | null> {
+  return safeQuery('getDesignerByHandle', async () => {
+    return await db
+      .prepare('SELECT * FROM users WHERE designer_handle = ?')
+      .bind(handle)
+      .first<User>()
+  })
+}
+
+export async function createArtwork(
+  db: D1Database,
+  params: {
+    user_id: number
+    title: string
+    tags: string | null
+    image_key: string
+    width: number | null
+    height: number | null
+    markup: number
+  },
+): Promise<number> {
+  return safeQuery('createArtwork', async () => {
+    const now = Date.now()
+    const result = await db
+      .prepare(
+        `INSERT INTO artworks (user_id, title, tags, image_key, width, height, markup, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      )
+      .bind(
+        params.user_id,
+        params.title,
+        params.tags,
+        params.image_key,
+        params.width,
+        params.height,
+        params.markup,
+        now,
+        now,
+      )
+      .run()
+    return Number(result.meta.last_row_id)
+  })
+}
+
+/** The public marketplace: approved artwork only, newest first. */
+export async function getApprovedArtworks(
+  db: D1Database,
+  page = 1,
+  limit = 40,
+): Promise<{ items: ArtworkWithAuthor[]; total: number }> {
+  return safeQuery('getApprovedArtworks', async () => {
+    const offset = (page - 1) * limit
+    const { results } = await db
+      .prepare(
+        `SELECT a.*, u.designer_handle AS author_handle, u.name AS author_name
+         FROM artworks a JOIN users u ON u.id = a.user_id
+         WHERE a.status = 'approved'
+         ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
+      )
+      .bind(limit, offset)
+      .all<ArtworkWithAuthor>()
+    const row = await db
+      .prepare("SELECT COUNT(*) AS c FROM artworks WHERE status = 'approved'")
+      .first<{ c: number }>()
+    return { items: results, total: row?.c ?? 0 }
+  })
+}
+
+/** A designer's own submissions, in every state. */
+export async function getArtworksByUser(db: D1Database, userId: number): Promise<Artwork[]> {
+  return safeQuery('getArtworksByUser', async () => {
+    const { results } = await db
+      .prepare('SELECT * FROM artworks WHERE user_id = ? ORDER BY created_at DESC')
+      .bind(userId)
+      .all<Artwork>()
+    return results
+  })
+}
+
+export async function getArtworkById(db: D1Database, id: number): Promise<Artwork | null> {
+  return safeQuery('getArtworkById', async () => {
+    return await db.prepare('SELECT * FROM artworks WHERE id = ?').bind(id).first<Artwork>()
+  })
+}
+
+/** Admin moderation queue. */
+export async function getArtworksForReview(
+  db: D1Database,
+  status: string | null,
+  page = 1,
+  limit = 30,
+): Promise<{ items: ArtworkWithAuthor[]; total: number }> {
+  return safeQuery('getArtworksForReview', async () => {
+    const offset = (page - 1) * limit
+    const where = status ? 'WHERE a.status = ?' : ''
+    const binds: unknown[] = status ? [status, limit, offset] : [limit, offset]
+    const { results } = await db
+      .prepare(
+        `SELECT a.*, u.designer_handle AS author_handle, u.name AS author_name
+         FROM artworks a JOIN users u ON u.id = a.user_id
+         ${where}
+         ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
+      )
+      .bind(...binds)
+      .all<ArtworkWithAuthor>()
+    const countRow = status
+      ? await db.prepare('SELECT COUNT(*) AS c FROM artworks WHERE status = ?').bind(status).first<{ c: number }>()
+      : await db.prepare('SELECT COUNT(*) AS c FROM artworks').first<{ c: number }>()
+    return { items: results, total: countRow?.c ?? 0 }
+  })
+}
+
+export async function reviewArtwork(
+  db: D1Database,
+  id: number,
+  status: 'approved' | 'rejected',
+  adminId: number,
+  note: string | null,
+): Promise<void> {
+  return safeQuery('reviewArtwork', async () => {
+    const now = Date.now()
+    await db
+      .prepare(
+        'UPDATE artworks SET status = ?, reject_note = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?',
+      )
+      .bind(status, note, adminId, now, now, id)
+      .run()
+  })
+}
+
+/** Stamp a successful sign-in. Used by the OAuth flow (migration 0017). */
+export async function touchUserLogin(db: D1Database, userId: number): Promise<void> {
+  return safeQuery('touchUserLogin', async () => {
+    await db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').bind(Date.now(), userId).run()
+  })
+}
