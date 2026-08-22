@@ -105,12 +105,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pollTelegram = useCallback(
     async (sessionId: string) => {
       if (!polling.current) return { status: 'pending' } as TelegramStatus
+      // `client=app` is what asks for the token in the body. Native has no
+      // cookie jar, so without it the poll returns `verified` and nothing else
+      // and the app stays signed out while the bot says otherwise.
       const res = await api<TelegramStatus>(
-        `/api/auth/telegram/status?session_id=${encodeURIComponent(sessionId)}`,
+        `/api/auth/telegram/status?session_id=${encodeURIComponent(sessionId)}&client=app`,
       )
-      if (res.status === 'verified' && res.token) {
-        // Native has no cookie jar, so the body token is the session. The
-        // backend marks it single-use on this first `verified` poll.
+      if (res.status === 'verified') {
+        if (!res.token) {
+          // Verified but nothing to store — never report this as a success.
+          throw new Error('Сервер не вернул токен входа. Обновите приложение.')
+        }
+        // The backend marks the token single-use on this first `verified` poll.
         await setToken(res.token)
         await refresh()
       }

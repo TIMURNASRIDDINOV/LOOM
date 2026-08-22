@@ -195,11 +195,22 @@ router.get('/telegram/status', async (c) => {
       maxAge: USER_COOKIE_MAX_AGE,
       path: '/',
     })
-    // Mini App sessions also get the token in the body: inside Telegram-Web's
-    // iframe the cookie is third-party and never comes back (see /telegram/webapp).
-    // Handing it out consumes the session, so the id cannot be replayed later as
-    // a bearer-token dispenser for the whole 30-day lifetime of the JWT.
-    if (session.purpose === 'webapp') {
+
+    // Two kinds of caller cannot use that cookie and need the token in the body:
+    //
+    //   · Mini App  — inside Telegram-Web's iframe the cookie is third-party and
+    //                 never comes back (see /telegram/webapp).
+    //   · Native app — has no cookie jar at all. It opens the bot deep link and
+    //                 polls with ?client=app. Without this the phone flow verified
+    //                 server-side, the bot said "you're logged in", and the app
+    //                 was handed nothing — so it stayed signed out.
+    //
+    // Either way, handing the token out consumes the session, so a leaked
+    // session_id cannot be replayed as a bearer-token dispenser for the whole
+    // 30-day life of the JWT. The web keeps polling on the cookie and is
+    // deliberately left alone.
+    const wantsBodyToken = session.purpose === 'webapp' || c.req.query('client') === 'app'
+    if (wantsBodyToken) {
       await markAuthSessionUsed(c.env.DB, sessionId)
       return c.json({ status: 'verified', token: session.jwt })
     }

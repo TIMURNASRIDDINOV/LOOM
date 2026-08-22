@@ -159,8 +159,15 @@ export default function Login() {
           setStep('phone')
           return
         }
-      } catch {
-        // A transient network blip shouldn't end the wait.
+      } catch (e) {
+        // A transient network blip shouldn't end the wait — but a server that
+        // verifies without handing back a token never will, so surface that
+        // instead of spinning until the countdown runs out.
+        const msg = (e as Error)?.message ?? ''
+        if (msg.includes('токен')) {
+          flash(msg)
+          setStep('phone')
+        }
       }
     }
 
