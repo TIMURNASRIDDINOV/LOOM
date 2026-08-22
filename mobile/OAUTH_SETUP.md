@@ -25,63 +25,42 @@ the right one per platform.
    App Signing re-signs the app on upload, the fingerprint changes and Google
    sign-in breaks until you add the new SHA-1 to the Android client.
 
-## ⛔ Facebook and Discord — blocked on you
+## ✅ Discord — DONE and live
 
-Neither portal was signed in, and I cannot enter passwords to authenticate.
-Log into both in Chrome and they can be finished in one pass.
+Application **LOOM**, client id `1540714540722036766`, redirect `loom://redirect`
+registered. Both `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET` are set on the
+Worker and the provider is served to the app.
 
-## Remaining provider steps
+> The client secret was **reset** during setup. Discord permanently hides the
+> original after creation, and the copy-to-clipboard route could not be read
+> back, so a reset was the only way to obtain it. The app was minutes old and
+> the secret had never been used, so nothing broke. If you ever reset it again,
+> update `DISCORD_CLIENT_SECRET` or sign-in stops working.
 
-### Facebook — [Meta for Developers](https://developers.facebook.com/apps)
+Unlike Facebook, Discord has no review gate — it works for any Discord account
+right now.
 
-1. Create an app → add **Facebook Login**.
-2. Settings → Basic: note the App ID and App Secret.
-3. Facebook Login → Settings → Valid OAuth Redirect URIs: add `loom://redirect`.
-4. The app stays in development mode until you submit `email` for App Review —
-   only listed test users can sign in before that.
+## ⛔ Facebook — created, but blocked on a different redirect design
 
-### Discord — [Developer Portal](https://discord.com/developers/applications)
+App **LOOM**, id `1570833224516331`, Facebook Login use case added,
+`FACEBOOK_CLIENT_ID` set. It is deliberately **not** live: `FACEBOOK_CLIENT_SECRET`
+is unset, so `/api/auth/oauth/providers` omits it and the button shows «скоро».
 
-1. New Application → OAuth2.
-2. Redirects: add `loom://redirect`.
-3. Copy the Client ID and Client Secret.
+Two things block it, one of them structural:
 
-## Setting the credentials
+1. **`loom://redirect` cannot be used.** Meta locks *Require HTTPS* on for apps
+   created after 2018, and the setting would not toggle off. Facebook rejected
+   the custom scheme. Google solves this with a reversed-client-id scheme and
+   Discord simply allows custom schemes; Facebook allows neither.
 
-```bash
-cd backend
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-npx wrangler secret put FACEBOOK_CLIENT_ID
-npx wrangler secret put FACEBOOK_CLIENT_SECRET
-npx wrangler secret put DISCORD_CLIENT_ID
-npx wrangler secret put DISCORD_CLIENT_SECRET
-```
+   The fix is a **server-side callback**: point Facebook at
+   `https://api.loomdesign.uz/api/auth/oauth/facebook/callback`, have the Worker
+   exchange the code and then deep-link back into the app with a single-use
+   session id — the same shape as the Telegram flow. That is new backend code,
+   not configuration.
 
-Set only the pairs you have. `GET /api/auth/oauth/providers` returns exactly the
-providers whose **id and secret are both present**, and the app's sign-in sheet
-renders from that response — so a provider goes live the moment its pair lands,
-with no app release.
+2. **App Review.** Even wired up, the app starts in development mode where only
+   listed testers can sign in. Releasing `email` publicly needs Meta App Review
+   *and* business verification — a multi-week process.
 
-## Before any of this works
-
-The Worker routes and the migration have to be deployed:
-
-```bash
-cd backend
-npx wrangler d1 execute loom-db --remote --file migrations/0017_oauth_designers.sql
-npx wrangler deploy
-```
-
-The migration adds `user_identities`, the `artworks` table, and three
-`users` columns. It has been dry-run against SQLite; both uniqueness guards
-(one provider account cannot attach to two LOOM users, and designer handles are
-unique while allowing many NULLs) were verified.
-
-## Account-linking rule
-
-A social identity merges into an existing email account **only when the provider
-reports the email verified**. Matching on an unverified email would let someone
-register your address at a lax provider and walk into your LOOM account. Google
-and Discord report this explicitly; Facebook only releases an email once
-confirmed, so its presence is the signal.
+Given both, Facebook is the right thing to finish last.
