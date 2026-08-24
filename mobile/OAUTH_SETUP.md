@@ -96,38 +96,37 @@ native exchanges: the secret is only attached when the platform is `web`.
 rather than redirected — `assets/oauth.js` builds the URI from
 `window.location.origin`, so whichever host the visitor is on must be listed.
 
-## ⏳ Google — needs a Web application client
+## ✅ Google — DONE and live (2026-08-24)
 
-The existing clients are Android and iOS; neither can be used from a browser.
-In GCP project **LOOM** (`loom-506313`) → *Credentials* → *Create OAuth client
-ID* → **Web application**:
+Client **LOOM Web** (Web application) in GCP project **LOOM** (`loom-506313`),
+a third client alongside the Android and iOS ones — neither of those can be
+used from a browser.
 
 | Field | Value |
 | --- | --- |
-| Authorized JavaScript origins | `https://loomdesign.uz` (+ `https://www.loomdesign.uz`) |
-| Authorized redirect URIs | `https://loomdesign.uz/auth/callback` (+ the www variant) |
+| Authorized JavaScript origins | `https://loomdesign.uz`, `https://www.loomdesign.uz`, `http://localhost:3000` |
+| Authorized redirect URIs | `https://loomdesign.uz/auth/callback`, the www variant, and both localhost forms |
 
-For local work, add `http://localhost:3000` and
-`http://localhost:3000/auth/callback` — Google allows http only for localhost.
+`GOOGLE_CLIENT_ID_WEB` and `GOOGLE_CLIENT_SECRET` are set on the Worker, and
+`GET /api/auth/oauth/providers?platform=web` returns the web client id while
+`platform=android` still returns the Android one. Verified live: the button
+reaches Google's real consent page ("to continue to loomdesign.uz") with no
+`redirect_uri_mismatch`.
 
-Then set both halves on the Worker (from `backend/`):
+The consent screen was already *In production* and the scopes are unchanged
+(`openid profile email`), so no new review was triggered.
 
-```
-npx wrangler secret put GOOGLE_CLIENT_ID_WEB
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-```
+> `GOOGLE_CLIENT_SECRET` belongs to the **web** client. It is safe to have it
+> set only because `needsSecret()` withholds it from Android/iOS exchanges —
+> Google rejects a secret sent with a native client id.
 
-The consent screen is already *In production* and the scopes are unchanged
-(`openid profile email`), so no new review is triggered.
+## ✅ Discord — DONE and live (2026-08-24)
 
-## ⏳ Discord — one redirect to add
-
-Application **LOOM** (`1540714540722036766`) already has its id and secret on
-the Worker; Discord uses the same client for web and native. Add
-`https://loomdesign.uz/auth/callback` to *OAuth2 → Redirects* alongside
-`loom://redirect` and the button goes live on the next page load — the site asks
-`GET /api/auth/oauth/providers?platform=web` and draws only what the Worker
-reports, so nothing else needs deploying for Discord.
+Application **LOOM** (`1540714540722036766`) uses one client for web and native.
+*OAuth2 → Redirects* now holds both `https://loomdesign.uz/auth/callback` and
+`loom://redirect`; the id and secret were already on the Worker. Verified live:
+the button reaches Discord's authorize/login page rather than "Invalid OAuth2
+redirect_uri".
 
 ## ⛔ Facebook — still blocked
 
