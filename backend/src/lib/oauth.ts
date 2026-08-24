@@ -1,9 +1,13 @@
-// Federated sign-in providers for the mobile app.
+// Federated sign-in providers, shared by the mobile app and the storefront.
 //
-// The app runs the PKCE authorization step in the system browser and sends the
+// Both clients run the PKCE authorization step in a browser and send the
 // resulting `code` here; this module does the token exchange server-side so the
-// client secret never ships inside the binary. Each provider is just three
-// URLs plus a normaliser, so adding a fourth is a table entry.
+// client secret never ships inside the binary or the page. Each provider is
+// just three URLs plus a normaliser, so adding a fourth is a table entry.
+//
+// The two differ only in client type: the app redirects to a custom scheme via
+// a native public client, the site redirects to https://<site>/auth/callback
+// via a confidential web client. `needsSecret` is where that splits.
 
 export type ProviderId = 'google' | 'facebook' | 'discord'
 
@@ -40,6 +44,10 @@ type ProviderConfig = {
    * `loom://redirect`, they have no secret, and a code issued to one can only
    * be redeemed by that same client id. Sending a secret there is an error.
    * PKCE is what secures the exchange instead.
+   *
+   * Native only. Google's *Web application* client — the one the storefront
+   * uses — is confidential and refuses an exchange without its secret, so
+   * `platform === 'web'` always demands the pair (see `needsSecret`).
    */
   allowPublicClient?: boolean
   /** Discord wants the token in the body as form data; all three do, actually. */
@@ -108,6 +116,15 @@ function idVarFor(provider: ProviderId, platform: Platform): string {
   return cfg.perPlatform ? `${cfg.clientIdVar}_${platform.toUpperCase()}` : cfg.clientIdVar
 }
 
+/**
+ * Whether this platform must present the client secret. Only the native public
+ * clients may go without: a browser redirect always runs through a web client
+ * id, which is confidential at every provider we support.
+ */
+function needsSecret(provider: ProviderId, platform: Platform): boolean {
+  return !PROVIDERS[provider].allowPublicClient || platform === 'web'
+}
+
 export function isPlatform(v: unknown): v is Platform {
   return v === 'android' || v === 'ios' || v === 'web'
 }
@@ -127,8 +144,9 @@ export function providerConfigured(
 ): boolean {
   const c = PROVIDERS[provider]
   if (!env[idVarFor(provider, platform)]) return false
-  // A public client is complete with just an id; everyone else needs the pair.
-  return c.allowPublicClient ? true : !!env[c.clientSecretVar]
+  // A native public client is complete with just an id; everyone else — every
+  // provider on the web, and Facebook everywhere — needs the pair.
+  return needsSecret(provider, platform) ? !!env[c.clientSecretVar] : true
 }
 
 /**
@@ -167,7 +185,7 @@ export async function exchangeCode(
   const platform = params.platform ?? 'android'
   const clientId = env[idVarFor(provider, platform)]
   const clientSecret = env[cfg.clientSecretVar]
-  if (!clientId || (!clientSecret && !cfg.allowPublicClient)) {
+  if (!clientId || (!clientSecret && needsSecret(provider, platform))) {
     throw new OAuthError(`${provider} sign-in is not configured`, 503)
   }
 
@@ -178,8 +196,9 @@ export async function exchangeCode(
     client_id: clientId,
   })
   // Omitted entirely for a public client — Google rejects the exchange if a
-  // secret is sent for an Android/iOS client id.
-  if (clientSecret) form.set('client_secret', clientSecret)
+  // secret is sent for an Android/iOS client id, and GOOGLE_CLIENT_SECRET is
+  // set on this Worker for the *web* client, so presence alone proves nothing.
+  if (clientSecret && needsSecret(provider, platform)) form.set('client_secret', clientSecret)
   if (params.codeVerifier) form.set('code_verifier', params.codeVerifier)
 
   const tokenRes = await fetch(cfg.tokenUrl, {

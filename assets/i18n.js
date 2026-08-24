@@ -376,6 +376,18 @@
     'auth.viaTelegram':   { uz: 'Telegram orqali davom etish', ru: 'Продолжить через Telegram', en: 'Continue with Telegram' },
     'auth.tgHint':        { uz: 'Telefon raqamingizni Telegram orqali tasdiqlaymiz — tez va parolsiz.', ru: 'Подтвердим ваш номер через Telegram — быстро и без пароля.', en: 'We verify your number via Telegram — fast and password-free.' },
     'auth.orEmail':       { uz: 'yoki email orqali', ru: 'или по email', en: 'or with email' },
+
+    // Social sign-in (assets/oauth.js). Which of these ever render is decided
+    // by the Worker — a provider without credentials is never drawn.
+    'auth.viaGoogle':      { uz: 'Google orqali davom etish', ru: 'Продолжить через Google', en: 'Continue with Google' },
+    'auth.viaDiscord':     { uz: 'Discord orqali davom etish', ru: 'Продолжить через Discord', en: 'Continue with Discord' },
+    'auth.viaFacebook':    { uz: 'Facebook orqali davom etish', ru: 'Продолжить через Facebook', en: 'Continue with Facebook' },
+    'auth.oauthWorking':   { uz: 'Kirish yakunlanmoqda…', ru: 'Завершаем вход…', en: 'Finishing sign-in…' },
+    'auth.oauthWorkingSub':{ uz: 'Bir soniya — profilingizni tasdiqlaymiz.', ru: 'Секунду — подтверждаем ваш профиль.', en: 'One moment — confirming your profile.' },
+    'auth.oauthFailedTitle': { uz: 'Kirib bo‘lmadi', ru: 'Не удалось войти', en: 'Sign-in failed' },
+    'auth.oauthFailed':    { uz: 'Bu xizmat orqali kirib bo‘lmadi', ru: 'Не удалось войти через этот сервис', en: 'Could not sign in with this service' },
+    'auth.oauthCancelled': { uz: 'Kirish bekor qilindi', ru: 'Вход отменён', en: 'Sign-in cancelled' },
+    'auth.oauthBackToLogin': { uz: '← Kirish sahifasiga qaytish', ru: '← Вернуться ко входу', en: '← Back to sign-in' },
     'order.verifyPhone':  { uz: 'Buyurtma berish uchun raqamingizni Telegram orqali tasdiqlang.', ru: 'Чтобы оформить заказ, подтвердите номер телефона через Telegram.', en: 'Verify your phone via Telegram to place an order.' },
 
     // Forgot-password recovery

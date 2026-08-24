@@ -18,13 +18,15 @@
   <link rel="stylesheet" href="assets/nav.css?v=12" />
   <link rel="stylesheet" href="assets/auth.css?v=12" />
   <link rel="stylesheet" href="assets/login-modal.css?v=5" />
+  <link rel="stylesheet" href="assets/oauth.css?v=1" />
   <script src="assets/boot.js?v=8"></script>
 
   <!-- Page scripts: deferred, document order preserved. -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script defer src="assets/config.js?v=2"></script>
-  <script defer src="assets/i18n.js?v=19"></script>
+  <script defer src="assets/i18n.js?v=20"></script>
   <script defer src="assets/auth.js?v=4"></script>
+  <script defer src="assets/oauth.js?v=1"></script>
   <script defer src="assets/tma.js?v=3"></script>
   <script defer src="assets/motion.js?v=9"></script>
   <script defer src="assets/login-modal.js?v=2"></script>
@@ -64,6 +66,10 @@
       <span data-i18n="auth.viaTelegram">Продолжить через Telegram</span>
     </button>
     <p class="auth-tg-hint" data-i18n="auth.tgHint">Подтвердим ваш номер через Telegram — быстро и без пароля.</p>
+
+    <!-- Filled by assets/oauth.js with one button per provider the Worker can
+         actually complete; stays hidden when that list is empty. -->
+    <div class="auth-social" id="socialButtons" hidden></div>
 
     <div class="auth-divider"><span data-i18n="auth.orEmail">или по email</span></div>
 
@@ -216,6 +222,12 @@
             }
           } catch (e) { /* cancelled */ }
         });
+      }
+
+      // Social sign-in (Google / Discord). Buttons render only for providers
+      // the Worker is configured for; a failure here leaves the page usable.
+      if (window.LOOM_OAUTH) {
+        window.LOOM_OAUTH.mount(document.getElementById('socialButtons')).catch(function () {});
       }
 
       const form       = document.getElementById('loginForm');

@@ -1,5 +1,9 @@
 # Social sign-in — setup status
 
+Covers both surfaces: the mobile app (native clients, custom-scheme redirect)
+and the website (web clients, `https://loomdesign.uz/auth/callback`). The Worker
+code is shared — `backend/src/lib/oauth.ts` — and only the client type differs.
+
 ## ✅ Google — DONE and live
 
 GCP project **LOOM** (`loom-506313`), consent screen configured (External,
@@ -72,3 +76,62 @@ Two things block it, one of them structural:
    *and* business verification — a multi-week process.
 
 Given both, Facebook is the right thing to finish last.
+
+---
+
+# Website (storefront)
+
+The site runs the same PKCE-in-the-browser → code-to-Worker flow as the app
+(`assets/oauth.js`, callback page at `auth/callback.html`, buttons on
+`login.html` and `register.html`). One structural difference: a browser redirect
+goes through a provider's **web** client, which is confidential everywhere — so
+unlike the Android/iOS clients, the web exchange always sends the client secret.
+`needsSecret()` in `backend/src/lib/oauth.ts` is what enforces that split, and it
+is also why `GOOGLE_CLIENT_SECRET` may exist on the Worker without breaking the
+native exchanges: the secret is only attached when the platform is `web`.
+
+**Redirect URI, byte for byte:** `https://loomdesign.uz/auth/callback`
+(Cloudflare Pages serves `auth/callback.html` at that clean URL). Register the
+`https://www.loomdesign.uz/auth/callback` variant too if www is ever served
+rather than redirected — `assets/oauth.js` builds the URI from
+`window.location.origin`, so whichever host the visitor is on must be listed.
+
+## ⏳ Google — needs a Web application client
+
+The existing clients are Android and iOS; neither can be used from a browser.
+In GCP project **LOOM** (`loom-506313`) → *Credentials* → *Create OAuth client
+ID* → **Web application**:
+
+| Field | Value |
+| --- | --- |
+| Authorized JavaScript origins | `https://loomdesign.uz` (+ `https://www.loomdesign.uz`) |
+| Authorized redirect URIs | `https://loomdesign.uz/auth/callback` (+ the www variant) |
+
+For local work, add `http://localhost:3000` and
+`http://localhost:3000/auth/callback` — Google allows http only for localhost.
+
+Then set both halves on the Worker (from `backend/`):
+
+```
+npx wrangler secret put GOOGLE_CLIENT_ID_WEB
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+```
+
+The consent screen is already *In production* and the scopes are unchanged
+(`openid profile email`), so no new review is triggered.
+
+## ⏳ Discord — one redirect to add
+
+Application **LOOM** (`1540714540722036766`) already has its id and secret on
+the Worker; Discord uses the same client for web and native. Add
+`https://loomdesign.uz/auth/callback` to *OAuth2 → Redirects* alongside
+`loom://redirect` and the button goes live on the next page load — the site asks
+`GET /api/auth/oauth/providers?platform=web` and draws only what the Worker
+reports, so nothing else needs deploying for Discord.
+
+## ⛔ Facebook — still blocked
+
+Unchanged from the app: no secret is set, so the site never draws the button.
+The web callback would actually suit Facebook better than the app's custom
+scheme did (it is an https redirect, which is all Meta insisted on), but App
+Review and business verification still gate a public `email` scope.
