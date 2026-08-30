@@ -35,7 +35,24 @@ const LEGACY_PRINT_AREA = { x: 560, y: 360, w: 928, h: 1120 };
 const REF_RECT = { w: LEGACY_PRINT_AREA.w, h: LEGACY_PRINT_AREA.h };
 
 // Resolved per view once the model's mesh is available (see resolvePrintRects).
-const PRINT_RECTS = { front: { ...LEGACY_PRINT_AREA }, back: { ...LEGACY_PRINT_AREA } };
+//
+// Seeded with the values resolvePrintRects() measures off the bundled garment,
+// rather than with LEGACY_PRINT_AREA. The 3D model is no longer loaded on page
+// load, so the measurement now happens only when the user opens the preview —
+// but the FLAT editor derives its print-band aspect from these (renderFlatEditor:
+// `rect.h = rect.w / (pr.w / pr.h)`), and it is on screen from the first frame.
+// Seeding with LEGACY's 0.8286 would show a 10.5% too-tall band until the
+// preview was opened. These numbers are what the mesh resolves to, so the flat
+// editor is correct immediately and re-resolving later is a no-op.
+//
+// Every product except hoodie-regular renders on this mesh. Re-measure with
+// `JSON.stringify(PRINT_RECTS)` in the console after the model loads if the
+// bundled garment is ever replaced.
+const DEFAULT_PRINT_RECTS = {
+  front: { x: 621.4077537536621, y: 449.80019195556645, w: 769.0009597778321, h: 1025.3346130371094 },
+  back:  { x: 669.6164901733398, y: 322.6587879943848,  w: 768.8689483642579, h: 1025.1585978190105 },
+};
+const PRINT_RECTS = { front: { ...DEFAULT_PRINT_RECTS.front }, back: { ...DEFAULT_PRINT_RECTS.back } };
 function printRect(view) {
   return PRINT_RECTS[view || designState.activeView] || LEGACY_PRINT_AREA;
 }
@@ -298,13 +315,15 @@ const camAnim = {
 // ================================================================
 
 document.addEventListener("DOMContentLoaded", async function () {
-  initThreeJS();
+  // three.js and the garment are NOT loaded here — see SECTION 4B. The editing
+  // surface is the flat face; the 3D is a preview behind an interaction.
   initCanvasTextures();
 
-  // UI + render loop first — nothing in them depends on the product,
-  // and a slow /api/products response must not leave dead controls
+  // UI first — nothing in it depends on the product, and a slow /api/products
+  // response must not leave dead controls. The render loop starts with the
+  // renderer, in ensurePreview3D(); in flat mode it only ever early-returned.
   initUI();
-  animate();
+  bindPreview3DPrefetch();
 
   // Auth nav
   if (window.LOOM_AUTH) window.LOOM_AUTH.renderAuthNav();
@@ -313,8 +332,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   // then re-apply the saved design once textures are ready.
   const editItem = await prepareCartEdit();
 
-  // Load product from ?slug= param, then load its GLB (or fallback)
-  await loadProductFromSlug();
+  // Resolve the product from ?slug=. This only records which GLB to use —
+  // the model itself is fetched when the preview is opened (SECTION 4B).
+  _productReady = loadProductFromSlug();
+  await _productReady;
 
   if (editItem) applyCartEditDesign(editItem);
 });
@@ -451,6 +472,155 @@ async function applyCartEditDesign(item) {
 }
 
 // ================================================================
+// SECTION 4B — DEFERRED 3D BOOT
+// ================================================================
+//
+// three.js (603 KB) plus its four example scripts and the 1.60 MB garment used
+// to be on the critical path of every configurator load. The editing surface is
+// the flat face, so none of it is needed until the user asks for the preview.
+// Everything below loads on that interaction instead.
+//
+// Script injection rather than dynamic import(): r128's examples/js/* are
+// classic scripts that patch the THREE global, so going ESM would mean moving
+// to examples/jsm/ and an ESM three build — a module-format change to the whole
+// 3D path, which does not belong in the same commit as the deferral gate.
+
+// Order matters: three itself must finish before the four scripts that patch
+// its global, so these are loaded strictly in sequence, never in parallel.
+const THREE_CHUNKS = [
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js",
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js",
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js",
+  "assets/vendor/meshopt_decoder.js?v=1",
+];
+
+const _loadedChunks = new Set();
+let _threeReady = null;   // single in-flight promise for the script chain
+let _preview3D = null;    // single in-flight promise for the whole boot
+let _pendingGlbUrl = null; // resolved by loadProductFromSlug, consumed on open
+let _productReady = null;  // loadProductFromSlug's promise; gates the model URL
+
+function _loadChunk(src) {
+  if (_loadedChunks.has(src)) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = false;
+    s.onload = () => { _loadedChunks.add(src); resolve(); };
+    s.onerror = () => {
+      // Drop the failed tag so a retry re-requests instead of stacking dead
+      // elements, and so _loadedChunks never records a script that didn't run.
+      s.remove();
+      reject(new Error("Failed to load " + src));
+    };
+    document.head.appendChild(s);
+  });
+}
+
+/**
+ * Load three and its example scripts, in order, exactly once.
+ *
+ * Concurrent callers share one promise, so double-tapping the 3D button cannot
+ * inject twice. On failure the promise is cleared — but _loadedChunks keeps the
+ * scripts that did succeed, so a retry resumes at the one that broke.
+ */
+function ensureThreeLoaded() {
+  if (_threeReady) return _threeReady;
+  _threeReady = THREE_CHUNKS
+    .reduce((chain, src) => chain.then(() => _loadChunk(src)), Promise.resolve())
+    .catch((err) => { _threeReady = null; throw err; });
+  return _threeReady;
+}
+
+/**
+ * Bring up the 3D preview: scripts, renderer, GPU textures, render loop, model.
+ *
+ * Idempotent in the same way — one promise, shared by every caller, cleared on
+ * failure so the retry button can start over.
+ */
+function ensurePreview3D() {
+  if (_preview3D) return _preview3D;
+  showPreviewLoading();
+  _preview3D = ensureThreeLoaded()
+    .then(() => {
+      initThreeJS();
+      initThreeTextures();
+      animate();
+      // Wait for ?slug= to resolve so a custom product model isn't loaded on
+      // top of the default one. Already settled in the common case; its own
+      // failures are swallowed there and fall back to the bundled garment.
+      return (_productReady || Promise.resolve()).catch(() => {});
+    })
+    .then(() => loadShirtModel(_pendingGlbUrl || DEFAULT_MODEL_URL))
+    .catch((err) => {
+      _preview3D = null;
+      showPreviewError(err);
+      throw err;
+    });
+  return _preview3D;
+}
+
+// ── Preview loading / error states ──────────────────────────────
+// The overlay must always terminate. A failed script chain used to be
+// impossible; now it is a network away, and a spinner that never resolves is
+// worse than an error the user can act on.
+
+function showPreviewLoading() {
+  const overlay = document.getElementById("loading-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("is-error");
+  overlay.style.display = "flex";
+  overlay.style.opacity = "1";
+}
+
+function showPreviewError(err) {
+  console.error("[LOOM] 3D preview failed to load:", err);
+  const overlay = document.getElementById("loading-overlay");
+  if (!overlay) return;
+  overlay.style.display = "flex";
+  overlay.style.opacity = "1";
+  overlay.classList.add("is-error");
+  const btn = document.getElementById("preview-retry");
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+      overlay.classList.remove("is-error");
+      ensurePreview3D().catch(() => {});
+    });
+  }
+}
+
+// ── Prefetch on intent ──────────────────────────────────────────
+// Not on page load: that would put the model back on the critical path for
+// everyone who never opens the preview. Hover / touch / focus on the 3D control
+// is a strong enough signal, and buys most of the latency back.
+
+let _prefetched = false;
+function prefetchPreview3D() {
+  if (_prefetched) return;
+  _prefetched = true;
+  // rel=prefetch is explicitly the lowest-priority hint, so an in-flight
+  // critical request keeps the bandwidth.
+  [DEFAULT_MODEL_URL, THREE_CHUNKS[0]].forEach((href) => {
+    const l = document.createElement("link");
+    l.rel = "prefetch";
+    l.href = href;
+    if (/^https?:/.test(href)) l.crossOrigin = "anonymous";
+    document.head.appendChild(l);
+  });
+}
+
+function bindPreview3DPrefetch() {
+  const btn = document.getElementById("btn-surface-3d");
+  if (!btn) return;
+  ["mouseenter", "touchstart", "focus"].forEach((evt) => {
+    btn.addEventListener(evt, prefetchPreview3D, { once: true, passive: true });
+  });
+}
+
+// ================================================================
 // SECTION 5 — THREE.JS SETUP
 // ================================================================
 
@@ -579,6 +749,22 @@ function initCanvasTextures() {
   plainTexCanvas.width = TEX_SIZE;
   plainTexCanvas.height = TEX_SIZE;
 
+  // Initial draw
+  drawPlainTexture();
+  drawTexture("front");
+  drawTexture("back");
+}
+
+/**
+ * Wrap the design canvases as GPU textures. Split out of initCanvasTextures()
+ * because it needs both THREE and a live renderer (for getMaxAnisotropy), and
+ * neither exists until the user opens the 3D preview. The canvases above are
+ * plain 2D and the flat editor draws from them unaided, so everything up to
+ * this point still runs on page load.
+ *
+ * Safe to call only once, from ensurePreview3D() after initThreeJS().
+ */
+function initThreeTextures() {
   frontTexture = new THREE.CanvasTexture(frontTexCanvas);
   backTexture = new THREE.CanvasTexture(backTexCanvas);
   plainTexture = new THREE.CanvasTexture(plainTexCanvas);
@@ -602,10 +788,11 @@ function initCanvasTextures() {
     t.anisotropy = maxAniso;
   });
 
-  // Initial draw
-  drawPlainTexture();
-  drawTexture("front");
-  drawTexture("back");
+  // The canvases already hold whatever the user drew before opening the
+  // preview; upload that rather than starting the 3D from a blank shirt.
+  frontTexture.needsUpdate = true;
+  backTexture.needsUpdate = true;
+  plainTexture.needsUpdate = true;
 }
 
 function drawPlainTexture() {
@@ -615,7 +802,9 @@ function drawPlainTexture() {
   ctx.fillStyle = designState.shirtColor;
   ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
 
-  plainTexture.needsUpdate = true;
+  // Null until the 3D preview is opened — the flat editor reads the canvas
+  // directly and needs no GPU upload.
+  if (plainTexture) plainTexture.needsUpdate = true;
 }
 
 /**
@@ -724,7 +913,7 @@ function drawTexture(view) {
   //    NOT baked into the texture — so snapshots/exports are always clean.
 
   // Signal Three.js to re-upload
-  texture.needsUpdate = true;
+  if (texture) texture.needsUpdate = true;
   shirtMaterials.forEach(function (m) {
     m.needsUpdate = true;
   });
@@ -918,7 +1107,11 @@ async function loadProductFromSlug() {
     }
   }
 
-  loadShirtModel(glbUrl);
+  // Remember which garment to fetch; the fetch itself waits for the preview to
+  // be opened. ensurePreview3D() awaits _productReady before reading this, so
+  // opening the preview early cannot race us into loading the wrong model and
+  // then a second one on top of it.
+  _pendingGlbUrl = glbUrl;
 }
 
 /**
@@ -949,6 +1142,11 @@ function attachGeometryDecoder(loader) {
 function loadShirtModel(glbUrl) {
   const loader = attachGeometryDecoder(new THREE.GLTFLoader());
 
+  // Returns a promise so ensurePreview3D() can sequence on it. It RESOLVES on
+  // the error path too: a model that fails still falls back to the placeholder
+  // garment, exactly as before, and that is a finished state — not something
+  // the retry button should offer to redo.
+  return new Promise((resolve) => {
   loader.load(
     glbUrl || DEFAULT_MODEL_URL,
 
@@ -1037,6 +1235,7 @@ function loadShirtModel(glbUrl) {
 
       // Hide loading overlay
       hideLoadingOverlay();
+      resolve();
     },
 
     // onProgress
@@ -1055,8 +1254,10 @@ function loadShirtModel(glbUrl) {
       if (loadingEl) loadingEl.style.display = 'none';
       createPlaceholderShirt();
       hideLoadingOverlay();
+      resolve();
     },
   );
+  });
 }
 
 /**
@@ -3448,8 +3649,16 @@ function setFlatMode(on) {
     b.setAttribute("aria-selected", String(on2));
   });
 
-  if (flatMode) renderFlatEditor();
-  else if (typeof onWindowResize === "function") onWindowResize();
+  if (flatMode) { renderFlatEditor(); return; }
+
+  // Every route into the 3D — the toggle, the tab buttons, the first-design
+  // reward — lands here, so this is the single gate that boots it. Fire and
+  // forget: ensurePreview3D() owns the loading and error states, and a
+  // rejection is already surfaced there.
+  ensurePreview3D().then(() => {
+    if (!flatMode && typeof onWindowResize === "function") onWindowResize();
+  }).catch(() => {});
+  if (renderer && typeof onWindowResize === "function") onWindowResize();
 }
 
 function toggleFlatMode() {

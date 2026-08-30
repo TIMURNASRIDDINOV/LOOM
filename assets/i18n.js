@@ -180,6 +180,8 @@
     'cfg.resetView':    { uz: 'Ko‘rinishni tiklash', ru: 'Сброс вида', en: 'Reset view' },
     'cfg.save':         { uz: 'Saqlash',  ru: 'Сохранить', en: 'Save' },
     'cfg.loading3d':    { uz: '3D model yuklanmoqda…', ru: 'Загрузка 3D модели…', en: 'Loading 3D model…' },
+    'cfg.load3dFailed': { uz: '3D ko‘rinishni yuklab bo‘lmadi', ru: 'Не удалось загрузить 3D-превью', en: 'Could not load the 3D preview' },
+    'cfg.retry':        { uz: 'Qayta urinish', ru: 'Повторить', en: 'Try again' },
     'cfg.colorWhite':   { uz: 'Oq',       ru: 'Белый',    en: 'White' },
     'cfg.colorBlack':   { uz: 'Qora',     ru: 'Чёрный',   en: 'Black' },
     'cfg.toastAddedCart':  { uz: 'Savatga qo‘shildi', ru: 'Добавлено в корзину', en: 'Added to cart' },

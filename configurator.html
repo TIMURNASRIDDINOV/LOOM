@@ -37,31 +37,24 @@
     <link rel="stylesheet" href="assets/login-modal.css?v=5" />
     <script src="assets/boot.js?v=8"></script>
 
-    <!-- Page scripts: deferred so ~600 KB of three.js never blocks the
-         parser, and so the preload scanner can start all of it at byte 0
-         instead of after 60 KB of studio markup. `defer` preserves
-         document order, which three.js's example modules require (they
-         patch the global THREE namespace) and configurator.js depends on. -->
-    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
-    <!-- Decoder for the meshopt-compressed default garment. r128's GLTFLoader
-         supports EXT_meshopt_compression natively; it just needs the decoder
-         handed to it — see attachGeometryDecoder() in configurator.js. -->
-    <script defer src="assets/vendor/meshopt_decoder.js?v=1"></script>
+    <!-- three.js, its four example scripts and the meshopt decoder are NOT
+         here any more. They are injected in order by ensureThreeLoaded() in
+         configurator.js when the user opens the 3D preview — the editing
+         surface is the flat face, so ~600 KB of renderer plus a 1.60 MB
+         garment were being paid for on every load by everyone, including the
+         people who never opened the preview. Page scripts stay deferred so
+         none of them blocks the parser. -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script defer src="assets/config.js?v=2"></script>
     <script defer src="assets/layout.js?v=3"></script>
-    <script defer src="assets/i18n.js?v=20"></script>
+    <script defer src="assets/i18n.js?v=21"></script>
     <script defer src="assets/auth.js?v=4"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=2"></script>
     <script defer src="assets/motion.js?v=9"></script>
     <script defer src="assets/track.js?v=3"></script>
     <script defer src="assets/cart.js?v=2"></script>
-    <script defer src="configurator.js?v=41"></script>
+    <script defer src="configurator.js?v=42"></script>
 
     <style>
       /* ============================================================
@@ -181,6 +174,18 @@
       @keyframes spin { to { transform: rotate(360deg); } }
       .loading-text { font-size: 0.85rem; color: var(--muted); }
       #loading-pct { color: var(--brand); font-family: var(--mono); }
+      /* Busy and error are mutually exclusive: the overlay must always land on
+         one of them, never on a spinner that spins forever. */
+      .loading-busy  { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+      .loading-error { display: none;  flex-direction: column; align-items: center; gap: 0.75rem; }
+      .loading-overlay.is-error .loading-busy  { display: none; }
+      .loading-overlay.is-error .loading-error { display: flex; }
+      .btn-retry {
+        font: inherit; font-size: 0.8rem; cursor: pointer;
+        padding: 0.5rem 1.1rem; border: 1px solid var(--line);
+        background: var(--text); color: var(--paper);
+      }
+      .btn-retry:hover { background: var(--brand); border-color: var(--brand); }
 
       /* ── Floating control card ───────────────────────────────── */
       .studio-panel {
@@ -1254,10 +1259,18 @@
 
     <!-- ===== Studio stage ===== -->
     <main class="studio" aria-label="3D конфигуратор">
-      <!-- Loading overlay -->
-      <div id="loading-overlay" class="loading-overlay">
-        <div class="loading-spinner-ring"></div>
-        <p class="loading-text"><span data-i18n="cfg.loading3d">Загрузка 3D модели…</span> <span id="loading-pct"></span></p>
+      <!-- Loading overlay. Starts hidden: three.js and the garment are fetched
+           when the user opens the 3D preview, not on page load, so there is
+           nothing to wait for until then. -->
+      <div id="loading-overlay" class="loading-overlay" style="display:none">
+        <div class="loading-busy">
+          <div class="loading-spinner-ring"></div>
+          <p class="loading-text"><span data-i18n="cfg.loading3d">Загрузка 3D модели…</span> <span id="loading-pct"></span></p>
+        </div>
+        <div class="loading-error">
+          <p class="loading-text" data-i18n="cfg.load3dFailed">Не удалось загрузить 3D-превью</p>
+          <button type="button" id="preview-retry" class="btn-retry" data-i18n="cfg.retry">Повторить</button>
+        </div>
       </div>
 
       <!-- Three.js mounts canvas here (preview only — editing is on the flat face) -->
