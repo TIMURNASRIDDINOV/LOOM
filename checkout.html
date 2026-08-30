@@ -15,7 +15,6 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <!-- Leaflet is fetched on demand by checkout.js; warm the socket now -->
   <link rel="preconnect" href="https://unpkg.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -32,7 +31,7 @@
        preserves document order, which this stack depends on
        (config → layout → i18n → auth → nav → …). Leaflet is NOT here:
        checkout.js injects it only when the map is actually mounted. -->
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script defer src="assets/vendor/gsap.min.js?v=1"></script>
   <script defer src="assets/config.js?v=2"></script>
   <script defer src="assets/layout.js?v=3"></script>
   <script defer src="assets/i18n.js?v=21"></script>

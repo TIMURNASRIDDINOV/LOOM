@@ -488,11 +488,11 @@ async function applyCartEditDesign(item) {
 // Order matters: three itself must finish before the four scripts that patch
 // its global, so these are loaded strictly in sequence, never in parallel.
 const THREE_CHUNKS = [
-  "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
-  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js",
-  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
-  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js",
-  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js",
+  "assets/vendor/three.min.js?v=1",
+  "assets/vendor/GLTFLoader.js?v=1",
+  "assets/vendor/OrbitControls.js?v=1",
+  "assets/vendor/RoomEnvironment.js?v=1",
+  "assets/vendor/GLTFExporter.js?v=1",
   "assets/vendor/meshopt_decoder.js?v=1",
 ];
 
