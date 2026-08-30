@@ -53,6 +53,28 @@ the plain `meshopt` command is safe. Keeping UVs at f32 costs ~980 KB of the 1.6
 Recovering it means teaching `normalizeModelUVsGlobally()` to read normalized integer
 attributes, or baking the normalization into the asset and dropping the runtime pass.
 
+### Next candidate: Draco + pre-normalized UVs (~916 KB, not yet verified)
+
+Recorded so it isn't lost. **Unverified — these are leads for the harness, not results.**
+
+Plain `gltf-transform draco` on the original (no destructive flags, hierarchy
+preserved) reportedly gives **684,032 bytes** against meshopt's 1,600,204 — worth
+~916 KB. Draco's decoder is heavier (`draco_wasm_wrapper.js` + `draco_decoder.wasm`
+≈ 74.8 KB gzipped vs meshopt's 6.5 KB) and slower on mid-range Android, which is why
+meshopt won the first round on total first-load bytes; that trade shifts once the
+model is behind an interaction gate and the decoder is no longer on the critical path.
+
+Draco's default 12-bit texcoord quantization is catastrophic at this asset's ~750-unit
+UV span. But pre-normalizing UVs into `[0,1]` first is a verified no-op (max Δ 0 —
+`normalizeModelUVsGlobally()` is idempotent, so the runtime pass becomes an identity
+transform), and against a `[0,1]` span 12 bits is sub-texel at 2048². That combination
+would also let `normalizeModelUVsGlobally()` be deleted outright, which removes the
+`getX()`-on-quantized-attribute trap described above.
+
+Before adopting it, re-run the render comparison (original vs candidate, front and
+back, fine-grid + text pattern, plus a shading-only pass) — the same check that
+qualified the meshopt build.
+
 ### Verified
 
 Rendered original vs. encoded through the configurator's own pipeline

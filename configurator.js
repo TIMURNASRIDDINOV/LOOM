@@ -11,6 +11,11 @@
 
 const TEX_SIZE = 2048; // Offscreen texture canvas dimensions (2048 for crisp logo quality)
 
+// The default garment, meshopt-compressed: 1.60 MB instead of the 6.79 MB
+// uncompressed export. See assets/models/README.md for how it is encoded and
+// which gltf-transform flags must never be used on it.
+const DEFAULT_MODEL_URL = "assets/models/t_shirt.meshopt.glb?v=1";
+
 // ── Print geometry ───────────────────────────────────────────────
 // The print rect is the DTG platen projected into texture space. It cannot be one
 // shared constant: normalizeModelUVsGlobally() packs every UV island into one
@@ -873,7 +878,7 @@ async function fetchDefaultProduct() {
 
 async function loadProductFromSlug() {
   const slug = new URLSearchParams(window.location.search).get("slug");
-  let glbUrl = "assets/models/t_shirt.glb?v=1";
+  let glbUrl = DEFAULT_MODEL_URL;
 
   if (!slug) {
     // No slug → name the default garment instead of leaving the placeholder.
@@ -916,11 +921,36 @@ async function loadProductFromSlug() {
   loadShirtModel(glbUrl);
 }
 
+/**
+ * Register the decoder for the compressed geometry in DEFAULT_MODEL_URL.
+ *
+ * Deliberately the only place a codec is named: one vendored file
+ * (assets/vendor/meshopt_decoder.js), one function, one call site. Swapping
+ * codecs — Draco is the standing candidate, see assets/models/README.md —
+ * should touch this function, the <script> tag in configurator.html, and
+ * nothing else.
+ *
+ * Product models fetched from R2 via product.glb_url are NOT compressed.
+ * GLTFLoader only calls a registered decoder when the file actually declares
+ * EXT_meshopt_compression, so registering unconditionally leaves them alone.
+ */
+function attachGeometryDecoder(loader) {
+  if (typeof MeshoptDecoder === "undefined") {
+    // Vendored script missing or blocked. Say so once, clearly: the loader's
+    // own error is "setMeshoptDecoder must be called before loading compressed
+    // files", which sends you looking in the wrong place.
+    console.error("[LOOM] Meshopt decoder not loaded — check assets/vendor/meshopt_decoder.js");
+    return loader;
+  }
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  return loader;
+}
+
 function loadShirtModel(glbUrl) {
-  const loader = new THREE.GLTFLoader();
+  const loader = attachGeometryDecoder(new THREE.GLTFLoader());
 
   loader.load(
-    glbUrl || "assets/models/t_shirt.glb?v=1",
+    glbUrl || DEFAULT_MODEL_URL,
 
     // onLoad
     function (gltf) {
