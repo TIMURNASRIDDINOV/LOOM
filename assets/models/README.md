@@ -89,3 +89,46 @@ Rendered original vs. encoded through the configurator's own pipeline
 
 Residual is sub-pixel antialiasing on 1 px grid lines at silhouette edges, from 14-bit
 position quantization. No UV drift, no seams, no warping, no shading artefacts.
+
+## `hoodie-regular.glb` — in R2, not in this repo
+
+18,355,048 bytes, uncompressed, served through the Worker from `loom-models`
+(`glb/hoodie-regular.glb`). A Sketchfab OBJ import: 6 nodes, 4 meshes, one material
+`Material238904.005`, node names `Object_2`..`Object_5`.
+
+**Do not re-encode it, and do not try to fix it in `configurator.js`.** Both were
+tried and measured; both fail, for two independent reasons.
+
+**1. It classifies as 0 front / 0 back.** No node name matches `body_front` /
+`body_back`, and `Material238904.005` contains no `body`, so every mesh falls through
+to plain and the garment renders with *no* design on either face. Verified by running
+the real classifier against the real vendored `three.min.js` + `GLTFLoader.js`.
+Print masters are unaffected — `_renderPrintCanvas()` is canvas-only and never
+touches mesh geometry.
+
+A geometric front/back split does not rescue it. The four meshes are split at the
+16-bit index limit, not by panel (nodes 4 and 5 are 54.0% / 52.5% front-vs-back), and
+more decisively: the hoodie's **outward-facing front chest occupies three-plus
+disjoint UV islands**, where the t-shirt's is one contiguous island at
+`u p5–p95 = 0.315–0.682` — which is what makes `PLATEN_W_FRAC * panelW` reproduce
+`DEFAULT_PRINT_RECTS.front.w = 769.0` exactly. No single rectangle maps to the
+hoodie's chest, so artwork drawn into one lands as fragments. The fix is a
+re-authored asset (single-island front/back unwrap + `Body_Front` / `Body_Back`
+names), uploaded under a **new R2 key** — `files.ts` serves models `immutable`, so
+overwriting the existing key is invisible for a year.
+
+**2. `meshopt` corrupts it — the inverse of the t-shirt's escape.** The t-shirt is
+safe only because its UVs fall *outside* `[0,1]`, so gltf-transform refuses to
+quantize TEXCOORD_0. The hoodie's UVs are *inside* `[0,1]`, so it quantizes them:
+
+    hoodie-regular.glb   18,355,048 B   TEXCOORD_0 FLOAT32 normalized=false
+    hoodie.meshopt.glb    3,656,908 B   TEXCOORD_0 USHORT  normalized=true   <-- fatal
+
+Feeding that to `normalizeModelUVsGlobally()` truncates the whole atlas to texel
+(0,0) — the same trap described under the t-shirt above, reproduced end-to-end with
+the real function and real three r128:
+
+    before  [1245, 1966, 24969, 32768, 32768, 41942, 63766, 62717, 14418, 26869]
+    after   [   0,    0,     0,     0,     0,     0,     1,     0,     0,     0]
+
+The 80% size win is real and entirely unusable while the runtime pass exists.
