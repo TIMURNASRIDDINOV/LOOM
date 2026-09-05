@@ -104,6 +104,8 @@ export default function TabsLayout() {
         <Tabs.Screen name="checkout" options={{ href: null }} />
         <Tabs.Screen name="market" options={{ href: null }} />
         <Tabs.Screen name="publish" options={{ href: null }} />
+        <Tabs.Screen name="designer" options={{ href: null }} />
+        <Tabs.Screen name="profile-edit" options={{ href: null }} />
         <Tabs.Screen name="product" options={{ href: null }} />
       </Tabs>
       <Toast message={message} />

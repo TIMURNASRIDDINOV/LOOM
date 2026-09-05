@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Favicon (pencil mark) -->
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Работы дизайнеров — LOOM Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=29" />
+  <script src="assets/theme-init.js?v=29"></script>
+  <style>
+    .art-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--sp-4); }
+    .art-card { display: flex; flex-direction: column; overflow: hidden; }
+    .art-thumb {
+      position: relative; aspect-ratio: 1; background:
+        linear-gradient(45deg, var(--hover-bg) 25%, transparent 25%, transparent 75%, var(--hover-bg) 75%),
+        linear-gradient(45deg, var(--hover-bg) 25%, transparent 25%, transparent 75%, var(--hover-bg) 75%);
+      background-size: 18px 18px; background-position: 0 0, 9px 9px;
+      border-bottom: 1px solid var(--hairline); cursor: zoom-in;
+    }
+    .art-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .art-thumb .badge { position: absolute; top: var(--sp-2); left: var(--sp-2); }
+    .art-body { padding: var(--sp-3) var(--sp-4); display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .art-title { font-weight: 600; font-size: var(--fs-md); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .art-meta { color: var(--text-muted); font-size: var(--fs-sm); display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+    .art-meta .mono { font-family: var(--mono); }
+    .art-tags { color: var(--text-secondary); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .art-note { font-size: var(--fs-sm); color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-sm); padding: 6px 8px; }
+    .art-actions { display: flex; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--hairline); }
+    .art-actions .btn { flex: 1; }
+    .badge-pending  { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+    .badge-approved { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+    .badge-rejected { background: var(--danger-bg);  color: var(--danger);  border-color: var(--danger-border); }
+    .dialog .textarea { width: 100%; min-height: 84px; margin-bottom: var(--sp-4); }
+    .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; z-index: 200; cursor: zoom-out; }
+    .lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; background: #fff; }
+  </style>
+</head>
+<body>
+  <main class="page page--wide">
+    <div class="page-head">
+      <div>
+        <h2 class="page-title">Работы дизайнеров</h2>
+        <p class="page-sub">Что дизайнеры загрузили из приложения. Одобренная работа сразу появляется в маркетплейсе и в студии у всех покупателей; отклонённая возвращается автору с причиной.</p>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist" id="status-tabs">
+      <button type="button" class="tab" role="tab" data-status="pending" aria-selected="true">На проверке <span class="count" id="count-pending"></span></button>
+      <button type="button" class="tab" role="tab" data-status="approved" aria-selected="false">Опубликованы</button>
+      <button type="button" class="tab" role="tab" data-status="rejected" aria-selected="false">Отклонены</button>
+      <button type="button" class="tab" role="tab" data-status="" aria-selected="false">Все</button>
+    </div>
+
+    <div class="toolbar">
+      <span class="page-info" id="page-info"></span>
+      <div class="toolbar-spacer"></div>
+      <button class="btn btn--sm" id="refresh-btn">Обновить</button>
+    </div>
+
+    <div id="art-grid" class="art-grid">
+      <div class="state">Загрузка…</div>
+    </div>
+
+    <div class="pagination">
+      <span></span>
+      <button class="btn btn--sm" id="prev-btn" disabled>← Назад</button>
+      <button class="btn btn--sm" id="next-btn">Вперёд →</button>
+    </div>
+  </main>
+
+  <script src="assets/app.js?v=29"></script>
+  <script src="assets/ui.js?v=29"></script>
+  <script src="assets/layout.js?v=29"></script>
+  <script>LOOM_LAYOUT.init('artworks')</script>
+  <script src="assets/artworks.js?v=29"></script>
+</body>
+</html>

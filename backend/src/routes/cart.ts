@@ -11,9 +11,12 @@ import {
   getUserById,
   createOrder,
   createOrderItem,
+  getArtworkById,
+  recordArtworkSale,
 } from '../db/queries'
 import { sendOrderNotification } from '../lib/telegram'
 import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
+import { DESIGNER_COMMISSION_PCT } from './designers'
 import type { UserEnv } from '../types'
 
 // Account-bound cart + multi-item checkout. All routes require a logged-in user.
@@ -22,6 +25,25 @@ router.use('*', requireAuth)
 
 function cartTotal(items: { unit_price: number; quantity: number }[]): number {
   return items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+}
+
+/** Distinct marketplace artwork ids referenced by a design_json v2 document. */
+function artworkIdsIn(designJson: string): number[] {
+  let d: Record<string, unknown>
+  try {
+    d = JSON.parse(designJson) as Record<string, unknown>
+  } catch {
+    return []
+  }
+  const ids = new Set<number>()
+  for (const view of ['front', 'back']) {
+    const v = d[view] as { elements?: { artworkId?: unknown }[] } | undefined
+    for (const el of v?.elements ?? []) {
+      const id = typeof el.artworkId === 'number' ? el.artworkId : parseInt(String(el.artworkId ?? ''), 10)
+      if (Number.isInteger(id) && id > 0) ids.add(id)
+    }
+  }
+  return [...ids]
 }
 
 // GET /api/cart — current user's cart
@@ -211,7 +233,7 @@ router.post('/checkout', async (c) => {
   // Line items
   for (const it of items) {
     const p = it.product_id ? await getProductById(c.env.DB, it.product_id) : null
-    await createOrderItem(c.env.DB, {
+    const itemId = await createOrderItem(c.env.DB, {
       order_id: orderId,
       product_id: it.product_id,
       product_name: p?.name_ru ?? null,
@@ -226,6 +248,23 @@ router.post('/checkout', async (c) => {
       back_logo_key: it.back_logo_key,
       model_key: it.model_key,
     })
+
+    // Designer attribution (migration 0018): every marketplace artwork on this
+    // item earns its designer a share. The markup is re-read from the artwork
+    // row rather than trusted from the client.
+    for (const artworkId of artworkIdsIn(it.design_json)) {
+      const art = await getArtworkById(c.env.DB, artworkId)
+      if (!art || art.status !== 'approved') continue
+      await recordArtworkSale(c.env.DB, {
+        order_id: orderId,
+        order_item_id: itemId,
+        artwork_id: art.id,
+        designer_user_id: art.user_id,
+        quantity: it.quantity,
+        markup: art.markup,
+        commission_pct: DESIGNER_COMMISSION_PCT,
+      })
+    }
   }
 
   await clearCart(c.env.DB, userId)

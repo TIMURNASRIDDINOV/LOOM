@@ -25,6 +25,7 @@
     bell:     '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
     team:     '<path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
     ai:       '<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.5"/>',
+    palette:  '<path d="M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3 3h-2a2 2 0 0 0-1.5 3.3c.4.5.5 1 .3 1.6-.4.7-1.4 1.1-2.8 1.1z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="10.5" cy="7.5" r="1"/><circle cx="15.5" cy="7.5" r="1"/>',
   }
 
   function icon(name) {
@@ -54,6 +55,7 @@
       label: 'Каталог',
       items: [
         { id: 'products', label: 'Товары', href: 'products.html', icon: 'products', cap: 'products.view' },
+        { id: 'artworks', label: 'Работы дизайнеров', href: 'artworks.html', icon: 'palette', cap: 'artworks.view' },
       ],
     },
     {

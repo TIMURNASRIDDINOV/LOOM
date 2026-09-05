@@ -32,7 +32,33 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/files/models/:key` | Serve GLB/thumbnail (public, immutable cache) |
+| GET | `/api/files/models/:key` | Serve GLB/thumbnail (public, immutable cache, `Access-Control-Allow-Origin: *`) |
+| GET | `/api/files/artwork/:key` | Serve designer artwork from `loom-uploads` (public, immutable, CORS `*`) |
+| GET | `/api/files/avatars/:key` | Serve a user avatar (public, 24 h cache) |
+| POST | `/api/files/track` | Funnel analytics event (`session_id`, `page`, `event`, device fields). Allow-listed events only. |
+
+### Designer marketplace
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/artworks` | — | Approved artwork, newest first. Each item carries `image_url`, `image_key` (R2 key for the print shop), `author`, `markup`, `sold`. |
+| GET | `/api/designers/:handle` | — | A designer's public page: `handle`, `name`, `bio`, `avatar_url`, `since`, `works[]`, `units_sold`. |
+| POST | `/api/designer/apply` | Bearer | `{ handle, bio? }` — opt in as a designer (also edits handle/bio). |
+| GET | `/api/designer/artworks` | Bearer | The designer's own works in every moderation state, with `sold` counts. |
+| POST | `/api/designer/artworks` | Bearer | `{ title, image_key, tags?, width?, height?, markup }` — submit for moderation. `image_key` comes from `POST /api/uploads`. |
+| GET | `/api/designer/stats` | Bearer | `works_*` counts, `units_sold`, `earned`, `earned_settled` (delivered orders), `commission_pct`, recent `sales[]`. |
+
+**Sales attribution.** A `design_json` image element may carry `artworkId`. At
+`POST /api/cart/checkout` every such element is resolved against `artworks`
+(approved only) and a row is written to `artwork_sales` with the designer's
+share frozen at `markup × qty × (100 − commission) / 100`. Migration 0018.
+
+### Payments
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/payments/methods` | `{ cod, payme, click, uzum }` — which methods the Worker can complete (a provider is `true` once its merchant secrets are set). |
+| POST | `/api/payments/{payme,click,uzum}/webhook` | Provider callbacks; flip `orders.payment_status`. |
 
 ---
 
@@ -42,7 +68,17 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 |--------|------|------|-------------|
 | POST | `/api/auth/register` | `{ email, password, name?, phone? }` | Register user, returns `{ token, user }` |
 | POST | `/api/auth/login` | `{ email, password }` | Login, returns `{ token, user }` |
-| GET | `/api/auth/me` | — | Current user (Bearer or cookie) |
+| GET | `/api/auth/me` | — | Current user (Bearer or cookie). Includes `orders_count`, `total_spent`, `phone_verified`, `telegram_user_id`, and the designer fields `is_designer`, `designer_handle`, `designer_bio`. |
+| PATCH | `/api/auth/profile` | `{ name?, phone?, location_preset? }` | Update profile; `location_preset` is `{ address, lat?, lng? }` or `null` |
+| POST | `/api/auth/avatar` | multipart `avatar` | Upload avatar (PNG/JPG/WebP ≤ 2 MB) |
+| DELETE | `/api/auth/account` | — | Delete the account: personal fields anonymised, identities and cart removed, pending artwork withdrawn. Orders stay as anonymised records. The user's JWTs stop working immediately (`code: account_deleted`). |
+
+### Social sign-in (Google / Discord / Facebook)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/auth/oauth/providers?platform=android\|ios\|web` | Providers with credentials on the Worker, with the client id for that platform |
+| POST | `/api/auth/oauth/:provider` | `{ code, redirect_uri, code_verifier?, platform }` — exchange the PKCE code, returns `{ token, user }` |
 
 ---
 
@@ -162,6 +198,18 @@ Response includes: `ordersByStatus`, `revenueLast30Days`, `ordersLast7Days`, `to
 | PATCH | `/api/admin/users/:id` | `{ role?, status? }` — ban/unban, promote/demote |
 | GET | `/api/admin/users/:id/orders` | User's orders |
 | GET | `/api/admin/users/:id/activity` | User activity log |
+
+### Designer artwork moderation
+
+Capabilities: `artworks.view` (read), `artworks.review` (approve / reject). Staff
+get `artworks.view` by default; managers and the owner get both.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/artworks` | `?status=pending\|approved\|rejected&page=&limit=` — moderation queue with `image_url`, `author`, `sold`; also returns the global `pending` count |
+| POST | `/api/admin/artworks/:id/review` | `{ decision: 'approve' \| 'reject', note? }` — `note` is required for a rejection. Approving publishes the work to `/api/artworks`; either decision notifies the designer in Telegram (if linked) and logs `artwork_approved` / `artwork_rejected` in their activity. |
+
+The admin page is `admin/artworks.html` («Каталог → Работы дизайнеров»).
 
 ### Products
 

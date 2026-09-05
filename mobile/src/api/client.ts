@@ -1,7 +1,11 @@
 import Constants from 'expo-constants'
 import * as SecureStore from 'expo-secure-store'
 
+// `EXPO_PUBLIC_API_BASE` lets a dev build or the web preview point at a local
+// Worker / CORS proxy without touching app.json; production builds carry the
+// value from `extra.apiBase`.
 export const API_BASE: string =
+  process.env.EXPO_PUBLIC_API_BASE ??
   (Constants.expoConfig?.extra as { apiBase?: string } | undefined)?.apiBase ??
   'https://api.loomdesign.uz'
 

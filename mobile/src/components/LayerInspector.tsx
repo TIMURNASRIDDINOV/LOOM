@@ -1,9 +1,10 @@
 import React from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Image, StyleSheet, View } from 'react-native'
 
 import { C, RULE } from '../theme/tokens'
 import { disp, mono, monoMed, monoSemi } from '../theme/type'
-import { useStudio } from '../state/studio'
+import { MM_PCT, imageCm } from '../lib/print'
+import { TEXT_SIZE_RANGE, useStudio } from '../state/studio'
 import { ArtPattern } from './ArtPattern'
 import { Slider } from './Slider'
 import { Panel, T, Tap } from './ui'
@@ -11,73 +12,148 @@ import { Panel, T, Tap } from './ui'
 /**
  * Fine placement lives here rather than on 20px corner handles: a 44px-tall
  * size slider, a rotation slider, and a 1 mm nudge pad with snap-to-centre.
+ * Shows the selected layer — artwork or text — on the active face.
  */
 export function LayerInspector() {
-  const { active, artSelected, updateArt, removeArt, centerArt, nudge } = useStudio()
-  const art = active.art
-  if (!art || !artSelected) return null
+  const st = useStudio()
+  const { active, artSelected, textSelected } = st
 
-  const cm = Math.round((28 * art.sizePct) / 100)
+  if (artSelected && active.art) {
+    const art = active.art
+    const cm = imageCm(art.sizePct).toFixed(1)
+    return (
+      <Inspector
+        thumb={
+          art.uri ? (
+            <Image source={{ uri: art.uri }} style={styles.thumb} resizeMode="contain" />
+          ) : (
+            <ArtPattern
+              angle={art.pattern?.angle ?? 45}
+              color={art.pattern?.color ?? 'rgba(252,80,68,.55)'}
+              gap={art.pattern?.gap ?? 6}
+              band={2}
+              style={styles.thumb}
+            />
+          )
+        }
+        title={art.author ? `${art.name} · ${art.author}` : art.name}
+        rows={[
+          {
+            label: 'Размер',
+            value: `${cm} см`,
+            slider: { value: art.sizePct, min: 20, max: 100, onChange: (v) => st.updateArt({ sizePct: v }) },
+          },
+          {
+            label: 'Поворот',
+            value: `${art.rotation}°`,
+            slider: { value: art.rotation, min: -45, max: 45, onChange: (v) => st.updateArt({ rotation: v }) },
+          },
+        ]}
+        onCenter={st.centerArt}
+        onRemove={st.removeArt}
+        onNudge={(dx, dy) => st.nudge(dx, dy)}
+      />
+    )
+  }
 
+  if (textSelected && active.text?.content) {
+    const t = active.text
+    return (
+      <Inspector
+        thumb={
+          <View style={[styles.thumb, { alignItems: 'center', justifyContent: 'center' }]}>
+            <T style={{ fontFamily: 'InterTight_800ExtraBold', fontSize: 14, color: t.color === '#ffffff' ? C.ink : t.color }}>
+              A
+            </T>
+          </View>
+        }
+        title={`«${t.content}»`}
+        rows={[
+          {
+            label: 'Кегль',
+            value: `${Math.round(t.size)}`,
+            slider: {
+              value: t.size,
+              min: TEXT_SIZE_RANGE.min,
+              max: TEXT_SIZE_RANGE.max,
+              step: 2,
+              onChange: (v) => st.setText({ size: v }),
+            },
+          },
+          {
+            label: 'Поворот',
+            value: `${t.rotation}°`,
+            slider: { value: t.rotation, min: -45, max: 45, onChange: (v) => st.setText({ rotation: v }) },
+          },
+        ]}
+        onCenter={() => st.setText({ offset: { x: 0, y: -30 }, rotation: 0 })}
+        onRemove={st.removeText}
+        onNudge={(dx, dy) => st.setText({ offset: { x: t.offset.x + dx, y: t.offset.y + dy } })}
+      />
+    )
+  }
+
+  return null
+}
+
+type RowDef = {
+  label: string
+  value: string
+  slider: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void }
+}
+
+function Inspector({
+  thumb,
+  title,
+  rows,
+  onCenter,
+  onRemove,
+  onNudge,
+}: {
+  thumb: React.ReactNode
+  title: string
+  rows: RowDef[]
+  onCenter: () => void
+  onRemove: () => void
+  onNudge: (dxPct: number, dyPct: number) => void
+}) {
   return (
     <Panel raised size={2} style={styles.panel}>
       <View style={styles.head}>
-        {art.uri ? (
-          <View style={styles.thumb} />
-        ) : (
-          <ArtPattern
-            angle={art.pattern?.angle ?? 45}
-            color={art.pattern?.color ?? 'rgba(252,80,68,.55)'}
-            gap={art.pattern?.gap ?? 6}
-            band={2}
-            style={styles.thumb}
-          />
-        )}
+        {thumb}
         <T style={[disp(12.5, 1.2), { flex: 1 }]} numberOfLines={1}>
-          {art.name}
+          {title}
         </T>
-        <Tap style={styles.smallBtn} onPress={centerArt}>
+        <Tap style={styles.smallBtn} onPress={onCenter}>
           <T style={monoSemi(9.5, 1, { ls: 0.1, upper: true, color: C.ink })}>По центру</T>
         </Tap>
-        <Tap style={styles.removeBtn} onPress={removeArt} hitSlop={6}>
+        <Tap style={styles.removeBtn} onPress={onRemove} hitSlop={6}>
           <T style={{ fontSize: 15, lineHeight: 20, color: C.deep }}>×</T>
         </Tap>
       </View>
 
       <View style={styles.body}>
         <View style={{ flex: 1, gap: 9 }}>
-          <View>
-            <Row label="Размер" value={`${cm}×${cm} см`} />
-            <Slider
-              value={art.sizePct}
-              min={20}
-              max={100}
-              onChange={(v) => updateArt({ sizePct: v })}
-            />
-          </View>
-          <View>
-            <Row label="Поворот" value={`${art.rotation}°`} />
-            <Slider
-              value={art.rotation}
-              min={-45}
-              max={45}
-              onChange={(v) => updateArt({ rotation: v })}
-            />
-          </View>
+          {rows.map((r) => (
+            <View key={r.label}>
+              <Row label={r.label} value={r.value} />
+              <Slider value={r.slider.value} min={r.slider.min} max={r.slider.max} step={r.slider.step} onChange={r.slider.onChange} />
+            </View>
+          ))}
         </View>
 
-        {/* 1 mm nudge pad */}
+        {/* 1 mm nudge pad — one millimetre on the real 30 × 40 cm platen. */}
         <View style={styles.pad}>
           <View style={styles.padCell} />
-          <NudgeBtn arrow="↑" onPress={() => nudge(0, -2)} />
+          <NudgeBtn arrow="↑" onPress={() => onNudge(0, -MM_PCT.y)} />
           <View style={styles.padCell} />
-          <NudgeBtn arrow="←" onPress={() => nudge(-2, 0)} />
+          <NudgeBtn arrow="←" onPress={() => onNudge(-MM_PCT.x, 0)} />
           <View style={[styles.padCell, styles.padCenter]}>
             <T style={mono(8, 1, { color: C.i38 })}>1 мм</T>
           </View>
-          <NudgeBtn arrow="→" onPress={() => nudge(2, 0)} />
+          <NudgeBtn arrow="→" onPress={() => onNudge(MM_PCT.x, 0)} />
           <View style={styles.padCell} />
-          <NudgeBtn arrow="↓" onPress={() => nudge(0, 2)} />
+          <NudgeBtn arrow="↓" onPress={() => onNudge(0, MM_PCT.y)} />
           <View style={styles.padCell} />
         </View>
       </View>

@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
+import * as WebBrowser from 'expo-web-browser'
 
 import { C, RULE, fmt, noShadow, offset } from '../../src/theme/tokens'
 import { body, disp, label as labelType, mono, monoMed, monoSemi } from '../../src/theme/type'
@@ -16,21 +17,38 @@ import { Check, ChevronRight } from '../../src/components/icons'
 import { MapPicker, type Pin } from '../../src/components/MapPicker'
 import { Button, Panel, SlashTitle, T, Tap } from '../../src/components/ui'
 import { ApiError, api } from '../../src/api/client'
+import { fetchPaymentMethods, useAsync } from '../../src/api/catalog'
+import { track } from '../../src/api/track'
+import type { PaymentMethods } from '../../src/api/types'
 import { useAuth } from '../../src/state/auth'
 import { useCart } from '../../src/state/cart'
 import { useToast } from '../../src/state/toast'
 
-type Placed = { id: number } | null
+type Placed = { id: number; paymentUrl: string | null; method: PayMethod } | null
+type PayMethod = keyof PaymentMethods
+
+// Every method the checkout knows how to present. Which of them are offered is
+// decided by the Worker (`GET /api/payments/methods`) — a provider appears the
+// moment its merchant secrets are set, with no app release.
+const PAY_LABELS: Record<PayMethod, { title: string; sub: string }> = {
+  cod: { title: 'Наличными курьеру', sub: 'или картой при получении' },
+  payme: { title: 'Payme', sub: 'оплата картой онлайн' },
+  click: { title: 'Click', sub: 'оплата картой онлайн' },
+  uzum: { title: 'Uzum Bank', sub: 'оплата картой онлайн' },
+}
+const PAY_ORDER: PayMethod[] = ['cod', 'payme', 'click', 'uzum']
 
 export default function Checkout() {
   const router = useRouter()
-  const { user, signedIn, phoneVerified } = useAuth()
+  const { user, signedIn, phoneVerified, updateProfile } = useAuth()
   const cart = useCart()
   const { flash } = useToast()
+  const { data: methods } = useAsync(fetchPaymentMethods, [])
 
   const [step, setStep] = useState(1)
   const [placed, setPlaced] = useState<Placed>(null)
   const [busy, setBusy] = useState(false)
+  const [payMethod, setPayMethod] = useState<PayMethod>('cod')
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -81,11 +99,17 @@ export default function Checkout() {
       return
     }
 
+    if (!cart.items.length) {
+      flash('Корзина пуста')
+      router.replace('/cart')
+      return
+    }
+
     setBusy(true)
     try {
       // The server cart is what checkout reads, so push the local one first.
       await cart.sync()
-      const res = await api<{ id: number }>('/api/cart/checkout', {
+      const res = await api<{ id: number; paymentUrl: string | null; paymentMethod: PayMethod }>('/api/cart/checkout', {
         method: 'POST',
         auth: true,
         body: {
@@ -102,11 +126,19 @@ export default function Checkout() {
             floor: floor.trim() || null,
             intercom: intercom.trim() || null,
           },
-          paymentMethod: 'cod',
+          paymentMethod: payMethod,
         },
       })
       cart.clear()
-      setPlaced({ id: res.id })
+      track('cfg_order')
+      // Remember the address for next time, like the web checkout does. Best
+      // effort — the order is already placed.
+      updateProfile({
+        name: name.trim() || undefined,
+        location_preset: { address: street.trim(), lat: pin?.lat, lng: pin?.lng },
+      }).catch(() => {})
+      setPlaced({ id: res.id, paymentUrl: res.paymentUrl ?? null, method: res.paymentMethod ?? payMethod })
+      if (res.paymentUrl) WebBrowser.openBrowserAsync(res.paymentUrl).catch(() => {})
     } catch (e) {
       const err = e as ApiError
       if (err.code === 'phone_not_verified' || err.status === 403) {
@@ -134,9 +166,19 @@ export default function Checkout() {
             </T>
             <T style={[disp(30, 1, { ls: -0.03 }), { marginBottom: 6 }]}>{`#LM-${placed.id}`}</T>
             <T style={body(13, 1.6, { color: C.i55 })}>
-              Подтверждение придёт в Telegram. Отслеживать можно во вкладке «Заказы».
+              {placed.paymentUrl
+                ? `Оплатите заказ в ${PAY_LABELS[placed.method].title} — страница оплаты открылась в браузере. Подтверждение придёт в Telegram.`
+                : 'Подтверждение придёт в Telegram. Отслеживать можно во вкладке «Заказы».'}
             </T>
           </Panel>
+          {placed.paymentUrl ? (
+            <Button
+              title={`Оплатить · ${PAY_LABELS[placed.method].title}`}
+              vPad={16}
+              style={{ marginBottom: 10 }}
+              onPress={() => WebBrowser.openBrowserAsync(placed.paymentUrl!).catch(() => flash('Не удалось открыть оплату'))}
+            />
+          ) : null}
           <Button
             title="Отслеживать заказ"
             variant="ink"
@@ -230,21 +272,40 @@ export default function Checkout() {
           n={3}
           title="Оплата"
           open={step === 3}
-          summary="Наличными"
+          summary={PAY_LABELS[payMethod].title}
           onToggle={() => setStep(step === 3 ? 0 : 3)}
         >
           <View style={{ gap: 9 }}>
-            <View style={[styles.payRow, offset(2, C.coral), { borderColor: C.ink }]}>
-              <View style={styles.radioOn} />
-              <T style={disp(14, 1)}>Наличными курьеру</T>
-            </View>
-            <View style={[styles.payRow, { borderColor: C.line }]}>
-              <View style={styles.radioOff} />
-              <T style={disp(14, 1, { color: C.i55 })}>Payme / Click</T>
-              <View style={styles.soon}>
-                <T style={mono(9, 1, { ls: 0.14, upper: true, color: C.amber })}>скоро</T>
-              </View>
-            </View>
+            {PAY_ORDER.map((m) => {
+              const live = m === 'cod' || !!methods?.[m]
+              const on = payMethod === m
+              // Unconfigured providers stay visible as «скоро» so the sheet does
+              // not silently shrink between deployments — same rule as sign-in.
+              if (!live && m === 'uzum') return null
+              return (
+                <Tap
+                  key={m}
+                  haptic
+                  onPress={live ? () => setPayMethod(m) : undefined}
+                  style={[
+                    styles.payRow,
+                    on ? offset(2, C.coral) : noShadow,
+                    { borderColor: on ? C.ink : C.line, opacity: live ? 1 : 0.7 },
+                  ]}
+                >
+                  <View style={on ? styles.radioOn : styles.radioOff} />
+                  <View style={{ flex: 1 }}>
+                    <T style={disp(14, 1, { color: live ? C.ink : C.i55 })}>{PAY_LABELS[m].title}</T>
+                    <T style={[mono(9.5, 1.3, { color: C.i38 }), { marginTop: 3 }]}>{PAY_LABELS[m].sub}</T>
+                  </View>
+                  {!live ? (
+                    <View style={styles.soon}>
+                      <T style={mono(9, 1, { ls: 0.14, upper: true, color: C.amber })}>скоро</T>
+                    </View>
+                  ) : null}
+                </Tap>
+              )
+            })}
           </View>
         </Step>
 

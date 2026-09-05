@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { api, setToken, getToken, ApiError } from '../api/client'
+import { API_BASE, api, setToken, getToken, ApiError } from '../api/client'
 import type { Me, TelegramStart, TelegramStatus } from '../api/types'
 import { signInWithProvider, type ProviderId } from '../api/oauth'
 
@@ -21,6 +21,16 @@ type AuthState = {
   isDesigner: boolean
   /** Claim a designer handle; resolves with the updated profile. */
   applyAsDesigner: (handle: string, bio?: string) => Promise<void>
+  /** Name / phone / saved delivery address. */
+  updateProfile: (patch: {
+    name?: string | null
+    phone?: string | null
+    location_preset?: { address: string; lat?: number; lng?: number } | null
+  }) => Promise<void>
+  /** Upload a new avatar from a local image URI. */
+  uploadAvatar: (uri: string, mime: string) => Promise<void>
+  /** Permanently delete the account (store-policy requirement). */
+  deleteAccount: () => Promise<void>
   startTelegram: (phone: string) => Promise<TelegramStart>
   pollTelegram: (sessionId: string) => Promise<TelegramStatus>
   stopPolling: () => void
@@ -92,6 +102,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refresh],
   )
 
+  const updateProfile = useCallback<AuthState['updateProfile']>(
+    async (patch) => {
+      await api('/api/auth/profile', { method: 'PATCH', auth: true, body: patch })
+      await refresh()
+    },
+    [refresh],
+  )
+
+  const uploadAvatar = useCallback<AuthState['uploadAvatar']>(
+    async (uri, mime) => {
+      const form = new FormData()
+      const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg'
+      form.append('avatar', { uri, name: `avatar.${ext}`, type: mime } as unknown as Blob)
+      const token = await getToken()
+      const res = await fetch(`${API_BASE}/api/auth/avatar`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      })
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new ApiError(d?.error ?? 'Не удалось загрузить фото', res.status)
+      }
+      await refresh()
+    },
+    [refresh],
+  )
+
+  const deleteAccount = useCallback(async () => {
+    await api('/api/auth/account', { method: 'DELETE', auth: true })
+    await setToken(null)
+    setUser(null)
+  }, [])
+
   const startTelegram = useCallback(async (phone: string) => {
     polling.current = true
     // The backend requires E.164.
@@ -152,6 +196,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithOAuth,
         isDesigner: !!user?.is_designer,
         applyAsDesigner,
+        updateProfile,
+        uploadAvatar,
+        deleteAccount,
         startTelegram,
         pollTelegram,
         stopPolling,

@@ -21,6 +21,7 @@ import {
 } from '@expo-google-fonts/ibm-plex-mono'
 
 import { C } from '../src/theme/tokens'
+import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { AuthProvider } from '../src/state/auth'
 import { CartProvider } from '../src/state/cart'
 import { StudioProvider } from '../src/state/studio'
@@ -54,6 +55,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: C.paper }}>
       <SafeAreaProvider>
+        <ErrorBoundary>
         <AuthProvider>
           <CartProvider>
             <StudioProvider>
@@ -75,6 +77,7 @@ export default function RootLayout() {
             </StudioProvider>
           </CartProvider>
         </AuthProvider>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )

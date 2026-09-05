@@ -93,6 +93,20 @@ export const CAPABILITIES = [
     description: 'Создавать, изменять и удалять товары, цены и изображения.',
   },
 
+  // ── Дизайнеры ───────────────────────────────────────────────────────────
+  {
+    id: 'artworks.view',
+    group: 'artworks',
+    label: 'Смотреть работы дизайнеров',
+    description: 'Очередь модерации и все загруженные работы с их статусом.',
+  },
+  {
+    id: 'artworks.review',
+    group: 'artworks',
+    label: 'Одобрять и отклонять работы',
+    description: 'Публиковать работу в маркетплейс или вернуть её дизайнеру с причиной.',
+  },
+
   // ── Уведомления ─────────────────────────────────────────────────────────
   {
     id: 'notifications.view',
@@ -131,6 +145,7 @@ export const CAPABILITY_GROUPS = [
   { id: 'orders', label: 'Заказы' },
   { id: 'users', label: 'Клиенты' },
   { id: 'products', label: 'Каталог' },
+  { id: 'artworks', label: 'Дизайнеры' },
   { id: 'notifications', label: 'Уведомления' },
   { id: 'analytics', label: 'Аналитика' },
   { id: 'ai', label: 'AI' },
@@ -154,6 +169,7 @@ export const ROLE_PRESETS: Record<AdminRole, Capability[]> = {
     'orders.status',
     'users.view',
     'products.view',
+    'artworks.view',
     'notifications.view',
     'analytics.view',
     'ai.use',

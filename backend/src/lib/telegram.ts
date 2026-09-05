@@ -84,6 +84,39 @@ export function buildOrderMessage(order: OrderNotificationData): string {
   return lines.join('\n')
 }
 
+/**
+ * Send one HTML message to a chat, optionally with a single URL button.
+ * Never throws — callers decide whether a failed delivery matters.
+ */
+export async function sendTelegramMessage(
+  botToken: string,
+  chatId: number | string,
+  text: string,
+  button?: { label: string; url: string },
+): Promise<{ ok: boolean; messageId: number | null; error: string | null }> {
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    text,
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+  }
+  if (button) payload.reply_markup = { inline_keyboard: [[{ text: button.label, url: button.url }]] }
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = (await res.json().catch(() => null)) as
+      | { ok: boolean; result?: { message_id: number }; description?: string }
+      | null
+    if (data?.ok) return { ok: true, messageId: data.result?.message_id ?? null, error: null }
+    return { ok: false, messageId: null, error: data?.description ?? `HTTP ${res.status}` }
+  } catch (err) {
+    return { ok: false, messageId: null, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 export async function sendOrderNotification(
   botToken: string,
   chatId: string,

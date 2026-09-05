@@ -1,185 +1,263 @@
-import React from 'react'
-import { Image, StyleSheet, View } from 'react-native'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
 
 import { C, RULE } from '../theme/tokens'
-import { disp, mono } from '../theme/type'
+import { mono } from '../theme/type'
 import { GARMENT_FLAT } from '../api/catalog'
-import { useStudio } from '../state/studio'
+import { cachedSrc, toDisplayableSrc } from '../lib/files'
+import { IMAGE_FRAC_AT_100, PLATEN_CM, REF_RECT, toSceneDesign } from '../lib/print'
+import { useStudio, type ArtLayer, type TextLayer } from '../state/studio'
 import { ArtPattern } from './ArtPattern'
 import { Model3D } from './Model3D'
 import { T, Tap } from './ui'
 
-// The print rect is 46% of the garment's width, 4:5, starting 30% down — the
-// numbers come straight from the prototype's stage, and the "печать 28×35 см"
-// caption is what makes the scale legible.
+// The flat stage. The print rect is 46% of the garment's width, starting 30%
+// down (from the prototype), and its aspect is the real platen — 30 × 40 cm —
+// so a layer's percent offset means the same centimetres here, on the 3D
+// garment and on the print master.
 const PRINT_W = 0.46
 const PRINT_TOP = 0.3
+const PRINT_ASPECT = PLATEN_CM.h / PLATEN_CM.w
+
+const FONT_FAMILY: Record<string, string> = {
+  'Inter Tight': 'InterTight_700Bold',
+  Inter: 'Inter_600SemiBold',
+  'IBM Plex Mono': 'IBMPlexMono_700Bold',
+}
 
 export function Stage({
-  readyImage,
   glbUrl,
 }: {
-  readyImage?: string | null
   /** `glb_url` from the product API — drives the real 3D preview. */
   glbUrl?: string | null
 }) {
-  const { s, active, surface, artSelected, selectArt, updateArt, pickTool, closeTool } = useStudio()
-  const art = active.art
-  const text = active.text
-
-  // Coarse placement by drag; the inspector owns the 1 mm precision.
-  const pan = Gesture.Pan()
-    .enabled(!!art)
-    .onChange((e) => {
-      if (!art) return
-      runOnJS(updateArt)({
-        offset: { x: art.offset.x + e.changeX * 0.28, y: art.offset.y + e.changeY * 0.28 },
-      })
-    })
+  const st = useStudio()
+  const { s, active, face, surface, artSelected, textSelected } = st
 
   if (surface === '3d') {
-    // Real GLB when the product has one; the photo is only the fallback for
-    // garments whose model has not been uploaded yet.
-    if (glbUrl) {
-      return (
-        <View style={styles.preview3d}>
-          <Model3D
-            glbUrl={glbUrl}
-            color={s.color}
-            artUrl={art?.uri ?? null}
-            placement={{
-              // design_json v2 space: the studio's percentage offset from the
-              // centre of the print rect, normalised to 0–1.
-              nx: 0.5 + (art?.offset.x ?? 0) / 100,
-              ny: 0.5 + (art?.offset.y ?? 0) / 100,
-              scale: (art?.sizePct ?? 58) / 100,
-              rotation: art?.rotation ?? 0,
-            }}
-          />
-        </View>
-      )
-    }
-
-    return (
-      <View style={styles.preview3d}>
-        <Image
-          source={readyImage ? { uri: readyImage } : require('../../assets/products/tshirt_regular_white_002.jpg')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-        {art ? (
-          <View
-            style={[
-              styles.art3d,
-              {
-                width: `${art.sizePct * 0.42}%`,
-                transform: [{ translateX: '-50%' }, { rotate: `${art.rotation}deg` }],
-              },
-            ]}
-          >
-            <ArtLayerVisual art={art} />
-          </View>
-        ) : null}
-        <View style={styles.badge3d}>
-          <T style={mono(8.5, 1, { ls: 0.18, upper: true, color: C.i38 })}>фото · 3D скоро</T>
-        </View>
-      </View>
-    )
+    return <Stage3D glbUrl={glbUrl ?? null} />
   }
 
   return (
     <View style={styles.stage}>
-      <View style={styles.garmentBox}>
-      <Image source={GARMENT_FLAT} style={styles.garment} resizeMode="contain" />
-
-      {/* Garment colour multiplies over the flat scan. */}
-      {s.color !== '#FFFFFF' ? (
-        <View
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFill, { backgroundColor: s.color, opacity: 0.24 }]}
-        />
-      ) : null}
-
-      {/* Print boundary */}
-      <View pointerEvents="none" style={styles.printRect}>
-        <T style={[mono(7.5, 1, { ls: 0.16, upper: true, color: C.i38 }), styles.printLabel]}>
-          печать 28×35 см
-        </T>
-      </View>
-
-      {text?.content ? (
-        <View pointerEvents="none" style={styles.textLayer}>
-          <T
-            style={[
-              disp(text.size, 1.1, { color: text.color, align: 'center' }),
-              { transform: [{ rotate: `${text.rotation}deg` }] },
-            ]}
-          >
-            {text.content}
-          </T>
-        </View>
-      ) : null}
-
-      {art ? (
-        <GestureDetector gesture={pan}>
-          <View
-            style={[
-              styles.artLayer,
-              {
-                width: `${art.sizePct * PRINT_W}%`,
-                marginLeft: art.offset.x,
-                marginTop: art.offset.y,
-                transform: [
-                  { translateX: '-50%' },
-                  { translateY: '-50%' },
-                  { rotate: `${art.rotation}deg` },
-                ],
-                borderColor: artSelected ? C.coral : 'rgba(19,19,17,.3)',
-                borderWidth: artSelected ? RULE : 1,
-                borderStyle: artSelected ? 'solid' : 'dashed',
-              },
-            ]}
-          >
-            <Tap
-              style={StyleSheet.absoluteFill}
-              onPress={() => {
-                selectArt(!artSelected)
-                closeTool()
-              }}
-            >
-              <ArtLayerVisual art={art} />
-            </Tap>
-            {artSelected ? (
-              <>
-                <View style={[styles.handle, { left: -5, top: -5 }]} />
-                <View style={[styles.handle, { right: -5, top: -5 }]} />
-                <View style={[styles.handle, { left: -5, bottom: -5 }]} />
-                <View style={[styles.handle, { right: -5, bottom: -5 }]} />
-                <View style={styles.rotHandle} />
-              </>
-            ) : null}
-          </View>
-        </GestureDetector>
-      ) : null}
-
-      {!art && !text?.content ? (
-        <Tap style={styles.emptyDrop} onPress={() => pickTool('image')}>
-          <View style={styles.plus}>
-            <T style={{ fontSize: 20, lineHeight: 24, color: C.i55 }}>+</T>
-          </View>
-          <T style={disp(11, 1.15, { ls: 0.02, upper: true, color: C.i55, align: 'center' })}>
-            Добавить дизайн
-          </T>
-        </Tap>
-      ) : null}
-      </View>
+      <Flat
+        art={active.art}
+        text={active.text}
+        color={s.color}
+        artSelected={artSelected}
+        textSelected={textSelected}
+        onSelectArt={(v) => {
+          st.selectArt(v)
+          st.closeTool()
+        }}
+        onSelectText={(v) => {
+          st.selectText(v)
+          st.closeTool()
+        }}
+        onMoveArt={(dx, dy) => st.updateArt({ offset: { x: (active.art?.offset.x ?? 0) + dx, y: (active.art?.offset.y ?? 0) + dy } })}
+        onMoveText={(dx, dy) => st.setText({ offset: { x: (active.text?.offset.x ?? 0) + dx, y: (active.text?.offset.y ?? 0) + dy } })}
+        onEmptyTap={() => st.pickTool('image')}
+        faceLabel={face === 'front' ? 'перед' : 'зад'}
+      />
     </View>
   )
 }
 
-function ArtLayerVisual({ art }: { art: NonNullable<ReturnType<typeof useStudio>['active']['art']> }) {
+// ─── 3D ──────────────────────────────────────────────────────────────────────
+
+function Stage3D({ glbUrl }: { glbUrl: string | null }) {
+  const { s, face } = useStudio()
+  // Local uploads are inlined as data: URIs for the WebView; this counter
+  // re-renders once a read completes so the scene picks the bitmap up.
+  const [, bump] = useState(0)
+  const uris = [s.front.art, s.back.art].filter((a): a is ArtLayer => !!a?.uri && !a.pattern)
+  useEffect(() => {
+    let alive = true
+    uris.forEach((a) => {
+      if (cachedSrc(a.uri) || !a.uri) return
+      toDisplayableSrc(a.uri, a.mime ?? 'image/png')
+        .then(() => alive && bump((n) => n + 1))
+        .catch(() => {})
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uris.map((a) => a.uri).join('|')])
+
+  const design = useMemo(() => toSceneDesign(s, cachedSrc), [s])
+
+  return (
+    <View style={styles.preview3d}>
+      <Model3D key={glbUrl ?? 'default'} glbUrl={glbUrl} design={design} view={face} />
+    </View>
+  )
+}
+
+// ─── 2D ──────────────────────────────────────────────────────────────────────
+
+function Flat({
+  art,
+  text,
+  color,
+  artSelected,
+  textSelected,
+  onSelectArt,
+  onSelectText,
+  onMoveArt,
+  onMoveText,
+  onEmptyTap,
+  faceLabel,
+}: {
+  art: ArtLayer | null
+  text: TextLayer | null
+  color: string
+  artSelected: boolean
+  textSelected: boolean
+  onSelectArt: (v: boolean) => void
+  onSelectText: (v: boolean) => void
+  onMoveArt: (dxPct: number, dyPct: number) => void
+  onMoveText: (dxPct: number, dyPct: number) => void
+  onEmptyTap: () => void
+  faceLabel: string
+}) {
+  const [W, setW] = useState(0)
+  const onLayout = useCallback((e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width), [])
+
+  // Print rect in points, from the measured garment box.
+  const rect = useMemo(() => {
+    const w = W * PRINT_W
+    const h = w * PRINT_ASPECT
+    return { x: (W - w) / 2, y: W * PRINT_TOP, w, h, cx: W / 2, cy: W * PRINT_TOP + h / 2 }
+  }, [W])
+
+  const panArt = Gesture.Pan()
+    .enabled(!!art && rect.w > 0)
+    .onChange((e) => {
+      runOnJS(onMoveArt)((e.changeX / rect.w) * 100, (e.changeY / rect.h) * 100)
+    })
+  const panText = Gesture.Pan()
+    .enabled(!!text?.content && rect.w > 0)
+    .onChange((e) => {
+      runOnJS(onMoveText)((e.changeX / rect.w) * 100, (e.changeY / rect.h) * 100)
+    })
+
+  // Image long edge, in points — the web's drawElementIn formula.
+  const artSize = art ? (art.sizePct / 100) * IMAGE_FRAC_AT_100 * rect.w : 0
+  const artLeft = art ? rect.cx + (art.offset.x / 100) * rect.w - artSize / 2 : 0
+  const artTop = art ? rect.cy + (art.offset.y / 100) * rect.h - artSize / 2 : 0
+
+  const textPx = text ? text.size * (rect.h / REF_RECT.h) : 0
+  const textCx = text ? rect.cx + (text.offset.x / 100) * rect.w : 0
+  const textCy = text ? rect.cy + (text.offset.y / 100) * rect.h : 0
+  const textBoxW = rect.w * 0.98
+
+  const empty = !art && !text?.content
+
+  return (
+    <View style={styles.garmentBox} onLayout={onLayout}>
+      <Image source={GARMENT_FLAT} style={styles.garment} resizeMode="contain" />
+
+      {/* Garment colour multiplies over the flat scan. */}
+      {color.toUpperCase() !== '#FFFFFF' ? (
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color, opacity: 0.24 }]} />
+      ) : null}
+
+      {W > 0 ? (
+        <>
+          {/* Print boundary */}
+          <View pointerEvents="none" style={[styles.printRect, { left: rect.x, top: rect.y, width: rect.w, height: rect.h }]}>
+            <T style={[mono(7.5, 1, { ls: 0.16, upper: true, color: C.i38 }), styles.printLabel]}>
+              {`печать ${PLATEN_CM.w}×${PLATEN_CM.h} см · ${faceLabel}`}
+            </T>
+          </View>
+
+          {text?.content ? (
+            <GestureDetector gesture={panText}>
+              <View
+                style={[
+                  styles.textLayer,
+                  {
+                    left: textCx - textBoxW / 2,
+                    top: textCy - textPx * 0.7,
+                    width: textBoxW,
+                    height: textPx * 1.4,
+                    transform: [{ rotate: `${text.rotation}deg` }],
+                    borderColor: textSelected ? C.coral : 'transparent',
+                  },
+                ]}
+              >
+                <Tap style={StyleSheet.absoluteFill} onPress={() => onSelectText(!textSelected)}>
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <T
+                      numberOfLines={1}
+                      style={{
+                        fontFamily: FONT_FAMILY[text.font] ?? FONT_FAMILY['Inter Tight'],
+                        fontSize: textPx,
+                        lineHeight: textPx * 1.15,
+                        color: text.color,
+                        textAlign: 'center',
+                        maxWidth: textBoxW,
+                      }}
+                    >
+                      {text.content}
+                    </T>
+                  </View>
+                </Tap>
+              </View>
+            </GestureDetector>
+          ) : null}
+
+          {art ? (
+            <GestureDetector gesture={panArt}>
+              <View
+                style={[
+                  styles.artLayer,
+                  {
+                    left: artLeft,
+                    top: artTop,
+                    width: artSize,
+                    height: artSize,
+                    transform: [{ rotate: `${art.rotation}deg` }],
+                    borderColor: artSelected ? C.coral : 'rgba(19,19,17,.3)',
+                    borderWidth: artSelected ? RULE : 1,
+                    borderStyle: artSelected ? 'solid' : 'dashed',
+                  },
+                ]}
+              >
+                <Tap style={StyleSheet.absoluteFill} onPress={() => onSelectArt(!artSelected)}>
+                  <ArtLayerVisual art={art} />
+                </Tap>
+                {artSelected ? (
+                  <>
+                    <View style={[styles.handle, { left: -5, top: -5 }]} />
+                    <View style={[styles.handle, { right: -5, top: -5 }]} />
+                    <View style={[styles.handle, { left: -5, bottom: -5 }]} />
+                    <View style={[styles.handle, { right: -5, bottom: -5 }]} />
+                    <View style={styles.rotHandle} />
+                  </>
+                ) : null}
+              </View>
+            </GestureDetector>
+          ) : null}
+
+          {empty ? (
+            <Tap style={[styles.emptyDrop, { left: rect.x, top: rect.y, width: rect.w, height: rect.h }]} onPress={onEmptyTap}>
+              <View style={styles.plus}>
+                <T style={{ fontSize: 20, lineHeight: 24, color: C.i55 }}>+</T>
+              </View>
+              <T style={[mono(9.5, 1.3, { ls: 0.12, upper: true, color: C.i55, align: 'center' })]}>Добавить дизайн</T>
+            </Tap>
+          ) : null}
+        </>
+      ) : null}
+    </View>
+  )
+}
+
+export function ArtLayerVisual({ art }: { art: ArtLayer }) {
   if (art.uri) {
     return <Image source={{ uri: art.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" />
   }
@@ -206,30 +284,11 @@ const styles = StyleSheet.create({
   garmentBox: { width: '100%', aspectRatio: 1, maxHeight: '100%' },
   garment: { width: '100%', height: '100%' },
 
-  printRect: {
-    position: 'absolute',
-    top: `${PRINT_TOP * 100}%`,
-    left: '50%',
-    transform: [{ translateX: '-50%' }],
-    width: `${PRINT_W * 100}%`,
-    aspectRatio: 4 / 5,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: C.i38,
-  },
+  printRect: { position: 'absolute', borderWidth: 1, borderStyle: 'dashed', borderColor: C.i38 },
   printLabel: { position: 'absolute', top: -15, left: 0 },
 
-  textLayer: {
-    position: 'absolute',
-    top: '34%',
-    left: '50%',
-    transform: [{ translateX: '-50%' }],
-    width: `${PRINT_W * 100}%`,
-    alignItems: 'center',
-  },
-
-  // Anchored by its centre, matching the prototype's `top:48%; left:50%`.
-  artLayer: { position: 'absolute', top: '48%', left: '50%', aspectRatio: 1 },
+  textLayer: { position: 'absolute', borderWidth: 1, borderStyle: 'dashed' },
+  artLayer: { position: 'absolute' },
   handle: { position: 'absolute', width: 9, height: 9, backgroundColor: C.white, borderWidth: RULE, borderColor: C.coral },
   rotHandle: {
     position: 'absolute',
@@ -244,17 +303,7 @@ const styles = StyleSheet.create({
     borderColor: C.coral,
   },
 
-  emptyDrop: {
-    position: 'absolute',
-    top: `${PRINT_TOP * 100}%`,
-    left: '50%',
-    transform: [{ translateX: '-50%' }],
-    width: `${PRINT_W * 100}%`,
-    aspectRatio: 4 / 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
+  emptyDrop: { position: 'absolute', alignItems: 'center', justifyContent: 'center', gap: 6 },
   plus: {
     width: 30,
     height: 30,
@@ -270,16 +319,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     borderWidth: RULE,
     borderColor: C.ink,
-    backgroundColor: C.white,
+    backgroundColor: C.paper,
     overflow: 'hidden',
-  },
-  art3d: { position: 'absolute', top: '26%', left: '50%', aspectRatio: 1 },
-  badge3d: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: 'rgba(255,255,255,.85)',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
   },
 })

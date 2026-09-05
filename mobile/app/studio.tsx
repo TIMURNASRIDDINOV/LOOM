@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { KeyboardAvoidingView, Platform, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -10,8 +10,10 @@ import { Stage } from '../src/components/Stage'
 import { ToolSheet } from '../src/components/ToolSheet'
 import { Cart, ChevronLeft, ImageTool, SizeTool, TypeTool } from '../src/components/icons'
 import { Segmented, T, Tap, Toast } from '../src/components/ui'
-import { buildDesignJson } from '../src/api/design'
-import { fetchProducts, productImage, useAsync } from '../src/api/catalog'
+import { buildDesignJson, designMissingUploads } from '../src/api/design'
+import { fetchProducts, useAsync } from '../src/api/catalog'
+import { uploadFile } from '../src/api/client'
+import { track } from '../src/api/track'
 import { useCart } from '../src/state/cart'
 import { useStudio } from '../src/state/studio'
 import { useToast } from '../src/state/toast'
@@ -25,8 +27,13 @@ export default function Studio() {
   const cart = useCart()
   const st = useStudio()
   const { s, face, surface, tool, layerCount, total, active } = st
+  const busyRef = useRef(false)
 
   const { data: products } = useAsync(fetchProducts, [])
+
+  useEffect(() => {
+    track('cfg_open')
+  }, [])
 
   // Deep-linked from the catalog: adopt that product's name and price.
   useEffect(() => {
@@ -36,29 +43,76 @@ export default function Studio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId, products])
 
+  // First layer placed → funnel event, same as the web configurator.
+  useEffect(() => {
+    if (layerCount > 0) track('cfg_design_add')
+  }, [layerCount])
+  useEffect(() => {
+    if (surface === '3d') track('cfg_preview_3d')
+  }, [surface])
+
   const product = products?.find((p) => p.id === s.productId)
 
-  const addToCart = () => {
-    const meta = [
-      s.colorName,
-      s.size,
-      active.art?.name,
-      active.text?.content ? `«${active.text.content}»` : null,
-    ]
-      .filter(Boolean)
-      .join(' · ')
+  const addToCart = async () => {
+    if (busyRef.current) return
+    if (layerCount === 0 && !s.back.art && !s.back.text?.content) {
+      flash('Добавьте текст или графику — или купите без принта в каталоге')
+      return
+    }
+    busyRef.current = true
+    try {
+      // A logo whose upload failed earlier gets one more try here — the print
+      // shop cannot work from a file that only exists on the phone.
+      const keys: Record<'front' | 'back', string | null> = {
+        front: s.front.art?.uploadKey ?? null,
+        back: s.back.art?.uploadKey ?? null,
+      }
+      if (designMissingUploads(s)) {
+        for (const f of ['front', 'back'] as const) {
+          const a = s[f].art
+          if (a?.uri && !a.uploadKey && !a.pattern) {
+            try {
+              const key = await uploadFile(a.uri, a.name || 'artwork.png', a.mime ?? 'image/png')
+              keys[f] = key
+              st.updateArtOn(f, { uploadKey: key })
+            } catch {
+              flash('Не удалось загрузить графику. Проверьте соединение.')
+              return
+            }
+          }
+        }
+      }
+      // `s` is the render-time snapshot; fold the fresh keys in for this build.
+      const snapshot = {
+        ...s,
+        front: { ...s.front, art: s.front.art ? { ...s.front.art, uploadKey: keys.front } : null },
+        back: { ...s.back, art: s.back.art ? { ...s.back.art, uploadKey: keys.back } : null },
+      }
 
-    cart.add({
-      productId: s.productId,
-      name: s.productName,
-      image: product?.thumbnail_url ?? null,
-      unitPrice: total,
-      designJson: buildDesignJson(s),
-      meta,
-      logoKey: s.front.art?.uploadKey ?? s.back.art?.uploadKey ?? null,
-    })
-    flash('Добавлено в корзину')
-    router.push('/cart')
+      const meta = [
+        s.colorName,
+        s.size,
+        active.art?.name,
+        active.text?.content ? `«${active.text.content}»` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+
+      cart.add({
+        productId: s.productId,
+        name: s.productName,
+        image: product?.thumbnail_url ?? null,
+        unitPrice: total,
+        designJson: buildDesignJson(snapshot),
+        meta,
+        logoKey: keys.front ?? keys.back ?? null,
+      })
+      track('cfg_cart')
+      flash('Добавлено в корзину')
+      router.push('/cart')
+    } finally {
+      busyRef.current = false
+    }
   }
 
   // The sheet is capped so the garment always keeps most of the stage.
@@ -90,7 +144,7 @@ export default function Studio() {
       </View>
 
       <View style={styles.stageWrap}>
-        <Stage readyImage={product?.thumbnail_url ?? null} glbUrl={product?.glb_url ?? null} />
+        <Stage glbUrl={product?.glb_url ?? null} />
         <View style={styles.faceToggle}>
           <Segmented
             value={face}

@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory'
 import { getCookie } from 'hono/cookie'
 import { verifyToken } from '../lib/jwt'
+import { getUserById } from '../db/queries'
 import type { UserEnv } from '../types'
 
 export const requireAuth = createMiddleware<UserEnv>(async (c, next) => {
@@ -20,6 +21,16 @@ export const requireAuth = createMiddleware<UserEnv>(async (c, next) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  c.set('userId', parseInt(payload.sub, 10))
+  const userId = parseInt(payload.sub, 10)
+
+  // A JWT lives 30 days, so a deleted account would otherwise keep working
+  // until its token ran out. One indexed primary-key read per request is the
+  // price of making "delete my account" mean what it says.
+  const user = await getUserById(c.env.DB, userId)
+  if (!user || user.status === 'deleted') {
+    return c.json({ error: 'Unauthorized', code: 'account_deleted' }, 401)
+  }
+
+  c.set('userId', userId)
   await next()
 })

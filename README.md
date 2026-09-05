@@ -77,11 +77,18 @@ A complete, production-deployed platform — not a prototype:
 - Full order lifecycle: `new → confirmed → producing → shipped → delivered`
 - Dark / light / system theming
 
+**Mobile app (iOS / Android, Expo)** — see [mobile/README.md](mobile/README.md)
+- The same studio on a phone: flat stage plus a **real 3D garment** rendered by the web configurator's own pipeline, so what the customer sees is what the print shop receives
+- Sign-in with **Telegram, Google, Discord** or email; profile, avatar, saved delivery address, account deletion
+- Cart, 3-step checkout with a map pin and gateway-ready payment selection, order tracking
+- **Designer marketplace**: any user can become a designer, upload artwork, set a markup, and watch earnings accrue per sale; buyers apply designer artwork in one tap
+
 **Admin back office**
 - Dashboard with revenue, order stats, and **visitor analytics** (device/OS/browser/30-day trend)
 - Order management — filter, paginate, update status, full audit history
 - Product management — upload 3D models & images, set colors, pricing, visibility
 - User management — search, roles, ban/unban, activity log
+- **Designer artwork moderation** — approve or reject uploads with a reason; the designer is notified in Telegram and the work goes live in the marketplace
 - **Telegram notifications** — message customers directly with call-to-action buttons
 
 **Operations**
@@ -138,7 +145,7 @@ A lean, technical founding team that has already shipped a complete product — 
 - Onboard first customers; soft-launch marketing
 
 **Growth (3–9 months)**
-- Open the **designer marketplace** (listings + commission payouts)
+- Designer marketplace **payouts** (listings, moderation and per-sale attribution are live; the payout rail is next)
 - Add product variants (size, material) and distinct 3D models per product type
 - Self-service order tracking and email/Telegram status notifications
 

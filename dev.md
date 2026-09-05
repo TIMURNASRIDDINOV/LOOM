@@ -192,7 +192,7 @@ Planned technical investments, sequenced by launch priority:
 - **Production-partner handoff** — structured export/forwarding of the order's `design_json` to the printing partner.
 
 **Post-launch (growth)**
-- **Designer marketplace** — designer accounts, listings, sales attribution, and commission payouts.
+- **Designer marketplace** — accounts, uploads, moderation (`admin/artworks.html`), public listings and per-sale attribution (`artwork_sales`, migration 0018) are live in the mobile app and API; the remaining piece is the **payout rail** (transfer of `designer_share` to designers).
 - **Dynamic 3D models** — load each product's own GLB by `glb_key` instead of a shared mesh; add models for hoodies, caps, bags.
 - **Product variants** — size and material options across schema, configurator, and order form.
 - **Self-service order tracking** — anonymous lookup by order ID + phone; status-change notifications via Telegram/email.

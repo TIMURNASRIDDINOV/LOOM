@@ -1,15 +1,13 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
-import { WebView } from 'react-native-webview'
 
 import { C, RULE } from '../theme/tokens'
 import { mono } from '../theme/type'
 import { buildMapHtml, type Pin } from './map-html'
 import { T } from './ui'
 
-// Delivery pin, using the same Leaflet + OpenStreetMap stack as the website's
-// address picker (assets/address-picker.js). The page itself lives in
-// map-html.ts and is shared with the web build's <iframe> version.
+// Web build of the delivery-pin picker: the Leaflet page runs in an <iframe>
+// (react-native-webview has no browser implementation).
 
 export type { Pin }
 
@@ -23,39 +21,36 @@ export function MapPicker({
   height?: number
 }) {
   const [ready, setReady] = useState(false)
-
-  // Only the first pin seeds the map — later updates come from inside it, and
-  // re-keying on every drag would reload the tiles mid-gesture.
+  const frame = useRef<HTMLIFrameElement>(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const html = useMemo(() => buildMapHtml(value), [])
 
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== frame.current?.contentWindow) return
+      let m: { type: string; lat?: number; lng?: number; address?: string }
+      try {
+        m = JSON.parse(e.data)
+      } catch {
+        return
+      }
+      if (m.type === 'ready') setReady(true)
+      if (m.type === 'pin' && typeof m.lat === 'number' && typeof m.lng === 'number') {
+        onChange({ lat: m.lat, lng: m.lng, address: m.address })
+      }
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [onChange])
+
   return (
     <View style={[styles.wrap, { height }]}>
-      <WebView
-        source={{ html }}
-        style={styles.web}
-        originWhitelist={['*']}
-        javaScriptEnabled
-        scrollEnabled={false}
-        bounces={false}
-        overScrollMode="never"
-        setSupportMultipleWindows={false}
-        onMessage={(e) => {
-          try {
-            const m = JSON.parse(e.nativeEvent.data) as {
-              type: string
-              lat?: number
-              lng?: number
-              address?: string
-            }
-            if (m.type === 'ready') setReady(true)
-            if (m.type === 'pin' && typeof m.lat === 'number' && typeof m.lng === 'number') {
-              onChange({ lat: m.lat, lng: m.lng, address: m.address })
-            }
-          } catch {
-            // Not our protocol — ignore.
-          }
-        }}
+      <iframe
+        ref={frame}
+        srcDoc={html}
+        title="Delivery map"
+        style={{ border: 0, width: '100%', height: '100%', display: 'block' }}
+        sandbox="allow-scripts allow-same-origin"
       />
       {!ready ? (
         <View style={styles.overlay} pointerEvents="none">
@@ -72,14 +67,7 @@ export function MapPicker({
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    borderWidth: RULE,
-    borderColor: C.ink,
-    backgroundColor: '#ebe8e1',
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  web: { flex: 1, backgroundColor: '#ebe8e1' },
+  wrap: { borderWidth: RULE, borderColor: C.ink, backgroundColor: '#ebe8e1', overflow: 'hidden', marginBottom: 10 },
   overlay: {
     position: 'absolute',
     top: 0,

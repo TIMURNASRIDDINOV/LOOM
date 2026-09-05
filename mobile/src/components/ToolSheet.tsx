@@ -49,7 +49,7 @@ function Label({ children }: { children: string }) {
 }
 
 function TextTool() {
-  const { active, setText } = useStudio()
+  const { active, setText, removeText } = useStudio()
   const t = active.text
   const fonts = ['Inter Tight', 'Inter', 'IBM Plex Mono']
 
@@ -59,12 +59,17 @@ function TextTool() {
         <Label>Надпись</Label>
         <TextInput
           value={t?.content ?? ''}
-          onChangeText={(content) => setText({ content })}
+          onChangeText={(content) => (content.length ? setText({ content: content.slice(0, 40) }) : removeText())}
           placeholder="Введите текст…"
           placeholderTextColor={C.i38}
           style={styles.input}
           allowFontScaling={false}
+          maxLength={40}
+          returnKeyType="done"
         />
+        <T style={[mono(9.5, 1.5, { color: C.i38 }), { marginTop: 6 }]}>
+          Размер, поворот и положение — тапните по надписи на макете.
+        </T>
       </View>
 
       <View>
@@ -118,7 +123,7 @@ function TextTool() {
 }
 
 function ImageTool() {
-  const { setArt } = useStudio()
+  const { setArt, updateArt } = useStudio()
   const { flash } = useToast()
   const [busy, setBusy] = useState(false)
 
@@ -136,29 +141,21 @@ function ImageTool() {
     if (res.canceled || !res.assets?.length) return
 
     const asset = res.assets[0]
+    const mime = asset.mimeType ?? 'image/png'
+    const name = asset.fileName ?? 'Ваша графика'
+    if (asset.fileSize && asset.fileSize > 20 * 1024 * 1024) {
+      flash('Файл больше 20 МБ — сожмите его и попробуйте снова')
+      return
+    }
     setBusy(true)
     // Place the layer immediately so the stage responds; the R2 upload backfills
     // the key that the print pipeline needs. A failed upload is not fatal here —
     // checkout retries before the order is submitted.
-    setArt({
-      name: asset.fileName ?? 'Ваша графика',
-      uri: asset.uri,
-      uploadKey: null,
-      price: 0,
-    })
+    setArt({ name, uri: asset.uri, mime, uploadKey: null, price: 0 })
     flash('Готово — правьте размер и положение в панели слоя')
     try {
-      const key = await uploadFile(
-        asset.uri,
-        asset.fileName ?? 'artwork.png',
-        asset.mimeType ?? 'image/png',
-      )
-      setArt({
-        name: asset.fileName ?? 'Ваша графика',
-        uri: asset.uri,
-        uploadKey: key,
-        price: 0,
-      })
+      const key = await uploadFile(asset.uri, asset.fileName ?? 'artwork.png', mime)
+      updateArt({ uploadKey: key })
     } catch {
       flash('Файл не загрузился — попробуем ещё раз при оформлении')
     } finally {
@@ -215,7 +212,10 @@ function DesignerGrid() {
             setArt({
               name: a.title,
               uri: a.image_url,
-              uploadKey: null,
+              // The print shop fetches the designer's own file; the id credits
+              // the sale to them at checkout.
+              uploadKey: a.image_key,
+              artworkId: a.id,
               price: a.markup,
               author: a.author,
             })

@@ -1935,6 +1935,178 @@ export async function reviewArtwork(
   })
 }
 
+/** How many units of each artwork have sold, keyed by artwork id. */
+export async function getArtworkSalesCounts(
+  db: D1Database,
+  artworkIds: number[],
+): Promise<Record<number, number>> {
+  if (!artworkIds.length) return {}
+  return safeQuery('getArtworkSalesCounts', async () => {
+    const placeholders = artworkIds.map(() => '?').join(',')
+    const { results } = await db
+      .prepare(
+        `SELECT s.artwork_id, COALESCE(SUM(s.quantity), 0) AS sold
+         FROM artwork_sales s JOIN orders o ON o.id = s.order_id
+         WHERE s.artwork_id IN (${placeholders}) AND o.status != 'cancelled'
+         GROUP BY s.artwork_id`,
+      )
+      .bind(...artworkIds)
+      .all<{ artwork_id: number; sold: number }>()
+    const out: Record<number, number> = {}
+    for (const r of results) out[r.artwork_id] = r.sold
+    return out
+  })
+}
+
+/** Approved artwork by one designer — their public portfolio. */
+export async function getApprovedArtworksByUser(db: D1Database, userId: number): Promise<Artwork[]> {
+  return safeQuery('getApprovedArtworksByUser', async () => {
+    const { results } = await db
+      .prepare("SELECT * FROM artworks WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC")
+      .bind(userId)
+      .all<Artwork>()
+    return results
+  })
+}
+
+// ─── Artwork sales (migration 0018) ──────────────────────────────────────────
+
+export async function recordArtworkSale(
+  db: D1Database,
+  p: {
+    order_id: number
+    order_item_id: number | null
+    artwork_id: number
+    designer_user_id: number
+    quantity: number
+    markup: number
+    commission_pct: number
+  },
+): Promise<void> {
+  return safeQuery('recordArtworkSale', async () => {
+    const share = Math.round((p.markup * p.quantity * (100 - p.commission_pct)) / 100)
+    await db
+      .prepare(
+        `INSERT INTO artwork_sales
+           (order_id, order_item_id, artwork_id, designer_user_id, quantity, markup, commission_pct, designer_share, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        p.order_id,
+        p.order_item_id,
+        p.artwork_id,
+        p.designer_user_id,
+        p.quantity,
+        p.markup,
+        p.commission_pct,
+        share,
+        Date.now(),
+      )
+      .run()
+  })
+}
+
+export interface DesignerStats {
+  works_total: number
+  works_approved: number
+  works_pending: number
+  works_rejected: number
+  units_sold: number
+  /** UZS the designer has earned across non-cancelled orders. */
+  earned: number
+  /** UZS from orders already delivered — the part that can be paid out. */
+  earned_settled: number
+}
+
+export async function getDesignerStats(db: D1Database, userId: number): Promise<DesignerStats> {
+  return safeQuery('getDesignerStats', async () => {
+    const works = await db
+      .prepare(
+        `SELECT COUNT(*) AS total,
+                SUM(status = 'approved') AS approved,
+                SUM(status = 'pending')  AS pending,
+                SUM(status = 'rejected') AS rejected
+         FROM artworks WHERE user_id = ?`,
+      )
+      .bind(userId)
+      .first<{ total: number; approved: number | null; pending: number | null; rejected: number | null }>()
+    const sales = await db
+      .prepare(
+        `SELECT COALESCE(SUM(s.quantity), 0) AS units,
+                COALESCE(SUM(s.designer_share), 0) AS earned,
+                COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN s.designer_share ELSE 0 END), 0) AS settled
+         FROM artwork_sales s JOIN orders o ON o.id = s.order_id
+         WHERE s.designer_user_id = ? AND o.status != 'cancelled'`,
+      )
+      .bind(userId)
+      .first<{ units: number; earned: number; settled: number }>()
+    return {
+      works_total: works?.total ?? 0,
+      works_approved: works?.approved ?? 0,
+      works_pending: works?.pending ?? 0,
+      works_rejected: works?.rejected ?? 0,
+      units_sold: sales?.units ?? 0,
+      earned: sales?.earned ?? 0,
+      earned_settled: sales?.settled ?? 0,
+    }
+  })
+}
+
+export interface DesignerSaleRow {
+  id: number
+  order_id: number
+  artwork_id: number
+  artwork_title: string
+  quantity: number
+  designer_share: number
+  order_status: string
+  created_at: number
+}
+
+export async function getDesignerSales(db: D1Database, userId: number, limit = 50): Promise<DesignerSaleRow[]> {
+  return safeQuery('getDesignerSales', async () => {
+    const { results } = await db
+      .prepare(
+        `SELECT s.id, s.order_id, s.artwork_id, a.title AS artwork_title, s.quantity, s.designer_share,
+                o.status AS order_status, s.created_at
+         FROM artwork_sales s
+         JOIN artworks a ON a.id = s.artwork_id
+         JOIN orders o ON o.id = s.order_id
+         WHERE s.designer_user_id = ?
+         ORDER BY s.created_at DESC LIMIT ?`,
+      )
+      .bind(userId, limit)
+      .all<DesignerSaleRow>()
+    return results
+  })
+}
+
+/**
+ * Account deletion (App Store / Play policy: an app that lets people create an
+ * account must let them delete it). Orders are commercial records and stay, so
+ * the row is anonymised rather than removed: every personal field is blanked,
+ * the login paths are severed, and the id keeps its foreign keys intact.
+ */
+export async function anonymizeUser(db: D1Database, userId: number): Promise<void> {
+  return safeQuery('anonymizeUser', async () => {
+    const stamp = `deleted_${userId}_${Date.now()}@deleted.loom`
+    await db.batch([
+      db.prepare('DELETE FROM user_identities WHERE user_id = ?').bind(userId),
+      db.prepare('DELETE FROM cart_items WHERE user_id = ?').bind(userId),
+      db.prepare("UPDATE artworks SET status = 'rejected', reject_note = 'Аккаунт удалён', updated_at = ? WHERE user_id = ? AND status != 'rejected'").bind(Date.now(), userId),
+      db
+        .prepare(
+          `UPDATE users SET email = ?, password_hash = 'deleted', name = NULL, phone = NULL,
+             avatar_key = NULL, location_preset = NULL, telegram_user_id = NULL, telegram_username = NULL,
+             first_name = NULL, last_name = NULL, status = 'deleted',
+             is_designer = 0, designer_handle = NULL, designer_bio = NULL
+           WHERE id = ?`,
+        )
+        .bind(stamp, userId),
+    ])
+  })
+}
+
 /** Stamp a successful sign-in. Used by the OAuth flow (migration 0017). */
 export async function touchUserLogin(db: D1Database, userId: number): Promise<void> {
   return safeQuery('touchUserLogin', async () => {

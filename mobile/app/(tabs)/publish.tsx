@@ -10,8 +10,9 @@ import { Hatch } from '../../src/components/ArtPattern'
 import { ChevronLeft } from '../../src/components/icons'
 import { Button, Panel, T, Tap } from '../../src/components/ui'
 import { uploadFile } from '../../src/api/client'
-import { fetchMyArtworks, submitArtwork, useAsync } from '../../src/api/catalog'
+import { fetchDesignerStats, fetchMyArtworks, submitArtwork, useAsync } from '../../src/api/catalog'
 import type { MyArtwork } from '../../src/api/types'
+import { STATUSES } from '../../src/theme/tokens'
 import { useAuth } from '../../src/state/auth'
 import { useToast } from '../../src/state/toast'
 
@@ -139,6 +140,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
   const router = useRouter()
   const { flash } = useToast()
   const { data, loading, reload } = useAsync(fetchMyArtworks, [])
+  const stats = useAsync(fetchDesignerStats, [])
 
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0)
   const [file, setFile] = useState<{
@@ -218,6 +220,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
       setStep(3)
       flash('Работа отправлена на модерацию')
       reload()
+      stats.reload()
     } catch (e) {
       flash((e as Error).message)
     } finally {
@@ -247,8 +250,46 @@ function DesignerHome({ handle }: { handle: string | null }) {
 
         <T style={kicker()}>{handle ?? 'Дизайнерам'}</T>
         <T style={[disp(30, 0.98, { ls: -0.035 }), { marginTop: 10, marginBottom: 8 }]}>
-          {step === 3 ? 'На модерации.' : step === 0 ? 'Мои работы' : 'Опубликовать работу'}
+          {step === 3 ? 'На модерации.' : step === 0 ? 'Кабинет дизайнера' : 'Опубликовать работу'}
         </T>
+
+        {/* Earnings — the promise behind the whole flow, backed by artwork_sales. */}
+        {step === 0 && stats.data ? (
+          <>
+            <View style={styles.statsRow}>
+              <Stat label="Заработано" value={`${fmt(stats.data.earned)} сум`} accent />
+              <Stat label="К выплате" value={`${fmt(stats.data.earned_settled)} сум`} />
+            </View>
+            <View style={styles.statsRow}>
+              <Stat label="Продано" value={`${stats.data.units_sold} шт.`} />
+              <Stat label="В каталоге" value={`${stats.data.works_approved} из ${stats.data.works_total}`} />
+            </View>
+            <T style={[body(10.5, 1.5, { color: C.i38 }), { marginTop: 8 }]}>
+              {`Вы получаете ${100 - stats.data.commission_pct}% наценки с каждой продажи. «К выплате» — по доставленным заказам.`}
+            </T>
+            {stats.data.sales.length ? (
+              <View style={{ marginTop: 14 }}>
+                <T style={[labelType(), { marginBottom: 8 }]}>Последние продажи</T>
+                {stats.data.sales.slice(0, 5).map((sale) => {
+                  const st = STATUSES.find((x) => x.k === sale.order_status)
+                  return (
+                    <View key={sale.id} style={styles.saleRow}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <T style={disp(13, 1.15)} numberOfLines={1}>
+                          {sale.artwork_title}
+                        </T>
+                        <T style={[mono(9.5, 1.3, { color: C.i55 }), { marginTop: 2 }]}>
+                          {`#LM-${sale.order_id} · ${sale.quantity} шт. · ${st?.ru ?? sale.order_status}`}
+                        </T>
+                      </View>
+                      <T style={monoSemi(12, 1, { color: C.ink })}>{`+${fmt(sale.designer_share)}`}</T>
+                    </View>
+                  )
+                })}
+              </View>
+            ) : null}
+          </>
+        ) : null}
 
         {step > 0 ? (
           <View style={styles.progress}>
@@ -292,7 +333,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
                         {w.title}
                       </T>
                       <T style={[mono(10, 1.3, { color: C.i55 }), { marginTop: 3 }]}>
-                        {`+${fmt(w.markup)} сум`}
+                        {`+${fmt(w.markup)} сум${w.sold ? ` · продано ${w.sold}` : ''}`}
                       </T>
                       <View style={[styles.statusChip, { borderColor: st.c }]}>
                         <T style={monoSemi(9, 1, { ls: 0.12, upper: true, color: st.c })}>{st.ru}</T>
@@ -401,7 +442,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
                 })}
               </View>
               <T style={[body(10.5, 1.5, { color: C.i38 }), { marginTop: 8 }]}>
-                {`Покупатель платит 150 000 + ${fmt(markup)}. LOOM удерживает 30% с наценки.`}
+                {`Покупатель платит цену вещи + ${fmt(markup)} сум. Вам — ${fmt(Math.round(markup * 0.7))} сум с каждой продажи, LOOM удерживает 30%.`}
               </T>
             </View>
 
@@ -437,6 +478,17 @@ function DesignerHome({ handle }: { handle: string | null }) {
   )
 }
 
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <View style={[styles.stat, accent && { backgroundColor: C.ink }]}>
+      <T style={monoSemi(9, 1, { ls: 0.16, upper: true, color: accent ? C.onInk55 : C.i55 })}>{label}</T>
+      <T style={[disp(17, 1, { ls: -0.02, color: accent ? C.paper : C.ink }), { marginTop: 5 }]} numberOfLines={1}>
+        {value}
+      </T>
+    </View>
+  )
+}
+
 function Field({
   label,
   value,
@@ -467,6 +519,16 @@ const styles = StyleSheet.create({
   page: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 24 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingBottom: 14 },
   progress: { flexDirection: 'row', gap: 5, marginTop: 16, marginBottom: 20 },
+  statsRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  stat: { flex: 1, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white, padding: 11 },
+  saleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: C.line,
+  },
   dropzone: {
     aspectRatio: 4 / 3,
     borderWidth: RULE,

@@ -7,6 +7,7 @@ import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
 import adminAiRoutes from './routes/admin-ai'
+import adminArtworkRoutes from './routes/admin-artworks'
 import aiCutoutRoutes from './routes/ai-cutout'
 import cartRoutes from './routes/cart'
 import paymentsRoutes from './routes/payments'
@@ -32,6 +33,14 @@ const app = new Hono<BaseEnv>()
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 
 app.use('*', (c, next) => {
+  // Public, immutable files (3D models, marketplace artwork) are plain static
+  // assets: any origin may read them, credentials never apply. This is what
+  // lets the mobile app's WebView, which has no loomdesign.uz origin of its
+  // own, fetch a garment mesh and composite designer artwork onto it.
+  if (c.req.method === 'GET' && /^\/api\/files\/(models|artwork)\//.test(new URL(c.req.url).pathname)) {
+    return cors({ origin: '*', allowMethods: ['GET', 'HEAD', 'OPTIONS'], maxAge: 86400 })(c, next)
+  }
+
   const allowed =
     c.env.ENVIRONMENT === 'production' ? PROD_ORIGINS : [...PROD_ORIGINS, ...DEV_ORIGINS]
   return cors({
@@ -54,11 +63,12 @@ app.route('/api/admin', setupRouter)          // POST /api/admin/setup (no auth 
 app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/admin/stats
 app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
 app.route('/api/admin', adminAiRoutes)        // /api/admin/ai/{models,budget,runs,generate}
+app.route('/api/admin', adminArtworkRoutes)   // /api/admin/artworks, /api/admin/artworks/:id/review
 app.route('/api/ai', aiCutoutRoutes)          // GET /api/ai/cutout/* (admin-only)
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 app.route('/api/auth', userProfile)
 app.route('/api/auth', oauthRoutes)         // GET /api/auth/oauth/providers, POST /api/auth/oauth/:provider
-app.route('/api', designerRoutes)             // GET /api/artworks, /api/designer/{apply,artworks}
+app.route('/api', designerRoutes)             // GET /api/artworks, /api/designers/:handle, /api/designer/{apply,artworks,stats}
 app.route('/api/auth', telegramAuthRoutes)     // POST /api/auth/telegram/{start,status}, /api/auth/logout
 app.route('/api/telegram', webhookRouter)      // POST /api/telegram/webhook
 

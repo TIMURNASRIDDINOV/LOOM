@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import {
   getUserByEmail, getUserById, createUser,
   updateUserProfile, updateUserPassword, updateUserAvatar,
-  getUserOrderStats,
+  getUserOrderStats, anonymizeUser,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { signToken } from '../lib/jwt'
@@ -96,10 +96,31 @@ auth.get('/me', requireAuth, async (c) => {
     location_preset: user.location_preset,
     created_at: user.created_at,
     order_count: stats.order_count,
+    // Same number under the name the mobile app reads (and the admin API uses).
+    orders_count: stats.order_count,
     total_spent: stats.total_spent,
     // True once the phone number has been verified through Telegram.
     phone_verified: !!user.telegram_user_id,
+    telegram_user_id: user.telegram_user_id,
+    telegram_username: user.telegram_username,
+    // Designer opt-in (migration 0017). The app refreshes from /me after every
+    // sign-in and after /designer/apply, so leaving these out here made the
+    // designer flag vanish the moment it was granted.
+    is_designer: user.is_designer ?? 0,
+    designer_handle: user.designer_handle ?? null,
+    designer_bio: user.designer_bio ?? null,
   })
+})
+
+// ─── DELETE /api/auth/account  (requires Bearer token) ───────────────────────
+// Store policy: an app that offers sign-up must offer account deletion. Orders
+// are kept as anonymised commercial records; everything personal is wiped.
+
+auth.delete('/account', requireAuth, async (c) => {
+  const user = await getUserById(c.env.DB, c.get('userId'))
+  if (!user) return c.json({ error: 'Not found' }, 404)
+  await anonymizeUser(c.env.DB, user.id)
+  return c.json({ ok: true })
 })
 
 // ─── PATCH /api/auth/profile  (requires Bearer token) ────────────────────────

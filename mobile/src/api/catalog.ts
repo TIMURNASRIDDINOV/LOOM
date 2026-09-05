@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ImageSourcePropType } from 'react-native'
 import { api } from './client'
-import type { Artwork, MyArtwork, Order, Product } from './types'
+import type { Artwork, DesignerProfile, DesignerStats, MyArtwork, Order, PaymentMethods, Product } from './types'
 
 // Product photography ships in the bundle so the catalog paints instantly and
 // still reads correctly offline. A product's own `thumbnail_url` wins when the
@@ -116,6 +116,21 @@ export function fetchArtworks() {
 /** The signed-in designer's own submissions, in every moderation state. */
 export function fetchMyArtworks() {
   return api<{ items: MyArtwork[] }>('/api/designer/artworks', { auth: true }).then((r) => r.items)
+}
+
+/** Works by status, units sold and earnings — the designer dashboard. */
+export function fetchDesignerStats() {
+  return api<DesignerStats>('/api/designer/stats', { auth: true })
+}
+
+/** A designer's public page: bio and approved works. */
+export function fetchDesigner(handle: string) {
+  return api<DesignerProfile>(`/api/designers/${encodeURIComponent(handle.replace(/^@/, ''))}`)
+}
+
+/** Which payment methods the Worker can complete right now. */
+export function fetchPaymentMethods() {
+  return api<PaymentMethods>('/api/payments/methods')
 }
 
 export function submitArtwork(body: {

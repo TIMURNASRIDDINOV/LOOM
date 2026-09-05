@@ -29,13 +29,15 @@ export default function Market() {
     setArt({
       name: a.title,
       uri: a.image_url,
-      // The buyer is applying someone else's approved artwork, so there is no
-      // upload of ours to attach — the order references it by URL.
-      uploadKey: null,
+      // The buyer is applying someone else's approved artwork: the order carries
+      // the designer's R2 file for the print shop and the artwork id so the
+      // sale is credited to them.
+      uploadKey: a.image_key,
+      artworkId: a.id,
       price: a.markup,
       author: a.author,
     })
-    flash(`${a.title} примерена · +${fmt(a.markup)} сум`)
+    flash(a.markup > 0 ? `${a.title} примерена · +${fmt(a.markup)} сум` : `${a.title} примерена`)
     router.push('/studio')
   }
 
@@ -73,8 +75,12 @@ export default function Market() {
                   <T style={disp(13.5, 1.15)} numberOfLines={1}>
                     {a.title}
                   </T>
-                  <T style={[mono(10, 1.2, { color: C.i55 }), { marginTop: 3, marginBottom: 7 }]}>
-                    {a.author}
+                  <T
+                    style={[mono(10, 1.2, { color: C.deep }), { marginTop: 3, marginBottom: 7 }]}
+                    numberOfLines={1}
+                    onPress={() => router.push(`/designer?handle=${encodeURIComponent(a.author.replace(/^@/, ''))}`)}
+                  >
+                    {`${a.author}${a.sold ? ` · ${a.sold} прод.` : ''}`}
                   </T>
                   <View style={styles.priceChip}>
                     <T
