@@ -10,25 +10,28 @@ import { useStudio } from '../state/studio'
 import { useToast } from '../state/toast'
 import { Upload } from './icons'
 import { Button, Panel, T, Tap } from './ui'
+import { colorName, useT } from '../i18n'
+import type { StringKey } from '../i18n/strings'
 
-const TITLES: Record<string, string> = {
-  text: 'Текст',
-  image: 'Графика',
-  color: 'Цвет вещи',
-  size: 'Размер',
+const TITLES: Record<string, StringKey> = {
+  text: 'tool.text',
+  image: 'tool.image',
+  color: 'tool.color',
+  size: 'tool.size',
 }
 
 /** The on-demand sheet. It only opens when a tool is picked, so the garment
  *  keeps the stage the rest of the time. */
 export function ToolSheet({ maxHeight }: { maxHeight: number }) {
   const { tool, closeTool } = useStudio()
+  const t = useT()
   if (!tool) return null
 
   return (
     <Panel raised size={2} style={styles.sheet}>
       <View style={styles.sheetHead}>
         <T style={{ ...mono(12, 1, { ls: 0.18, upper: true }), fontFamily: 'IBMPlexMono_700Bold' }}>
-          {TITLES[tool]}
+          {t(TITLES[tool])}
         </T>
         <Tap style={styles.closeBtn} onPress={closeTool} hitSlop={8}>
           <T style={{ fontSize: 14, lineHeight: 18, color: C.ink }}>×</T>
@@ -50,17 +53,18 @@ function Label({ children }: { children: string }) {
 
 function TextTool() {
   const { active, setText, removeText } = useStudio()
-  const t = active.text
+  const tx = active.text
+  const t = useT()
   const fonts = ['Inter Tight', 'Inter', 'IBM Plex Mono']
 
   return (
     <View style={{ gap: 12 }}>
       <View>
-        <Label>Надпись</Label>
+        <Label>{t('tool.caption')}</Label>
         <TextInput
-          value={t?.content ?? ''}
+          value={tx?.content ?? ''}
           onChangeText={(content) => (content.length ? setText({ content: content.slice(0, 40) }) : removeText())}
-          placeholder="Введите текст…"
+          placeholder={t('tool.captionPh')}
           placeholderTextColor={C.i38}
           style={styles.input}
           allowFontScaling={false}
@@ -68,15 +72,15 @@ function TextTool() {
           returnKeyType="done"
         />
         <T style={[mono(9.5, 1.5, { color: C.i38 }), { marginTop: 6 }]}>
-          Размер, поворот и положение — тапните по надписи на макете.
+          {t('tool.captionHint')}
         </T>
       </View>
 
       <View>
-        <Label>Шрифт</Label>
+        <Label>{t('tool.font')}</Label>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {fonts.map((f) => {
-            const on = (t?.font ?? 'Inter Tight') === f
+            const on = (tx?.font ?? 'Inter Tight') === f
             return (
               <Tap
                 key={f}
@@ -104,10 +108,10 @@ function TextTool() {
       </View>
 
       <View>
-        <Label>Цвет надписи</Label>
+        <Label>{t('tool.textColor')}</Label>
         <View style={{ flexDirection: 'row', gap: 7 }}>
           {['#131311', '#ffffff', C.coral, '#2b3e5e'].map((c) => {
-            const on = (t?.color ?? '#131311').toLowerCase() === c.toLowerCase()
+            const on = (tx?.color ?? '#131311').toLowerCase() === c.toLowerCase()
             return (
               <Tap
                 key={c}
@@ -125,12 +129,13 @@ function TextTool() {
 function ImageTool() {
   const { setArt, updateArt } = useStudio()
   const { flash } = useToast()
+  const t = useT()
   const [busy, setBusy] = useState(false)
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!perm.granted) {
-      flash('Нужен доступ к фото, чтобы загрузить графику')
+      flash(t('tool.errPerm'))
       return
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -142,9 +147,9 @@ function ImageTool() {
 
     const asset = res.assets[0]
     const mime = asset.mimeType ?? 'image/png'
-    const name = asset.fileName ?? 'Ваша графика'
+    const name = asset.fileName ?? t('tool.image')
     if (asset.fileSize && asset.fileSize > 20 * 1024 * 1024) {
-      flash('Файл больше 20 МБ — сожмите его и попробуйте снова')
+      flash(t('tool.errBig'))
       return
     }
     setBusy(true)
@@ -152,12 +157,12 @@ function ImageTool() {
     // the key that the print pipeline needs. A failed upload is not fatal here —
     // checkout retries before the order is submitted.
     setArt({ name, uri: asset.uri, mime, uploadKey: null, price: 0 })
-    flash('Готово — правьте размер и положение в панели слоя')
+    flash(t('tool.placed'))
     try {
       const key = await uploadFile(asset.uri, asset.fileName ?? 'artwork.png', mime)
       updateArt({ uploadKey: key })
     } catch {
-      flash('Файл не загрузился — попробуем ещё раз при оформлении')
+      flash(t('tool.uploadLater'))
     } finally {
       setBusy(false)
     }
@@ -166,7 +171,7 @@ function ImageTool() {
   return (
     <View style={{ gap: 13 }}>
       <Button
-        title="Загрузить файл"
+        title={t('tool.uploadFile')}
         size={14}
         vPad={15}
         loading={busy}
@@ -175,11 +180,11 @@ function ImageTool() {
         style={offset(2, C.ink)}
       />
       <T style={mono(10.5, 1.5, { ls: 0.04, color: C.i38 })}>
-        PNG · JPEG · SVG · до 20 МБ · мин. 1500 px
+        {t('tool.fileSpec')}
       </T>
 
       <View>
-        <Label>От дизайнеров</Label>
+        <Label>{t('tool.fromDesigners')}</Label>
         <DesignerGrid />
       </View>
     </View>
@@ -190,6 +195,7 @@ function ImageTool() {
 function DesignerGrid() {
   const { setArt } = useStudio()
   const { flash } = useToast()
+  const t = useT()
   const { data, loading } = useAsync(fetchArtworks, [])
   const items = data ?? []
 
@@ -197,7 +203,7 @@ function DesignerGrid() {
   if (!items.length) {
     return (
       <T style={mono(10, 1.5, { color: C.i38 })}>
-        Работ пока нет — загрузите свою графику выше.
+        {t('tool.noArtworks')}
       </T>
     )
   }
@@ -219,7 +225,7 @@ function DesignerGrid() {
               price: a.markup,
               author: a.author,
             })
-            flash(a.markup > 0 ? `${a.title} · +${fmt(a.markup)} сум` : a.title)
+            flash(a.markup > 0 ? `${a.title} · ${t('mk.plus', { price: fmt(a.markup) })}` : a.title)
           }}
         >
           <Image source={{ uri: a.image_url }} style={styles.artThumb} resizeMode="cover" />
@@ -239,6 +245,7 @@ function DesignerGrid() {
 
 function ColorTool() {
   const { s, setColor } = useStudio()
+  const t = useT()
   return (
     <View>
       <View style={styles.colorGrid}>
@@ -247,31 +254,22 @@ function ColorTool() {
           return (
             <Tap
               key={c.hex}
-              onPress={() => setColor(c.hex, c.name)}
+              onPress={() => setColor(c.hex)}
               style={[styles.colorSwatch, { backgroundColor: c.hex }, on && styles.swatchOn]}
             />
           )
         })}
       </View>
       <T style={[mono(11.5, 1.4, { ls: 0.06, color: C.i70 }), { marginTop: 12 }]}>
-        Выбрано: {s.colorName}
+        {t('tool.chosen', { color: colorName(s.color, t) })}
       </T>
     </View>
   )
 }
 
-const FIT: Record<string, string> = {
-  XS: 'Обхват груди 84–88 см · длина 66 см · US XS · EU 42',
-  S: 'Обхват груди 88–92 см · длина 68 см · US S · EU 44',
-  M: 'Обхват груди 96–100 см · длина 71 см · US M · EU 48',
-  L: 'Обхват груди 100–104 см · длина 73 см · US L · EU 50',
-  XL: 'Обхват груди 108–112 см · длина 75 см · US XL · EU 54',
-  XXL: 'Обхват груди 116–120 см · длина 77 см · US XXL · EU 56',
-  XXXL: 'Обхват груди 124–128 см · длина 79 см · US 3XL · EU 60',
-}
-
 function SizeTool() {
   const { s, setSize } = useStudio()
+  const t = useT()
   return (
     <View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
@@ -293,10 +291,10 @@ function SizeTool() {
         })}
       </View>
       <View style={styles.fitBox}>
-        <T style={[labelType(), { marginBottom: 6 }]}>{`Размер ${s.size}`}</T>
-        <T style={body(11.5, 1.6, { color: C.i70 })}>{FIT[s.size]}</T>
+        <T style={[labelType(), { marginBottom: 6 }]}>{t('tool.sizeTitle', { size: s.size })}</T>
+        <T style={body(11.5, 1.6, { color: C.i70 })}>{t(`fit.${s.size}` as StringKey)}</T>
         <T style={[body(10.5, 1.5, { color: C.i38 }), { marginTop: 8 }]}>
-          Между размерами — берите больший для свободной посадки.
+          {t('tool.sizeHint')}
         </T>
       </View>
     </View>

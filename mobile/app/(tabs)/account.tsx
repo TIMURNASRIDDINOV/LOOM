@@ -5,10 +5,11 @@ import * as WebBrowser from 'expo-web-browser'
 import Constants from 'expo-constants'
 
 import { C, RULE, fmt } from '../../src/theme/tokens'
-import { body, disp, mono, monoSemi } from '../../src/theme/type'
+import { body, disp, mono, monoMed, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
 import { ChevronRight } from '../../src/components/icons'
 import { Button, Panel, T, Tap } from '../../src/components/ui'
+import { LANGS, useI18n, useT } from '../../src/i18n'
 import { useAuth } from '../../src/state/auth'
 import { useToast } from '../../src/state/toast'
 
@@ -16,6 +17,7 @@ const SITE = 'https://loomdesign.uz'
 
 export default function Account() {
   const router = useRouter()
+  const t = useT()
   const { user, signedIn, isDesigner, phoneVerified, signOut, deleteAccount } = useAuth()
   const { flash } = useToast()
   const [deleting, setDeleting] = useState(false)
@@ -23,23 +25,24 @@ export default function Account() {
   if (!signedIn) {
     return (
       <View style={{ flex: 1 }}>
-        <AppBar title="ПРОФИЛЬ" />
+        <AppBar title={t('bar.account')} />
         <ScrollView contentContainerStyle={styles.page}>
           <T style={[disp(30, 0.98, { ls: -0.035 }), { marginBottom: 10 }]}>
-            Войдите в аккаунт<T style={{ color: C.coral }}>/</T>
+            {t('acc.signInTitle')}<T style={{ color: C.coral }}>/</T>
           </T>
-          <T style={[body(14.5, 1.6, { color: C.i55 }), { marginBottom: 24 }]}>
-            Вход через Telegram — быстро и без пароля. После входа появятся заказы, адрес доставки и
-            кабинет дизайнера.
-          </T>
-          <Button title="Войти" variant="ink" size={12.5} vPad={16} onPress={() => router.push('/login')} />
+          <T style={[body(14.5, 1.6, { color: C.i55 }), { marginBottom: 24 }]}>{t('acc.signInBody')}</T>
+          <Button title={t('common.signIn')} variant="ink" size={12.5} vPad={16} onPress={() => router.push('/login')} />
+
+          <Panel style={{ marginTop: 24 }}>
+            <LanguageRow last />
+          </Panel>
           <About />
         </ScrollView>
       </View>
     )
   }
 
-  const displayName = user?.name ?? user?.first_name ?? 'Профиль'
+  const displayName = user?.name ?? user?.first_name ?? t('tab.account')
   const initial = displayName.trim().charAt(0).toUpperCase() || 'L'
   const ordersCount = user?.orders_count ?? 0
 
@@ -48,7 +51,7 @@ export default function Account() {
       setDeleting(true)
       try {
         await deleteAccount()
-        flash('Аккаунт удалён')
+        flash(t('acc.deleted'))
         router.replace('/')
       } catch (e) {
         flash((e as Error).message)
@@ -58,22 +61,18 @@ export default function Account() {
     }
     if (Platform.OS === 'web') {
       // eslint-disable-next-line no-alert
-      if (window.confirm('Удалить аккаунт? Личные данные будут стёрты, историю заказов восстановить нельзя.')) run()
+      if (window.confirm(`${t('acc.deleteTitle')} ${t('acc.deleteBody')}`)) run()
       return
     }
-    Alert.alert(
-      'Удалить аккаунт?',
-      'Личные данные будут стёрты безвозвратно. Оформленные заказы сохранятся у магазина как обезличенные записи.',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Удалить', style: 'destructive', onPress: run },
-      ],
-    )
+    Alert.alert(t('acc.deleteTitle'), t('acc.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('acc.deleteConfirm'), style: 'destructive', onPress: run },
+    ])
   }
 
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title="ПРОФИЛЬ" />
+      <AppBar title={t('bar.account')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Tap style={styles.identity} onPress={() => router.push('/profile-edit')}>
           <View style={styles.avatar}>
@@ -92,7 +91,9 @@ export default function Account() {
             </T>
             {isDesigner && user?.designer_handle ? (
               <View style={styles.designerChip}>
-                <T style={monoSemi(9, 1, { ls: 0.12, upper: true, color: C.white })}>{`дизайнер · ${user.designer_handle}`}</T>
+                <T style={monoSemi(9, 1, { ls: 0.12, upper: true, color: C.white })}>
+                  {t('acc.designerChip', { handle: user.designer_handle })}
+                </T>
               </View>
             ) : null}
           </View>
@@ -101,54 +102,53 @@ export default function Account() {
 
         {!phoneVerified ? (
           <Tap style={styles.notice} onPress={() => router.push('/login')}>
-            <T style={[monoSemi(10, 1.4, { ls: 0.08, color: C.amber }), { flex: 1 }]}>
-              Подтвердите номер через Telegram — без этого нельзя оформить заказ
-            </T>
+            <T style={[monoSemi(10, 1.4, { ls: 0.08, color: C.amber }), { flex: 1 }]}>{t('acc.verifyNotice')}</T>
             <ChevronRight color={C.amber} />
           </Tap>
         ) : null}
 
         <View style={styles.stats}>
-          <Stat label="Заказов" value={String(ordersCount)} />
-          <Stat label="Потрачено" value={fmt(user?.total_spent ?? 0)} />
+          <Stat label={t('acc.orders')} value={String(ordersCount)} />
+          <Stat label={t('acc.spent')} value={fmt(user?.total_spent ?? 0)} />
         </View>
 
         <Panel>
-          <Row label="Мои заказы" trailing={String(ordersCount)} onPress={() => router.push('/orders')} />
+          <Row label={t('acc.myOrders')} trailing={String(ordersCount)} onPress={() => router.push('/orders')} />
           <Row
-            label={isDesigner ? 'Кабинет дизайнера' : 'Стать дизайнером'}
-            badge={isDesigner ? undefined : 'новое'}
+            label={isDesigner ? t('acc.designerCabinet') : t('acc.becomeDesigner')}
+            badge={isDesigner ? undefined : t('acc.new')}
             onPress={() => router.push('/publish')}
           />
           <Row
-            label="Адрес доставки"
-            trailing={addressOf(user?.location_preset) ?? 'не указан'}
+            label={t('acc.address')}
+            trailing={addressOf(user?.location_preset) ?? t('acc.addressNone')}
             onPress={() => router.push('/profile-edit')}
           />
-          <Row label="Личные данные" trailing="имя, телефон, фото" onPress={() => router.push('/profile-edit')} last />
+          <Row label={t('acc.personal')} trailing={t('acc.personalSub')} onPress={() => router.push('/profile-edit')} />
+          <LanguageRow last />
         </Panel>
 
         <Panel style={{ marginTop: 14 }}>
-          <Row label="Написать в поддержку" trailing="Telegram" onPress={() => open('https://t.me/looom_design_bot')} />
-          <Row label="Условия и доставка" onPress={() => open(`${SITE}/privacy.html#terms`)} />
-          <Row label="Политика конфиденциальности" onPress={() => open(`${SITE}/privacy.html`)} last />
+          <Row label={t('acc.support')} trailing="Telegram" onPress={() => open('https://t.me/looom_design_bot')} />
+          <Row label={t('acc.terms')} onPress={() => open(`${SITE}/privacy.html#terms`)} />
+          <Row label={t('acc.privacy')} onPress={() => open(`${SITE}/privacy.html`)} last />
         </Panel>
 
         <Button
-          title="Выйти"
+          title={t('common.signOut')}
           variant="outline"
           size={12}
           vPad={15}
           style={{ marginTop: 16 }}
           onPress={async () => {
             await signOut()
-            flash('Вы вышли из аккаунта')
+            flash(t('acc.signedOut'))
             router.replace('/')
           }}
         />
         <Tap style={{ paddingVertical: 16, alignItems: 'center' }} onPress={deleting ? undefined : confirmDelete}>
           <T style={[body(12, 1.4, { color: C.deep }), { textDecorationLine: 'underline' }]}>
-            {deleting ? 'Удаляем…' : 'Удалить аккаунт'}
+            {deleting ? t('acc.deleting') : t('acc.delete')}
           </T>
         </Tap>
 
@@ -162,11 +162,38 @@ function open(url: string) {
   WebBrowser.openBrowserAsync(url).catch(() => {})
 }
 
+/** RU / UZ / EN — persisted on the device, applied instantly everywhere. */
+function LanguageRow({ last }: { last?: boolean }) {
+  const { t, lang, setLang } = useI18n()
+  return (
+    <View style={[styles.row, last && { borderBottomWidth: 0 }]}>
+      <T style={[disp(14.5, 1), { flex: 1 }]}>{t('acc.language')}</T>
+      <View style={{ flexDirection: 'row', gap: 4 }}>
+        {LANGS.map((l) => {
+          const on = l.id === lang
+          return (
+            <Tap
+              key={l.id}
+              haptic
+              onPress={() => setLang(l.id)}
+              accessibilityLabel={l.label}
+              style={[styles.pill, { backgroundColor: on ? C.ink : 'transparent', borderColor: on ? C.ink : C.line }]}
+            >
+              <T style={monoMed(10.5, 1, { color: on ? C.paper : C.i55 })}>{l.short}</T>
+            </Tap>
+          )
+        })}
+      </View>
+    </View>
+  )
+}
+
 function About() {
+  const t = useT()
   const version = Constants.expoConfig?.version ?? '1.0.0'
   return (
     <T style={[mono(9.5, 1.6, { ls: 0.08, color: C.i38, align: 'center' }), { marginTop: 24 }]}>
-      {`LOOM · версия ${version} · Ташкент`}
+      {t('acc.version', { v: version })}
     </T>
   )
 }
@@ -266,4 +293,5 @@ const styles = StyleSheet.create({
     borderBottomColor: C.line,
   },
   badge: { paddingHorizontal: 5, paddingVertical: 3, backgroundColor: C.coral },
+  pill: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1 },
 })

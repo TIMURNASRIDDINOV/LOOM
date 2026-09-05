@@ -9,6 +9,7 @@ import { ChevronLeft } from '../../src/components/icons'
 import { Button, T, Tap } from '../../src/components/ui'
 import { fetchProducts, productImage, useAsync } from '../../src/api/catalog'
 import { buildPlainDesignJson } from '../../src/api/design'
+import { productName, useI18n } from '../../src/i18n'
 import { useCart } from '../../src/state/cart'
 import { useToast } from '../../src/state/toast'
 import { goBack } from '../../src/lib/nav'
@@ -23,6 +24,7 @@ export default function ProductScreen() {
   const cart = useCart()
   const { flash } = useToast()
   const [size, setSize] = useState<Size>('L')
+  const { t, lang } = useI18n()
 
   const { data: products, loading } = useAsync(fetchProducts, [])
   const product = products?.find((p) => String(p.id) === String(id))
@@ -30,7 +32,7 @@ export default function ProductScreen() {
   if (loading) {
     return (
       <View style={{ flex: 1 }}>
-        <AppBar title="КАТАЛОГ" />
+        <AppBar title={t('bar.catalog')} />
         <ActivityIndicator color={C.coral} style={{ marginTop: 60 }} />
       </View>
     )
@@ -39,10 +41,10 @@ export default function ProductScreen() {
   if (!product) {
     return (
       <View style={{ flex: 1 }}>
-        <AppBar title="КАТАЛОГ" />
+        <AppBar title={t('bar.catalog')} />
         <View style={{ padding: 18, gap: 16 }}>
-          <T style={body(14, 1.6, { color: C.i55 })}>Товар не найден.</T>
-          <Button title="В каталог" variant="ink" size={12.5} vPad={14} onPress={() => router.push('/catalog')} />
+          <T style={body(14, 1.6, { color: C.i55 })}>{t('product.notFound')}</T>
+          <Button title={t('product.toCatalog')} variant="ink" size={12.5} vPad={14} onPress={() => router.push('/catalog')} />
         </View>
       </View>
     )
@@ -58,23 +60,23 @@ export default function ProductScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title="КАТАЛОГ" />
+      <AppBar title={t('bar.catalog')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Tap style={styles.back} onPress={() => goBack(router, '/catalog')}>
           <ChevronLeft size={13} width={2.4} color={C.i55} />
-          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>Назад</T>
+          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>{t('common.back')}</T>
         </Tap>
 
         <View style={styles.hero}>
           <Image source={productImage(product)} style={styles.heroImg} resizeMode="cover" />
           <View style={styles.readyChip}>
-            <T style={mono(8, 1.3, { ls: 0.14, upper: true })}>готовый дизайн</T>
+            <T style={mono(8, 1.3, { ls: 0.14, upper: true })}>{t('product.readyChip')}</T>
           </View>
         </View>
 
         <T style={[kicker(10), { marginTop: 18 }]}>Apparel</T>
         <View style={styles.titleRow}>
-          <T style={[disp(27, 1.05, { ls: -0.03 }), { flex: 1 }]}>{product.name_ru}</T>
+          <T style={[disp(27, 1.05, { ls: -0.03 }), { flex: 1 }]}>{productName(product, lang)}</T>
           <T style={mono(13, 1, { color: C.i70 })}>{fmt(product.price)}</T>
         </View>
 
@@ -84,7 +86,7 @@ export default function ProductScreen() {
 
         {colors.length ? (
           <View style={{ marginTop: 16 }}>
-            <T style={[labelType(), { marginBottom: 8 }]}>Цвета</T>
+            <T style={[labelType(), { marginBottom: 8 }]}>{t('product.colors')}</T>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {colors.map((hex) => (
                 <View key={hex} style={[styles.colorDot, { backgroundColor: hex }]} />
@@ -94,7 +96,7 @@ export default function ProductScreen() {
         ) : null}
 
         <View style={{ marginTop: 18 }}>
-          <T style={[labelType(), { marginBottom: 8 }]}>Размер</T>
+          <T style={[labelType(), { marginBottom: 8 }]}>{t('product.size')}</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
             {SIZES.map((z) => {
               const on = size === z
@@ -117,21 +119,21 @@ export default function ProductScreen() {
         </View>
 
         <Button
-          title={`В корзину · ${fmt(product.price)}`}
+          title={t('product.addToCart', { price: fmt(product.price) })}
           size={16}
           vPad={17}
           style={{ marginTop: 22 }}
           onPress={() => {
             cart.add({
               productId: product.id,
-              name: product.name_ru,
+              name: productName(product, lang),
               image: product.thumbnail_url,
               unitPrice: product.price,
               designJson: buildPlainDesignJson(size, colors[0] ?? '#FFFFFF'),
-              meta: `Готовый дизайн · ${size}`,
+              meta: `${t('catalog.readyDesign')} · ${size}`,
               logoKey: null,
             })
-            flash('Добавлено в корзину')
+            flash(t('product.added'))
             router.push('/cart')
           }}
         />

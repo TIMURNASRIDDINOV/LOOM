@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { API_BASE, api, setToken, getToken, ApiError } from '../api/client'
 import type { Me, TelegramStart, TelegramStatus } from '../api/types'
 import { signInWithProvider, type ProviderId } from '../api/oauth'
+import { tStatic } from '../i18n'
 
 type AuthState = {
   user: Me | null
@@ -123,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       if (!res.ok) {
         const d = (await res.json().catch(() => null)) as { error?: string } | null
-        throw new ApiError(d?.error ?? 'Не удалось загрузить фото', res.status)
+        throw new ApiError(d?.error ?? tStatic('common.photoFailed'), res.status)
       }
       await refresh()
     },
@@ -158,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.status === 'verified') {
         if (!res.token) {
           // Verified but nothing to store — never report this as a success.
-          throw new Error('Сервер не вернул токен входа. Обновите приложение.')
+          throw new Error(tStatic('login.errNoToken'))
         }
         // The backend marks the token single-use on this first `verified` poll.
         await setToken(res.token)

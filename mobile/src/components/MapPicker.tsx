@@ -6,6 +6,7 @@ import { C, RULE } from '../theme/tokens'
 import { mono } from '../theme/type'
 import { buildMapHtml, type Pin } from './map-html'
 import { T } from './ui'
+import { useT } from '../i18n'
 
 // Delivery pin, using the same Leaflet + OpenStreetMap stack as the website's
 // address picker (assets/address-picker.js). The page itself lives in
@@ -23,6 +24,7 @@ export function MapPicker({
   height?: number
 }) {
   const [ready, setReady] = useState(false)
+  const t = useT()
 
   // Only the first pin seeds the map — later updates come from inside it, and
   // re-keying on every drag would reload the tiles mid-gesture.
@@ -64,7 +66,7 @@ export function MapPicker({
       ) : null}
       <View style={styles.hint} pointerEvents="none">
         <T style={mono(8.5, 1.3, { ls: 0.12, upper: true, color: C.i55 })}>
-          Нажмите на карту или перетащите метку
+          {t('map.hint')}
         </T>
       </View>
     </View>

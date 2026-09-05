@@ -1,5 +1,6 @@
 import Constants from 'expo-constants'
 import * as SecureStore from 'expo-secure-store'
+import { tStatic } from '../i18n'
 
 // `EXPO_PUBLIC_API_BASE` lets a dev build or the web preview point at a local
 // Worker / CORS proxy without touching app.json; production builds carry the
@@ -75,7 +76,7 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
     })
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e
-    throw new ApiError('Нет соединения. Проверьте интернет.', 0)
+    throw new ApiError(tStatic('common.offline'), 0)
   }
 
   const text = await res.text()
@@ -98,7 +99,7 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
         ? err
         : typeof (err as { message?: string })?.message === 'string'
           ? (err as { message: string }).message
-          : `Ошибка ${res.status}`
+          : tStatic('common.errorCode', { code: res.status })
     const code = d?.code ?? (err as { code?: string })?.code
     throw new ApiError(message, res.status, code)
   }
@@ -121,7 +122,7 @@ export async function uploadFile(uri: string, name: string, type: string): Promi
 
   const data = (await res.json().catch(() => null)) as { key?: string; error?: string } | null
   if (!res.ok || !data?.key) {
-    throw new ApiError(data?.error ?? 'Не удалось загрузить файл', res.status)
+    throw new ApiError(data?.error ?? tStatic('common.uploadFailed'), res.status)
   }
   return data.key
 }

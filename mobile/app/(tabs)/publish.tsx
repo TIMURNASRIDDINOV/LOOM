@@ -12,16 +12,16 @@ import { Button, Panel, T, Tap } from '../../src/components/ui'
 import { uploadFile } from '../../src/api/client'
 import { fetchDesignerStats, fetchMyArtworks, submitArtwork, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
 import type { MyArtwork } from '../../src/api/types'
-import { STATUSES } from '../../src/theme/tokens'
 import { useAuth } from '../../src/state/auth'
 import { useToast } from '../../src/state/toast'
+import { statusLabel, useT } from '../../src/i18n'
 
 const MARKUPS = [15000, 25000, 35000]
 
-const MOD_LABEL: Record<MyArtwork['status'], { ru: string; c: string }> = {
-  pending: { ru: 'На проверке', c: C.amber },
-  approved: { ru: 'Опубликовано', c: '#22c55e' },
-  rejected: { ru: 'Отклонено', c: C.deep },
+const MOD_LABEL: Record<MyArtwork['status'], { key: 'mod.pending' | 'mod.approved' | 'mod.rejected'; c: string }> = {
+  pending: { key: 'mod.pending', c: C.amber },
+  approved: { key: 'mod.approved', c: '#22c55e' },
+  rejected: { key: 'mod.rejected', c: C.deep },
 }
 
 /**
@@ -40,18 +40,19 @@ export default function Publish() {
 
 function SignInGate() {
   const router = useRouter()
+  const t = useT()
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title="ДИЗАЙН" />
+      <AppBar title={t('bar.design')} />
       <ScrollView contentContainerStyle={styles.page}>
-        <T style={kicker()}>Дизайнерам</T>
+        <T style={kicker()}>{t('pub.kicker')}</T>
         <T style={[disp(30, 0.98, { ls: -0.035 }), { marginTop: 10, marginBottom: 10 }]}>
-          Войдите, чтобы публиковать
+          {t('pub.gateTitle')}
         </T>
         <T style={[body(14, 1.6, { color: C.i55 }), { marginBottom: 24 }]}>
-          Работы привязываются к аккаунту — так мы начисляем вам процент с каждой продажи.
+          {t('pub.gateBody')}
         </T>
-        <Button title="Войти" variant="ink" size={12.5} vPad={16} onPress={() => router.push('/login')} />
+        <Button title={t('common.signIn')} variant="ink" size={12.5} vPad={16} onPress={() => router.push('/login')} />
       </ScrollView>
     </View>
   )
@@ -62,6 +63,7 @@ function SignInGate() {
 function DesignerGate() {
   const { applyAsDesigner } = useAuth()
   const { flash } = useToast()
+  const t = useT()
   const [handle, setHandle] = useState('')
   const [bio, setBio] = useState('')
   const [busy, setBusy] = useState(false)
@@ -69,13 +71,13 @@ function DesignerGate() {
   const apply = async () => {
     const clean = handle.trim().replace(/^@/, '')
     if (!/^[a-z0-9_.]{3,24}$/i.test(clean)) {
-      flash('Ник: 3–24 символа, латиница, цифры, точка или _')
+      flash(t('pub.errHandle'))
       return
     }
     setBusy(true)
     try {
       await applyAsDesigner(clean, bio.trim() || undefined)
-      flash('Профиль дизайнера создан')
+      flash(t('pub.profileCreated'))
     } catch (e) {
       flash((e as Error).message)
     } finally {
@@ -85,19 +87,18 @@ function DesignerGate() {
 
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title="ДИЗАЙН" />
+      <AppBar title={t('bar.design')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <T style={kicker()}>Дизайнерам</T>
+        <T style={kicker()}>{t('pub.kicker')}</T>
         <T style={[disp(30, 0.98, { ls: -0.035 }), { marginTop: 10, marginBottom: 10 }]}>
-          Станьте дизайнером
+          {t('pub.becomeTitle')}
         </T>
         <T style={[body(14, 1.6, { color: C.i55 }), { marginBottom: 22 }]}>
-          Выберите ник — под ним ваши работы увидят покупатели. Загрузка станет доступна сразу
-          после этого шага.
+          {t('pub.becomeBody')}
         </T>
 
         <View style={{ marginBottom: 11 }}>
-          <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>Ник дизайнера</T>
+          <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{t('pub.handle')}</T>
           <View style={styles.handleField}>
             <View style={styles.at}>
               <T style={{ fontFamily: 'IBMPlexMono_500Medium', fontSize: 16, color: C.i55 }}>@</T>
@@ -116,10 +117,10 @@ function DesignerGate() {
           </View>
         </View>
 
-        <Field label="О себе" value={bio} onChange={setBio} placeholder="Графика, типографика, Ташкент" />
+        <Field label={t('pub.bio')} value={bio} onChange={setBio} placeholder={t('pub.bioPh')} />
 
         <Button
-          title="Создать профиль"
+          title={t('pub.createProfile')}
           size={15}
           vPad={17}
           loading={busy}
@@ -127,7 +128,7 @@ function DesignerGate() {
           onPress={apply}
         />
         <T style={[body(11, 1.5, { color: C.i38, align: 'center' }), { marginTop: 12 }]}>
-          Каждая работа проходит проверку прав и качества печати перед публикацией.
+          {t('pub.moderationNote')}
         </T>
       </ScrollView>
     </View>
@@ -139,6 +140,7 @@ function DesignerGate() {
 function DesignerHome({ handle }: { handle: string | null }) {
   const router = useRouter()
   const { flash } = useToast()
+  const t = useT()
   const { data, loading, reload } = useAsync(fetchMyArtworks, [])
   const stats = useAsync(fetchDesignerStats, [])
   // Moderation happens elsewhere; coming back to this tab must show the verdict.
@@ -169,14 +171,14 @@ function DesignerHome({ handle }: { handle: string | null }) {
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!perm.granted) {
-      flash('Нужен доступ к фото, чтобы выбрать работу')
+      flash(t('pub.errPerm'))
       return
     }
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 })
     if (res.canceled || !res.assets?.length) return
     const a = res.assets[0]
     if (Math.max(a.width, a.height) < 1500) {
-      flash('Минимум 1500 px по длинной стороне')
+      flash(t('pub.errSmall'))
       return
     }
 
@@ -206,11 +208,11 @@ function DesignerHome({ handle }: { handle: string | null }) {
 
   const submit = async () => {
     if (!key) {
-      flash('Файл ещё не загрузился')
+      flash(t('pub.errNotUploaded'))
       return
     }
     if (!title.trim()) {
-      flash('Укажите название работы')
+      flash(t('pub.errTitle'))
       return
     }
     setBusy(true)
@@ -224,7 +226,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
         markup,
       })
       setStep(3)
-      flash('Работа отправлена на модерацию')
+      flash(t('pub.sent'))
       reload()
       stats.reload()
     } catch (e) {
@@ -244,40 +246,39 @@ function DesignerHome({ handle }: { handle: string | null }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title="ДИЗАЙН" />
+      <AppBar title={t('bar.design')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Tap
           style={styles.back}
           onPress={() => (step > 0 ? reset() : router.push('/market'))}
         >
           <ChevronLeft size={13} width={2.4} color={C.i55} />
-          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>Назад</T>
+          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>{t('common.back')}</T>
         </Tap>
 
-        <T style={kicker()}>{handle ?? 'Дизайнерам'}</T>
+        <T style={kicker()}>{handle ?? t('pub.kicker')}</T>
         <T style={[disp(30, 0.98, { ls: -0.035 }), { marginTop: 10, marginBottom: 8 }]}>
-          {step === 3 ? 'На модерации.' : step === 0 ? 'Кабинет дизайнера' : 'Опубликовать работу'}
+          {step === 3 ? t('pub.onModeration') : step === 0 ? t('pub.cabinet') : t('pub.publish')}
         </T>
 
         {/* Earnings — the promise behind the whole flow, backed by artwork_sales. */}
         {step === 0 && stats.data ? (
           <>
             <View style={styles.statsRow}>
-              <Stat label="Заработано" value={`${fmt(stats.data.earned)} сум`} accent />
-              <Stat label="К выплате" value={`${fmt(stats.data.earned_settled)} сум`} />
+              <Stat label={t('pub.earned')} value={`${fmt(stats.data.earned)} ${t('common.sum')}`} accent />
+              <Stat label={t('pub.payable')} value={`${fmt(stats.data.earned_settled)} ${t('common.sum')}`} />
             </View>
             <View style={styles.statsRow}>
-              <Stat label="Продано" value={`${stats.data.units_sold} шт.`} />
-              <Stat label="В каталоге" value={`${stats.data.works_approved} из ${stats.data.works_total}`} />
+              <Stat label={t('dz.sold')} value={t('pub.soldUnits', { n: stats.data.units_sold })} />
+              <Stat label={t('pub.inCatalog')} value={t('pub.ofTotal', { a: stats.data.works_approved, b: stats.data.works_total })} />
             </View>
             <T style={[body(10.5, 1.5, { color: C.i38 }), { marginTop: 8 }]}>
-              {`Вы получаете ${100 - stats.data.commission_pct}% наценки с каждой продажи. «К выплате» — по доставленным заказам.`}
+              {t('pub.shareNote', { pct: 100 - stats.data.commission_pct })}
             </T>
             {stats.data.sales.length ? (
               <View style={{ marginTop: 14 }}>
-                <T style={[labelType(), { marginBottom: 8 }]}>Последние продажи</T>
+                <T style={[labelType(), { marginBottom: 8 }]}>{t('pub.recentSales')}</T>
                 {stats.data.sales.slice(0, 5).map((sale) => {
-                  const st = STATUSES.find((x) => x.k === sale.order_status)
                   return (
                     <View key={sale.id} style={styles.saleRow}>
                       <View style={{ flex: 1, minWidth: 0 }}>
@@ -285,7 +286,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
                           {sale.artwork_title}
                         </T>
                         <T style={[mono(9.5, 1.3, { color: C.i55 }), { marginTop: 2 }]}>
-                          {`#LM-${sale.order_id} · ${sale.quantity} шт. · ${st?.ru ?? sale.order_status}`}
+                          {t('pub.saleMeta', { id: sale.order_id, n: sale.quantity, status: statusLabel(sale.order_status, t) })}
                         </T>
                       </View>
                       <T style={monoSemi(12, 1, { color: C.ink })}>{`+${fmt(sale.designer_share)}`}</T>
@@ -316,7 +317,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
         {step === 0 ? (
           <>
             <Button
-              title="Загрузить работу"
+              title={t('pub.upload')}
               size={15}
               vPad={17}
               style={{ marginTop: 12, marginBottom: 20 }}
@@ -326,7 +327,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
               <ActivityIndicator color={C.coral} />
             ) : works.length === 0 ? (
               <T style={body(13.5, 1.6, { color: C.i55 })}>
-                Пока ни одной работы. Загрузите первую — после проверки её увидят покупатели.
+                {t('pub.noWorks')}
               </T>
             ) : (
               works.map((w) => {
@@ -339,10 +340,10 @@ function DesignerHome({ handle }: { handle: string | null }) {
                         {w.title}
                       </T>
                       <T style={[mono(10, 1.3, { color: C.i55 }), { marginTop: 3 }]}>
-                        {`+${fmt(w.markup)} сум${w.sold ? ` · продано ${w.sold}` : ''}`}
+                        {`${t('mk.plus', { price: fmt(w.markup) })}${w.sold ? ` · ${t('pub.soldTag', { n: w.sold })}` : ''}`}
                       </T>
                       <View style={[styles.statusChip, { borderColor: st.c }]}>
-                        <T style={monoSemi(9, 1, { ls: 0.12, upper: true, color: st.c })}>{st.ru}</T>
+                        <T style={monoSemi(9, 1, { ls: 0.12, upper: true, color: st.c })}>{t(st.key)}</T>
                       </View>
                       {w.status === 'rejected' && w.reject_note ? (
                         <T style={[body(11, 1.5, { color: C.i55 }), { marginTop: 6 }]}>
@@ -361,26 +362,25 @@ function DesignerHome({ handle }: { handle: string | null }) {
         {step === 1 ? (
           <>
             <T style={[body(13.5, 1.6, { color: C.i55 }), { marginBottom: 16 }]}>
-              Загрузите графику — покупатели смогут напечатать её на любой вещи из каталога. Вы
-              получаете процент с каждой продажи.
+              {t('pub.step1Body')}
             </T>
             <Tap onPress={pick}>
               <Hatch style={styles.dropzone}>
                 <View style={styles.dropPlus}>
                   <T style={{ fontSize: 24, lineHeight: 30, color: C.white }}>+</T>
                 </View>
-                <T style={disp(14, 1, { ls: 0.06, upper: true })}>Выбрать файл</T>
+                <T style={disp(14, 1, { ls: 0.06, upper: true })}>{t('pub.pickFile')}</T>
                 <T style={mono(10, 1.4, { ls: 0.1, upper: true, color: C.i38 })}>
-                  PNG · SVG · до 20 МБ
+                  {t('pub.fileSpec')}
                 </T>
               </Hatch>
             </Tap>
             <View style={styles.reqs}>
-              <T style={[labelType(), { marginBottom: 8 }]}>Требования</T>
+              <T style={[labelType(), { marginBottom: 8 }]}>{t('pub.reqs')}</T>
               {[
-                'Прозрачный фон, без рамки',
-                'Минимум 1500 px по длинной стороне',
-                'Только ваши права на изображение',
+                t('pub.req1'),
+                t('pub.req2'),
+                t('pub.req3'),
               ].map((t) => (
                 <T key={t} style={[body(11.5, 1.5, { color: C.i70 }), { marginBottom: 5 }]}>
                   {`— ${t}`}
@@ -400,7 +400,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
                   {file.name}
                 </T>
                 <T style={[mono(10.5, 1.4, { color: C.i55 }), { marginTop: 3 }]}>
-                  {`${file.w}×${file.h} · ${(file.size / 1024 / 1024).toFixed(1)} МБ`}
+                  {`${file.w}×${file.h} · ${(file.size / 1024 / 1024).toFixed(1)} MB`}
                 </T>
                 <T
                   style={[
@@ -412,16 +412,16 @@ function DesignerHome({ handle }: { handle: string | null }) {
                     { marginTop: 4 },
                   ]}
                 >
-                  {uploading ? 'загружается…' : key ? '✓ подходит для печати' : 'ошибка загрузки'}
+                  {uploading ? t('pub.uploadingFile') : key ? t('pub.fileOk') : t('pub.fileFail')}
                 </T>
               </View>
             </Panel>
 
-            <Field label="Название" value={title} onChange={setTitle} placeholder="Chorsu Nights" />
-            <Field label="Теги" value={tags} onChange={setTags} placeholder="Ташкент, ночь, типографика" />
+            <Field label={t('pub.titleField')} value={title} onChange={setTitle} placeholder={t('pub.titlePh')} />
+            <Field label={t('pub.tags')} value={tags} onChange={setTags} placeholder={t('pub.tagsPh')} />
 
             <View style={{ marginBottom: 11 }}>
-              <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>Ваша наценка</T>
+              <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{t('pub.markup')}</T>
               <View style={{ flexDirection: 'row', gap: 7 }}>
                 {MARKUPS.map((v) => {
                   const on = v === markup
@@ -448,12 +448,12 @@ function DesignerHome({ handle }: { handle: string | null }) {
                 })}
               </View>
               <T style={[body(10.5, 1.5, { color: C.i38 }), { marginTop: 8 }]}>
-                {`Покупатель платит цену вещи + ${fmt(markup)} сум. Вам — ${fmt(Math.round(markup * 0.7))} сум с каждой продажи, LOOM удерживает 30%.`}
+                {t('pub.markupNote', { markup: fmt(markup), share: fmt(Math.round(markup * 0.7)) })}
               </T>
             </View>
 
             <Button
-              title="Отправить на проверку"
+              title={t('pub.submit')}
               size={16}
               vPad={17}
               loading={busy}
@@ -468,15 +468,14 @@ function DesignerHome({ handle }: { handle: string | null }) {
           <>
             <Panel raised raisedColor={C.coral} style={{ padding: 18, marginBottom: 16 }}>
               <T style={[monoSemi(10, 1, { ls: 0.2, upper: true, color: C.amber }), { marginBottom: 8 }]}>
-                Проверка · 1–2 дня
+                {t('pub.reviewTime')}
               </T>
-              <T style={[disp(20, 1.1, { ls: -0.02 }), { marginBottom: 6 }]}>{title || 'Ваша работа'}</T>
+              <T style={[disp(20, 1.1, { ls: -0.02 }), { marginBottom: 6 }]}>{title || t('pub.yourWork')}</T>
               <T style={body(12.5, 1.6, { color: C.i55 })}>
-                Мы проверим права и качество печати. Ответ придёт в Telegram — после одобрения
-                работа появится в каталоге дизайнеров.
+                {t('pub.sentBody')}
               </T>
             </Panel>
-            <Button title="Загрузить ещё одну" variant="outline" size={12.5} vPad={15} onPress={reset} />
+            <Button title={t('pub.uploadAnother')} variant="outline" size={12.5} vPad={15} onPress={reset} />
           </>
         ) : null}
       </ScrollView>

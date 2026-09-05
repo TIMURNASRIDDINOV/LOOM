@@ -8,6 +8,7 @@ import { TEXT_SIZE_RANGE, useStudio } from '../state/studio'
 import { ArtPattern } from './ArtPattern'
 import { Slider } from './Slider'
 import { Panel, T, Tap } from './ui'
+import { useT } from '../i18n'
 
 /**
  * Fine placement lives here rather than on 20px corner handles: a 44px-tall
@@ -16,6 +17,7 @@ import { Panel, T, Tap } from './ui'
  */
 export function LayerInspector() {
   const st = useStudio()
+  const t = useT()
   const { active, artSelected, textSelected } = st
 
   if (artSelected && active.art) {
@@ -39,12 +41,12 @@ export function LayerInspector() {
         title={art.author ? `${art.name} · ${art.author}` : art.name}
         rows={[
           {
-            label: 'Размер',
-            value: `${cm} см`,
+            label: t('ins.size'),
+            value: t('ins.cm', { cm }),
             slider: { value: art.sizePct, min: 20, max: 100, onChange: (v) => st.updateArt({ sizePct: v }) },
           },
           {
-            label: 'Поворот',
+            label: t('ins.rotation'),
             value: `${art.rotation}°`,
             slider: { value: art.rotation, min: -45, max: 45, onChange: (v) => st.updateArt({ rotation: v }) },
           },
@@ -57,23 +59,23 @@ export function LayerInspector() {
   }
 
   if (textSelected && active.text?.content) {
-    const t = active.text
+    const tx = active.text
     return (
       <Inspector
         thumb={
           <View style={[styles.thumb, { alignItems: 'center', justifyContent: 'center' }]}>
-            <T style={{ fontFamily: 'InterTight_800ExtraBold', fontSize: 14, color: t.color === '#ffffff' ? C.ink : t.color }}>
+            <T style={{ fontFamily: 'InterTight_800ExtraBold', fontSize: 14, color: tx.color === '#ffffff' ? C.ink : tx.color }}>
               A
             </T>
           </View>
         }
-        title={`«${t.content}»`}
+        title={`«${tx.content}»`}
         rows={[
           {
-            label: 'Кегль',
-            value: `${Math.round(t.size)}`,
+            label: t('ins.fontSize'),
+            value: `${Math.round(tx.size)}`,
             slider: {
-              value: t.size,
+              value: tx.size,
               min: TEXT_SIZE_RANGE.min,
               max: TEXT_SIZE_RANGE.max,
               step: 2,
@@ -81,14 +83,14 @@ export function LayerInspector() {
             },
           },
           {
-            label: 'Поворот',
-            value: `${t.rotation}°`,
-            slider: { value: t.rotation, min: -45, max: 45, onChange: (v) => st.setText({ rotation: v }) },
+            label: t('ins.rotation'),
+            value: `${tx.rotation}°`,
+            slider: { value: tx.rotation, min: -45, max: 45, onChange: (v) => st.setText({ rotation: v }) },
           },
         ]}
         onCenter={() => st.setText({ offset: { x: 0, y: -30 }, rotation: 0 })}
         onRemove={st.removeText}
-        onNudge={(dx, dy) => st.setText({ offset: { x: t.offset.x + dx, y: t.offset.y + dy } })}
+        onNudge={(dx, dy) => st.setText({ offset: { x: tx.offset.x + dx, y: tx.offset.y + dy } })}
       />
     )
   }
@@ -117,6 +119,7 @@ function Inspector({
   onRemove: () => void
   onNudge: (dxPct: number, dyPct: number) => void
 }) {
+  const t = useT()
   return (
     <Panel raised size={2} style={styles.panel}>
       <View style={styles.head}>
@@ -125,7 +128,7 @@ function Inspector({
           {title}
         </T>
         <Tap style={styles.smallBtn} onPress={onCenter}>
-          <T style={monoSemi(9.5, 1, { ls: 0.1, upper: true, color: C.ink })}>По центру</T>
+          <T style={monoSemi(9.5, 1, { ls: 0.1, upper: true, color: C.ink })}>{t('ins.center')}</T>
         </Tap>
         <Tap style={styles.removeBtn} onPress={onRemove} hitSlop={6}>
           <T style={{ fontSize: 15, lineHeight: 20, color: C.deep }}>×</T>
@@ -149,7 +152,7 @@ function Inspector({
           <View style={styles.padCell} />
           <NudgeBtn arrow="←" onPress={() => onNudge(-MM_PCT.x, 0)} />
           <View style={[styles.padCell, styles.padCenter]}>
-            <T style={mono(8, 1, { color: C.i38 })}>1 мм</T>
+            <T style={mono(8, 1, { color: C.i38 })}>{t('ins.mm')}</T>
           </View>
           <NudgeBtn arrow="→" onPress={() => onNudge(MM_PCT.x, 0)} />
           <View style={styles.padCell} />

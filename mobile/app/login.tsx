@@ -21,6 +21,7 @@ import { Button, T, Tap, Toast, Wordmark } from '../src/components/ui'
 import { useAuth } from '../src/state/auth'
 import { useToast } from '../src/state/toast'
 import { goBack } from '../src/lib/nav'
+import { useT } from '../src/i18n'
 import {
   OAuthCancelled,
   fetchProviders,
@@ -37,6 +38,7 @@ export default function Login() {
   const insets = useSafeAreaInsets()
   const { startTelegram, pollTelegram, stopPolling, signInWithEmail, signInWithOAuth } = useAuth()
   const { message, flash } = useToast()
+  const t = useT()
 
   const [step, setStep] = useState<Mode>('phone')
   // Which providers the Worker actually holds credentials for. Anything absent
@@ -75,13 +77,13 @@ export default function Login() {
   const social = async (provider: ProviderId) => {
     const info = live.find((p) => p.id === provider)
     if (!info) {
-      flash('Этот способ входа ещё не настроен')
+      flash(t('login.errProvider'))
       return
     }
     setOauthBusy(provider)
     try {
       await signInWithOAuth(provider, info.clientId)
-      flash('Вы вошли')
+      flash(t('login.done'))
       goBack(router)
     } catch (e) {
       // Backing out of the browser sheet is not an error worth shouting about.
@@ -94,7 +96,7 @@ export default function Login() {
   const start = async () => {
     const digits = phone.replace(/\D/g, '')
     if (digits.length < 9) {
-      flash('Введите номер полностью')
+      flash(t('login.errPhone'))
       return
     }
     setBusy(true)
@@ -118,11 +120,11 @@ export default function Login() {
     // validating at 6 here just turned a fixable field error into a server
     // error the user could not act on.
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      flash('Введите корректный email')
+      flash(t('login.errEmail'))
       return
     }
     if (password.length < 8) {
-      flash('Пароль — минимум 8 символов')
+      flash(t('login.errPassword'))
       return
     }
     setBusy(true)
@@ -131,7 +133,7 @@ export default function Login() {
         { email: email.trim(), password, name: name.trim() || undefined },
         register,
       )
-      flash(register ? 'Аккаунт создан' : 'Вы вошли')
+      flash(register ? t('login.created') : t('login.done'))
       goBack(router)
     } catch (e) {
       flash((e as Error).message)
@@ -151,12 +153,12 @@ export default function Login() {
         const res = await pollTelegram(session.current)
         if (!alive) return
         if (res.status === 'verified') {
-          flash('Вы вошли — номер подтверждён')
+          flash(t('login.doneVerified'))
           goBack(router)
           return
         }
         if (res.status === 'failed' || res.status === 'expired') {
-          flash('Сессия истекла — попробуйте ещё раз')
+          flash(t('login.expired'))
           setStep('phone')
           return
         }
@@ -165,7 +167,7 @@ export default function Login() {
         // verifies without handing back a token never will, so surface that
         // instead of spinning until the countdown runs out.
         const msg = (e as Error)?.message ?? ''
-        if (msg.includes('токен')) {
+        if (msg === t('login.errNoToken')) {
           flash(msg)
           setStep('phone')
         }
@@ -204,13 +206,13 @@ export default function Login() {
           <View style={styles.center}>
             <Wordmark size={17} />
             <T style={[disp(36, 0.98, { ls: -0.035 }), { marginTop: 22, marginBottom: 8 }]}>
-              Вход в аккаунт
+              {t('login.title')}
             </T>
             <T style={[body(15, 1.6, { color: C.i55 }), { marginBottom: 28 }]}>
-              Войдите, чтобы отслеживать заказы
+              {t('login.subtitle')}
             </T>
 
-            <T style={[labelType(10.5, { color: C.i70 }), { marginBottom: 8 }]}>Номер телефона</T>
+            <T style={[labelType(10.5, { color: C.i70 }), { marginBottom: 8 }]}>{t('login.phone')}</T>
             <View style={styles.phoneField}>
               <View style={styles.prefix}>
                 <T style={{ fontFamily: 'IBMPlexMono_500Medium', fontSize: 16, color: C.ink }}>
@@ -232,16 +234,16 @@ export default function Login() {
             <Tap haptic style={styles.tgBtn} onPress={busy ? undefined : start}>
               <Telegram />
               <T style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13.1, color: C.white, letterSpacing: 0.5 }}>
-                {busy ? 'Открываем Telegram…' : 'Продолжить через Telegram'}
+                {busy ? t('login.tgOpening') : t('login.tgContinue')}
               </T>
             </Tap>
             <T style={[body(11.8, 1.5, { color: C.i38, align: 'center' }), { marginTop: 10 }]}>
-              Подтвердим ваш номер через Telegram — быстро и без пароля.
+              {t('login.tgHint')}
             </T>
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <T style={body(11.5, 1, { ls: 0.06, color: C.i38 })}>или</T>
+              <T style={body(11.5, 1, { ls: 0.06, color: C.i38 })}>{t('login.or')}</T>
               <View style={styles.dividerLine} />
             </View>
 
@@ -273,12 +275,12 @@ export default function Login() {
             ) : (
               <Tap haptic style={styles.moreRow} onPress={() => setMore(true)} hitSlop={6}>
                 <DotsIcon color={C.i55} />
-                <T style={body(12.5, 1, { color: C.i55 })}>Другие способы входа</T>
+                <T style={body(12.5, 1, { color: C.i55 })}>{t('login.more')}</T>
               </Tap>
             )}
 
             <T style={[body(12.5, 1.5, { color: C.i55, align: 'center' }), { marginTop: 18 }]}>
-              Нет аккаунта?{' '}
+              {t('login.noAccount')}{' '}
               <T
                 style={{ color: C.deep }}
                 onPress={() => {
@@ -286,7 +288,7 @@ export default function Login() {
                   setStep('email')
                 }}
               >
-                Зарегистрироваться
+                {t('login.register')}
               </T>
             </T>
           </View>
@@ -294,16 +296,14 @@ export default function Login() {
           <View style={styles.center}>
             <Wordmark size={17} />
             <T style={[disp(34, 0.98, { ls: -0.035 }), { marginTop: 22, marginBottom: 8 }]}>
-              {register ? 'Регистрация' : 'Вход по email'}
+              {register ? t('login.registerTitle') : t('login.emailTitle')}
             </T>
             <T style={[body(15, 1.6, { color: C.i55 }), { marginBottom: 24 }]}>
-              {register
-                ? 'Телефон можно подтвердить позже — он нужен только для заказа.'
-                : 'Введите email и пароль от вашего аккаунта LOOM.'}
+              {register ? t('login.registerHint') : t('login.emailHint')}
             </T>
 
             {register ? (
-              <Field label="Имя" value={name} onChange={setName} placeholder="Темурбек" />
+              <Field label={t('login.name')} value={name} onChange={setName} placeholder={t('login.namePh')} />
             ) : null}
             <Field
               label="Email"
@@ -313,15 +313,15 @@ export default function Login() {
               keyboard="email-address"
             />
             <Field
-              label="Пароль"
+              label={t('login.password')}
               value={password}
               onChange={setPassword}
-              placeholder="Минимум 8 символов"
+              placeholder={t('login.passwordPh')}
               secure
             />
 
             <Button
-              title={register ? 'Создать аккаунт' : 'Войти'}
+              title={register ? t('login.create') : t('common.signIn')}
               variant="ink"
               size={13}
               vPad={16}
@@ -333,23 +333,23 @@ export default function Login() {
               style={[body(12.5, 1.5, { color: C.deep, align: 'center' }), { marginTop: 18 }]}
               onPress={() => setRegister(!register)}
             >
-              {register ? 'У меня уже есть аккаунт' : 'Создать аккаунт'}
+              {register ? t('login.haveAccount') : t('login.create')}
             </T>
             <T
               style={[body(12.5, 1.5, { color: C.i55, align: 'center' }), { marginTop: 14 }]}
               onPress={() => setStep('phone')}
             >
-              ← Войти через Telegram
+              {t('login.backToTelegram')}
             </T>
           </View>
         ) : (
           <View style={[styles.center, { alignItems: 'center' }]}>
             <Spinner />
             <T style={[disp(26, 1.05, { ls: -0.03, align: 'center' }), { marginTop: 24, marginBottom: 10 }]}>
-              Ожидаем подтверждение
+              {t('login.waitTitle')}
             </T>
             <T style={[body(14.5, 1.6, { color: C.i55, align: 'center' }), styles.waitCopy]}>
-              Перейдите в Telegram и нажмите «Поделиться номером телефона».
+              {t('login.waitBody')}
             </T>
 
             <Tap
@@ -359,7 +359,7 @@ export default function Login() {
             >
               <Telegram />
               <T style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13.1, color: C.white, letterSpacing: 0.5 }}>
-                Открыть Telegram бот
+                {t('login.openBot')}
               </T>
             </Tap>
 
@@ -367,7 +367,7 @@ export default function Login() {
               <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
             </View>
             <T style={[mono(10.5, 1.4, { ls: 0.14, upper: true, color: C.i38 }), { marginTop: 8, marginBottom: 26 }]}>
-              {`+998 ${phone} · осталось ${mmss}`}
+              {`+998 ${phone} · ${t('login.left', { time: mmss })}`}
             </T>
 
             <Tap
@@ -378,14 +378,14 @@ export default function Login() {
               style={{ paddingVertical: 12, paddingHorizontal: 8 }}
             >
               <T style={[body(12.5, 1, { color: C.i55 }), { textDecorationLine: 'underline' }]}>
-                Отменить
+                {t('common.cancel')}
               </T>
             </Tap>
           </View>
         )}
 
         <T style={[mono(10.5, 1.6, { ls: 0.06, color: C.i38, align: 'center' })]}>
-          Входя, вы соглашаетесь с условиями LOOM
+          {t('login.terms')}
         </T>
       </ScrollView>
       <Toast message={message} bottom={60} />

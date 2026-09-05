@@ -7,28 +7,29 @@ import { body, disp, mono, monoMed, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
 import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
 import { GARMENT_FLAT } from '../../src/api/catalog'
+import { useT } from '../../src/i18n'
 import { useCart } from '../../src/state/cart'
 
 export default function CartScreen() {
   const router = useRouter()
+  const t = useT()
   const { items, count, total, setQty, remove } = useCart()
+  const sum = t('common.sum')
 
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title="КОРЗИНА" />
+      <AppBar title={t('bar.cart')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <SlashTitle size={34}>Корзина</SlashTitle>
+        <SlashTitle size={34}>{t('cart.title')}</SlashTitle>
         <T style={[mono(11, 1.4, { ls: 0.14, upper: true, color: C.i38 }), { marginTop: 6, marginBottom: 22 }]}>
-          {count ? `${count} поз. · доставка бесплатно` : 'пусто'}
+          {count ? t('cart.count', { n: count }) : t('cart.emptyTag')}
         </T>
 
         {items.length === 0 ? (
           <View>
-            <T style={[disp(26, 1.1, { ls: -0.02, color: C.coral }), styles.empty]}>
-              Пока пусто. Соберите что-нибудь своё.
-            </T>
+            <T style={[disp(26, 1.1, { ls: -0.02, color: C.coral }), styles.empty]}>{t('cart.emptyTitle')}</T>
             <Button
-              title="Открыть студию"
+              title={t('cart.openStudio')}
               variant="ink"
               size={12.5}
               vPad={15}
@@ -66,9 +67,7 @@ export default function CartScreen() {
                         <T style={{ fontFamily: 'Inter_600SemiBold', fontSize: 15, color: C.i70 }}>+</T>
                       </Tap>
                     </View>
-                    <T style={[monoSemi(13, 1), { marginLeft: 'auto' }]}>
-                      {fmt(it.unitPrice * it.quantity)}
-                    </T>
+                    <T style={[monoSemi(13, 1), { marginLeft: 'auto' }]}>{fmt(it.unitPrice * it.quantity)}</T>
                     <Tap style={styles.removeBtn} onPress={() => remove(it.id)} hitSlop={6}>
                       <T style={{ fontSize: 16, lineHeight: 20, color: C.i55 }}>×</T>
                     </Tap>
@@ -78,20 +77,15 @@ export default function CartScreen() {
             ))}
 
             <View style={styles.totals}>
-              <Line label="Товары" value={`${fmt(total)} сум`} />
-              <Line label="Доставка" value="Бесплатно" valueColor={C.green} />
+              <Line label={t('cart.items')} value={`${fmt(total)} ${sum}`} />
+              <Line label={t('cart.delivery')} value={t('cart.deliveryFree')} valueColor={C.green} />
               <View style={styles.grandRow}>
-                <T style={disp(15, 1)}>Итого</T>
-                <T style={disp(24, 1, { ls: -0.03 })}>{fmt(total)} сум</T>
+                <T style={disp(15, 1)}>{t('cart.total')}</T>
+                <T style={disp(24, 1, { ls: -0.03 })}>{`${fmt(total)} ${sum}`}</T>
               </View>
             </View>
 
-            <Button
-              title="Оформить заказ"
-              style={{ marginTop: 16 }}
-              vPad={17}
-              onPress={() => router.push('/checkout')}
-            />
+            <Button title={t('cart.checkout')} style={{ marginTop: 16 }} vPad={17} onPress={() => router.push('/checkout')} />
           </>
         )}
       </ScrollView>

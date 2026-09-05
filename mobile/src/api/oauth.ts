@@ -2,6 +2,7 @@ import { Platform as RNPlatform } from 'react-native'
 import * as AuthSession from 'expo-auth-session'
 import { api, API_BASE } from './client'
 import type { Me } from './types'
+import { tStatic } from '../i18n'
 
 // Social sign-in, PKCE half.
 //
@@ -122,7 +123,7 @@ export async function signInWithProvider(
   if (result.type === 'cancel' || result.type === 'dismiss') throw new OAuthCancelled()
   if (result.type !== 'success' || !result.params.code) {
     const desc = result.type === 'error' ? result.params?.error_description : null
-    throw new Error(desc || 'Не удалось войти через этот сервис')
+    throw new Error(desc || tStatic('login.errProviderFailed'))
   }
 
   return api<{ token: string; user: Me }>(`/api/auth/oauth/${provider}`, {

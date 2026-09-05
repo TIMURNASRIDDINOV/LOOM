@@ -6,6 +6,7 @@ import { body, mono } from '../theme/type'
 import { DEFAULT_MODEL_URL, buildSceneHtml } from '../lib/scene-html'
 import type { Model3DProps } from './Model3D'
 import { T } from './ui'
+import { useT } from '../i18n'
 
 // Web build of the 3D preview: react-native-webview has no browser
 // implementation, so the same scene page runs in an <iframe> and talks over
@@ -14,6 +15,7 @@ import { T } from './ui'
 
 export function Model3D({ glbUrl, design, view, onReady }: Model3DProps) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const t = useT()
   const [pct, setPct] = useState(0)
   const [printable, setPrintable] = useState(true)
   const frame = useRef<HTMLIFrameElement>(null)
@@ -71,18 +73,18 @@ export function Model3D({ glbUrl, design, view, onReady }: Model3DProps) {
         <View style={styles.overlay} pointerEvents="none">
           <ActivityIndicator color={C.coral} />
           <T style={[mono(9.5, 1.4, { ls: 0.16, upper: true, color: C.i38 }), { marginTop: 10 }]}>
-            {pct > 0 && pct < 100 ? `Загружаем 3D · ${pct}%` : 'Загружаем 3D'}
+            {pct > 0 && pct < 100 ? t('st.loading3dPct', { pct }) : t('st.loading3d')}
           </T>
         </View>
       ) : null}
       {status === 'error' ? (
         <View style={styles.overlay} pointerEvents="none">
-          <T style={body(12.5, 1.6, { color: C.i55, align: 'center' })}>3D недоступно. Проверьте соединение.</T>
+          <T style={body(12.5, 1.6, { color: C.i55, align: 'center' })}>{t('st.err3d')}</T>
         </View>
       ) : null}
       {status === 'ready' && !printable ? (
         <View style={styles.note} pointerEvents="none">
-          <T style={mono(8.5, 1.3, { ls: 0.14, upper: true, color: C.i55 })}>принт на этой 3D-модели скоро</T>
+          <T style={mono(8.5, 1.3, { ls: 0.14, upper: true, color: C.i55 })}>{t('st.noPrint3d')}</T>
         </View>
       ) : null}
     </View>

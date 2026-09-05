@@ -12,6 +12,7 @@ import { useStudio, type ArtLayer, type TextLayer } from '../state/studio'
 import { ArtPattern } from './ArtPattern'
 import { Model3D } from './Model3D'
 import { T, Tap } from './ui'
+import { useT } from '../i18n'
 
 // The flat stage. The print rect is 46% of the garment's width, starting 30%
 // down (from the prototype), and its aspect is the real platen — 30 × 40 cm —
@@ -34,6 +35,7 @@ export function Stage({
   glbUrl?: string | null
 }) {
   const st = useStudio()
+  const t = useT()
   const { s, active, face, surface, artSelected, textSelected } = st
 
   if (surface === '3d') {
@@ -59,7 +61,7 @@ export function Stage({
         onMoveArt={(dx, dy) => st.updateArt({ offset: { x: (active.art?.offset.x ?? 0) + dx, y: (active.art?.offset.y ?? 0) + dy } })}
         onMoveText={(dx, dy) => st.setText({ offset: { x: (active.text?.offset.x ?? 0) + dx, y: (active.text?.offset.y ?? 0) + dy } })}
         onEmptyTap={() => st.pickTool('image')}
-        faceLabel={face === 'front' ? 'перед' : 'зад'}
+        faceLabel={face === 'front' ? t('st.frontLower') : t('st.backLower')}
       />
     </View>
   )
@@ -123,6 +125,7 @@ function Flat({
   onEmptyTap: () => void
   faceLabel: string
 }) {
+  const t = useT()
   const [W, setW] = useState(0)
   const onLayout = useCallback((e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width), [])
 
@@ -170,7 +173,7 @@ function Flat({
           {/* Print boundary */}
           <View pointerEvents="none" style={[styles.printRect, { left: rect.x, top: rect.y, width: rect.w, height: rect.h }]}>
             <T style={[mono(7.5, 1, { ls: 0.16, upper: true, color: C.i38 }), styles.printLabel]}>
-              {`печать ${PLATEN_CM.w}×${PLATEN_CM.h} см · ${faceLabel}`}
+              {t('st.print', { w: PLATEN_CM.w, h: PLATEN_CM.h, face: faceLabel })}
             </T>
           </View>
 
@@ -248,7 +251,7 @@ function Flat({
               <View style={styles.plus}>
                 <T style={{ fontSize: 20, lineHeight: 24, color: C.i55 }}>+</T>
               </View>
-              <T style={[mono(9.5, 1.3, { ls: 0.12, upper: true, color: C.i55, align: 'center' })]}>Добавить дизайн</T>
+              <T style={[mono(9.5, 1.3, { ls: 0.12, upper: true, color: C.i55, align: 'center' })]}>{t('st.addDesign')}</T>
             </Tap>
           ) : null}
         </>

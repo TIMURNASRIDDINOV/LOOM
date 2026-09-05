@@ -16,11 +16,13 @@ import {
   useAsync,
   useRefreshOnFocus,
 } from '../../src/api/catalog'
+import { colorName, productName, useI18n } from '../../src/i18n'
 import { useStudio } from '../../src/state/studio'
 import { ONBOARD_KEY } from '../onboarding'
 
 export default function Home() {
   const router = useRouter()
+  const { t, lang } = useI18n()
   const { s, layerCount } = useStudio()
   const { data: products } = useAsync(fetchProducts, [])
   const { data: artworks, reload: reloadArtworks } = useAsync(fetchArtworks, [])
@@ -36,17 +38,20 @@ export default function Home() {
   }, [router])
 
   const custom = (products ?? []).filter((p) => p.product_type !== 'ready').slice(0, 4)
-  const resumeMeta = `${layerCount ? `${layerCount} ${layerCount === 1 ? 'слой' : 'слоя'}` : 'чистый холст'} · ${s.colorName} · ${s.size}`
+  const layers = layerCount
+    ? t(layerCount === 1 ? 'home.layer1' : 'home.layerN', { n: layerCount })
+    : t('home.blank')
+  const resumeMeta = `${layers} · ${colorName(s.color, t)} · ${s.size}`
 
   return (
     <View style={{ flex: 1 }}>
       <AppBar title="LOOM" />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <T style={kicker()}>Ташкент · доставка 2–4 дня</T>
+          <T style={kicker()}>{t('home.kicker')}</T>
           <T style={[disp(38, 0.96, { ls: -0.035 }), { marginTop: 12 }]}>
-            Носи <T style={{ color: C.coral }}>/</T>
-            {'\n'}то, что ты{'\n'}придумал.
+            {t('home.hero1')} <T style={{ color: C.coral }}>/</T>
+            {'\n'}{t('home.hero2')}{'\n'}{t('home.hero3')}
           </T>
         </View>
 
@@ -58,9 +63,9 @@ export default function Home() {
                 <Image source={GARMENT_FLAT} style={styles.resumeImg} resizeMode="contain" />
               </View>
               <View style={styles.resumeBody}>
-                <T style={monoSemi(9.5, 1, { ls: 0.2, upper: true, color: C.coral })}>Продолжить</T>
+                <T style={monoSemi(9.5, 1, { ls: 0.2, upper: true, color: C.coral })}>{t('home.resume')}</T>
                 <T style={disp(17, 1.1, { ls: -0.02 })} numberOfLines={1}>
-                  {s.productName}
+                  {s.productName || t('st.defaultProduct')}
                 </T>
                 <T style={mono(11, 1.4, { color: C.i55 })} numberOfLines={1}>
                   {resumeMeta}
@@ -74,12 +79,8 @@ export default function Home() {
         </View>
 
         <View style={{ paddingBottom: 24 }}>
-          <SectionHead title="Начать с" action="Каталог →" onAction={() => router.push('/catalog')} />
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.rail}
-          >
+          <SectionHead title={t('home.startWith')} action={t('home.catalogLink')} onAction={() => router.push('/catalog')} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
             {custom.map((p) => (
               <Tap key={p.id} style={styles.railCard} onPress={() => router.push(`/studio?productId=${p.id}`)}>
                 <View style={styles.railImgWrap}>
@@ -87,7 +88,7 @@ export default function Home() {
                 </View>
                 <View style={{ paddingHorizontal: 9, paddingVertical: 8 }}>
                   <T style={disp(13, 1.15)} numberOfLines={1}>
-                    {p.name_ru}
+                    {productName(p, lang)}
                   </T>
                   <T style={[mono(10, 1.2, { color: C.i55 }), { marginTop: 2 }]}>{fmt(p.price)}</T>
                 </View>
@@ -99,15 +100,11 @@ export default function Home() {
           </ScrollView>
         </View>
 
-        <Marquee />
+        <Marquee a={t('home.marqueeA')} b={t('home.marqueeB')} />
 
         <View style={{ paddingTop: 24 }}>
-          <SectionHead title="От дизайнеров" action="Все →" onAction={() => router.push('/market')} />
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.rail}
-          >
+          <SectionHead title={t('home.fromDesigners')} action={t('home.all')} onAction={() => router.push('/market')} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
             {(artworks ?? []).slice(0, 6).map((a) => (
               <Tap key={a.id} style={styles.artCard} onPress={() => router.push('/market')}>
                 <Image source={{ uri: a.image_url }} style={styles.artSwatch} resizeMode="cover" />
@@ -123,9 +120,7 @@ export default function Home() {
             ))}
             {(artworks ?? []).length === 0 ? (
               <View style={styles.artEmpty}>
-                <T style={mono(9.5, 1.5, { ls: 0.14, upper: true, color: C.i38 })}>
-                  Скоро здесь появятся работы дизайнеров
-                </T>
+                <T style={mono(9.5, 1.5, { ls: 0.14, upper: true, color: C.i38 })}>{t('home.noArtworks')}</T>
               </View>
             ) : null}
           </ScrollView>
@@ -133,15 +128,10 @@ export default function Home() {
 
         {/* Designer pitch — reversed out on ink, the design's one dark block. */}
         <View style={styles.pitch}>
-          <T style={disp(29, 0.98, { ls: -0.035, color: C.paper })}>
-            Рисуешь?{'\n'}Продавай здесь.
-          </T>
-          <T style={[body(13.5, 1.6, { color: C.onInk55 }), { marginTop: 12, marginBottom: 20 }]}>
-            Загрузите работу — её смогут напечатать на любой вещи. Вы получаете процент с каждой
-            продажи.
-          </T>
+          <T style={disp(29, 0.98, { ls: -0.035, color: C.paper })}>{t('home.pitchTitle')}</T>
+          <T style={[body(13.5, 1.6, { color: C.onInk55 }), { marginTop: 12, marginBottom: 20 }]}>{t('home.pitchBody')}</T>
           <Button
-            title="Опубликовать работу →"
+            title={t('home.pitchCta')}
             variant="ghostInk"
             size={12.5}
             vPad={15}
@@ -155,18 +145,13 @@ export default function Home() {
 }
 
 /** The looping wordmark strip. Two identical halves, translated by half width. */
-function Marquee() {
+function Marquee({ a, b }: { a: string; b: string }) {
   const x = useRef(new Animated.Value(0)).current
   const HALF = 980
 
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.timing(x, {
-        toValue: -HALF,
-        duration: 24000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
+      Animated.timing(x, { toValue: -HALF, duration: 24000, easing: Easing.linear, useNativeDriver: true }),
     )
     loop.start()
     return () => loop.stop()
@@ -185,8 +170,8 @@ function Marquee() {
       <Animated.View style={[styles.marqueeTrack, { transform: [{ translateX: x }] }]}>
         {['a', 'b'].map((half) => (
           <View key={half} style={{ flexDirection: 'row', width: HALF }}>
-            {unit(`${half}1`, 'Носи то, что ты придумал', 'LOOM © 2026')}
-            {unit(`${half}2`, 'Создано, чтобы носить', 'Tashkent, UZ')}
+            {unit(`${half}1`, a, 'LOOM © 2026')}
+            {unit(`${half}2`, b, 'Tashkent, UZ')}
           </View>
         ))}
       </Animated.View>
@@ -221,20 +206,10 @@ const styles = StyleSheet.create({
   rail: { paddingHorizontal: 18, paddingBottom: 4, gap: 11 },
   railCard: { width: 124, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white },
   railSkeleton: { height: 200, backgroundColor: 'rgba(19,19,17,.04)' },
-  railImgWrap: {
-    aspectRatio: 4 / 5,
-    overflow: 'hidden',
-    borderBottomWidth: RULE,
-    borderBottomColor: C.ink,
-  },
+  railImgWrap: { aspectRatio: 4 / 5, overflow: 'hidden', borderBottomWidth: RULE, borderBottomColor: C.ink },
 
   artCard: { width: 150, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white },
-  artSwatch: {
-    width: '100%',
-    aspectRatio: 1,
-    borderBottomWidth: RULE,
-    borderBottomColor: C.ink,
-  },
+  artSwatch: { width: '100%', aspectRatio: 1, borderBottomWidth: RULE, borderBottomColor: C.ink },
   artEmpty: {
     width: 240,
     paddingVertical: 26,

@@ -9,18 +9,26 @@ import { body, disp, mono, monoSemi } from '../src/theme/type'
 import { Hatch } from '../src/components/ArtPattern'
 import { Button, T, Tap, Wordmark } from '../src/components/ui'
 import { GARMENT_FLAT } from '../src/api/catalog'
-import { ONBOARDING } from '../src/api/market'
+import { useT, type TFn } from '../src/i18n'
+import type { StringKey } from '../src/i18n/strings'
 
 export const ONBOARD_KEY = 'loom_onboarded_v1'
 
 const HOODIE = require('../assets/products/hoodie_regular_white_002.jpg')
 
+const SLIDES: { title: StringKey; body: StringKey }[] = [
+  { title: 'onb.1.title', body: 'onb.1.body' },
+  { title: 'onb.2.title', body: 'onb.2.body' },
+  { title: 'onb.3.title', body: 'onb.3.body' },
+]
+
 export default function Onboarding() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const t = useT()
   const [i, setI] = useState(0)
-  const slide = ONBOARDING[i]
-  const last = i === ONBOARDING.length - 1
+  const slide = SLIDES[i]
+  const last = i === SLIDES.length - 1
 
   const finish = async (target: '/login' | '/') => {
     await AsyncStorage.setItem(ONBOARD_KEY, '1').catch(() => {})
@@ -35,27 +43,27 @@ export default function Onboarding() {
       <View style={styles.top}>
         <Wordmark size={16.8} />
         <Tap onPress={() => finish('/')} hitSlop={10} style={{ paddingVertical: 12 }}>
-          <T style={mono(11, 1, { ls: 0.18, upper: true, color: C.i38 })}>Пропустить</T>
+          <T style={mono(11, 1, { ls: 0.18, upper: true, color: C.i38 })}>{t('onb.skip')}</T>
         </Tap>
       </View>
 
       <View style={styles.middle}>
         <Hatch style={styles.artFrame}>
-          {i === 0 ? <ArtStudio /> : i === 1 ? <ArtPreview /> : <ArtDelivery />}
+          {i === 0 ? <ArtStudio t={t} /> : i === 1 ? <ArtPreview /> : <ArtDelivery t={t} />}
         </Hatch>
 
         <View>
           <T style={[monoSemi(11, 1.4, { ls: 0.26, upper: true, color: C.deep }), { marginBottom: 14 }]}>
-            {slide.kicker}
+            {t('onb.step', { n: `0${i + 1}` })}
           </T>
-          <T style={[disp(38, 0.98, { ls: -0.035 }), { marginBottom: 14 }]}>{slide.title}</T>
-          <T style={body(15, 1.6, { color: C.i55 })}>{slide.body}</T>
+          <T style={[disp(38, 0.98, { ls: -0.035 }), { marginBottom: 14 }]}>{t(slide.title)}</T>
+          <T style={body(15, 1.6, { color: C.i55 })}>{t(slide.body)}</T>
         </View>
       </View>
 
       <View style={styles.bottom}>
         <View style={styles.dots}>
-          {ONBOARDING.map((_, n) => (
+          {SLIDES.map((_, n) => (
             <View
               key={n}
               style={{
@@ -67,7 +75,7 @@ export default function Onboarding() {
           ))}
         </View>
         <Button
-          title={last ? 'Начать' : 'Далее'}
+          title={last ? t('onb.start') : t('onb.next')}
           variant="ink"
           size={12.5}
           vPad={16}
@@ -84,7 +92,7 @@ export default function Onboarding() {
 // system's blocks) so the intro shows the real product, not a placeholder.
 
 /** Slide 1: the flat garment with a text layer and the print boundary. */
-function ArtStudio() {
+function ArtStudio({ t }: { t: TFn }) {
   return (
     <View style={styles.fill}>
       <Image source={GARMENT_FLAT} style={styles.fill} resizeMode="contain" />
@@ -96,7 +104,7 @@ function ArtStudio() {
         <View style={styles.sampleBar} />
       </View>
       <View style={[styles.chip, { left: 14, bottom: 14 }]}>
-        <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.ink })}>текст · графика · цвет</T>
+        <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.ink })}>{t('onb.chipTools')}</T>
       </View>
     </View>
   )
@@ -123,7 +131,7 @@ function ArtPreview() {
 }
 
 /** Slide 3: the delivery map — a street grid with the coral pin. */
-function ArtDelivery() {
+function ArtDelivery({ t }: { t: TFn }) {
   const rows = [0, 1, 2, 3, 4, 5, 6]
   return (
     <View style={[styles.fill, { backgroundColor: '#ebe8e1', overflow: 'hidden' }]}>
@@ -137,10 +145,10 @@ function ArtDelivery() {
       <View style={styles.pinShadow} />
       <View style={styles.pin} />
       <View style={[styles.chip, { right: 14, bottom: 14 }]}>
-        <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.ink })}>Ташкент · 2–4 дня</T>
+        <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.ink })}>{t('onb.chipDelivery')}</T>
       </View>
       <View style={[styles.chip, { left: 14, top: 14, backgroundColor: C.telegram, borderColor: C.telegram }]}>
-        <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.white })}>вход через Telegram</T>
+        <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.white })}>{t('onb.chipTelegram')}</T>
       </View>
     </View>
   )

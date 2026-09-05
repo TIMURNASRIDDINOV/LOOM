@@ -1,5 +1,6 @@
 import type { StudioState } from '../state/studio'
 import { LEGACY_PRINT_AREA, PLATEN_CM, REF_RECT, TEX_SIZE, deg2rad, normalised } from '../lib/print'
+import { colorName, tStatic, type TFn } from '../i18n'
 
 // The admin order view and the print-master pipeline read `design_json` v2
 // (see `configurator.js:_buildDesignJson` and `admin/assets/order-detail.js`).
@@ -78,17 +79,8 @@ export function designMissingUploads(s: StudioState): boolean {
   return [s.front.art, s.back.art].some((a) => a && a.uri && !a.uploadKey && !a.pattern)
 }
 
-const COLOR_NAMES: Record<string, string> = {
-  '#FFFFFF': 'Белый',
-  '#1C1C1C': 'Чёрный',
-  '#E2D9CC': 'Песочный',
-  '#9BA3AF': 'Серый',
-  '#2B3E5E': 'Тёмно-синий',
-  '#4D6642': 'Хаки',
-}
-
 /** The one-line summary shown on cart rows and order cards. */
-export function summarizeDesign(designJson: string): string {
+export function summarizeDesign(designJson: string, t: TFn = tStatic): string {
   let d: Record<string, unknown> = {}
   try {
     d = JSON.parse(designJson || '{}')
@@ -96,16 +88,14 @@ export function summarizeDesign(designJson: string): string {
     return ''
   }
   const bits: string[] = []
-  if (typeof d.shirtColor === 'string') {
-    bits.push(COLOR_NAMES[d.shirtColor.toUpperCase()] ?? d.shirtColor)
-  }
+  if (typeof d.shirtColor === 'string') bits.push(colorName(d.shirtColor, t))
   if (typeof d.size === 'string') bits.push(d.size)
   if (d.plain) {
-    bits.push('Без принта')
+    bits.push(t('common.noPrint'))
     return bits.join(' · ')
   }
   if (d.multi) {
-    bits.push(`${d.itemCount ?? ''} позиции`.trim())
+    bits.push(t('common.itemsN', { n: String(d.itemCount ?? '') }).trim())
     return bits.join(' · ')
   }
   const front = d.front as { elements?: Element[] } | undefined

@@ -49,7 +49,8 @@
         {
           "photosPermission": "LOOM использует доступ к фото, чтобы вы могли загрузить свою графику для печати."
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "extra": {
       "apiBase": "https://api.loomdesign.uz",

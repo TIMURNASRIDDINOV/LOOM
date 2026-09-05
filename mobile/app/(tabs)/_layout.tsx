@@ -10,23 +10,26 @@ import { C, RULE, offset } from '../../src/theme/tokens'
 import { dispExtra, monoSemi } from '../../src/theme/type'
 import { BoxIcon, GridIcon, HomeIcon, UserIcon } from '../../src/components/icons'
 import { T, Tap, Toast } from '../../src/components/ui'
+import { useT } from '../../src/i18n'
+import type { StringKey } from '../../src/i18n/strings'
 import { useToast } from '../../src/state/toast'
 
 // Four labelled tabs with the coral "/" studio button lifted out of the middle.
 // The studio is a full-screen route rather than a tab — it owns the whole
 // device and has no bottom bar of its own.
-type TabDef = { name: string; label: string; Icon: React.ComponentType<{ size?: number; color?: string }> }
+type TabDef = { name: string; label: StringKey; Icon: React.ComponentType<{ size?: number; color?: string }> }
 
 const TABS: TabDef[] = [
-  { name: 'index', label: 'Главная', Icon: HomeIcon },
-  { name: 'catalog', label: 'Каталог', Icon: GridIcon },
-  { name: 'orders', label: 'Заказы', Icon: BoxIcon },
-  { name: 'account', label: 'Профиль', Icon: UserIcon },
+  { name: 'index', label: 'tab.home', Icon: HomeIcon },
+  { name: 'catalog', label: 'tab.catalog', Icon: GridIcon },
+  { name: 'orders', label: 'tab.orders', Icon: BoxIcon },
+  { name: 'account', label: 'tab.account', Icon: UserIcon },
 ]
 
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  const t = useT()
   const visible = state.routes
     .map((r, i) => ({ route: r, index: i }))
     .filter(({ route }) => TABS.some((t) => t.name === route.name))
@@ -60,7 +63,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
             color: focused ? C.ink : 'rgba(19,19,17,.5)',
           })}
         >
-          {tab.label}
+          {t(tab.label)}
         </T>
       </Tap>
     )
@@ -95,10 +98,10 @@ export default function TabsLayout() {
           sceneStyle: { backgroundColor: C.paper },
         }}
       >
-        <Tabs.Screen name="index" options={{ title: 'Главная' }} />
-        <Tabs.Screen name="catalog" options={{ title: 'Каталог' }} />
-        <Tabs.Screen name="orders" options={{ title: 'Заказы' }} />
-        <Tabs.Screen name="account" options={{ title: 'Профиль' }} />
+        <Tabs.Screen name="index" />
+        <Tabs.Screen name="catalog" />
+        <Tabs.Screen name="orders" />
+        <Tabs.Screen name="account" />
         {/* Reached from the bar and from links, not from the tab strip. */}
         <Tabs.Screen name="cart" options={{ href: null }} />
         <Tabs.Screen name="checkout" options={{ href: null }} />

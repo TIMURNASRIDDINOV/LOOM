@@ -5,6 +5,7 @@ import { C, RULE } from '../theme/tokens'
 import { mono } from '../theme/type'
 import { buildMapHtml, type Pin } from './map-html'
 import { T } from './ui'
+import { useT } from '../i18n'
 
 // Web build of the delivery-pin picker: the Leaflet page runs in an <iframe>
 // (react-native-webview has no browser implementation).
@@ -21,6 +22,7 @@ export function MapPicker({
   height?: number
 }) {
   const [ready, setReady] = useState(false)
+  const t = useT()
   const frame = useRef<HTMLIFrameElement>(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const html = useMemo(() => buildMapHtml(value), [])
@@ -59,7 +61,7 @@ export function MapPicker({
       ) : null}
       <View style={styles.hint} pointerEvents="none">
         <T style={mono(8.5, 1.3, { ls: 0.12, upper: true, color: C.i55 })}>
-          Нажмите на карту или перетащите метку
+          {t('map.hint')}
         </T>
       </View>
     </View>

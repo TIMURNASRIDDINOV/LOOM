@@ -9,18 +9,20 @@ import { ChevronLeft } from '../../src/components/icons'
 import { Button, T, Tap } from '../../src/components/ui'
 import { fetchDesigner, useAsync } from '../../src/api/catalog'
 import type { Artwork } from '../../src/api/types'
+import { useT } from '../../src/i18n'
+import { goBack } from '../../src/lib/nav'
 import { useStudio } from '../../src/state/studio'
 import { useToast } from '../../src/state/toast'
-import { goBack } from '../../src/lib/nav'
 
 /** A designer's public page — bio, sales, and every approved work. */
 export default function DesignerScreen() {
   const router = useRouter()
+  const t = useT()
   const { handle } = useLocalSearchParams<{ handle?: string }>()
   const { setArt } = useStudio()
   const { flash } = useToast()
   const { data, loading, error, reload } = useAsync(
-    () => (handle ? fetchDesigner(handle) : Promise.reject(new Error('Дизайнер не указан'))),
+    () => (handle ? fetchDesigner(handle) : Promise.reject(new Error(t('dz.notGiven')))),
     [handle],
   )
 
@@ -33,7 +35,7 @@ export default function DesignerScreen() {
       price: a.markup,
       author: a.author,
     })
-    flash(a.markup > 0 ? `${a.title} примерена · +${fmt(a.markup)} сум` : `${a.title} примерена`)
+    flash(a.markup > 0 ? t('mk.appliedPlus', { title: a.title, price: fmt(a.markup) }) : t('mk.applied', { title: a.title }))
     router.push('/studio')
   }
 
@@ -41,19 +43,19 @@ export default function DesignerScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title="ДИЗАЙН" />
+      <AppBar title={t('bar.design')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Tap style={styles.back} onPress={() => goBack(router, '/market')}>
           <ChevronLeft size={13} width={2.4} color={C.i55} />
-          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>Назад</T>
+          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>{t('common.back')}</T>
         </Tap>
 
         {loading ? (
           <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
         ) : error || !data ? (
           <View style={{ gap: 16 }}>
-            <T style={body(14, 1.6, { color: C.i55 })}>{error?.message ?? 'Дизайнер не найден'}</T>
-            <Button title="Повторить" variant="ink" size={12.5} vPad={14} onPress={reload} />
+            <T style={body(14, 1.6, { color: C.i55 })}>{error?.message ?? t('dz.notFound')}</T>
+            <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={reload} />
           </View>
         ) : (
           <>
@@ -68,7 +70,7 @@ export default function DesignerScreen() {
                 )}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <T style={kicker(10)}>Дизайнер</T>
+                <T style={kicker(10)}>{t('dz.kicker')}</T>
                 <T style={[disp(24, 1.05, { ls: -0.03 }), { marginTop: 4 }]} numberOfLines={1}>
                   {data.handle}
                 </T>
@@ -83,13 +85,13 @@ export default function DesignerScreen() {
             {data.bio ? <T style={[body(14, 1.6, { color: C.i70 }), { marginBottom: 16 }]}>{data.bio}</T> : null}
 
             <View style={styles.stats}>
-              <Stat label="Работ" value={String(data.works.length)} />
-              <Stat label="Продано" value={String(data.units_sold)} />
-              <Stat label="На LOOM с" value={since ? String(since) : '—'} />
+              <Stat label={t('dz.works')} value={String(data.works.length)} />
+              <Stat label={t('dz.sold')} value={String(data.units_sold)} />
+              <Stat label={t('dz.since')} value={since ? String(since) : '—'} />
             </View>
 
             {data.works.length === 0 ? (
-              <T style={body(13.5, 1.6, { color: C.i55 })}>Опубликованных работ пока нет.</T>
+              <T style={body(13.5, 1.6, { color: C.i55 })}>{t('dz.noWorks')}</T>
             ) : (
               <View style={styles.grid}>
                 {data.works.map((a) => (
@@ -101,7 +103,7 @@ export default function DesignerScreen() {
                       </T>
                       <View style={[styles.priceChip, { marginTop: 7 }]}>
                         <T style={{ ...monoSemi(10, 1, { ls: 0.08, color: C.white }) }}>
-                          {a.markup > 0 ? `+${fmt(a.markup)} сум` : 'бесплатно'}
+                          {a.markup > 0 ? t('mk.plus', { price: fmt(a.markup) }) : t('common.free')}
                         </T>
                       </View>
                     </View>

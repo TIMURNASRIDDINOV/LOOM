@@ -57,8 +57,8 @@ export type StudioState = {
   productId: number | null
   productName: string
   basePrice: number
+  /** Garment hex; the display name comes from `colorName()` in src/i18n. */
   color: string
-  colorName: string
   size: Size
   front: FaceState
   back: FaceState
@@ -71,10 +71,9 @@ const emptyFace = (): FaceState => ({ art: null, text: null })
 
 const initial: StudioState = {
   productId: null,
-  productName: 'Классическая футболка',
+  productName: '',
   basePrice: 150000,
   color: '#FFFFFF',
-  colorName: 'Белый',
   size: 'L',
   front: emptyFace(),
   back: emptyFace(),
@@ -106,7 +105,7 @@ type StudioCtx = {
   selectText: (v: boolean) => void
 
   loadProduct: (p: { id: number; name: string; price: number }) => void
-  setColor: (hex: string, name: string) => void
+  setColor: (hex: string) => void
   setSize: (z: Size) => void
 
   setArt: (a: Omit<ArtLayer, 'sizePct' | 'rotation' | 'offset' | 'id'> & Partial<ArtLayer>) => void
@@ -138,9 +137,10 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.getItem(STORE_KEY)
       .then((raw) => {
         if (!raw) return
-        const saved = JSON.parse(raw) as Partial<StudioState>
+        const saved = JSON.parse(raw) as Partial<StudioState> & { colorName?: string }
         // Only trust the shape we wrote; anything odd falls back to defaults.
         if (saved && typeof saved === 'object' && saved.front && saved.back) {
+          delete saved.colorName // pre-i18n builds stored the Russian name
           setS({ ...initial, ...saved })
         }
       })
@@ -262,7 +262,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
           ? prev
           : { ...prev, productId: p.id, productName: p.name, basePrice: p.price },
       ),
-    setColor: (hex, name) => setS((prev) => ({ ...prev, color: hex, colorName: name })),
+    setColor: (hex) => setS((prev) => ({ ...prev, color: hex })),
     setSize: (z) => setS((prev) => ({ ...prev, size: z })),
 
     setArt,

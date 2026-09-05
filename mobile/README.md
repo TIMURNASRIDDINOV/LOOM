@@ -144,9 +144,18 @@ everything else is a hairline.
 `src/theme/type.ts` mirrors the prototype's CSS `font:` shorthands, so any type
 value can be traced back to the design.
 
+## Languages
+
+Russian, Uzbek and English, matching the storefront. `src/i18n/strings.ts`
+holds every user-facing string (Russian is the typed source of truth, so a
+missing Uzbek or English key fails `tsc`); `src/i18n/index.tsx` provides
+`useT()` / `useI18n()`, persists the choice, and defaults to the phone's
+language on first launch. The switcher lives in Профиль. Product names come
+from the API: `name_en` is used in English when it exists, otherwise `name_ru`.
+Server-side messages (validation errors, Telegram notices) are still Russian.
+
 ## Not yet done
 
-- The app is Russian only; the web is trilingual via `assets/i18n.js`.
 - Online payment buttons appear automatically once Payme/Click merchant secrets
   are set on the Worker; until then checkout offers cash on delivery.
 - Facebook sign-in is registered but blocked on Meta App Review (see

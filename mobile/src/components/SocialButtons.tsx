@@ -4,6 +4,8 @@ import { C, RULE } from '../theme/tokens'
 import { mono } from '../theme/type'
 import { Discord, Facebook, Google, Mail, Telegram } from './icons'
 import { T, Tap } from './ui'
+import { useT } from '../i18n'
+import type { StringKey } from '../i18n/strings'
 
 // One row shape for every sign-in provider: a glyph, a label, and an optional
 // «скоро» tail when the Worker has no credentials for it yet. Google and
@@ -19,12 +21,12 @@ const GLYPH: Record<SocialKind, React.ReactNode> = {
   email: <Mail />,
 }
 
-const LABEL: Record<SocialKind, string> = {
-  google: 'Продолжить через Google',
-  facebook: 'Продолжить через Facebook',
-  discord: 'Продолжить через Discord',
-  telegram: 'Продолжить через Telegram',
-  email: 'Войти по email',
+const LABEL: Record<SocialKind, StringKey> = {
+  google: 'login.google',
+  facebook: 'login.facebook',
+  discord: 'login.discord',
+  telegram: 'login.tgContinue',
+  email: 'login.email',
 }
 
 export function SocialButton({
@@ -43,6 +45,7 @@ export function SocialButton({
 }) {
   // Telegram keeps its brand fill — it is the primary path for ordering, since
   // only it produces the verified phone the backend requires.
+  const t = useT()
   const brandFilled = kind === 'telegram'
 
   return (
@@ -63,11 +66,11 @@ export function SocialButton({
           color: brandFilled ? C.white : disabled ? C.i38 : C.ink,
         }}
       >
-        {label ?? LABEL[kind]}
+        {label ?? t(LABEL[kind])}
       </T>
       {disabled ? (
         <View style={styles.soon}>
-          <T style={mono(8.5, 1, { ls: 0.14, upper: true, color: C.amber })}>скоро</T>
+          <T style={mono(8.5, 1, { ls: 0.14, upper: true, color: C.amber })}>{t('common.soon')}</T>
         </View>
       ) : null}
     </Tap>

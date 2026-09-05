@@ -56,13 +56,15 @@ export const F = {
   monoBold: 'IBMPlexMono_700Bold',
 } as const
 
-export const COLORS: { hex: string; name: string }[] = [
-  { hex: '#FFFFFF', name: 'Белый' },
-  { hex: '#1c1c1c', name: 'Чёрный' },
-  { hex: '#e2d9cc', name: 'Песочный' },
-  { hex: '#9ba3af', name: 'Серый' },
-  { hex: '#2b3e5e', name: 'Тёмно-синий' },
-  { hex: '#4d6642', name: 'Хаки' },
+// Garment colours. Names live in the i18n dictionary (`colorName()` in
+// src/i18n) so the studio speaks the interface language.
+export const COLORS: { hex: string }[] = [
+  { hex: '#FFFFFF' },
+  { hex: '#1c1c1c' },
+  { hex: '#e2d9cc' },
+  { hex: '#9ba3af' },
+  { hex: '#2b3e5e' },
+  { hex: '#4d6642' },
 ]
 
 export const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'] as const
@@ -70,12 +72,13 @@ export type Size = (typeof SIZES)[number]
 
 export type OrderStatusKey = 'new' | 'confirmed' | 'producing' | 'shipped' | 'delivered'
 
-export const STATUSES: { k: OrderStatusKey; ru: string; c: string }[] = [
-  { k: 'new', ru: 'Новый', c: '#3b82f6' },
-  { k: 'confirmed', ru: 'Подтверждён', c: '#eab308' },
-  { k: 'producing', ru: 'Производство', c: '#f97316' },
-  { k: 'shipped', ru: 'Отправлен', c: '#a855f7' },
-  { k: 'delivered', ru: 'Доставлен', c: '#22c55e' },
+/** The status ladder; labels come from `statusLabel()` in src/i18n. */
+export const STATUSES: { k: OrderStatusKey; c: string }[] = [
+  { k: 'new', c: '#3b82f6' },
+  { k: 'confirmed', c: '#eab308' },
+  { k: 'producing', c: '#f97316' },
+  { k: 'shipped', c: '#a855f7' },
+  { k: 'delivered', c: '#22c55e' },
 ]
 
 export function fmt(n: number): string {

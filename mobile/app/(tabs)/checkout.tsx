@@ -23,6 +23,7 @@ import type { PaymentMethods } from '../../src/api/types'
 import { useAuth } from '../../src/state/auth'
 import { useCart } from '../../src/state/cart'
 import { useToast } from '../../src/state/toast'
+import { useT, type TFn } from '../../src/i18n'
 
 type Placed = { id: number; paymentUrl: string | null; method: PayMethod } | null
 type PayMethod = keyof PaymentMethods
@@ -30,11 +31,13 @@ type PayMethod = keyof PaymentMethods
 // Every method the checkout knows how to present. Which of them are offered is
 // decided by the Worker (`GET /api/payments/methods`) — a provider appears the
 // moment its merchant secrets are set, with no app release.
-const PAY_LABELS: Record<PayMethod, { title: string; sub: string }> = {
-  cod: { title: 'Наличными курьеру', sub: 'или картой при получении' },
-  payme: { title: 'Payme', sub: 'оплата картой онлайн' },
-  click: { title: 'Click', sub: 'оплата картой онлайн' },
-  uzum: { title: 'Uzum Bank', sub: 'оплата картой онлайн' },
+function payLabels(t: TFn): Record<PayMethod, { title: string; sub: string }> {
+  return {
+    cod: { title: t('co.cod'), sub: t('co.codSub') },
+    payme: { title: 'Payme', sub: t('co.onlineSub') },
+    click: { title: 'Click', sub: t('co.onlineSub') },
+    uzum: { title: 'Uzum Bank', sub: t('co.onlineSub') },
+  }
 }
 const PAY_ORDER: PayMethod[] = ['cod', 'payme', 'click', 'uzum']
 
@@ -43,6 +46,8 @@ export default function Checkout() {
   const { user, signedIn, phoneVerified, updateProfile } = useAuth()
   const cart = useCart()
   const { flash } = useToast()
+  const t = useT()
+  const PAY_LABELS = payLabels(t)
   const { data: methods } = useAsync(fetchPaymentMethods, [])
 
   const [step, setStep] = useState(1)
@@ -84,23 +89,23 @@ export default function Checkout() {
 
   const place = async () => {
     if (!signedIn) {
-      flash('Войдите, чтобы оформить заказ')
+      flash(t('co.errSignIn'))
       router.push('/login')
       return
     }
     if (!name.trim() || !phone.trim()) {
       setStep(1)
-      flash('Заполните имя и телефон')
+      flash(t('co.errContacts'))
       return
     }
     if (!street.trim()) {
       setStep(2)
-      flash('Укажите адрес доставки')
+      flash(t('co.errAddress'))
       return
     }
 
     if (!cart.items.length) {
-      flash('Корзина пуста')
+      flash(t('co.errEmpty'))
       router.replace('/cart')
       return
     }
@@ -142,7 +147,7 @@ export default function Checkout() {
     } catch (e) {
       const err = e as ApiError
       if (err.code === 'phone_not_verified' || err.status === 403) {
-        flash('Подтвердите номер через Telegram')
+        flash(t('co.errVerify'))
         router.push('/login')
       } else {
         flash(err.message)
@@ -155,32 +160,32 @@ export default function Checkout() {
   if (placed) {
     return (
       <View style={{ flex: 1 }}>
-        <AppBar title="ЗАКАЗ" />
+        <AppBar title={t('bar.checkout')} />
         <ScrollView contentContainerStyle={styles.page}>
           <SlashTitle size={30} style={{ marginBottom: 20 }}>
-            Оформление
+            {t('co.title')}
           </SlashTitle>
           <Panel raised raisedColor={C.coral} style={{ padding: 20, marginBottom: 18 }}>
             <T style={[monoSemi(10, 1, { ls: 0.22, upper: true, color: C.deep }), { marginBottom: 10 }]}>
-              Заказ принят
+              {t('co.accepted')}
             </T>
             <T style={[disp(30, 1, { ls: -0.03 }), { marginBottom: 6 }]}>{`#LM-${placed.id}`}</T>
             <T style={body(13, 1.6, { color: C.i55 })}>
               {placed.paymentUrl
-                ? `Оплатите заказ в ${PAY_LABELS[placed.method].title} — страница оплаты открылась в браузере. Подтверждение придёт в Telegram.`
-                : 'Подтверждение придёт в Telegram. Отслеживать можно во вкладке «Заказы».'}
+                ? t('co.payBody', { provider: PAY_LABELS[placed.method].title })
+                : t('co.acceptedBody')}
             </T>
           </Panel>
           {placed.paymentUrl ? (
             <Button
-              title={`Оплатить · ${PAY_LABELS[placed.method].title}`}
+              title={t('co.payBtn', { provider: PAY_LABELS[placed.method].title })}
               vPad={16}
               style={{ marginBottom: 10 }}
-              onPress={() => WebBrowser.openBrowserAsync(placed.paymentUrl!).catch(() => flash('Не удалось открыть оплату'))}
+              onPress={() => WebBrowser.openBrowserAsync(placed.paymentUrl!).catch(() => flash(t('co.errPayOpen')))}
             />
           ) : null}
           <Button
-            title="Отслеживать заказ"
+            title={t('co.track')}
             variant="ink"
             size={13}
             vPad={16}
@@ -197,35 +202,35 @@ export default function Checkout() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={80}
     >
-      <AppBar title="ЗАКАЗ" />
+      <AppBar title={t('bar.checkout')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <SlashTitle size={30} style={{ marginBottom: 20 }}>
-          Оформление
+          {t('co.title')}
         </SlashTitle>
 
         <Step
           n={1}
-          title="Контакты"
+          title={t('co.contacts')}
           open={step === 1}
-          summary={`${name || 'Имя'} · ${phone || '+998…'}`}
+          summary={`${name || t('co.summaryName')} · ${phone || '+998…'}`}
           onToggle={() => setStep(step === 1 ? 0 : 1)}
         >
           {phoneVerified ? (
             <View style={styles.verified}>
               <Check size={14} />
-              <T style={monoMed(11.5, 1.3, { color: C.green })}>Номер подтверждён через Telegram</T>
+              <T style={monoMed(11.5, 1.3, { color: C.green })}>{t('co.verified')}</T>
             </View>
           ) : (
             <Tap style={styles.unverified} onPress={() => router.push('/login')}>
               <T style={monoMed(11.5, 1.3, { color: C.amber })}>
-                Номер не подтверждён — войдите через Telegram
+                {t('co.unverified')}
               </T>
               <ChevronRight color={C.amber} />
             </Tap>
           )}
-          <Field label="Имя" value={name} onChange={setName} placeholder="Темурбек" />
+          <Field label={t('co.name')} value={name} onChange={setName} placeholder={t('login.namePh')} />
           <Field
-            label="Телефон"
+            label={t('co.phone')}
             value={phone}
             onChange={setPhone}
             placeholder="+998 90 123-45-67"
@@ -235,9 +240,9 @@ export default function Checkout() {
 
         <Step
           n={2}
-          title="Доставка"
+          title={t('co.delivery')}
           open={step === 2}
-          summary={street || 'Адрес'}
+          summary={street || t('co.summaryAddress')}
           onToggle={() => setStep(step === 2 ? 0 : 2)}
         >
           <MapPicker
@@ -249,28 +254,28 @@ export default function Checkout() {
               if (next.address && !street.trim()) setStreet(next.address)
             }}
           />
-          <Field label="Адрес" value={street} onChange={setStreet} placeholder="Ташкент, ул. Навои 12" />
+          <Field label={t('co.address')} value={street} onChange={setStreet} placeholder={t('co.addressPh')} />
           <View style={styles.grid2}>
             <View style={{ flex: 1 }}>
-              <Field label="Подъезд" value={entrance} onChange={setEntrance} placeholder="2" />
+              <Field label={t('co.entrance')} value={entrance} onChange={setEntrance} placeholder="2" />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="Квартира" value={flat} onChange={setFlat} placeholder="41" />
+              <Field label={t('co.flat')} value={flat} onChange={setFlat} placeholder="41" />
             </View>
           </View>
           <View style={styles.grid2}>
             <View style={{ flex: 1 }}>
-              <Field label="Этаж" value={floor} onChange={setFloor} placeholder="5" />
+              <Field label={t('co.floor')} value={floor} onChange={setFloor} placeholder="5" />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="Домофон" value={intercom} onChange={setIntercom} placeholder="—" />
+              <Field label={t('co.intercom')} value={intercom} onChange={setIntercom} placeholder="—" />
             </View>
           </View>
         </Step>
 
         <Step
           n={3}
-          title="Оплата"
+          title={t('co.payment')}
           open={step === 3}
           summary={PAY_LABELS[payMethod].title}
           onToggle={() => setStep(step === 3 ? 0 : 3)}
@@ -300,7 +305,7 @@ export default function Checkout() {
                   </View>
                   {!live ? (
                     <View style={styles.soon}>
-                      <T style={mono(9, 1, { ls: 0.14, upper: true, color: C.amber })}>скоро</T>
+                      <T style={mono(9, 1, { ls: 0.14, upper: true, color: C.amber })}>{t('common.soon')}</T>
                     </View>
                   ) : null}
                 </Tap>
@@ -312,13 +317,13 @@ export default function Checkout() {
         <View style={styles.totalBar}>
           <View style={styles.totalRow}>
             <T style={monoSemi(9.5, 1.4, { ls: 0.16, upper: true, color: C.i55 })}>
-              Итого · доставка бесплатно
+              {t('co.total')}
             </T>
-            <T style={disp(23, 1, { ls: -0.03 })}>{fmt(cart.total)} сум</T>
+            <T style={disp(23, 1, { ls: -0.03 })}>{fmt(cart.total)} {t('common.sum')}</T>
           </View>
-          <Button title="Оформить заказ" vPad={17} loading={busy} onPress={place} />
+          <Button title={t('co.place')} vPad={17} loading={busy} onPress={place} />
           <T style={[body(10.5, 1.5, { color: C.i38, align: 'center' }), { marginTop: 11 }]}>
-            Оформляя заказ, вы соглашаетесь с условиями доставки
+            {t('co.terms')}
           </T>
         </View>
       </ScrollView>

@@ -9,6 +9,7 @@ import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
 import { fetchProducts, productImage, useAsync } from '../../src/api/catalog'
 import { buildPlainDesignJson } from '../../src/api/design'
 import type { Product } from '../../src/api/types'
+import { productName, useI18n } from '../../src/i18n'
 import { useCart } from '../../src/state/cart'
 import { useToast } from '../../src/state/toast'
 
@@ -22,6 +23,7 @@ const QUICK_SIZES: Size[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 
 export default function Catalog() {
   const [tab, setTab] = useState<Tab>('all')
+  const { t } = useI18n()
   const { data, loading, error, reload } = useAsync(fetchProducts, [])
 
   const products = data ?? []
@@ -30,23 +32,23 @@ export default function Catalog() {
 
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title="КАТАЛОГ" />
+      <AppBar title={t('bar.catalog')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         {/* The web hero, compressed to two lines. */}
         <T style={kicker(10)}>
           {`Apparel · 01—${String(Math.max(products.length, 1)).padStart(2, '0')}`}
         </T>
         <SlashTitle size={30} style={{ marginTop: 6, marginBottom: 4 }}>
-          Каталог
+          {t('catalog.title')}
         </SlashTitle>
         <T style={[body(13, 1.6, { color: C.i55 }), { marginBottom: 18 }]}>
-          Исследуйте нашу коллекцию — настройте дизайн или купите готовое.
+          {t('catalog.subtitle')}
         </T>
 
         <View style={styles.tabs}>
-          <CatTab label="Все" count={products.length} active={tab === 'all'} onPress={() => setTab('all')} flex={1} />
-          <CatTab label="Кастом" count={custom.length} active={tab === 'custom'} onPress={() => setTab('custom')} flex={1.5} />
-          <CatTab label="Готовые" count={ready.length} active={tab === 'ready'} onPress={() => setTab('ready')} flex={1.5} />
+          <CatTab label={t('catalog.all')} count={products.length} active={tab === 'all'} onPress={() => setTab('all')} flex={1} />
+          <CatTab label={t('catalog.custom')} count={custom.length} active={tab === 'custom'} onPress={() => setTab('custom')} flex={1.5} />
+          <CatTab label={t('catalog.ready')} count={ready.length} active={tab === 'ready'} onPress={() => setTab('ready')} flex={1.5} />
         </View>
 
         {loading ? (
@@ -56,21 +58,21 @@ export default function Catalog() {
         ) : error ? (
           <View style={{ paddingVertical: 40, gap: 16 }}>
             <T style={body(14, 1.6, { color: C.i55 })}>{error.message}</T>
-            <Button title="Повторить" variant="ink" size={12.5} vPad={14} onPress={reload} />
+            <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={reload} />
           </View>
         ) : (
           <>
             {tab !== 'ready' ? (
-              <Section title="Кастомизация" note="дизайн в студии" items={custom} />
+              <Section title={t('catalog.customSection')} note={t('catalog.customNote')} items={custom} />
             ) : null}
             {tab !== 'custom' ? (
               <View style={{ marginTop: tab === 'all' ? 26 : 0 }}>
-                <Section title="Готовые дизайны" note="выберите размер" items={ready} />
+                <Section title={t('catalog.readySection')} note={t('catalog.readyNote')} items={ready} />
               </View>
             ) : null}
             {products.length === 0 ? (
               <T style={[body(14, 1.6, { color: C.i55 }), { paddingVertical: 40 }]}>
-                Каталог пока пуст.
+                {t('catalog.empty')}
               </T>
             ) : null}
           </>
@@ -135,6 +137,7 @@ function ProductCard({ product: p }: { product: Product }) {
   const router = useRouter()
   const cart = useCart()
   const { flash } = useToast()
+  const { t, lang } = useI18n()
   const [sizesOpen, setSizesOpen] = useState(false)
 
   const isReady = p.product_type === 'ready'
@@ -142,16 +145,16 @@ function ProductCard({ product: p }: { product: Product }) {
   const addWithSize = (size: Size) => {
     cart.add({
       productId: p.id,
-      name: p.name_ru,
+      name: productName(p, lang),
       image: p.thumbnail_url,
       unitPrice: p.price,
       // A garment bought straight from the catalog carries no print.
       designJson: buildPlainDesignJson(size),
-      meta: `${isReady ? 'Готовый дизайн' : 'Без принта'} · ${size}`,
+      meta: `${isReady ? t('catalog.readyDesign') : t('common.noPrint')} · ${size}`,
       logoKey: null,
     })
     setSizesOpen(false)
-    flash(`${p.name_ru} · ${size} — в корзине`)
+    flash(t('catalog.addedSize', { name: productName(p, lang), size }))
   }
 
   return (
@@ -161,7 +164,7 @@ function ProductCard({ product: p }: { product: Product }) {
           <Image source={productImage(p)} style={styles.fill} resizeMode="cover" />
           {isReady ? (
             <View style={styles.readyChip}>
-              <T style={mono(7.5, 1.3, { ls: 0.1, upper: true })}>готовый</T>
+              <T style={mono(7.5, 1.3, { ls: 0.1, upper: true })}>{t('catalog.readyChip')}</T>
             </View>
           ) : null}
         </View>
@@ -169,14 +172,14 @@ function ProductCard({ product: p }: { product: Product }) {
 
       <View style={styles.cardBody}>
         <T style={disp(13.5, 1.15, { ls: -0.01 })} numberOfLines={1}>
-          {p.name_ru}
+          {productName(p, lang)}
         </T>
         {p.description_ru ? (
           <T style={[body(10.5, 1.45, { color: C.i55 }), { marginTop: 4 }]} numberOfLines={2}>
             {p.description_ru}
           </T>
         ) : null}
-        <T style={[mono(10.5, 1.2, { color: C.i70 }), { marginTop: 6 }]}>{fmt(p.price)} сум</T>
+        <T style={[mono(10.5, 1.2, { color: C.i70 }), { marginTop: 6 }]}>{fmt(p.price)} {t('common.sum')}</T>
 
         {/* Custom garments lead with the studio, exactly like the web card. */}
         {!isReady ? (
@@ -185,7 +188,7 @@ function ProductCard({ product: p }: { product: Product }) {
             style={styles.customBtn}
             onPress={() => router.push(`/studio?productId=${p.id}`)}
           >
-            <T style={monoSemi(9, 1, { ls: 0.1, upper: true, color: C.paper })}>Настроить</T>
+            <T style={monoSemi(9, 1, { ls: 0.1, upper: true, color: C.paper })}>{t('catalog.customize')}</T>
           </Tap>
         ) : null}
 
@@ -201,7 +204,7 @@ function ProductCard({ product: p }: { product: Product }) {
               color: isReady ? C.white : C.ink,
             })}
           >
-            {sizesOpen ? 'Отмена' : 'В корзину'}
+            {sizesOpen ? t('common.cancel') : t('catalog.toCart')}
           </T>
         </Tap>
 

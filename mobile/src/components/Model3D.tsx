@@ -7,6 +7,7 @@ import { body, mono } from '../theme/type'
 import type { SceneDesign } from '../lib/print'
 import { DEFAULT_MODEL_URL, SITE_ORIGIN, buildSceneHtml } from '../lib/scene-html'
 import { T } from './ui'
+import { useT } from '../i18n'
 
 // Real 3D preview, rendered by the same three.js pipeline the website uses.
 //
@@ -34,6 +35,7 @@ type Status = 'loading' | 'ready' | 'error'
 
 export function Model3D({ glbUrl, design, view, onReady }: Model3DProps) {
   const [status, setStatus] = useState<Status>('loading')
+  const t = useT()
   const [pct, setPct] = useState(0)
   const [printable, setPrintable] = useState(true)
   const webRef = useRef<WebView>(null)
@@ -116,7 +118,7 @@ export function Model3D({ glbUrl, design, view, onReady }: Model3DProps) {
         <View style={styles.overlay} pointerEvents="none">
           <ActivityIndicator color={C.coral} />
           <T style={[mono(9.5, 1.4, { ls: 0.16, upper: true, color: C.i38 }), { marginTop: 10 }]}>
-            {pct > 0 && pct < 100 ? `Загружаем 3D · ${pct}%` : 'Загружаем 3D'}
+            {pct > 0 && pct < 100 ? t('st.loading3dPct', { pct }) : t('st.loading3d')}
           </T>
         </View>
       ) : null}
@@ -124,7 +126,7 @@ export function Model3D({ glbUrl, design, view, onReady }: Model3DProps) {
       {status === 'error' ? (
         <View style={styles.overlay} pointerEvents="none">
           <T style={body(12.5, 1.6, { color: C.i55, align: 'center' })}>
-            3D недоступно. Проверьте соединение и попробуйте ещё раз.
+            {t('st.err3d')}
           </T>
         </View>
       ) : null}
@@ -132,7 +134,7 @@ export function Model3D({ glbUrl, design, view, onReady }: Model3DProps) {
       {status === 'ready' && !printable ? (
         <View style={styles.note} pointerEvents="none">
           <T style={mono(8.5, 1.3, { ls: 0.14, upper: true, color: C.i55 })}>
-            принт на этой 3D-модели скоро
+            {t('st.noPrint3d')}
           </T>
         </View>
       ) : null}

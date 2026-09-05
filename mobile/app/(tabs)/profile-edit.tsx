@@ -12,12 +12,14 @@ import { Button, T, Tap } from '../../src/components/ui'
 import { useAuth } from '../../src/state/auth'
 import { useToast } from '../../src/state/toast'
 import { goBack } from '../../src/lib/nav'
+import { useT } from '../../src/i18n'
 
 /** Personal data: photo, name, phone and the saved delivery address. */
 export default function ProfileEdit() {
   const router = useRouter()
   const { user, signedIn, phoneVerified, updateProfile, uploadAvatar } = useAuth()
   const { flash } = useToast()
+  const t = useT()
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -49,7 +51,7 @@ export default function ProfileEdit() {
   const pickAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!perm.granted) {
-      flash('Нужен доступ к фото')
+      flash(t('pe.photoPerm'))
       return
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -61,13 +63,13 @@ export default function ProfileEdit() {
     if (res.canceled || !res.assets?.length) return
     const a = res.assets[0]
     if (a.fileSize && a.fileSize > 2 * 1024 * 1024) {
-      flash('Фото больше 2 МБ — выберите поменьше')
+      flash(t('pe.photoBig'))
       return
     }
     setAvatarBusy(true)
     try {
       await uploadAvatar(a.uri, a.mimeType ?? 'image/jpeg')
-      flash('Фото обновлено')
+      flash(t('pe.photoDone'))
     } catch (e) {
       flash((e as Error).message)
     } finally {
@@ -87,7 +89,7 @@ export default function ProfileEdit() {
           ? { address: address.trim(), lat: pin?.lat, lng: pin?.lng }
           : null,
       })
-      flash('Сохранено')
+      flash(t('pe.saved'))
       goBack(router)
     } catch (e) {
       flash((e as Error).message)
@@ -100,14 +102,14 @@ export default function ProfileEdit() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
-      <AppBar title="ПРОФИЛЬ" />
+      <AppBar title={t('bar.account')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Tap style={styles.back} onPress={() => goBack(router)}>
           <ChevronLeft size={13} width={2.4} color={C.i55} />
-          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>Назад</T>
+          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>{t('common.back')}</T>
         </Tap>
         <T style={[disp(28, 1, { ls: -0.03 }), { marginBottom: 18 }]}>
-          Личные данные<T style={{ color: C.coral }}>/</T>
+          {t('pe.title')}<T style={{ color: C.coral }}>/</T>
         </T>
 
         <View style={styles.avatarRow}>
@@ -119,14 +121,14 @@ export default function ProfileEdit() {
             )}
           </View>
           <View style={{ flex: 1, gap: 6 }}>
-            <Button title={avatarBusy ? 'Загружаем…' : 'Сменить фото'} variant="outline" size={11.5} vPad={11} loading={avatarBusy} onPress={pickAvatar} />
-            <T style={body(11, 1.5, { color: C.i38 })}>PNG, JPG или WebP до 2 МБ</T>
+            <Button title={avatarBusy ? t('pe.uploading') : t('pe.changePhoto')} variant="outline" size={11.5} vPad={11} loading={avatarBusy} onPress={pickAvatar} />
+            <T style={body(11, 1.5, { color: C.i38 })}>{t('pe.photoHint')}</T>
           </View>
         </View>
 
-        <Field label="Имя" value={name} onChange={setName} placeholder="Как к вам обращаться" />
+        <Field label={t('pe.name')} value={name} onChange={setName} placeholder={t('pe.namePh')} />
         <Field
-          label={phoneVerified ? 'Телефон · подтверждён в Telegram' : 'Телефон'}
+          label={phoneVerified ? t('pe.phoneVerified') : t('pe.phone')}
           value={phone}
           onChange={setPhone}
           placeholder="+998 90 123-45-67"
@@ -137,7 +139,7 @@ export default function ProfileEdit() {
           <Field label="Email" value={user.email} onChange={() => {}} disabled />
         ) : null}
 
-        <T style={[labelType(9.5, { color: C.i70 }), { marginTop: 8, marginBottom: 6 }]}>Адрес доставки</T>
+        <T style={[labelType(9.5, { color: C.i70 }), { marginTop: 8, marginBottom: 6 }]}>{t('pe.address')}</T>
         <MapPicker
           value={pin}
           onChange={(next) => {
@@ -145,9 +147,9 @@ export default function ProfileEdit() {
             if (next.address && !address.trim()) setAddress(next.address)
           }}
         />
-        <Field label="Улица, дом" value={address} onChange={setAddress} placeholder="Ташкент, ул. Навои 12" />
+        <Field label={t('pe.street')} value={address} onChange={setAddress} placeholder={t('co.addressPh')} />
 
-        <Button title="Сохранить" vPad={16} loading={busy} style={{ marginTop: 8 }} onPress={save} />
+        <Button title={t('common.save')} vPad={16} loading={busy} style={{ marginTop: 8 }} onPress={save} />
       </ScrollView>
     </KeyboardAvoidingView>
   )

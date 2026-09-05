@@ -18,6 +18,7 @@ import { useCart } from '../src/state/cart'
 import { useStudio } from '../src/state/studio'
 import { useToast } from '../src/state/toast'
 import { goBack } from '../src/lib/nav'
+import { colorName, productName, useI18n } from '../src/i18n'
 
 export default function Studio() {
   const router = useRouter()
@@ -29,6 +30,7 @@ export default function Studio() {
   const st = useStudio()
   const { s, face, surface, tool, layerCount, total, active } = st
   const busyRef = useRef(false)
+  const { t, lang } = useI18n()
 
   const { data: products } = useAsync(fetchProducts, [])
 
@@ -40,7 +42,7 @@ export default function Studio() {
   useEffect(() => {
     if (!productId || !products) return
     const p = products.find((x) => String(x.id) === String(productId))
-    if (p) st.loadProduct({ id: p.id, name: p.name_ru, price: p.price })
+    if (p) st.loadProduct({ id: p.id, name: productName(p, lang), price: p.price })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId, products])
 
@@ -57,7 +59,7 @@ export default function Studio() {
   const addToCart = async () => {
     if (busyRef.current) return
     if (layerCount === 0 && !s.back.art && !s.back.text?.content) {
-      flash('Добавьте текст или графику — или купите без принта в каталоге')
+      flash(t('st.errEmpty'))
       return
     }
     busyRef.current = true
@@ -77,7 +79,7 @@ export default function Studio() {
               keys[f] = key
               st.updateArtOn(f, { uploadKey: key })
             } catch {
-              flash('Не удалось загрузить графику. Проверьте соединение.')
+              flash(t('st.errUpload'))
               return
             }
           }
@@ -91,7 +93,7 @@ export default function Studio() {
       }
 
       const meta = [
-        s.colorName,
+        colorName(s.color, t),
         s.size,
         active.art?.name,
         active.text?.content ? `«${active.text.content}»` : null,
@@ -101,7 +103,7 @@ export default function Studio() {
 
       cart.add({
         productId: s.productId,
-        name: s.productName,
+        name: s.productName || t('st.defaultProduct'),
         image: product?.thumbnail_url ?? null,
         unitPrice: total,
         designJson: buildDesignJson(snapshot),
@@ -109,7 +111,7 @@ export default function Studio() {
         logoKey: keys.front ?? keys.back ?? null,
       })
       track('cfg_cart')
-      flash('Добавлено в корзину')
+      flash(t('st.added'))
       router.push('/cart')
     } finally {
       busyRef.current = false
@@ -129,9 +131,9 @@ export default function Studio() {
           <ChevronLeft />
         </Tap>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <T style={mono(8.5, 1.3, { ls: 0.22, upper: true, color: C.coral })}>Студия</T>
+          <T style={mono(8.5, 1.3, { ls: 0.22, upper: true, color: C.coral })}>{t('st.kicker')}</T>
           <T style={disp(15, 1.15, { ls: -0.02 })} numberOfLines={1}>
-            {s.productName}
+            {s.productName || t('st.defaultProduct')}
           </T>
         </View>
         <Segmented
@@ -153,13 +155,13 @@ export default function Studio() {
             hPad={17}
             vPad={11}
             options={[
-              { value: 'front', label: 'Перед' },
-              { value: 'back', label: 'Зад' },
+              { value: 'front', label: t('st.front') },
+              { value: 'back', label: t('st.back') },
             ]}
           />
         </View>
         <T style={[mono(9.5, 1.4, { ls: 0.16, upper: true, color: C.i38 }), styles.layerCount]}>
-          {`${layerCount} сл. · ${s.colorName}`}
+          {t('st.layers', { n: layerCount, color: colorName(s.color, t) })}
         </T>
       </View>
 
@@ -169,19 +171,19 @@ export default function Studio() {
       <View style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={styles.rail}>
           <RailBtn
-            label="Текст"
+            label={t('st.text')}
             active={tool === 'text'}
             onPress={() => st.pickTool('text')}
             icon={<TypeTool color={tool === 'text' ? C.paper : C.ink} />}
           />
           <RailBtn
-            label="Графика"
+            label={t('st.image')}
             active={tool === 'image'}
             onPress={() => st.pickTool('image')}
             icon={<ImageTool color={tool === 'image' ? C.paper : C.ink} />}
           />
           <RailBtn
-            label="Цвет"
+            label={t('st.color')}
             active={tool === 'color'}
             onPress={() => st.pickTool('color')}
             icon={
@@ -203,12 +205,12 @@ export default function Studio() {
 
         <View style={styles.checkoutRow}>
           <View>
-            <T style={monoSemi(9, 1.3, { ls: 0.16, upper: true, color: C.i55 })}>Итого</T>
+            <T style={monoSemi(9, 1.3, { ls: 0.16, upper: true, color: C.i55 })}>{t('st.total')}</T>
             <T style={disp(21, 1, { ls: -0.03 })}>{fmt(total)}</T>
           </View>
           <Tap haptic style={[styles.cta, offset(3, C.ink)]} onPress={addToCart}>
             <Cart color={C.white} width={2} size={18} />
-            <T style={disp(17, 1.1, { ls: 0.02, upper: true, color: C.white })}>В корзину</T>
+            <T style={disp(17, 1.1, { ls: 0.02, upper: true, color: C.white })}>{t('st.toCart')}</T>
           </Tap>
         </View>
       </View>
