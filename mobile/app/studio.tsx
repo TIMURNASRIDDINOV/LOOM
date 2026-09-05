@@ -17,6 +17,7 @@ import { track } from '../src/api/track'
 import { useCart } from '../src/state/cart'
 import { useStudio } from '../src/state/studio'
 import { useToast } from '../src/state/toast'
+import { goBack } from '../src/lib/nav'
 
 export default function Studio() {
   const router = useRouter()
@@ -124,7 +125,7 @@ export default function Studio() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.head, { paddingTop: insets.top + 8 }]}>
-        <Tap style={styles.backBtn} onPress={() => router.back()}>
+        <Tap style={styles.backBtn} onPress={() => goBack(router)}>
           <ChevronLeft />
         </Tap>
         <View style={{ flex: 1, minWidth: 0 }}>

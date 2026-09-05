@@ -11,6 +11,7 @@ import { fetchProducts, productImage, useAsync } from '../../src/api/catalog'
 import { buildPlainDesignJson } from '../../src/api/design'
 import { useCart } from '../../src/state/cart'
 import { useToast } from '../../src/state/toast'
+import { goBack } from '../../src/lib/nav'
 
 /**
  * A ready-made design is bought as-is: pick a size and a colour, no studio.
@@ -59,7 +60,7 @@ export default function ProductScreen() {
     <View style={{ flex: 1 }}>
       <AppBar title="КАТАЛОГ" />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <Tap style={styles.back} onPress={() => router.back()}>
+        <Tap style={styles.back} onPress={() => goBack(router, '/catalog')}>
           <ChevronLeft size={13} width={2.4} color={C.i55} />
           <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>Назад</T>
         </Tap>

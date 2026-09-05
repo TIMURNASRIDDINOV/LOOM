@@ -24,7 +24,10 @@ export default function Onboarding() {
 
   const finish = async (target: '/login' | '/') => {
     await AsyncStorage.setItem(ONBOARD_KEY, '1').catch(() => {})
-    router.replace(target)
+    // Home becomes the root; the sign-in sheet sits on top so its close
+    // button has somewhere to go.
+    router.replace('/')
+    if (target === '/login') router.push('/login')
   }
 
   return (

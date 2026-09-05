@@ -20,6 +20,7 @@ import { SocialButton } from '../src/components/SocialButtons'
 import { Button, T, Tap, Toast, Wordmark } from '../src/components/ui'
 import { useAuth } from '../src/state/auth'
 import { useToast } from '../src/state/toast'
+import { goBack } from '../src/lib/nav'
 import {
   OAuthCancelled,
   fetchProviders,
@@ -68,7 +69,7 @@ export default function Login() {
 
   const close = () => {
     stopPolling()
-    router.back()
+    goBack(router)
   }
 
   const social = async (provider: ProviderId) => {
@@ -81,7 +82,7 @@ export default function Login() {
     try {
       await signInWithOAuth(provider, info.clientId)
       flash('Вы вошли')
-      router.back()
+      goBack(router)
     } catch (e) {
       // Backing out of the browser sheet is not an error worth shouting about.
       if (!(e instanceof OAuthCancelled)) flash((e as Error).message)
@@ -131,7 +132,7 @@ export default function Login() {
         register,
       )
       flash(register ? 'Аккаунт создан' : 'Вы вошли')
-      router.back()
+      goBack(router)
     } catch (e) {
       flash((e as Error).message)
     } finally {
@@ -151,7 +152,7 @@ export default function Login() {
         if (!alive) return
         if (res.status === 'verified') {
           flash('Вы вошли — номер подтверждён')
-          router.back()
+          goBack(router)
           return
         }
         if (res.status === 'failed' || res.status === 'expired') {

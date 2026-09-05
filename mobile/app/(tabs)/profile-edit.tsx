@@ -11,6 +11,7 @@ import { MapPicker, type Pin } from '../../src/components/MapPicker'
 import { Button, T, Tap } from '../../src/components/ui'
 import { useAuth } from '../../src/state/auth'
 import { useToast } from '../../src/state/toast'
+import { goBack } from '../../src/lib/nav'
 
 /** Personal data: photo, name, phone and the saved delivery address. */
 export default function ProfileEdit() {
@@ -87,7 +88,7 @@ export default function ProfileEdit() {
           : null,
       })
       flash('Сохранено')
-      router.back()
+      goBack(router)
     } catch (e) {
       flash((e as Error).message)
     } finally {
@@ -101,7 +102,7 @@ export default function ProfileEdit() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
       <AppBar title="ПРОФИЛЬ" />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Tap style={styles.back} onPress={() => router.back()}>
+        <Tap style={styles.back} onPress={() => goBack(router)}>
           <ChevronLeft size={13} width={2.4} color={C.i55} />
           <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>Назад</T>
         </Tap>

@@ -11,6 +11,7 @@ import { fetchDesigner, useAsync } from '../../src/api/catalog'
 import type { Artwork } from '../../src/api/types'
 import { useStudio } from '../../src/state/studio'
 import { useToast } from '../../src/state/toast'
+import { goBack } from '../../src/lib/nav'
 
 /** A designer's public page — bio, sales, and every approved work. */
 export default function DesignerScreen() {
@@ -42,7 +43,7 @@ export default function DesignerScreen() {
     <View style={{ flex: 1 }}>
       <AppBar title="ДИЗАЙН" />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <Tap style={styles.back} onPress={() => router.back()}>
+        <Tap style={styles.back} onPress={() => goBack(router, '/market')}>
           <ChevronLeft size={13} width={2.4} color={C.i55} />
           <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>Назад</T>
         </Tap>
