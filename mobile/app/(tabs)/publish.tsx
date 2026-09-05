@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
@@ -10,7 +10,7 @@ import { Hatch } from '../../src/components/ArtPattern'
 import { ChevronLeft } from '../../src/components/icons'
 import { Button, Panel, T, Tap } from '../../src/components/ui'
 import { uploadFile } from '../../src/api/client'
-import { fetchDesignerStats, fetchMyArtworks, submitArtwork, useAsync } from '../../src/api/catalog'
+import { fetchDesignerStats, fetchMyArtworks, submitArtwork, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
 import type { MyArtwork } from '../../src/api/types'
 import { STATUSES } from '../../src/theme/tokens'
 import { useAuth } from '../../src/state/auth'
@@ -141,6 +141,12 @@ function DesignerHome({ handle }: { handle: string | null }) {
   const { flash } = useToast()
   const { data, loading, reload } = useAsync(fetchMyArtworks, [])
   const stats = useAsync(fetchDesignerStats, [])
+  // Moderation happens elsewhere; coming back to this tab must show the verdict.
+  const refreshAll = useCallback(() => {
+    reload()
+    stats.reload()
+  }, [reload, stats.reload])
+  useRefreshOnFocus(refreshAll)
 
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0)
   const [file, setFile] = useState<{

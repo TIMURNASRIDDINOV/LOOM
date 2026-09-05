@@ -14,6 +14,7 @@ import {
   fetchProducts,
   productImage,
   useAsync,
+  useRefreshOnFocus,
 } from '../../src/api/catalog'
 import { useStudio } from '../../src/state/studio'
 import { ONBOARD_KEY } from '../onboarding'
@@ -22,7 +23,8 @@ export default function Home() {
   const router = useRouter()
   const { s, layerCount } = useStudio()
   const { data: products } = useAsync(fetchProducts, [])
-  const { data: artworks } = useAsync(fetchArtworks, [])
+  const { data: artworks, reload: reloadArtworks } = useAsync(fetchArtworks, [])
+  useRefreshOnFocus(reloadArtworks)
 
   // First launch goes through onboarding once, then never again.
   useEffect(() => {

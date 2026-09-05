@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ImageSourcePropType } from 'react-native'
+import { useFocusEffect } from 'expo-router'
 import { api } from './client'
 import type { Artwork, DesignerProfile, DesignerStats, MyArtwork, Order, PaymentMethods, Product } from './types'
 
@@ -73,6 +74,25 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   }, deps)
 
   return { data, error, loading, reload: run }
+}
+
+/**
+ * Re-run a loader every time its screen comes back into focus. Tab screens
+ * stay mounted, so without this a marketplace opened once shows the same
+ * list all session — a work approved a minute ago would never appear.
+ * The first focus is skipped: `useAsync` already fetched on mount.
+ */
+export function useRefreshOnFocus(reload: () => void) {
+  const first = useRef(true)
+  useFocusEffect(
+    useCallback(() => {
+      if (first.current) {
+        first.current = false
+        return
+      }
+      reload()
+    }, [reload]),
+  )
 }
 
 // Home, catalog, studio and the product page all need the catalog. Without a

@@ -1,12 +1,12 @@
 import React from 'react'
-import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 
 import { C, RULE, fmt, offset } from '../../src/theme/tokens'
 import { body, disp, mono } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
 import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
-import { fetchArtworks, useAsync } from '../../src/api/catalog'
+import { fetchArtworks, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
 import type { Artwork } from '../../src/api/types'
 import { useAuth } from '../../src/state/auth'
 import { useStudio } from '../../src/state/studio'
@@ -22,6 +22,7 @@ export default function Market() {
   const { flash } = useToast()
   const { isDesigner, signedIn } = useAuth()
   const { data, loading, error, reload } = useAsync(fetchArtworks, [])
+  useRefreshOnFocus(reload)
 
   const items = data ?? []
 
@@ -44,13 +45,17 @@ export default function Market() {
   return (
     <View style={{ flex: 1 }}>
       <AppBar title="ДИЗАЙН" />
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.page}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={reload} tintColor={C.coral} />}
+      >
         <SlashTitle size={30}>Работы дизайнеров</SlashTitle>
         <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 6, marginBottom: 20 }]}>
           Выберите графику — примерим её на любую вещь в студии.
         </T>
 
-        {loading ? (
+        {loading && !data ? (
           <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
         ) : error ? (
           <View style={{ gap: 16 }}>
