@@ -209,7 +209,13 @@ get `artworks.view` by default; managers and the owner get both.
 | GET | `/api/admin/artworks` | `?status=pending\|approved\|rejected&page=&limit=` — moderation queue with `image_url`, `author`, `sold`; also returns the global `pending` count |
 | POST | `/api/admin/artworks/:id/review` | `{ decision: 'approve' \| 'reject', note? }` — `note` is required for a rejection. Approving publishes the work to `/api/artworks`; either decision notifies the designer in Telegram (if linked) and logs `artwork_approved` / `artwork_rejected` in their activity. |
 
-The admin page is `admin/artworks.html` («Каталог → Работы дизайнеров»).
+| GET | `/api/admin/designers/payouts` | Payout ledger: one row per active designer with `works_approved`, `units_sold`, `earned` (non-cancelled), `payable` (delivered orders), `pending` (in progress), `last_sale_at`; plus `totals` and `commission_pct`. |
+
+`GET /api/admin/orders/:id` also returns `designerSales[]` — the marketplace
+artwork on that order with the credited designer and their frozen share.
+
+The admin page is `admin/artworks.html` («Каталог → Работы дизайнеров»); the
+payout ledger sits below the moderation queue on the same page.
 
 ### Products
 

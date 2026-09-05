@@ -11,8 +11,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Работы дизайнеров — LOOM Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=29" />
-  <script src="assets/theme-init.js?v=29"></script>
+  <link rel="stylesheet" href="assets/theme.css?v=30" />
+  <script src="assets/theme-init.js?v=30"></script>
   <style>
     .art-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--sp-4); }
     .art-card { display: flex; flex-direction: column; overflow: hidden; }
@@ -72,12 +72,30 @@
       <button class="btn btn--sm" id="prev-btn" disabled>← Назад</button>
       <button class="btn btn--sm" id="next-btn">Вперёд →</button>
     </div>
+
+    <section class="card" id="payouts-card" style="margin-top: var(--sp-6)">
+      <div class="card-head">
+        <div>
+          <h3 class="card-title">Начисления дизайнерам</h3>
+          <p class="card-sub">Дизайнер получает <span id="payout-share">70</span>% наценки с каждой продажи. «К выплате» — по доставленным заказам; «в работе» — по заказам, которые ещё не доставлены. Отменённые заказы не начисляются.</p>
+        </div>
+      </div>
+      <div class="grid-3" id="payout-totals" style="margin-bottom: var(--sp-4)"></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Дизайнер</th><th>Контакт</th><th class="right">Работ</th><th class="right">Продано</th><th class="right">Заработано</th><th class="right">В работе</th><th class="right">К выплате</th><th>Последняя продажа</th></tr>
+          </thead>
+          <tbody id="payouts-tbody"><tr><td colspan="8"><div class="state">Загрузка…</div></td></tr></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
-  <script src="assets/app.js?v=29"></script>
-  <script src="assets/ui.js?v=29"></script>
-  <script src="assets/layout.js?v=29"></script>
+  <script src="assets/app.js?v=30"></script>
+  <script src="assets/ui.js?v=30"></script>
+  <script src="assets/layout.js?v=30"></script>
   <script>LOOM_LAYOUT.init('artworks')</script>
-  <script src="assets/artworks.js?v=29"></script>
+  <script src="assets/artworks.js?v=30"></script>
 </body>
 </html>

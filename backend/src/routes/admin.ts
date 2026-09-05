@@ -10,6 +10,7 @@ import {
   getOrderById,
   getOrderStatusLog,
   getOrderItemsByOrderId,
+  getArtworkSalesByOrder,
   updateOrderStatus,
   setOrderProofApproval,
   insertOrderStatusLog,
@@ -347,7 +348,11 @@ admin.get('/orders/:id', requireAdmin, requireCap('orders.view'), async (c) => {
     if (a) approvedBy = { id: a.id, email: a.email }
   }
 
-  return c.json({ ...order, statusLog, ...proofUrls(order as unknown as Record<string, unknown>), approvedBy, items })
+  // Marketplace artwork on this order and the designer credited for it — the
+  // print shop needs to know the file is a designer's, finance needs the share.
+  const designerSales = await getArtworkSalesByOrder(c.env.DB, id)
+
+  return c.json({ ...order, statusLog, ...proofUrls(order as unknown as Record<string, unknown>), approvedBy, items, designerSales })
 })
 
 // ─── POST /api/admin/orders/:id/approve  (owner/manager) ──────────────────────

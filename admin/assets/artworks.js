@@ -6,7 +6,7 @@
    background, stolen logos) the review exists to catch. */
 
 ;(function () {
-  const { apiJSON, formatDate, formatPrice } = window.LOOM
+  const { apiJSON, formatDate, formatPrice, formatPhone } = window.LOOM
   const { esc, toast, confirmDialog, apiErrorMessage } = window.LOOM_UI
 
   const PAGE_SIZE = 30
@@ -181,6 +181,43 @@
     }
   }
 
+  // ── Payout ledger ─────────────────────────────────────────────────────
+  async function loadPayouts() {
+    const tbody = el('payouts-tbody')
+    try {
+      const data = await apiJSON('/api/admin/designers/payouts')
+      el('payout-share').textContent = String(100 - (data.commission_pct || 30))
+      const tot = data.totals || {}
+      const kpi = (label, value) =>
+        '<div class="stat"><p class="stat-label">' + esc(label) + '</p><p class="stat-value">' + esc(value) + '</p></div>'
+      el('payout-totals').innerHTML =
+        kpi('К выплате сейчас', formatPrice(tot.payable || 0)) +
+        kpi('В работе', formatPrice(tot.pending || 0)) +
+        kpi('Начислено всего', formatPrice(tot.earned || 0) + ' · ' + (tot.units_sold || 0) + ' шт.')
+
+      const rows = data.designers || []
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="8"><div class="state"><p class="state-title">Дизайнеров пока нет</p><p class="state-sub">Как только кто-то станет дизайнером в приложении, он появится здесь.</p></div></td></tr>'
+        return
+      }
+      tbody.innerHTML = rows.map((r) => {
+        const contact = r.telegram_username ? '@' + r.telegram_username : (r.phone ? formatPhone(r.phone) : '—')
+        return '<tr>' +
+          '<td><b>' + esc(r.designer_handle || r.name || '#' + r.user_id) + '</b>' + (r.name && r.designer_handle ? '<div class="muted" style="font-size:var(--fs-sm)">' + esc(r.name) + '</div>' : '') + '</td>' +
+          '<td class="num muted">' + esc(contact) + '</td>' +
+          '<td class="num right">' + r.works_approved + '</td>' +
+          '<td class="num right">' + r.units_sold + '</td>' +
+          '<td class="num right">' + esc(formatPrice(r.earned)) + '</td>' +
+          '<td class="num right muted">' + esc(formatPrice(r.pending)) + '</td>' +
+          '<td class="num right"' + (r.payable > 0 ? ' style="color:var(--success);font-weight:600"' : '') + '>' + esc(formatPrice(r.payable)) + '</td>' +
+          '<td class="muted">' + (r.last_sale_at ? esc(formatDate(r.last_sale_at)) : '—') + '</td>' +
+        '</tr>'
+      }).join('')
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="state state--error">' + esc(apiErrorMessage(err)) + '</div></td></tr>'
+    }
+  }
+
   function lightbox(src) {
     const box = document.createElement('div')
     box.className = 'lightbox'
@@ -218,10 +255,11 @@
       if (thumb) lightbox(thumb.dataset.full)
     })
 
-    el('refresh-btn').addEventListener('click', load)
+    el('refresh-btn').addEventListener('click', () => { load(); loadPayouts() })
     el('prev-btn').addEventListener('click', () => { if (page > 1) { page--; load() } })
     el('next-btn').addEventListener('click', () => { page++; load() })
 
     load()
+    loadPayouts()
   })
 })()

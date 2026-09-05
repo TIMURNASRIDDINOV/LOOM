@@ -2081,6 +2081,81 @@ export async function getDesignerSales(db: D1Database, userId: number, limit = 5
   })
 }
 
+/** Marketplace artwork used on one order, with who gets paid for it. */
+export interface OrderDesignerSale {
+  id: number
+  order_item_id: number | null
+  artwork_id: number
+  artwork_title: string
+  designer_user_id: number
+  designer_handle: string | null
+  designer_name: string | null
+  quantity: number
+  markup: number
+  commission_pct: number
+  designer_share: number
+}
+
+export async function getArtworkSalesByOrder(db: D1Database, orderId: number): Promise<OrderDesignerSale[]> {
+  return safeQuery('getArtworkSalesByOrder', async () => {
+    const { results } = await db
+      .prepare(
+        `SELECT s.id, s.order_item_id, s.artwork_id, a.title AS artwork_title,
+                s.designer_user_id, u.designer_handle, u.name AS designer_name,
+                s.quantity, s.markup, s.commission_pct, s.designer_share
+         FROM artwork_sales s
+         JOIN artworks a ON a.id = s.artwork_id
+         JOIN users u ON u.id = s.designer_user_id
+         WHERE s.order_id = ?
+         ORDER BY s.id`,
+      )
+      .bind(orderId)
+      .all<OrderDesignerSale>()
+    return results
+  })
+}
+
+/** One row per designer: what they have earned and what is payable now. */
+export interface DesignerPayoutRow {
+  user_id: number
+  designer_handle: string | null
+  name: string | null
+  phone: string | null
+  telegram_username: string | null
+  works_approved: number
+  units_sold: number
+  /** UZS across all non-cancelled orders. */
+  earned: number
+  /** UZS on delivered orders — the amount LOOM owes today. */
+  payable: number
+  /** UZS on orders still in progress. */
+  pending: number
+  last_sale_at: number | null
+}
+
+export async function getDesignerPayouts(db: D1Database): Promise<DesignerPayoutRow[]> {
+  return safeQuery('getDesignerPayouts', async () => {
+    const { results } = await db
+      .prepare(
+        `SELECT u.id AS user_id, u.designer_handle, u.name, u.phone, u.telegram_username,
+                (SELECT COUNT(*) FROM artworks a WHERE a.user_id = u.id AND a.status = 'approved') AS works_approved,
+                COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN s.quantity ELSE 0 END), 0) AS units_sold,
+                COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN s.designer_share ELSE 0 END), 0) AS earned,
+                COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN s.designer_share ELSE 0 END), 0) AS payable,
+                COALESCE(SUM(CASE WHEN o.status NOT IN ('delivered', 'cancelled') THEN s.designer_share ELSE 0 END), 0) AS pending,
+                MAX(CASE WHEN o.status != 'cancelled' THEN s.created_at END) AS last_sale_at
+         FROM users u
+         LEFT JOIN artwork_sales s ON s.designer_user_id = u.id
+         LEFT JOIN orders o ON o.id = s.order_id
+         WHERE u.is_designer = 1 AND u.status = 'active'
+         GROUP BY u.id
+         ORDER BY payable DESC, earned DESC, u.designer_handle`,
+      )
+      .all<DesignerPayoutRow>()
+    return results
+  })
+}
+
 /**
  * Account deletion (App Store / Play policy: an app that lets people create an
  * account must let them delete it). Orders are commercial records and stay, so

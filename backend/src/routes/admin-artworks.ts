@@ -3,6 +3,7 @@ import {
   getArtworkById,
   getArtworkSalesCounts,
   getArtworksForReview,
+  getDesignerPayouts,
   getUserById,
   insertNotification,
   insertUserActivity,
@@ -10,6 +11,7 @@ import {
 } from '../db/queries'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import { sendTelegramMessage } from '../lib/telegram'
+import { DESIGNER_COMMISSION_PCT } from './designers'
 import type { AdminEnv } from '../types'
 
 // Moderation of designer artwork (migration 0017).
@@ -65,6 +67,26 @@ router.get('/artworks', requireAdmin, requireCap('artworks.view'), async (c) => 
     page,
     limit,
   })
+})
+
+// ─── GET /api/admin/designers/payouts ────────────────────────────────────────
+// The finance view of the marketplace: per designer, what they have earned,
+// what is payable today (delivered orders) and what is still in progress.
+// The payout itself (bank/card transfer) happens outside the system for now;
+// this is the ledger it is reconciled against.
+
+router.get('/designers/payouts', requireAdmin, requireCap('artworks.view'), async (c) => {
+  const rows = await getDesignerPayouts(c.env.DB)
+  const totals = rows.reduce(
+    (acc, r) => ({
+      earned: acc.earned + r.earned,
+      payable: acc.payable + r.payable,
+      pending: acc.pending + r.pending,
+      units_sold: acc.units_sold + r.units_sold,
+    }),
+    { earned: 0, payable: 0, pending: 0, units_sold: 0 },
+  )
+  return c.json({ designers: rows, totals, commission_pct: DESIGNER_COMMISSION_PCT })
 })
 
 // ─── POST /api/admin/artworks/:id/review  { decision: approve|reject, note? } ─

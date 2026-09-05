@@ -16,6 +16,36 @@ function parseDesign(json) {
   try { return JSON.parse(json) } catch { return {} }
 }
 
+/**
+ * Designer attribution card. One row per marketplace artwork on the order:
+ * the file the print shop must use is the designer's, and finance owes them
+ * the frozen share once the order is delivered.
+ */
+function renderDesignerSales(sales, orderStatus) {
+  const { formatPrice } = window.LOOM
+  const card = document.createElement('div')
+  card.className = 'card'
+  const total = sales.reduce((s, r) => s + r.designer_share, 0)
+  const state = orderStatus === 'delivered'
+    ? '<span class="badge badge-delivered">к выплате</span>'
+    : orderStatus === 'cancelled'
+      ? '<span class="badge badge-cancelled">не начисляется</span>'
+      : '<span class="badge badge-confirmed">после доставки</span>'
+  card.innerHTML = `<div class="card-head"><h3 class="card-title">Работы дизайнеров</h3>${state}</div>` +
+    sales.map((r) => `
+      <div style="display:flex;gap:0.85rem;align-items:center;padding:0.65rem 0;border-bottom:0.5px solid var(--hairline2);font-size:0.83rem">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:500;color:var(--text)">${escHtml(r.artwork_title)} <span class="muted">· маркетплейс #${r.artwork_id}</span></div>
+          <div class="muted" style="margin-top:3px"><a href="artworks.html" style="color:inherit">${escHtml(r.designer_handle || r.designer_name || '#' + r.designer_user_id)}</a> · наценка ${escHtml(formatPrice(r.markup))} × ${r.quantity} · комиссия LOOM ${r.commission_pct}%</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:0.82rem;white-space:nowrap">${escHtml(formatPrice(r.designer_share))}</div>
+      </div>`).join('') +
+    `<div style="display:flex;justify-content:space-between;padding-top:0.7rem;font-size:0.83rem"><span class="muted">Итого дизайнерам</span><span style="font-family:var(--mono)">${escHtml(formatPrice(total))}</span></div>`
+  const anchor = document.getElementById('design-json-raw')?.closest('.card')
+  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(card, anchor)
+  else document.getElementById('detail-content')?.appendChild(card)
+}
+
 function renderOrderItems(items, anchorCard) {
   const { apiFetch, formatPrice } = window.LOOM
   const card = document.createElement('div')
@@ -187,6 +217,9 @@ async function loadOrder(id) {
       if (jsonCard) jsonCard.style.display = 'none'
       renderOrderItems(o.items, designCard || jsonCard)
     }
+
+    // Marketplace artwork on this order → the designers LOOM owes a share to.
+    if (o.designerSales && o.designerSales.length) renderDesignerSales(o.designerSales, o.status)
 
     // ── Production review: 3D model, print artwork, spec, approval ──
     renderProductionSheet(o)
@@ -638,6 +671,10 @@ function buildSpecTable(d) {
         rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${posStr(el, vm.platenCm)}</td></tr>`)
       } else {
         rows.push(`<tr><td>${label} · логотип</td><td colspan="2">${escHtml(el.name || '—')}</td></tr>`)
+        if (el.artworkId) {
+          // A marketplace file: print from the designer's original (design_json.key), not a customer upload.
+          rows.push(`<tr><td></td><td>Дизайнер</td><td>${escHtml(el.author || '—')} · маркетплейс #${escHtml(String(el.artworkId))}</td></tr>`)
+        }
         rows.push(`<tr><td></td><td>Масштаб</td><td>${el.scalePct ?? '—'}%</td></tr>`)
         rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${posStr(el, vm.platenCm)}</td></tr>`)
       }
