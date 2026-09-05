@@ -547,6 +547,9 @@ function ensurePreview3D() {
     .then(() => {
       initThreeJS();
       initThreeTextures();
+      // Not awaited: the mesh should not wait on two small JPEGs. Materials
+      // pick the maps up when they arrive (loadFabricDetail → applyFabricDetail).
+      loadFabricDetail();
       animate();
       // Wait for ?slug= to resolve so a custom product model isn't loaded on
       // top of the default one. Already settled in the common case; its own
@@ -651,7 +654,9 @@ function initThreeJS() {
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = 0.82;
+  // 0.5, not 0.82: at 0.82 a white garment clipped to pure white across the
+  // whole chest, so no fold shading and no fabric weave could show through.
+  renderer.toneMappingExposure = 0.5;
   container.appendChild(renderer.domElement);
 
   // Neutral studio environment (PMREM) for realistic fabric shading
@@ -764,6 +769,77 @@ function initCanvasTextures() {
  *
  * Safe to call only once, from ensurePreview3D() after initThreeJS().
  */
+// ── Fabric surface ───────────────────────────────────────────────
+// The design canvas carries colour only, so without a normal map a white
+// garment renders as smooth plastic. A tileable woven-cotton normal +
+// roughness pair (assets/textures, CC0) is tiled into a 2048² atlas at load
+// and applied under the design. Pre-tiling into a canvas instead of using
+// texture.repeat matters: three r128 drives every map on a material with the
+// `map`'s UV transform, and the design canvas must stay at 1×.
+//
+// A model that ships its own normal map keeps it — but only when its UVs were
+// already in 0–1, because normalizeModelUVsGlobally() rescales the UVs the
+// model's own textures were authored for. Set by normalizeModelUVsGlobally().
+const FABRIC_NORMAL_URL = "assets/textures/fabric-jersey-normal.jpg?v=1";
+const FABRIC_ROUGH_URL = "assets/textures/fabric-jersey-roughness.jpg?v=1";
+const FABRIC_TILES = 12;          // ~170 px per tile across the 2048² atlas ≈ 12 cm of cloth
+const FABRIC_NORMAL_SCALE = 0.9;  // visible weave at arm's length, not burlap
+const FABRIC_ENV_INTENSITY = 0.7; // the studio environment was washing white cloth out
+let fabricNormalTexture = null;
+let fabricRoughTexture = null;
+let _modelUvNative = false;
+
+function tileImageToTexture(img) {
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = TEX_SIZE;
+  const g = cv.getContext("2d");
+  const step = TEX_SIZE / FABRIC_TILES;
+  for (let y = 0; y < FABRIC_TILES; y++) {
+    for (let x = 0; x < FABRIC_TILES; x++) g.drawImage(img, x * step, y * step, step, step);
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.flipY = false; // same convention as the design canvases
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.generateMipmaps = true;
+  if (renderer) t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("image failed: " + url));
+    img.src = url;
+  });
+}
+
+/** Load the fabric maps and hand them to every material that exists or appears later. */
+function loadFabricDetail() {
+  return Promise.all([loadImage(FABRIC_NORMAL_URL), loadImage(FABRIC_ROUGH_URL)])
+    .then(([n, r]) => {
+      fabricNormalTexture = tileImageToTexture(n);
+      fabricRoughTexture = tileImageToTexture(r);
+      shirtMaterials.forEach(applyFabricDetail);
+    })
+    .catch((e) => {
+      // Flat shading is the pre-existing behaviour — never block the preview on this.
+      console.warn("[LOOM] fabric detail unavailable:", e.message);
+    });
+}
+
+/** Give one shirt material its surface: the model's own maps if usable, else our fabric. */
+function applyFabricDetail(mat) {
+  if (mat.userData.ownNormalMap) return; // authored maps win
+  if (!fabricNormalTexture) return;
+  mat.normalMap = fabricNormalTexture;
+  mat.normalScale = new THREE.Vector2(FABRIC_NORMAL_SCALE, FABRIC_NORMAL_SCALE);
+  mat.roughnessMap = fabricRoughTexture;
+  mat.roughness = 1.0; // the map carries the value (cotton ≈ 0.7–0.85)
+  mat.needsUpdate = true;
+}
+
 function initThreeTextures() {
   frontTexture = new THREE.CanvasTexture(frontTexCanvas);
   backTexture = new THREE.CanvasTexture(backTexCanvas);
@@ -1009,6 +1085,8 @@ function normalizeModelUVsGlobally(object) {
 
   const rangeU = maxU - minU || 1;
   const rangeV = maxV - minV || 1;
+  // Already a 0–1 atlas → the model's own textures still line up after this pass.
+  _modelUvNative = rangeU <= 1.05 && rangeV <= 1.05 && minU >= -0.05 && minV >= -0.05;
   // Uniform scale so shapes aren't stretched
   const uniformRange = Math.max(rangeU, rangeV);
   // Center offset: shift so the whole model is centered at UV (0.5, 0.5)
@@ -1200,10 +1278,23 @@ function loadShirtModel(glbUrl) {
           side: THREE.FrontSide,
           roughness: 0.7,
           metalness: 0.0,
+          envMapIntensity: FABRIC_ENV_INTENSITY,
         });
 
         if (!isFrontBody && !isBackBody) {
           mat.color.set(0xffffff);
+        }
+
+        // Surface detail. A model authored with its own normal map on native
+        // 0–1 UVs keeps it; everything else gets the tiled cotton fabric.
+        const orig = Array.isArray(child.material) ? child.material[0] : child.material;
+        if (_modelUvNative && orig && orig.normalMap) {
+          mat.normalMap = orig.normalMap;
+          mat.normalScale = orig.normalScale ? orig.normalScale.clone() : new THREE.Vector2(1, 1);
+          if (orig.roughnessMap) { mat.roughnessMap = orig.roughnessMap; mat.roughness = 1.0; }
+          mat.userData.ownNormalMap = true;
+        } else {
+          applyFabricDetail(mat);
         }
 
         child.material = mat;

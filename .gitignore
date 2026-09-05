@@ -20,3 +20,6 @@
 .trae/
 .warp/
 .windsurf/
+
+# tool deps
+tools/*/node_modules/

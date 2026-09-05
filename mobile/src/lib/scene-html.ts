@@ -43,6 +43,10 @@ const VENDOR = [
 const FONTS_CSS =
   'https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;700;800&family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600;700&display=swap'
 
+/** Tileable woven-cotton surface (CC0, assets/textures) — see configurator.js FABRIC_*. */
+const FABRIC_NORMAL_URL = `${SITE_ORIGIN}/assets/textures/fabric-jersey-normal.jpg?v=1`
+const FABRIC_ROUGH_URL = `${SITE_ORIGIN}/assets/textures/fabric-jersey-roughness.jpg?v=1`
+
 export type SceneConfig = {
   glbUrl: string
   background: string
@@ -61,6 +65,11 @@ export function buildSceneHtml(cfg: SceneConfig): string {
     LEGACY_PRINT_AREA,
     PLATEN_W_FRAC: 0.55,
     PLATEN_TOP_FRAC: 0.2,
+    FABRIC_NORMAL_URL,
+    FABRIC_ROUGH_URL,
+    FABRIC_TILES: 12,
+    FABRIC_NORMAL_SCALE: 0.9,
+    FABRIC_ENV_INTENSITY: 0.7,
   })
 
   return (
@@ -112,7 +121,7 @@ const SCENE_JS = String.raw`
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = 0.82;
+  renderer.toneMappingExposure = 0.5; // see configurator.js — white cloth clipped at 0.82
 
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 100);
@@ -151,6 +160,33 @@ const SCENE_JS = String.raw`
   var design = { shirtColor: '#FFFFFF', front: [], back: [] };
   var PRINT = { front: null, back: null };
   var images = {}; // src → HTMLImageElement (loaded) | 'loading' | 'error'
+
+  // ── Fabric surface (mirror of configurator.js) ────────────────────────────
+  // Tiled into the atlas rather than repeated: r128 drives every map on a
+  // material with the design canvas's UV transform, which must stay at 1×.
+  var fabricNormal = null, fabricRough = null, modelUvNative = false;
+  function tileToTexture(img) {
+    var cv = mkCanvas(), g = cv.getContext('2d'), n = CFG.FABRIC_TILES, step = TEX / n;
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) g.drawImage(img, x * step, y * step, step, step);
+    var t = new THREE.CanvasTexture(cv);
+    t.flipY = false; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
+    t.generateMipmaps = true; t.anisotropy = maxAniso;
+    return t;
+  }
+  function loadImg(url) {
+    return new Promise(function (res, rej) { var i = new Image(); i.crossOrigin = 'anonymous'; i.onload = function () { res(i); }; i.onerror = function () { rej(new Error(url)); }; i.src = url; });
+  }
+  function applyFabric(mat) {
+    if (mat.userData.ownNormalMap || !fabricNormal) return;
+    mat.normalMap = fabricNormal;
+    mat.normalScale = new THREE.Vector2(CFG.FABRIC_NORMAL_SCALE, CFG.FABRIC_NORMAL_SCALE);
+    mat.roughnessMap = fabricRough; mat.roughness = 1.0;
+    mat.needsUpdate = true;
+  }
+  Promise.all([loadImg(CFG.FABRIC_NORMAL_URL), loadImg(CFG.FABRIC_ROUGH_URL)]).then(function (imgs) {
+    fabricNormal = tileToTexture(imgs[0]); fabricRough = tileToTexture(imgs[1]);
+    materials.forEach(applyFabric);
+  }).catch(function (e) { post({ type: 'fabricError', message: String(e && e.message) }); });
 
   function drawPlain() {
     var g = cv.plain.getContext('2d');
@@ -251,6 +287,8 @@ const SCENE_JS = String.raw`
     });
     if (!geoms.length) return;
     var rangeU = maxU - minU || 1, rangeV = maxV - minV || 1, uni = Math.max(rangeU, rangeV);
+    // Already a 0–1 atlas → the model's own textures still line up after this pass.
+    modelUvNative = rangeU <= 1.05 && rangeV <= 1.05 && minU >= -0.05 && minV >= -0.05;
     var shiftU = (1 - rangeU / uni) / 2, shiftV = (1 - rangeV / uni) / 2;
     geoms.forEach(function (geo) {
       var uv = geo.attributes.uv;
@@ -441,7 +479,17 @@ const SCENE_JS = String.raw`
       var isBack = nodeHasAnyNameInHierarchy(ch, ['body_back']);
       var isFront = nodeHasAnyNameInHierarchy(ch, ['body_front']) || (mName.indexOf('body') !== -1 && !isBack && !isSleeve && !isRib);
       var map = isFront ? tex.front : isBack ? tex.back : tex.plain;
-      var mat = new THREE.MeshStandardMaterial({ map: map, side: THREE.FrontSide, roughness: 0.7, metalness: 0 });
+      var mat = new THREE.MeshStandardMaterial({ map: map, side: THREE.FrontSide, roughness: 0.7, metalness: 0, envMapIntensity: CFG.FABRIC_ENV_INTENSITY });
+      // Surface detail: an authored normal map on native UVs wins, else the tiled cotton.
+      var orig = Array.isArray(ch.material) ? ch.material[0] : ch.material;
+      if (modelUvNative && orig && orig.normalMap) {
+        mat.normalMap = orig.normalMap;
+        mat.normalScale = orig.normalScale ? orig.normalScale.clone() : new THREE.Vector2(1, 1);
+        if (orig.roughnessMap) { mat.roughnessMap = orig.roughnessMap; mat.roughness = 1.0; }
+        mat.userData.ownNormalMap = true;
+      } else {
+        applyFabric(mat);
+      }
       ch.material = mat; materials.push(mat);
       if (isFront) frontMeshes.push(ch); else if (isBack) backMeshes.push(ch);
     });
@@ -476,8 +524,22 @@ const SCENE_JS = String.raw`
         camera: camera.position.toArray(), target: controls.target.toArray(),
         camFront: CAM.front.toArray(), camBack: CAM.back.toArray(), facing: facing.toArray(),
         frontMeshes: frontMeshes.length, backMeshes: backMeshes.length, materials: materials.length,
-        print: PRINT, anim: !!camAnim, view: CFG.view
+        print: PRINT, anim: !!camAnim, view: CFG.view,
+        fabric: !!fabricNormal, ownMaps: materials.filter(function (m) { return m.userData.ownNormalMap; }).length
       };
+    },
+    // QA: render one frame (optionally zoomed towards the target) and return it as PNG.
+    snapshot: function (zoom, w, h) {
+      // A hidden WebView has no layout size; render at an explicit one.
+      w = w || 900; h = h || 1125;
+      var saved = camera.position.clone(), aspect = camera.aspect;
+      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+      if (zoom && zoom > 1) camera.position.lerpVectors(controls.target, saved, 1 / zoom);
+      renderer.render(scene, camera);
+      var url = renderer.domElement.toDataURL('image/png');
+      camera.position.copy(saved); camera.aspect = aspect; camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth || w, window.innerHeight || h, false);
+      return url;
     }
   };
   window.addEventListener('message', function (e) {

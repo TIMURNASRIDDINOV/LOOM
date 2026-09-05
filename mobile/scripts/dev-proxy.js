@@ -17,10 +17,16 @@
 
 const http = require('http')
 const https = require('https')
+const fs = require('fs')
+const path = require('path')
 
 const PORT = parseInt(process.env.PORT || '8787', 10)
 const API = 'api.loomdesign.uz'
 const SITE = 'loomdesign.uz'
+// Site assets that exist in the working copy are served from disk first, so
+// an un-deployed texture or vendored script can be tested before it is pushed.
+const SITE_DIR = path.resolve(__dirname, '..', '..')
+const MIME = { '.js': 'application/javascript', '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png', '.css': 'text/css', '.json': 'application/json', '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.mp4': 'video/mp4', '.webp': 'image/webp' }
 
 const server = http.createServer((req, res) => {
   const origin = req.headers.origin || '*'
@@ -36,7 +42,20 @@ const server = http.createServer((req, res) => {
     return res.end()
   }
 
-  const host = req.url.startsWith('/assets/') ? SITE : API
+  // Anything that is not the API is the website: serve the working copy when
+  // the file exists (so un-deployed pages, textures and scripts can be tested
+  // at http://localhost:8787/configurator.html), else fall back to the live site.
+  if (!req.url.startsWith('/api/')) {
+    let rel = req.url.split('?')[0]
+    if (rel === '/') rel = '/index.html'
+    const local = path.normalize(path.join(SITE_DIR, rel))
+    if (local.startsWith(SITE_DIR + path.sep) && fs.existsSync(local) && fs.statSync(local).isFile()) {
+      res.writeHead(200, { 'content-type': MIME[path.extname(local)] || 'application/octet-stream', ...cors })
+      return fs.createReadStream(local).pipe(res)
+    }
+  }
+
+  const host = req.url.startsWith('/api/') ? API : SITE
   const headers = { ...req.headers, host }
   delete headers.origin
   delete headers.referer

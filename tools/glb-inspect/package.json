@@ -1,0 +1,14 @@
+{
+  "name": "loom-glb-inspect",
+  "private": true,
+  "type": "module",
+  "description": "Vet a garment GLB against what configurator.js / the app's 3D scene expect",
+  "scripts": {
+    "inspect": "node inspect.mjs"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "4.4.2",
+    "@gltf-transform/extensions": "4.4.2",
+    "meshoptimizer": "0.25.0"
+  }
+}
