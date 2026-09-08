@@ -97,6 +97,7 @@ async function loadProduct(id) {
   document.getElementById('f-slug').value = p.slug
   document.getElementById('f-price').value = p.price
   document.getElementById('f-name-ru').value = p.name_ru || ''
+  document.getElementById('f-name-uz').value = p.name_uz || ''
   document.getElementById('f-name-en').value = p.name_en || ''
   document.getElementById('f-desc').value = p.description_ru || ''
   document.getElementById('f-order').value = p.display_order ?? 0
@@ -181,6 +182,7 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
   const fd = new FormData()
   fd.append('slug', document.getElementById('f-slug').value.trim())
   fd.append('name_ru', document.getElementById('f-name-ru').value.trim())
+  fd.append('name_uz', document.getElementById('f-name-uz').value.trim())
   fd.append('name_en', document.getElementById('f-name-en').value.trim())
   fd.append('description_ru', document.getElementById('f-desc').value.trim())
   fd.append('price', document.getElementById('f-price').value)

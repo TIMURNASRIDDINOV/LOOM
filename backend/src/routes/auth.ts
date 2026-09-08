@@ -109,8 +109,26 @@ auth.get('/me', requireAuth, async (c) => {
     is_designer: user.is_designer ?? 0,
     designer_handle: user.designer_handle ?? null,
     designer_bio: user.designer_bio ?? null,
+    // Telegram and OAuth accounts carry a sentinel in password_hash that no
+    // password can ever match, so offering them "change password" is a dead
+    // end — the cabinet hides that card when this is false.
+    has_password: hasUsablePassword(user.password_hash),
+    // Notification switches (0019). Default on: a row written before the
+    // migration has neither column, and nobody has opted out of anything.
+    notify_orders: (user.notify_orders ?? 1) ? 1 : 0,
+    notify_promo: (user.notify_promo ?? 1) ? 1 : 0,
   })
 })
+
+/**
+ * A password that could actually be verified. Telegram sign-up writes
+ * `telegram_auth` and social sign-up writes `oauth_<provider>`; both are
+ * sentinels, not hashes.
+ */
+function hasUsablePassword(hash: string | null | undefined): boolean {
+  if (!hash) return false
+  return hash !== 'telegram_auth' && !hash.startsWith('oauth_')
+}
 
 // ─── DELETE /api/auth/account  (requires Bearer token) ───────────────────────
 // Store policy: an app that offers sign-up must offer account deletion. Orders
@@ -129,11 +147,13 @@ auth.patch('/profile', requireAuth, async (c) => {
   let body: unknown
   try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
 
-  const { name, phone, location_preset } = body as Record<string, unknown>
+  const { name, phone, location_preset, notify_orders, notify_promo } = body as Record<string, unknown>
   const updates: Parameters<typeof updateUserProfile>[2] = {}
 
   if (name !== undefined) updates.name = typeof name === 'string' ? name.trim() || null : null
   if (phone !== undefined) updates.phone = typeof phone === 'string' ? phone.trim() || null : null
+  if (notify_orders !== undefined) updates.notify_orders = notify_orders ? 1 : 0
+  if (notify_promo !== undefined) updates.notify_promo = notify_promo ? 1 : 0
   if (location_preset !== undefined) {
     if (location_preset === null) {
       updates.location_preset = null
@@ -148,7 +168,15 @@ auth.patch('/profile', requireAuth, async (c) => {
 
   const user = await getUserById(c.env.DB, c.get('userId'))
   if (!user) return c.json({ error: 'Not found' }, 404)
-  return c.json({ id: user.id, email: user.email, name: user.name, phone: user.phone, location_preset: user.location_preset })
+  return c.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    location_preset: user.location_preset,
+    notify_orders: (user.notify_orders ?? 1) ? 1 : 0,
+    notify_promo: (user.notify_promo ?? 1) ? 1 : 0,
+  })
 })
 
 // ─── PATCH /api/auth/password  (requires Bearer token) ───────────────────────

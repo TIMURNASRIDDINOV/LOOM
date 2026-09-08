@@ -44,6 +44,30 @@
   let user = null
   let API = ''
 
+  /**
+   * Auth headers for the cabinet's own calls.
+   *
+   * Two sign-in styles are live: email accounts carry a Bearer token in
+   * localStorage, phone/Telegram and social accounts carry a `user_token`
+   * cookie. requireAuth on the Worker accepts either — but only if we send it.
+   * Every settings action here used to hardcode `Bearer ' + token`, which for
+   * a cookie account is the literal string "Bearer null": the Worker takes the
+   * Bearer branch, fails to verify, and returns 401. Saving a name, a phone,
+   * an avatar or an address was impossible for anyone who signed in with
+   * Telegram. Send the token only when there is one, and always send cookies.
+   */
+  function authHeaders(extra) {
+    const h = Object.assign({}, extra || {})
+    const token = window.LOOM_AUTH && window.LOOM_AUTH.getToken()
+    if (token) h['Authorization'] = 'Bearer ' + token
+    return h
+  }
+  function authFetch(path, opts) {
+    const o = Object.assign({ credentials: 'include' }, opts || {})
+    o.headers = authHeaders(o.headers)
+    return fetch(API + path, o)
+  }
+
   // ── Tabs ─────────────────────────────────────────────────────────────────────
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -91,11 +115,7 @@
     try {
       const fd = new FormData()
       fd.append('avatar', file)
-      const token = window.LOOM_AUTH.getToken()
-      const res = await fetch(API + '/api/auth/avatar', {
-        method: 'POST', body: fd,
-        headers: { Authorization: 'Bearer ' + token },
-      })
+      const res = await authFetch('/api/auth/avatar', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
       user.avatar_url = data.avatar_url
@@ -219,10 +239,9 @@
     msgOk.textContent = ''; msgErr.textContent = ''
     btn.disabled = true
     try {
-      const token = window.LOOM_AUTH.getToken()
-      const res = await fetch(API + '/api/auth/profile', {
+      const res = await authFetch('/api/auth/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: document.getElementById('edit-name').value.trim() || null,
           phone: document.getElementById('edit-phone').value.trim() || null,
@@ -252,10 +271,9 @@
       const lat = parseFloat(document.getElementById('loc-lat').value) || null
       const lng = parseFloat(document.getElementById('loc-lng').value) || null
       const loc = address ? { address, lat, lng } : null
-      const token = window.LOOM_AUTH.getToken()
-      const res = await fetch(API + '/api/auth/profile', {
+      const res = await authFetch('/api/auth/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ location_preset: loc }),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Ошибка') }
@@ -276,10 +294,9 @@
     document.getElementById('loc-lng').value = ''
     document.getElementById('location-preview').style.display = 'none'
     hideGeocodeResult()
-    const token = window.LOOM_AUTH.getToken()
-    await fetch(API + '/api/auth/profile', {
+    await authFetch('/api/auth/profile', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ location_preset: null }),
     }).catch(() => {})
     sessionStorage.removeItem('loom_user')
@@ -300,10 +317,9 @@
     if (newPw.length < 8) { msgErr.textContent = 'Новый пароль — минимум 8 символов'; return }
     btn.disabled = true
     try {
-      const token = window.LOOM_AUTH.getToken()
-      const res = await fetch(API + '/api/auth/password', {
+      const res = await authFetch('/api/auth/password', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ current_password: current, new_password: newPw }),
       })
       const data = await res.json()
@@ -319,24 +335,99 @@
     }
   })
 
-  // ── Notification prefs (stored in localStorage) ───────────────────────────────
+  // ── Notification prefs ────────────────────────────────────────────────────────
+  // These switches used to write to localStorage and be read by nobody: they
+  // were per-browser, and turning one off changed nothing about what got sent.
+  // They now sit on the account (migration 0019) and POST /api/admin/notifications
+  // refuses a category the customer has switched off.
 
-  document.getElementById('save-notif-btn').addEventListener('click', () => {
-    const prefs = {
-      orders: document.getElementById('notif-orders').checked,
-      promo: document.getElementById('notif-promo').checked,
+  document.getElementById('save-notif-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-notif-btn')
+    const msg = document.getElementById('notif-msg')
+    const orders = document.getElementById('notif-orders').checked
+    const promo  = document.getElementById('notif-promo').checked
+    btn.disabled = true
+    msg.textContent = ''
+    try {
+      const res = await authFetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notify_orders: orders, notify_promo: promo }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'HTTP ' + res.status) }
+      if (user) { user.notify_orders = orders ? 1 : 0; user.notify_promo = promo ? 1 : 0 }
+      sessionStorage.removeItem('loom_user')
+      msg.textContent = AT('acc.saved', 'Сохранено!')
+      setTimeout(() => { msg.textContent = '' }, 2500)
+    } catch (err) {
+      msg.textContent = '⚠ ' + err.message
+    } finally {
+      btn.disabled = false
     }
-    localStorage.setItem('loom_notif_prefs', JSON.stringify(prefs))
-    document.getElementById('notif-msg').textContent = 'Сохранено!'
-    setTimeout(() => { document.getElementById('notif-msg').textContent = '' }, 2000)
   })
 
   function loadNotifPrefs() {
-    try {
-      const prefs = JSON.parse(localStorage.getItem('loom_notif_prefs') || '{}')
-      if (prefs.orders !== undefined) document.getElementById('notif-orders').checked = prefs.orders
-      if (prefs.promo  !== undefined) document.getElementById('notif-promo').checked = prefs.promo
-    } catch {}
+    // A Worker that has not been redeployed yet simply omits the fields; the
+    // switches then show their defaults rather than a wrong value.
+    if (!user) return
+    if (user.notify_orders !== undefined) {
+      document.getElementById('notif-orders').checked = !!user.notify_orders
+    }
+    if (user.notify_promo !== undefined) {
+      document.getElementById('notif-promo').checked = !!user.notify_promo
+    }
+  }
+
+  // ── Sign-in method: hide controls that cannot work ────────────────────────────
+  // A Telegram or social account has a sentinel where its password hash would
+  // be, so "change password" could only ever answer "current password is
+  // incorrect". Hide the card and say how the account signs in instead.
+
+  function applyAuthMethod(u) {
+    const card = document.getElementById('pw-card')
+    if (!card || u.has_password === undefined) return   // pre-0019 Worker: leave as-is
+    if (u.has_password) return
+    card.style.display = 'none'
+    const note = document.getElementById('auth-method-note')
+    if (note) {
+      note.style.display = ''
+      const via = u.telegram_user_id
+        ? AT('acc.viaTelegram', 'Telegram')
+        : AT('acc.viaSocial', 'аккаунт социальной сети')
+      note.textContent = AT('acc.noPassword', 'Вы входите через {via} — пароль для этого аккаунта не используется.')
+        .replace('{via}', via)
+    }
+  }
+
+  // ── Delete account ────────────────────────────────────────────────────────────
+  // The app has offered this since the store review required it; the website
+  // never did. Orders survive as anonymised commercial records — everything
+  // personal is wiped (DELETE /api/auth/account → anonymizeUser).
+
+  const delBtn = document.getElementById('delete-account-btn')
+  if (delBtn) {
+    let armed = false
+    const confirmEl = document.getElementById('delete-confirm')
+    delBtn.addEventListener('click', async () => {
+      if (!armed) {
+        armed = true
+        if (confirmEl) confirmEl.style.display = ''
+        delBtn.textContent = AT('acc.deleteConfirm', 'Да, удалить навсегда')
+        delBtn.classList.add('is-armed')
+        return
+      }
+      delBtn.disabled = true
+      try {
+        const res = await authFetch('/api/auth/account', { method: 'DELETE' })
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'HTTP ' + res.status) }
+        await window.LOOM_AUTH.logout()
+        window.location.href = 'index.html'
+      } catch (err) {
+        const errEl = document.getElementById('delete-err')
+        if (errEl) errEl.textContent = '⚠ ' + err.message
+        delBtn.disabled = false
+      }
+    })
   }
 
   // ── Address search (Nominatim) ────────────────────────────────────────────────
@@ -403,13 +494,7 @@
     const listEl = document.getElementById('notif-list')
     listEl.innerHTML = '<p class="notif-empty">Загрузка…</p>'
     try {
-      const token = window.LOOM_AUTH.getToken()
-      const headers = {}
-      if (token) headers['Authorization'] = 'Bearer ' + token
-      const res = await fetch(API + '/api/me/notifications?page=' + page + '&limit=' + NOTIF_LIMIT, {
-        headers,
-        credentials: 'include',
-      })
+      const res = await authFetch('/api/me/notifications?page=' + page + '&limit=' + NOTIF_LIMIT)
       if (!res.ok) throw new Error('HTTP ' + res.status)
       const data = await res.json()
       const items = data.items || []
@@ -449,10 +534,7 @@
   async function loadOrders() {
     const container = document.getElementById('orders-container')
     try {
-      const token = window.LOOM_AUTH.getToken()
-      const res = await fetch(API + '/api/me/orders', {
-        headers: { Authorization: 'Bearer ' + token },
-      })
+      const res = await authFetch('/api/me/orders')
       if (!res.ok) throw new Error('HTTP ' + res.status)
       const data = await res.json()
       const orders = data.orders || []
@@ -502,6 +584,7 @@
     if (window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav) window.LOOM_AUTH.renderAuthNav()
 
     populateProfile(user)
+    applyAuthMethod(user)
     loadOrders()
     loadNotifPrefs()
     loadNotifications(notifPage)

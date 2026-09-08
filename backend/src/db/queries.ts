@@ -200,7 +200,7 @@ export async function clearAllAdminPermissions(db: D1Database, adminId: number):
 export async function updateUserProfile(
   db: D1Database,
   id: number,
-  params: { name?: string | null; phone?: string | null; email?: string | null; first_name?: string | null; last_name?: string | null; location_preset?: string | null },
+  params: { name?: string | null; phone?: string | null; email?: string | null; first_name?: string | null; last_name?: string | null; location_preset?: string | null; notify_orders?: number; notify_promo?: number },
 ): Promise<void> {
   return safeQuery('updateUserProfile', async () => {
     const sets: string[] = []
@@ -211,6 +211,9 @@ export async function updateUserProfile(
     if ('first_name' in params) { sets.push('first_name = ?'); vals.push(params.first_name ?? null) }
     if ('last_name' in params) { sets.push('last_name = ?'); vals.push(params.last_name ?? null) }
     if ('location_preset' in params) { sets.push('location_preset = ?'); vals.push(params.location_preset ?? null) }
+    // 0019: the notification switches finally write somewhere the sender reads.
+    if ('notify_orders' in params) { sets.push('notify_orders = ?'); vals.push(params.notify_orders ? 1 : 0) }
+    if ('notify_promo' in params) { sets.push('notify_promo = ?'); vals.push(params.notify_promo ? 1 : 0) }
     if (!sets.length) return
     vals.push(id)
     await db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run()
@@ -522,7 +525,7 @@ export async function getAdminProducts(
 }
 
 const ALLOWED_PRODUCT_COLUMNS = new Set([
-  'slug', 'name_ru', 'name_en', 'description_ru', 'price',
+  'slug', 'name_ru', 'name_en', 'name_uz', 'description_ru', 'price',
   'glb_key', 'thumbnail_key', 'base_colors', 'product_type', 'active', 'display_order',
 ])
 
@@ -532,6 +535,7 @@ export async function createProduct(
     slug: string
     name_ru: string
     name_en: string | null
+    name_uz: string | null
     description_ru: string | null
     price: number
     glb_key: string | null
@@ -547,12 +551,12 @@ export async function createProduct(
     const result = await db
       .prepare(
         `INSERT INTO products
-           (slug, name_ru, name_en, description_ru, price, glb_key, thumbnail_key,
+           (slug, name_ru, name_en, name_uz, description_ru, price, glb_key, thumbnail_key,
             base_colors, product_type, active, display_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
-        params.slug, params.name_ru, params.name_en, params.description_ru,
+        params.slug, params.name_ru, params.name_en, params.name_uz, params.description_ru,
         params.price, params.glb_key, params.thumbnail_key,
         params.base_colors, params.product_type, params.active, params.display_order,
         now, now,
@@ -566,7 +570,8 @@ export async function updateProduct(
   db: D1Database,
   id: number,
   params: Partial<{
-    slug: string; name_ru: string; name_en: string | null; description_ru: string | null
+    slug: string; name_ru: string; name_en: string | null; name_uz: string | null
+    description_ru: string | null
     price: number; glb_key: string | null; thumbnail_key: string | null
     base_colors: string | null; product_type: string; active: number; display_order: number
   }>,
@@ -1091,6 +1096,10 @@ export interface AdminUserRow {
   last_login_at: number | null
   orders_count: number
   total_spent: number
+  // 0019 — only selected by getAdminUserById (the notification sender needs
+  // them); the list query leaves them undefined.
+  notify_orders?: number | null
+  notify_promo?: number | null
 }
 
 export async function getAdminUsers(
@@ -1151,6 +1160,7 @@ export async function getAdminUserById(db: D1Database, id: number): Promise<Admi
         `SELECT u.id, u.phone, u.email, u.name, u.first_name, u.last_name, u.avatar_key,
                 u.telegram_username, u.telegram_user_id, u.role, u.status,
                 u.location_preset, u.created_at, u.last_login_at,
+                u.notify_orders, u.notify_promo,
                 COUNT(o.id) as orders_count,
                 COALESCE(SUM(o.total_price), 0) as total_spent
          FROM users u

@@ -43,16 +43,16 @@
          people who never opened the preview. Page scripts stay deferred so
          none of them blocks the parser. -->
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
-    <script defer src="assets/config.js?v=2"></script>
-    <script defer src="assets/layout.js?v=3"></script>
-    <script defer src="assets/i18n.js?v=21"></script>
+    <script defer src="assets/config.js?v=3"></script>
+    <script defer src="assets/layout.js?v=4"></script>
+    <script defer src="assets/i18n.js?v=24"></script>
     <script defer src="assets/auth.js?v=4"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=2"></script>
     <script defer src="assets/motion.js?v=9"></script>
     <script defer src="assets/track.js?v=3"></script>
     <script defer src="assets/cart.js?v=2"></script>
-    <script defer src="configurator.js?v=45"></script>
+    <script defer src="configurator.js?v=47"></script>
 
     <style>
       /* ============================================================
@@ -86,22 +86,24 @@
         --shadow-lg: 0 24px 60px rgba(19,19,17,0.12);
         --danger-border: rgba(214,58,47,0.4);
         --ok-border: rgba(21,128,61,0.3);
-        /* Studio backdrop. Deepened again: at #edeae1 a white garment sat at
-           roughly 1.2:1 against it — the hero product was nearly invisible in
-           light theme. A mid warm neutral is what product photography uses for
-           white goods; this lands near 1.8:1, so the silhouette reads. */
-        --studio-0: #c9c2b1;
-        --studio-1: #b9b19e;
-        --studio-2: #a79f8c;
+        /* Studio backdrop — a photographer's sweep, not a flat wall: bright
+           behind the shoulders, falling off towards the floor and the corners.
+           A white garment used to need a mid khaki to be visible at all
+           (#edeae1 gave ~1.2:1); it no longer does, because the rig now casts
+           a real shadow and rims the silhouette, so the backdrop can go back
+           to something that looks like a studio instead of cardboard. */
+        --studio-0: #f0ece4;
+        --studio-1: #ddd8cd;
+        --studio-2: #bdb6a8;
       }
       :root[data-theme="dark"] {
         --panel-glass: rgba(32,31,28,0.86);
         --shadow-lg: 0 24px 60px rgba(0,0,0,0.5);
         --danger-border: rgba(255,107,94,0.45);
         --ok-border: rgba(62,207,114,0.35);
-        --studio-0: #26241f;
-        --studio-1: #1a1916;
-        --studio-2: #100f0d;
+        --studio-0: #2b2924;
+        --studio-1: #1b1a17;
+        --studio-2: #0d0c0b;
       }
       body { background: var(--bg); color: var(--text); min-height: 100vh; }
 
@@ -110,12 +112,16 @@
         position: relative; padding-top: 64px;
         height: 100vh; height: 100dvh; min-height: 640px; overflow: hidden;
         background:
-          radial-gradient(140% 110% at 50% 30%, var(--studio-0) 0%, var(--studio-1) 55%, var(--studio-2) 100%);
+          /* the pool of light the key throws on the backdrop */
+          radial-gradient(78% 58% at 50% 34%, rgba(255, 255, 255, 0.55), transparent 70%),
+          /* the sweep itself: wall above, floor below */
+          linear-gradient(180deg, var(--studio-0) 0%, var(--studio-1) 56%, var(--studio-2) 100%);
       }
-      /* soft photo-studio vignette under all interactive layers */
+      /* Vignette. Stronger than before because the backdrop is brighter now —
+         without it the corners pull the eye away from the garment. */
       .studio::before {
         content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-        background: radial-gradient(120% 90% at 50% 42%, transparent 58%, rgba(0,0,0,0.06) 100%);
+        background: radial-gradient(115% 85% at 50% 40%, transparent 46%, rgba(0,0,0,0.14) 100%);
       }
       /* touch-action:none — decal drags / pinches must reach the
          pointer-event editor, not become page scroll (which fires
@@ -298,6 +304,140 @@
       .dock-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
       .dock-actions { gap: 0.35rem; }
 
+      /* ── Step head ────────────────────────────────────────────────
+         Each step opens with a sentence. The panel used to start on a row of
+         buttons, which asks the visitor to infer the task from the controls —
+         fine if you have seen a design tool before, and a dead end if you
+         have not. */
+      .step-head { margin-bottom: 0.25rem; }
+      .step-kicker {
+        margin: 0 0 0.45rem; font-family: var(--mono); font-size: 0.68rem;
+        letter-spacing: 0.16em; text-transform: uppercase; color: var(--brand);
+      }
+      .step-title {
+        margin: 0 0 0.4rem; font-family: var(--font-display);
+        font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em;
+        line-height: 1.15; color: var(--text);
+      }
+      .step-lead {
+        margin: 0; font-size: 0.92rem; line-height: 1.55; color: var(--muted);
+        max-width: 34ch;
+      }
+
+      /* ── The two big choices ──────────────────────────────────────
+         Icon, name, and one line saying what it is for. Sized so the decision
+         is obvious at a glance and the target is thumb-sized. */
+      .dock-choices { display: flex; flex-direction: column; gap: 0.6rem; margin: 0.35rem 0 0.15rem; }
+      .choice-tile {
+        display: flex; align-items: center; gap: 0.9rem; width: 100%; text-align: left;
+        padding: 0.95rem 1rem; cursor: pointer;
+        font-family: inherit; color: var(--text);
+        background: var(--field-bg); border: 1px solid var(--hairline); border-radius: 4px;
+        transition: transform 0.18s var(--ease), border-color 0.18s var(--ease),
+                    box-shadow 0.18s var(--ease), background 0.18s var(--ease);
+        -webkit-tap-highlight-color: transparent;
+      }
+      .choice-tile:hover, .choice-tile:focus-visible {
+        border-color: var(--text); transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(0,0,0,0.10);
+        outline: none;
+      }
+      .choice-tile:active { transform: translateY(0); box-shadow: none; }
+      .choice-ico {
+        flex-shrink: 0; width: 46px; height: 46px; border-radius: 4px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: var(--hover-wash); color: var(--text);
+        transition: background 0.18s var(--ease), color 0.18s var(--ease), transform 0.28s var(--ease);
+      }
+      .choice-ico svg { width: 23px; height: 23px; }
+      .choice-tile:hover .choice-ico { background: var(--brand); color: var(--on-accent); transform: rotate(-4deg) scale(1.06); }
+      .choice-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.18rem; }
+      .choice-title { font-size: 1.02rem; font-weight: 600; letter-spacing: -0.01em; }
+      .choice-sub { font-size: 0.82rem; color: var(--muted); line-height: 1.35; }
+      .choice-go {
+        flex-shrink: 0; display: inline-flex; color: var(--ink-38);
+        transition: transform 0.22s var(--ease), color 0.18s var(--ease);
+      }
+      .choice-go svg { width: 18px; height: 18px; }
+      .choice-tile:hover .choice-go { transform: translateX(4px); color: var(--brand); }
+
+      /* A choice that is not available yet still has to look like a choice —
+         dimmed, badged, and clickable enough to explain itself. */
+      .choice-tile--soon { border-style: dashed; }
+      .choice-tile--soon .choice-ico { background: transparent; border: 1px dashed var(--hairline); color: var(--muted); }
+      .choice-tile--soon .choice-title { color: var(--muted); }
+      .choice-tile--soon:hover .choice-ico { background: transparent; color: var(--brand); border-color: var(--brand); transform: none; }
+      .choice-soon {
+        flex-shrink: 0; align-self: flex-start;
+        padding: 0.24rem 0.5rem; border: 1px solid var(--brand);
+        color: var(--brand); font-family: var(--mono);
+        font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase;
+      }
+      /* Unlocked (LOOM_FLAGS.lab): it becomes an ordinary tile. */
+      .studio-sheet.lab-live .choice-tile--soon { border-style: solid; }
+      .studio-sheet.lab-live .choice-tile--soon .choice-title { color: var(--text); }
+      .studio-sheet.lab-live .choice-soon { display: none; }
+
+      .lab-card { position: relative; text-align: left; }
+      .lab-card__badge { position: absolute; top: 1rem; right: 1rem; }
+      .lab-card__lead { margin: 0.2rem 0 0.9rem; font-size: 0.9rem; line-height: 1.6; color: var(--muted); }
+      .lab-card__list { list-style: none; margin: 0 0 1.2rem; padding: 0; display: grid; gap: 0.5rem; }
+      .lab-card__list li { position: relative; padding-left: 1.1rem; font-size: 0.86rem; color: var(--text); }
+      .lab-card__list li::before {
+        content: ''; position: absolute; left: 0; top: 0.5em;
+        width: 6px; height: 6px; background: var(--brand);
+      }
+      .lab-card__cta { display: block; text-align: center; text-decoration: none; margin-bottom: 0.5rem; }
+      .lab-card__close { display: block; width: 100%; }
+
+      /* ── Progress ─────────────────────────────────────────────────
+         Three segments that fill as you go: "how much is left" answered
+         without a word of text. */
+      .step-progress {
+        height: 3px; flex-shrink: 0; background: var(--hairline);
+        overflow: hidden;
+      }
+      .step-progress-fill {
+        display: block; height: 100%; width: 33.333%;
+        background: var(--brand);
+        transition: width 0.42s var(--ease);
+      }
+      .studio-sheet[data-step="color"] .step-progress-fill { width: 66.666%; }
+      .studio-sheet[data-step="order"] .step-progress-fill { width: 100%; }
+
+      /* ── Step entrance ────────────────────────────────────────────
+         Retriggered from setStep() by removing and re-adding .step-in, so a
+         step always animates in — including on the way back. */
+      @keyframes stepIn {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: none; }
+      }
+      .step-in { animation: stepIn 0.34s var(--ease) both; }
+      /* Layer controls slide in when something is selected rather than
+         appearing out of nowhere. */
+      @keyframes layerIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: none; }
+      }
+      #dock-sel, #dock-textrow { animation: layerIn 0.24s var(--ease) both; }
+      /* JS shows this with display:flex; the rows inside must stack. */
+      .dock-textrow { flex-direction: column; align-items: stretch; gap: 0.45rem; }
+
+      /* The forward button, and the arrow that nudges on hover */
+      .btn-next { display: flex; align-items: center; justify-content: center; gap: 0.55rem; }
+      .btn-next svg { width: 18px; height: 18px; transition: transform 0.22s var(--ease); }
+      .btn-next:hover svg { transform: translateX(4px); }
+      .studio-sheet:not([data-step="order"]) #btn-add-to-cart { display: none; }
+      .studio-sheet[data-step="order"] #btn-step-next { display: none; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .choice-tile, .choice-ico, .choice-go, .step-progress-fill, .btn-next svg { transition: none; }
+        .choice-tile:hover { transform: none; }
+        .choice-tile:hover .choice-ico { transform: none; }
+        .choice-tile:hover .choice-go { transform: none; }
+        .step-in, #dock-sel, #dock-textrow { animation: none; }
+      }
+
       /* Selected-layer strip — accent bar on the left, like the reference */
       .dock-sel {
         padding: 0.4rem 0.5rem; border-radius: 2px;
@@ -349,6 +489,8 @@
         color: var(--text); cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
       }
       .dock-pill:hover { border-color: var(--text); }
+      .dock-more-btn { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); }
+      .dock-more-btn:hover { color: var(--text); }
       .dock-pill.primary { background: var(--text); color: var(--paper); border-color: var(--text); }
       .dock-pill.primary:hover { opacity: 0.85; }
       .dock-tgl {
@@ -830,6 +972,22 @@
 
       /* ── Mobile: panel becomes a bottom sheet ────────────────── */
       @media (max-width: 900px) {
+        /* On a phone the sheet's first screen has to fit the question AND the
+           answers. At desktop sizes the step head can breathe; here it gets
+           the smallest type that still reads as a heading, so the two choice
+           tiles stay above the fold. */
+        .step-title { font-size: 1.18rem; }
+        .step-lead { font-size: 0.85rem; line-height: 1.45; }
+        .step-kicker { margin-bottom: 0.3rem; font-size: 0.62rem; }
+        .step-head { margin-bottom: 0; }
+        .choice-tile { padding: 0.75rem 0.85rem; gap: 0.7rem; }
+        .choice-ico { width: 38px; height: 38px; }
+        .choice-ico svg { width: 19px; height: 19px; }
+        .choice-title { font-size: 0.95rem; }
+        .choice-sub { font-size: 0.76rem; }
+        /* Reclaim the sheet's bottom band: the foot is pinned, so every pixel
+           it does not need is a pixel the step body gets. */
+        .studio-sheet .btn-primary-full { font-size: 0.98rem; padding: 0.9rem 1.1rem; }
         /* Every child is absolute (surfaces) or fixed (the sheet), so an auto
            height collapsed .studio to its 64px padding — the studio gradient
            painted only the header strip and the stage fell through to body.
@@ -1009,78 +1167,217 @@
       @keyframes sheetIn { from { opacity: 0.6; transform: translateY(48px); } to { opacity: 1; transform: translateY(0); } }
 
       /* ══════════════════════════════════════════════════════════════
-         MAXIMALIST SKIN
+         MAXIMALIST SKIN — the site's language, applied to the studio
          ──────────────────────────────────────────────────────────────
-         Dense, layered, decorative — in the register the brand already
-         speaks: Inter Tight display, Plex Mono micro-labels, the coral
-         accent as FIELDS rather than hints, thick rules, hard offset
-         shadows, numbered indices.
+         theme.css §11 defines the brand's skin for every customer page:
+         2px rules, zero radius, Inter Tight display, Plex Mono micro
+         labels, coral as FIELDS, and hard offset shadows that collapse
+         under the press. The configurator is the page the business runs
+         on, so it speaks that language too — anything softer here reads
+         as a different product bolted onto the site.
+
+         Three rules this file exists to keep:
+
+         1. SHADOW GUTTERS. A hard shadow is drawn OUTSIDE the box. Any
+            container that clips or packs tightly cuts it off or lets it
+            land on the neighbour, which is what made pressed controls
+            look like they leaked past their own edges. Every surface
+            holding a shadowed control reserves --gut on its trailing
+            and bottom sides, and every gap between two of them is at
+            least --gut wide.
+            → Layout: "Make controls easier to use by providing enough
+              space around them… if unrelated controls are too close
+              together they can be difficult to tell apart."
+
+         2. TEXT LENGTH IS A VARIABLE. Every label ships in three
+            languages; Uzbek runs ~30% longer than Russian and neither
+            matches English. Nothing here is sized to one string: labels
+            wrap, buttons grow, and no control has a fixed height.
+            → Layout > Adaptability: "locale-based internationalization
+              features like… font variation, and text length."
+
+         3. THE GARMENT OUTRANKS THE CHROME. All of this decorates the
+            panel. The stage keeps its clean studio sweep, because
+            judging your own artwork is the entire job of the tool.
 
          Deliberately last in the stylesheet: everything above lost
          ordering fights to the base component rules, so the skin sits
          at the bottom where it wins without specificity hacks.
-
-         One rule it must never break: the GARMENT stays the most
-         legible thing on screen. All of this decorates the chrome —
-         the stage itself keeps its clean backdrop, because judging
-         your own artwork is the entire job of the tool.
          ═══════════════════════════════════════════════════════════ */
-      /* --hard / --hard-sm / --hard-accent / --rule now live in
-         assets/theme.css so every page shares one definition. */
-
-      /* ── Rail as a surface, not a void ───────────────────────────
-         A faint hatch gives the panel material presence and separates
-         it from the stage without another border. */
       .studio-sheet {
-        background-color: var(--paper);
-        background-image:
-          repeating-linear-gradient(
-            45deg,
-            var(--line-soft) 0 1px,
-            transparent 1px 9px
-          );
-        border-right-width: 2px;
+        /* Room a hard shadow needs to live in. 3px offset + 3px of air:
+           at exactly the offset the shadow kisses the clip edge and reads
+           as a cut line. */
+        --gut: 6px;
+        --hard-lg: 5px 5px 0 var(--text);
+      }
+
+      /* ── Rail: a surface, framed like everything else on the site ── */
+      .studio-sheet {
+        background: var(--paper);
+        border-right: var(--rule);
+        box-shadow: none;
       }
       .sheet-handle, .sheet-steps, .panel-foot,
       .design-dock, .tab-scroll { background: transparent; }
 
-      /* ── Header: eyebrow + heavy name + accent price ─────────────── */
+      /* ── Header: eyebrow, heavy name, price as a field ───────────── */
       .sheet-handle { position: relative; border-bottom: var(--rule); }
-      .sheet-handle::before {
-        content: "КОНФИГУРАТОР";
-        display: block; margin-bottom: 0.35rem;
+      .sheet-eyebrow {
+        display: block; margin: 0 0 0.4rem;
         font-family: var(--font-mono); font-size: 0.6rem;
-        letter-spacing: 0.22em; color: var(--accent);
+        letter-spacing: 0.22em; text-transform: uppercase;
+        color: var(--accent-deep);
       }
+      :root[data-theme="dark"] .sheet-eyebrow { color: var(--accent); }
+      .sheet-headline { align-items: center; gap: 0.75rem; }
       .sheet-product {
         font-family: var(--font-display); font-weight: 700;
-        letter-spacing: -0.02em; line-height: 1.05;
+        letter-spacing: -0.03em;
+        /* 1.05 cropped the descenders: the base rule clips this element to
+           keep the ellipsis, so anything the line box does not cover is cut
+           off — "Футболка оверсайз" lost 2px off the у and р in every
+           language. 1.25 is the smallest value that contains the font. */
+        line-height: 1.25;
+        /* A long product name in any language shrinks the field, never
+           pushes the price off the edge. */
+        min-width: 0; flex: 1 1 auto;
       }
       .sheet-price {
+        flex: 0 0 auto;
         font-family: var(--font-mono); font-weight: 500; color: var(--text);
-        background: var(--accent-tint); border: 1px solid var(--accent-55);
-        padding: 0.2rem 0.45rem;
+        background: var(--accent-tint); border: 1.5px solid var(--accent-55);
+        padding: 0.24rem 0.5rem; border-radius: 0;
       }
 
-      /* ── Steps: numbered blocks that press ──────────────────────── */
-      .sheet-steps { border-bottom: var(--rule); }
+      /* ── Steps: an ink slab that slides between three fields ─────── */
+      .sheet-steps {
+        position: relative; border-bottom: var(--rule);
+        gap: 0;
+        /* --gut on the trailing/bottom side is what stops the slab's
+           hard shadow being sliced off by the rail edge. */
+        padding: 0.8rem calc(1.5rem + var(--gut)) calc(0.9rem + var(--gut)) 1.5rem;
+      }
+      .sheet-steps::before {
+        content: ''; position: absolute; z-index: 0;
+        left: 1.5rem; right: calc(1.5rem + var(--gut));
+        top: 0.8rem; bottom: calc(0.9rem + var(--gut));
+        border: var(--rule);
+      }
+      /* One third of the track, moved by the sheet's data-step. Transform,
+         not left/width, so it animates on the compositor. */
+      .sheet-steps::after {
+        content: ''; position: absolute; z-index: 1;
+        top: 0.8rem; bottom: calc(0.9rem + var(--gut));
+        left: 1.5rem;
+        width: calc((100% - 3rem - var(--gut)) / 3);
+        background: var(--text);
+        box-shadow: var(--hard-accent);
+        transition: transform 0.34s cubic-bezier(0.34, 1.2, 0.5, 1);
+      }
+      .studio-sheet[data-step="color"] .sheet-steps::after { transform: translateX(100%); }
+      .studio-sheet[data-step="order"] .sheet-steps::after { transform: translateX(200%); }
       .step-btn {
-        border: var(--rule); border-radius: 0; background: var(--paper-3);
+        position: relative; z-index: 2;
+        min-width: 0;                     /* three languages, one row */
+        border: none; border-radius: 0; background: none; box-shadow: none;
         font-family: var(--font-display); font-weight: 600;
-        letter-spacing: -0.01em; box-shadow: var(--hard-sm);
-        transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+        font-size: clamp(0.76rem, 0.62rem + 0.4vw, 0.9rem);
+        letter-spacing: -0.01em; line-height: 1.2;
+        color: var(--muted);
+        transition: color 0.22s ease;
       }
-      .step-btn:hover:not(.active) { background: var(--paper-3); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--text); }
-      .step-btn.active {
-        background: var(--text); color: var(--paper);
-        box-shadow: var(--hard-accent); transform: translate(-1px, -1px);
+      /* THE LOCALISATION FIX.
+         The base rule pins .step-btn to `white-space: nowrap`, which was fine
+         for the string it was designed against and wrong for the other two:
+         "Цвет и размер" ran 2px past its own button and "Rang va o'lcham" ran
+         9px past — the label literally sitting outside the control. Labels
+         wrap instead, the row grows to hold the tallest one, and the sliding
+         slab is anchored to the track so it grows with it.
+         → Typography: "container boundaries can crowd text and cause
+           truncation or overlapping"; Layout > Adaptability: text length. */
+      .step-btn { white-space: normal; }
+      .step-btn > span:not(.step-num) {
+        min-width: 0; overflow-wrap: anywhere; text-wrap: balance;
       }
+      .step-num { flex: 0 0 auto; }
+      .step-btn:hover:not(.active) { background: none; color: var(--text); transform: none; box-shadow: none; }
+      .step-btn.active { background: none; color: var(--paper); box-shadow: none; transform: none; }
       .step-num {
         border-radius: 0; border: 1.5px solid currentColor;
         font-family: var(--font-mono); font-weight: 700;
+        transition: background 0.22s ease, border-color 0.22s ease, color 0.22s ease;
+      }
+      .step-btn.active .step-num { border-color: currentColor; }
+      /* A completed step is marked by shape as well as colour, so it does
+         not depend on green being distinguishable.
+         → Accessibility: "Convey information with more than color alone." */
+      .step-btn.done .step-num {
+        background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+      }
+      .step-btn.done .step-num::after { content: '✓'; }
+      .step-btn.done .step-num > * { display: none; }
+      /* The thumb IS the progress indicator; a second bar under it was
+         two answers to one question. */
+      .step-progress { display: none; }
+
+      /* ── Step head ──────────────────────────────────────────────── */
+      .step-kicker { color: var(--accent-deep); font-weight: 600; }
+      :root[data-theme="dark"] .step-kicker { color: var(--accent); }
+      .step-title {
+        font-family: var(--font-display); font-weight: 700;
+        letter-spacing: -0.035em; overflow-wrap: anywhere;
+      }
+      .step-lead { max-width: 36ch; }
+
+      /* ── The two choices: framed tiles that lift and press ──────── */
+      /* --gut of breathing room on the right so the shadow has somewhere
+         to be inside the scrolling dock. */
+      .dock-choices { padding-right: var(--gut); gap: 0.7rem; }
+      .choice-tile {
+        border: var(--rule); border-radius: 0;
+        background: var(--paper-3);
+        box-shadow: var(--hard-sm);
+        align-items: flex-start;          /* two-line titles stay aligned */
+        transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.16s ease;
+      }
+      .choice-tile:hover, .choice-tile:focus-visible {
+        transform: translate(-1px, -1px); box-shadow: var(--hard);
+        border-color: var(--text); outline: none;
+      }
+      .choice-tile:focus-visible { box-shadow: var(--hard-accent); }
+      /* Press: the slab drops onto its own shadow and the shadow goes.
+         Net travel is 2px into the gutter reserved above, so a pressed
+         tile never crosses its container's edge. */
+      .choice-tile:active { transform: translate(2px, 2px); box-shadow: none; }
+      .choice-ico {
+        border-radius: 0; border: 1.5px solid var(--text);
+        background: var(--accent); color: var(--on-accent);
+        transition: background 0.16s ease, color 0.16s ease;
+      }
+      .choice-tile:hover .choice-ico { background: var(--text); color: var(--paper); transform: none; }
+      .choice-title {
+        font-family: var(--font-display); font-weight: 700;
+        letter-spacing: -0.02em; line-height: 1.2; overflow-wrap: anywhere;
+      }
+      .choice-sub { line-height: 1.35; overflow-wrap: anywhere; }
+      .choice-go { align-self: center; }
+      /* Not available yet: dashed frame, no shadow to press. */
+      .choice-tile--soon {
+        border-style: dashed; background: transparent; box-shadow: none;
+      }
+      .choice-tile--soon:hover { transform: none; box-shadow: none; border-color: var(--brand); }
+      .choice-tile--soon:active { transform: none; }
+      .choice-tile--soon .choice-ico {
+        background: transparent; color: var(--muted); border-style: dashed;
+      }
+      .choice-tile--soon:hover .choice-ico { background: transparent; color: var(--brand); border-color: var(--brand); }
+      .choice-soon {
+        border-radius: 0; align-self: flex-start;
+        background: var(--accent-tint);
       }
 
-      /* ── Section labels: mono index + heavy rule ─────────────────── */
+      /* ── Section labels: mono index + rule ───────────────────────── */
       .tab-content { counter-reset: sect; }
       .studio-sheet .tab-section-label {
         counter-increment: sect; position: relative;
@@ -1088,9 +1385,11 @@
         font-family: var(--font-mono); font-weight: 600;
         color: var(--text); text-transform: uppercase;
         padding-bottom: 0.45rem; border-bottom: var(--rule);
+        overflow-wrap: anywhere;          /* uzbek labels run long */
       }
       .studio-sheet .tab-section-label::before {
         content: counter(sect, decimal-leading-zero);
+        flex: 0 0 auto;
         background: var(--accent); color: var(--on-accent);
         padding: 0.12rem 0.34rem; font-size: 0.82em; letter-spacing: 0.02em;
       }
@@ -1108,33 +1407,53 @@
         background: var(--paper-3); color: var(--text);
         font-family: var(--font-display); font-weight: 600;
         box-shadow: var(--hard-sm);
-        transition: transform 0.12s ease, box-shadow 0.12s ease;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.16s ease;
       }
+      /* Every row of shadowed controls keeps a gutter, so hover and press
+         stay inside the panel instead of over the next control. */
+      .studio-sheet .dock-row,
+      .studio-sheet .size-selector,
+      .studio-sheet .color-swatches { padding-right: var(--gut); padding-bottom: var(--gut); }
+      .studio-sheet .size-selector { gap: 0.55rem; }
       .studio-sheet .dock-pill:hover,
       .studio-sheet .size-btn:hover,
+      .studio-sheet .dock-tgl:hover,
       .studio-sheet .size-guide-toggle:hover {
         transform: translate(-1px, -1px); box-shadow: var(--hard);
       }
       .studio-sheet .dock-pill:active,
-      .studio-sheet .size-btn:active { transform: translate(2px, 2px); box-shadow: none; }
-      .studio-sheet .size-btn.active {
-        background: var(--text); color: var(--paper); box-shadow: var(--hard-accent);
-        transform: translate(-1px, -1px);
+      .studio-sheet .size-btn:active,
+      .studio-sheet .dock-tgl:active,
+      .studio-sheet .size-guide-toggle:active { transform: translate(2px, 2px); box-shadow: none; }
+      .studio-sheet .dock-input:focus,
+      .studio-sheet .dock-num:focus,
+      .studio-sheet .dock-select:focus {
+        outline: none; border-color: var(--accent); box-shadow: var(--hard-accent);
+      }
+      .studio-sheet .size-btn.active,
+      .studio-sheet .dock-tgl.active {
+        background: var(--text); color: var(--paper); border-color: var(--text);
+        box-shadow: var(--hard-accent); transform: translate(-1px, -1px);
       }
       .studio-sheet .dock-pill.primary {
         background: var(--accent); color: var(--on-accent); border-color: var(--text);
       }
+      .dock-sel { border-radius: 0; border: var(--rule); border-left: 4px solid var(--accent); }
+      .studio-sheet .dock-hint { font-family: var(--font-body); }
 
-      /* Swatches: hard square chips with an accent frame when chosen */
+      /* Swatches: hard chips with an accent frame when chosen */
       .studio-sheet .swatch-btn {
         border-radius: 0; border: var(--rule) !important;
         box-shadow: var(--hard-sm);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
       }
+      .studio-sheet .swatch-btn:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
+      .studio-sheet .swatch-btn:active { transform: translate(2px, 2px); box-shadow: none; }
       .studio-sheet .swatch-btn.selected {
-        box-shadow: 0 0 0 3px var(--accent), var(--hard);
+        box-shadow: 0 0 0 3px var(--accent), var(--hard); transform: translate(-1px, -1px);
       }
 
-      /* ── Foot: price as a slab, CTA as an accent field ───────────── */
+      /* ── Foot: price slab, CTA as an accent field ────────────────── */
       .panel-foot { border-top: var(--rule); }
       .studio-sheet .foot-price-label {
         font-family: var(--font-mono); text-transform: uppercase;
@@ -1143,60 +1462,72 @@
       .studio-sheet .foot-price {
         font-family: var(--font-display); font-weight: 700; letter-spacing: -0.03em;
       }
-      /* 1.28rem is not styling for its own sake: white on --accent measures
-         3.3:1, which fails AA at normal size. At >=18.66px bold it qualifies
-         as large text, where 3:1 is the bar — so the CTA has to stay this big
-         or the accent fill has to go. */
+      /* White on --accent measures 3.3:1 — below AA for normal text, above
+         the 3:1 bar for large text. So this button is bold and never drops
+         under 1.17rem (18.7px) at ANY breakpoint or in any language; if it
+         has to get smaller than that, the accent fill has to go instead.
+         → Accessibility: "18 pts / All → 3:1", "Up to 17 pts → 4.5:1". */
       .studio-sheet .btn-primary-full {
         border: var(--rule); border-radius: 0;
         background: var(--accent); color: var(--on-accent);
         font-family: var(--font-display); font-weight: 700;
-        font-size: 1.28rem; line-height: 1.15;
-        letter-spacing: 0.02em; text-transform: uppercase;
+        font-size: clamp(1.17rem, 1.02rem + 0.5vw, 1.28rem);
+        line-height: 1.15; letter-spacing: 0.01em; text-transform: uppercase;
         box-shadow: var(--hard);
+        /* A three-language label wraps rather than overflows, and the
+           button grows to hold it. */
+        min-height: 0; height: auto; text-wrap: balance;
         transition: transform 0.12s ease, box-shadow 0.12s ease;
       }
-      .studio-sheet .btn-primary-full:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--text); }
-      .studio-sheet .btn-primary-full:active { transform: translate(3px, 3px); box-shadow: none; }
-      /* Blank-shirt state is a quieter, outlined variant — it is the
-         honest fallback, not the thing we are pushing. */
+      .studio-sheet .btn-primary-full > span { min-width: 0; overflow-wrap: anywhere; }
+      .studio-sheet .btn-primary-full:hover { transform: translate(-1px, -1px); box-shadow: var(--hard-lg); }
+      .studio-sheet .btn-primary-full:active { transform: translate(2px, 2px); box-shadow: none; }
+      /* Blank-shirt state is the honest fallback, not the thing we push. */
       .studio-sheet .btn-primary-full.is-blank {
         background: var(--paper-3); color: var(--text); box-shadow: var(--hard-sm);
       }
       .studio-sheet .btn-secondary-full {
         border: var(--rule); border-radius: 0; background: transparent;
         font-family: var(--font-display); font-weight: 600;
+        box-shadow: var(--hard-sm);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
       }
+      .studio-sheet .btn-secondary-full:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
+      .studio-sheet .btn-secondary-full:active { transform: translate(2px, 2px); box-shadow: none; }
+      /* The foot is a clipped flex column, so the two CTAs need the same
+         gutter every other row gets or their shadows are shaved off. */
+      .panel-foot { padding-right: calc(1.5rem + var(--gut)); }
 
-      /* ── Stage chrome: same language, still quiet enough ─────────── */
+      /* ── Stage chrome: same language, quiet enough to ignore ─────── */
       .stage-chip, .view-toggle, .surface-toggle {
         border: var(--rule); border-radius: 0;
-        box-shadow: var(--hard-sm); backdrop-filter: none;
+        box-shadow: var(--hard-sm); backdrop-filter: none; -webkit-backdrop-filter: none;
         background: var(--paper-3);
       }
-      .stage-chip { font-family: var(--font-display); font-weight: 600; }
+      .stage-chip {
+        font-family: var(--font-display); font-weight: 600;
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+      }
       .stage-chip:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
+      .stage-chip:active { transform: translate(2px, 2px); box-shadow: none; }
       .view-btn, .surface-btn {
         border-radius: 0; font-family: var(--font-display); font-weight: 700;
+        transition: background 0.16s ease, color 0.16s ease;
       }
       .view-btn.active, .surface-btn.active { background: var(--text); color: var(--paper); }
 
       /* ── Empty state: a bold invitation, not a whisper ───────────── */
-      /* font-size comes from JS (scaled to the print rect); inherit it here
-         rather than fixing a value that cannot fit on a phone. */
       .flat-empty-label {
         font-family: var(--font-display); font-weight: 700;
         text-transform: uppercase; letter-spacing: 0.02em;
         font-size: 1em; line-height: 1.15; max-width: 100%;
         padding: 0 4px;
       }
-      /* JS hides this when the print rect is too narrow to hold a word —
-         breaking "ДОБАВИТЬ" across three lines looked like a rendering fault. */
       .flat-empty.compact .flat-empty-label { display: none; }
       .flat-empty-plus { border-width: 2px; border-radius: 0; }
 
-      /* ── Add-sheet + overflow menu ───────────────────────────────── */
-      .flat-add-card, .dock-more-menu {
+      /* ── Sheets and menus ───────────────────────────────────────── */
+      .flat-add-card, .dock-more-menu, .lab-card {
         border: var(--rule); border-radius: 0; box-shadow: var(--hard);
       }
       .flat-add-title {
@@ -1205,48 +1536,71 @@
       .flat-add-opt {
         border: var(--rule); border-radius: 0; box-shadow: var(--hard-sm);
         font-family: var(--font-display); font-weight: 600;
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
       }
       .flat-add-opt:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
+      .flat-add-opt:active { transform: translate(2px, 2px); box-shadow: none; }
       .dock-more-item { font-family: var(--font-display); font-weight: 600; border-radius: 0; }
 
-      /* Undo toast joins the system */
       .undo-toast { border: var(--rule); border-radius: 0; box-shadow: var(--hard-accent); }
       .undo-toast-btn {
         font-family: var(--font-display); font-weight: 700;
         text-transform: uppercase; letter-spacing: 0.06em;
       }
 
-      /* Phones get the skin at full strength: hatch, eyebrow, full-depth
-         shadows. Only the structural bits differ, because the sheet meets the
-         stage along its top edge rather than a side. */
+      /* Phones get the skin at full strength; only the structure differs,
+         because the sheet meets the stage along its top edge, not a side. */
       @media (max-width: 900px) {
-        .studio-sheet { border-right: none; border-top-width: 2px; }
-        /* The eyebrow sits beside the grab handle, so it is centred here
-           rather than flush-left as it is at the top of the desktop rail. */
-        .sheet-handle::before { text-align: center; margin-bottom: 0.3rem; font-size: 0.56rem; }
-        .studio-sheet .size-btn,
-        .studio-sheet .dock-pill,
-        .studio-sheet .btn-primary-full { box-shadow: var(--hard); }
-        .step-btn { box-shadow: var(--hard-sm); }
-        /* Louder chrome costs vertical space, and the garment must not be the
-           one that pays for it — take it back from padding instead. */
+        .studio-sheet { border-right: none; border-top: var(--rule); }
+        /* Touch targets. The stage chrome sat at 28–37px: the icon chips were
+           37×37, the 2D/3D pair 28px tall and Перед/Зад 36px. All of it is
+           thumb-operated on a phone.
+           → Accessibility: a touch target needs at least 44pt in both
+             dimensions, whatever the glyph inside it measures. */
+        .stage-chip { min-width: 44px; min-height: 44px; justify-content: center; }
+        .view-btn, .surface-btn {
+          display: inline-flex; align-items: center; justify-content: center;
+          min-height: 44px; padding-top: 0; padding-bottom: 0;
+        }
+        .sheet-eyebrow { text-align: center; margin-bottom: 0.3rem; font-size: 0.56rem; }
+        .sheet-steps { padding: 0.55rem calc(1.25rem + var(--gut)) calc(0.6rem + var(--gut)) 1.25rem; }
+        .sheet-steps::before { left: 1.25rem; right: calc(1.25rem + var(--gut)); top: 0.55rem; bottom: calc(0.6rem + var(--gut)); }
+        .sheet-steps::after {
+          left: 1.25rem; top: 0.55rem; bottom: calc(0.6rem + var(--gut));
+          width: calc((100% - 2.5rem - var(--gut)) / 3);
+        }
+        .panel-foot {
+          padding: 0.8rem calc(1.25rem + var(--gut)) calc(0.8rem + env(safe-area-inset-bottom));
+          gap: 0.5rem;
+        }
         .design-dock { gap: 0.55rem; }
         .studio-sheet .dock-hint { font-size: 0.78rem; line-height: 1.35; }
-        .panel-foot { padding: 0.8rem 1.25rem calc(0.8rem + env(safe-area-inset-bottom)); gap: 0.5rem; }
-        .studio-sheet .btn-primary-full { padding: 0.9rem 1.2rem; }
+        /* Step 1's lead says what the two tiles under it already say, and on
+           a phone those 40px are the difference between seeing both choices
+           and seeing one — measured at 375x812. The garment keeps the rest. */
+        .design-dock .step-lead { display: none; }
+        .step-kicker { margin-bottom: 0.2rem; }
+        .step-title { margin-bottom: 0.15rem; }
+        .step-head { margin-bottom: -0.2rem; }
+        .dock-choices { gap: 0.5rem; margin-top: 0.2rem; }
       }
 
       /* Someone who asked for less motion should not get press-jumps */
       @media (prefers-reduced-motion: reduce) {
-        .step-btn, .stage-chip, .flat-add-opt,
+        .step-btn, .stage-chip, .flat-add-opt, .choice-tile,
+        .sheet-steps::after, .studio-sheet .swatch-btn,
         .studio-sheet .dock-pill, .studio-sheet .size-btn,
-        .studio-sheet .size-guide-toggle, .studio-sheet .btn-primary-full {
-          transition: none;
-        }
-        .step-btn:hover, .stage-chip:hover, .flat-add-opt:hover,
-        .studio-sheet .dock-pill:hover, .studio-sheet .size-btn:hover,
+        .studio-sheet .size-guide-toggle, .studio-sheet .btn-primary-full,
+        .studio-sheet .btn-secondary-full { transition: none; }
+        .choice-tile:hover, .choice-tile:active,
+        .stage-chip:hover, .stage-chip:active,
+        .flat-add-opt:hover, .flat-add-opt:active,
+        .studio-sheet .swatch-btn:hover, .studio-sheet .swatch-btn:active,
+        .studio-sheet .dock-pill:hover, .studio-sheet .dock-pill:active,
+        .studio-sheet .size-btn:hover, .studio-sheet .size-btn:active,
         .studio-sheet .size-guide-toggle:hover,
-        .studio-sheet .btn-primary-full:hover { transform: none; }
+        .studio-sheet .btn-primary-full:hover, .studio-sheet .btn-primary-full:active,
+        .studio-sheet .btn-secondary-full:hover { transform: none; }
       }
 
     </style>
@@ -1301,6 +1655,23 @@
         </div>
       </div>
 
+      <!-- LOOM Lab teaser — what it will do, and where to read more. -->
+      <div id="lab-sheet" class="flat-add-sheet" role="dialog" aria-modal="true" aria-labelledby="lab-sheet-title">
+        <div class="flat-add-backdrop" id="lab-sheet-backdrop"></div>
+        <div class="flat-add-card lab-card">
+          <span class="choice-soon lab-card__badge" data-i18n="lab.soon">Скоро</span>
+          <p class="flat-add-title" id="lab-sheet-title" data-i18n="lab.sheetTitle">LOOM Lab</p>
+          <p class="lab-card__lead" data-i18n="lab.sheetLead">Опишите принт обычной фразой — Lab нарисует его, уберёт фон и положит на футболку в печатном разрешении.</p>
+          <ul class="lab-card__list">
+            <li data-i18n="lab.f1">Принт из текстового описания</li>
+            <li data-i18n="lab.f2">Автоматическое удаление фона</li>
+            <li data-i18n="lab.f3">Готовое к печати разрешение</li>
+          </ul>
+          <a href="lab.html" class="dock-pill primary lab-card__cta" data-i18n="lab.more">Что это будет →</a>
+          <button type="button" class="dock-pill lab-card__close" id="lab-sheet-close" data-i18n="cfg.close">Закрыть</button>
+        </div>
+      </div>
+
       <!-- Floating stage chips -->
       <a href="catalog.html" class="stage-chip chip-garment" title="Сменить товар" data-i18n-attr="aria-label:cfg.changeGarment" aria-label="Сменить товар">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
@@ -1340,6 +1711,10 @@
         <!-- Sheet header (phones only) -->
         <div class="sheet-handle" id="sheet-handle">
           <span class="sheet-grip" aria-hidden="true"></span>
+          <!-- A real element, not a CSS ::before string: the eyebrow has to
+               translate with everything else, and generated content is both
+               untranslatable and unreliably announced by screen readers. -->
+          <p class="sheet-eyebrow" data-i18n="cfg.eyebrow">Конфигуратор</p>
           <div class="sheet-headline">
             <p class="sheet-product" id="sheet-product-name" data-i18n="cfg.panelProduct">Создайте свой дизайн</p>
             <p class="sheet-price"><span id="sheet-price-num">150 000</span> <span data-i18n="cfg.currency">сум</span></p>
@@ -1358,9 +1733,69 @@
             <span class="step-num">3</span><span data-i18n="cfg.stepOrder">Заказ</span>
           </button>
         </nav>
+        <!-- How far along you are, without having to read anything -->
+        <div class="step-progress" aria-hidden="true"><span class="step-progress-fill"></span></div>
 
       <!-- ===== Design dock (right) ===== -->
       <aside class="design-dock" id="design-dock" aria-label="Панель дизайна">
+
+        <!-- Says what this step is for, in words, before any control.
+             The rail used to open on a row of buttons with no sentence
+             anywhere explaining what the page wanted from you. -->
+        <header class="step-head">
+          <p class="step-kicker"><span data-i18n="cfg.stepCount1">Шаг 1 из 3</span></p>
+          <h2 class="step-title" data-i18n="cfg.step1Title">Что напечатать?</h2>
+          <p class="step-lead" data-i18n="cfg.step1Lead">Загрузите картинку или напишите текст — вы сразу увидите её на футболке.</p>
+        </header>
+
+        <!-- The two things you can actually do, at the size of the decision.
+             Everything else in this panel only appears once one of them has
+             been done. -->
+        <div class="dock-choices">
+          <button id="btn-add-logo" class="choice-tile" type="button">
+            <span class="choice-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15.5l-4.5-4.5L5.5 21"/></svg>
+            </span>
+            <span class="choice-body">
+              <span class="choice-title" data-i18n="cfg.addImage">Загрузить картинку</span>
+              <span class="choice-sub" data-i18n="cfg.addImageSub">Фото, логотип или рисунок</span>
+            </span>
+            <span class="choice-go" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg>
+            </span>
+          </button>
+
+          <button id="btn-add-text" class="choice-tile" type="button">
+            <span class="choice-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+            </span>
+            <span class="choice-body">
+              <span class="choice-title" data-i18n="cfg.addTextOpt">Написать текст</span>
+              <span class="choice-sub" data-i18n="cfg.addTextSub">Имя, надпись или пожелание</span>
+            </span>
+            <span class="choice-go" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg>
+            </span>
+          </button>
+          <!-- LOOM Lab. It sits with the other two choices because this is
+               exactly the moment someone wants a design and has none — and it
+               is locked, with the date it is waiting on, rather than hidden,
+               because a promised feature people can see is worth more than one
+               they cannot. LOOM_FLAGS.lab unlocks it. -->
+          <button id="btn-lab" class="choice-tile choice-tile--soon" type="button" aria-describedby="lab-soon-badge">
+            <span class="choice-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v5.5L5.2 17A2 2 0 0 0 7 20h10a2 2 0 0 0 1.8-3L14 8.5V3"/><path d="M8.2 14h7.6"/></svg>
+            </span>
+            <span class="choice-body">
+              <span class="choice-title" data-i18n="lab.tileTitle">Придумать с LOOM Lab</span>
+              <span class="choice-sub" data-i18n="lab.tileSub">Опишите принт словами — Lab нарисует его</span>
+            </span>
+            <span class="choice-soon" id="lab-soon-badge" data-i18n="lab.soon">Скоро</span>
+          </button>
+
+          <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/svg+xml" style="display:none" />
+        </div>
+
         <!-- Selected-layer strip: mirrors what's picked on the shirt or the guide -->
         <div class="dock-row dock-sel" id="dock-sel">
           <span class="dock-sel-icon" id="dock-sel-icon" aria-hidden="true"></span>
@@ -1370,42 +1805,42 @@
           <button type="button" class="dock-close" id="btn-remove-selected" title="Удалить слой" aria-label="Удалить слой">×</button>
         </div>
 
-        <!-- Text content — appears only while a text layer is selected -->
-        <div class="dock-row dock-textrow" id="dock-textrow">
-          <input type="text" id="text-content-input" class="dock-input" placeholder="Введите текст…" data-i18n-attr="placeholder:cfg.textPlaceholder" />
-          <button id="btn-bold" class="dock-tgl" aria-pressed="false" title="Жирный">B</button>
-          <button id="btn-italic" class="dock-tgl italic" aria-pressed="false" title="Курсив">I</button>
-          <button id="btn-center-text" class="dock-tgl" type="button" title="По центру" aria-label="По центру">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
-          </button>
+        <!-- Text content — appears only while a text layer is selected. The
+             font picker lives here, not in the add row: it is meaningless
+             until there is text to set it on. -->
+        <div class="dock-textrow" id="dock-textrow">
+          <div class="dock-row">
+            <input type="text" id="text-content-input" class="dock-input" placeholder="Введите текст…" data-i18n-attr="placeholder:cfg.textPlaceholder" />
+            <button id="btn-bold" class="dock-tgl" aria-pressed="false" title="Жирный">B</button>
+            <button id="btn-italic" class="dock-tgl italic" aria-pressed="false" title="Курсив">I</button>
+            <button id="btn-center-text" class="dock-tgl" type="button" title="По центру" aria-label="По центру">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="dock-row">
+            <select id="font-family-select" class="dock-select" aria-label="Шрифт"></select>
+          </div>
         </div>
 
-        <!-- Add / font -->
-        <div class="dock-row">
-          <button id="btn-add-text" class="dock-pill" type="button" data-i18n="cfg.addTextBtn">Добавить текст</button>
-          <select id="font-family-select" class="dock-select" aria-label="Шрифт"></select>
-        </div>
+        <!-- The mini position guide is gone: the flat editor IS the schematic
+             now, at full size, and Перед/Зад above the stage switches faces. -->
+        <p class="dock-hint" data-i18n="cfg.flatHint">Тяните дизайн — двигать · углы — размер · кружок — поворот</p>
 
-        <!-- Actions — only the two that a first-timer needs are visible.
-             Save/open layout and reset are real features but they are not the
-             job at hand, and at equal weight they made the panel read as a
-             wall of buttons. They live behind ⋯ now. -->
+        <!-- Housekeeping. Save/open/reset are real features but they are not
+             the job at hand, so they sit at the bottom behind one word. -->
         <div class="dock-row dock-actions">
-          <button id="btn-add-logo" class="dock-pill primary" type="button" data-i18n="cfg.uploadDesign">Загрузить дизайн</button>
           <div class="dock-more">
-            <button id="btn-more" class="dock-pill dock-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Ещё">⋯</button>
+            <button id="btn-more" class="dock-pill dock-more-btn" type="button" aria-haspopup="true" aria-expanded="false">
+              <span data-i18n="cfg.moreActions">Ещё</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
             <div class="dock-more-menu" id="dock-more-menu" role="menu">
               <button id="btn-save-layout" class="dock-more-item" type="button" role="menuitem" data-i18n="cfg.saveLayout">Сохранить макет</button>
               <button id="btn-load-layout" class="dock-more-item" type="button" role="menuitem" data-i18n="cfg.loadLayout">Открыть макет</button>
               <button id="btn-reset-design" class="dock-more-item danger" type="button" role="menuitem" data-i18n="cfg.resetLayout">Сброс</button>
             </div>
           </div>
-          <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/svg+xml" style="display:none" />
         </div>
-
-        <!-- The mini position guide is gone: the flat editor IS the schematic
-             now, at full size, and Перед/Зад above the stage switches faces. -->
-        <p class="dock-hint" data-i18n="cfg.flatHint">Тяните дизайн — двигать · углы — размер · кружок — поворот</p>
       </aside>
 
       <!-- ===== Floating control card ===== -->
@@ -1423,6 +1858,11 @@
         <div class="tab-scroll">
           <!-- ── TAB: COLOR ── -->
           <div id="tab-color" class="tab-content active" role="tabpanel">
+            <header class="step-head">
+              <p class="step-kicker"><span data-i18n="cfg.stepCount2">Шаг 2 из 3</span></p>
+              <h2 class="step-title" data-i18n="cfg.step2Title">Цвет и размер</h2>
+              <p class="step-lead" data-i18n="cfg.step2Lead">Нажмите на кружок, чтобы сменить цвет ткани, и выберите свой размер.</p>
+            </header>
             <p class="tab-section-label" data-i18n="cfg.shirtColor">Цвет футболки</p>
             <div class="color-swatches" id="color-swatches" role="radiogroup" aria-label="Выбор цвета"></div>
             <input type="color" id="custom-color-picker" value="#FFFFFF" style="display:none" aria-hidden="true" />
@@ -1482,6 +1922,11 @@
 
           <!-- ── TAB: SUMMARY ── -->
           <div id="tab-summary" class="tab-content" role="tabpanel" style="display:none">
+            <header class="step-head">
+              <p class="step-kicker"><span data-i18n="cfg.stepCount3">Шаг 3 из 3</span></p>
+              <h2 class="step-title" data-i18n="cfg.step3Title">Проверьте и закажите</h2>
+              <p class="step-lead" data-i18n="cfg.step3Lead">Всё верно? Нажмите большую кнопку внизу — мы сошьём и привезём.</p>
+            </header>
             <div class="summary-snapshot-wrap">
               <canvas id="summary-snapshot" width="200" height="200"></canvas>
               <p class="hint-text" data-i18n="cfg.snapshot">Снимок текущего вида</p>
@@ -1502,6 +1947,13 @@
             <span class="foot-price-label" data-i18n="cfg.total">Итого</span>
             <span class="foot-price"><span id="foot-price-num">150 000</span> <span data-i18n="cfg.currency">сум</span></span>
           </div>
+          <!-- On steps 1 and 2 the only button is the one that moves you
+               forward. Offering "add to cart" on step 1 asked people to
+               decide before they had seen the choices. -->
+          <button id="btn-step-next" class="btn-primary-full btn-next" type="button">
+            <span id="step-next-label" data-i18n="cfg.nextColor">Дальше: цвет и размер</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
           <button id="btn-add-to-cart" class="btn-primary-full" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             <span data-i18n="cfg.addToCart">В корзину</span>

@@ -124,6 +124,7 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
   const slug = (formData.get('slug') as string | null)?.trim() ?? ''
   const name_ru = (formData.get('name_ru') as string | null)?.trim() ?? ''
   const name_en = (formData.get('name_en') as string | null)?.trim() || null
+  const name_uz = (formData.get('name_uz') as string | null)?.trim() || null
   const description_ru = (formData.get('description_ru') as string | null)?.trim() || null
 
   if (!slug) return c.json({ ok: false, error: { code: 'REQUIRED', message: 'slug is required', field: 'slug' } }, 400)
@@ -189,7 +190,7 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
     }
 
     const id = await createProduct(c.env.DB, {
-      slug, name_ru, name_en, description_ru, price,
+      slug, name_ru, name_en, name_uz, description_ru, price,
       glb_key, thumbnail_key, base_colors, product_type, active, display_order,
     })
 
@@ -238,6 +239,9 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
 
   const name_en = formData.get('name_en') as string | null
   if (name_en !== null) updates.name_en = name_en.trim() || null
+
+  const name_uz = formData.get('name_uz') as string | null
+  if (name_uz !== null) updates.name_uz = name_uz.trim() || null
 
   const description_ru = formData.get('description_ru') as string | null
   if (description_ru !== null) updates.description_ru = description_ru.trim() || null

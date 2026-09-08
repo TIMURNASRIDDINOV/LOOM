@@ -25,14 +25,15 @@
   <script defer src="assets/vendor/gsap.min.js?v=1"></script>
   <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
   <script defer src="assets/vendor/lenis.min.js?v=1"></script>
-  <script defer src="assets/config.js?v=2"></script>
-  <script defer src="assets/layout.js?v=3"></script>
-  <script defer src="assets/i18n.js?v=21"></script>
+  <script defer src="assets/config.js?v=3"></script>
+  <script defer src="assets/layout.js?v=4"></script>
+  <script defer src="assets/i18n.js?v=24"></script>
   <script defer src="assets/auth.js?v=4"></script>
   <script defer src="assets/tma.js?v=3"></script>
   <script defer src="assets/nav.js?v=2"></script>
   <script defer src="assets/motion.js?v=9"></script>
-  <script defer src="assets/account.js?v=7"></script>
+  <script defer src="assets/designer.js?v=1"></script>
+  <script defer src="assets/account.js?v=8"></script>
   <script defer src="assets/map-picker.js?v=2"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -290,6 +291,74 @@
     }
     .msg-ok, .msg-err { border: 1.5px solid currentColor; border-radius: 0; padding: 0.5rem 0.7rem; }
 
+    /* ── Danger zone / sign-in note ───────────────────────────────── */
+    .card--danger { border-color: var(--danger); }
+    .btn-danger { color: var(--danger); border-color: var(--danger); }
+    .btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+    .btn-danger.is-armed { background: var(--danger); color: #fff; }
+    .msg-note {
+      margin: 0 0 1.1rem; padding: 0.7rem 0.9rem;
+      border: var(--rule); background: var(--paper-2);
+      font-size: 0.86rem; line-height: 1.55; color: var(--ink-70);
+    }
+
+    /* ── Designer studio ─────────────────────────────────────────
+       Same slab language as the rest of the cabinet: hard rules, no radius,
+       stamped shadows. */
+    .dz-lead { margin: 0 0 1.1rem; font-size: 0.92rem; line-height: 1.6; color: var(--ink-70); max-width: 62ch; }
+    .dz-hint { margin: 0.4rem 0 0; font-size: 0.75rem; line-height: 1.5; color: var(--muted); }
+
+    .dz-steps { list-style: none; margin: 0 0 1.4rem; padding: 0; display: grid; gap: 0.7rem; }
+    .dz-steps li { display: flex; align-items: flex-start; gap: 0.7rem; font-size: 0.88rem; line-height: 1.5; color: var(--ink-70); }
+    .dz-step-n {
+      flex-shrink: 0; width: 22px; height: 22px; display: inline-flex;
+      align-items: center; justify-content: center;
+      border: var(--rule); font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
+      background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+    }
+
+    .dz-handle-row { display: flex; align-items: stretch; }
+    .dz-at {
+      display: inline-flex; align-items: center; padding: 0 0.7rem;
+      border: var(--rule); border-right: none; background: var(--paper-2);
+      font-family: var(--font-mono); font-size: 0.9rem; color: var(--muted);
+    }
+    .dz-handle-row .field-input { flex: 1; min-width: 0; }
+
+    .dz-identity { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: flex-start; margin-bottom: 1.2rem; }
+    .dz-identity-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .dz-handle-view { margin: 0; font-family: var(--font-mono); font-size: 1.05rem; color: var(--accent); }
+    .dz-bio-view { margin: 0.35rem 0 0; font-size: 0.85rem; line-height: 1.55; color: var(--ink-70); max-width: 52ch; }
+
+    /* Upload target — big, obvious, and it shows what you picked */
+    .dz-drop {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      min-height: 190px; padding: 1.4rem; margin-bottom: 0.9rem; cursor: pointer;
+      border: 1.5px dashed var(--line); background: var(--paper-2);
+      transition: border-color 0.18s ease, background 0.18s ease;
+    }
+    .dz-drop:hover, .dz-drop:focus-visible, .dz-drop.is-over { border-color: var(--accent); background: var(--accent-tint); outline: none; }
+    .dz-drop-empty { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center; color: var(--muted); font-size: 0.88rem; }
+    .dz-drop-empty svg { width: 30px; height: 30px; opacity: 0.6; }
+    .dz-drop img { display: none; max-height: 260px; max-width: 100%; object-fit: contain; }
+    .dz-drop.has-file img { display: block; }
+    .dz-drop.has-file .dz-drop-empty { display: none; }
+
+    /* Submissions */
+    .dz-work {
+      display: flex; gap: 0.9rem; align-items: flex-start; padding: 0.8rem;
+      border: var(--rule); box-shadow: var(--hard-sm); margin-bottom: 0.7rem;
+      background: var(--paper-3);
+    }
+    .dz-work-thumb {
+      width: 72px; height: 72px; flex-shrink: 0; object-fit: contain;
+      background: var(--paper-2); border: 1px solid var(--line);
+    }
+    .dz-work-body { flex: 1; min-width: 0; }
+    .dz-work-title { margin: 0 0 0.3rem; font-weight: 600; font-size: 0.95rem; }
+    .dz-work-meta { margin: 0; font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); }
+    .dz-work-note { margin: 0.4rem 0 0; font-size: 0.8rem; color: var(--danger); }
+
     @media (prefers-reduced-motion: reduce) {
       .btn-primary:hover, .btn-ghost:hover, .avatar-upload-btn:hover,
       .quick-link:hover, .btn-primary:active, .quick-link:active { transform: none; }
@@ -308,6 +377,7 @@
     <div class="tabs" role="tablist">
       <button class="tab-btn active" role="tab" data-tab="profile" data-i18n="acc.tabProfile">Профиль</button>
       <button class="tab-btn" role="tab" data-tab="orders" data-i18n="acc.tabOrders">Заказы</button>
+      <button class="tab-btn" role="tab" data-tab="designer" id="designer-tab-btn" data-i18n="acc.tabDesigner">Дизайнер</button>
       <button class="tab-btn" role="tab" data-tab="notifications" id="notif-tab-btn" data-i18n="acc.tabNotif">Уведомления</button>
       <button class="tab-btn" role="tab" data-tab="settings" id="settings-tab" data-i18n="acc.tabSettings">Настройки</button>
     </div>
@@ -426,6 +496,119 @@
       </div>
     </div>
 
+    <!-- ── TAB: Designer ─────────────────────────────
+         Two states in one panel: the pitch + application form for a shopper,
+         and the studio (stats, upload, submissions) once they are a designer.
+         assets/designer.js picks which one to show from /api/auth/me. -->
+    <div class="tab-panel" id="tab-designer">
+
+      <!-- State A — not a designer yet -->
+      <div class="card dz-pitch" id="dz-intro" style="display:none">
+        <p class="card-title" data-i18n="dz.becomeTitle">Станьте дизайнером LOOM</p>
+        <p class="dz-lead" data-i18n="dz.becomeLead">Загрузите свою графику. Мы проверим её, покажем в маркете — и вы получаете свою наценку с каждой проданной вещи.</p>
+
+        <ol class="dz-steps">
+          <li><span class="dz-step-n">1</span><span data-i18n="dz.step1">Придумайте ник — под ним ваши работы увидят покупатели.</span></li>
+          <li><span class="dz-step-n">2</span><span data-i18n="dz.step2">Загрузите файл и назначьте свою наценку.</span></li>
+          <li><span class="dz-step-n">3</span><span data-i18n="dz.step3">После проверки работа появится в маркете, а продажи — здесь.</span></li>
+        </ol>
+
+        <div class="field">
+          <label class="field-label" for="dz-handle" data-i18n="dz.handle">Ник дизайнера</label>
+          <div class="dz-handle-row">
+            <span class="dz-at" aria-hidden="true">@</span>
+            <input id="dz-handle" class="field-input" maxlength="24" placeholder="mystudio" autocomplete="off" />
+          </div>
+          <p class="dz-hint" data-i18n="dz.handleHint">3–24 символа: латиница, цифры, точка или подчёркивание.</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="dz-bio" data-i18n="dz.bio">О себе</label>
+          <textarea id="dz-bio" class="field-input" rows="3" maxlength="280" placeholder="Пара слов о вас и вашем стиле" data-i18n-attr="placeholder:dz.bioPh"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-primary" id="dz-apply-btn" data-i18n="dz.apply">Стать дизайнером</button>
+          <span class="msg-ok" id="dz-apply-msg"></span>
+          <span class="msg-err" id="dz-apply-err"></span>
+        </div>
+      </div>
+
+      <!-- State B — the designer's own studio -->
+      <div class="card" id="dz-studio" style="display:none">
+        <div class="dz-identity">
+          <div>
+            <p class="card-title" style="margin-bottom:0.3rem" data-i18n="dz.studioTitle">Кабинет дизайнера</p>
+            <p class="dz-handle-view" id="dz-handle-view">—</p>
+            <p class="dz-bio-view" id="dz-bio-view"></p>
+          </div>
+          <div class="dz-identity-actions">
+            <a class="btn-ghost" id="dz-public-link" href="#" target="_blank" rel="noopener" data-i18n="dz.publicPage">Моя страница →</a>
+            <button class="btn-ghost" id="dz-edit-btn" data-i18n="dz.editProfile">Изменить</button>
+          </div>
+        </div>
+
+        <div class="stats-strip">
+          <div class="stat-item">
+            <div class="stat-label" data-i18n="dz.statWorks">Работ</div>
+            <div class="stat-value" id="dz-stat-works">—</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label" data-i18n="dz.statSold">Продано</div>
+            <div class="stat-value" id="dz-stat-sold">—</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label" data-i18n="dz.statEarned">Заработано</div>
+            <div class="stat-value" id="dz-stat-earned">—</div>
+          </div>
+        </div>
+        <p class="dz-hint" id="dz-commission-note"></p>
+      </div>
+
+      <!-- Upload -->
+      <div class="card" id="dz-upload-card" style="display:none">
+        <p class="card-title" data-i18n="dz.uploadTitle">Загрузить работу</p>
+
+        <div class="dz-drop" id="dz-drop" tabindex="0" role="button">
+          <img id="dz-preview" alt="" />
+          <div class="dz-drop-empty" id="dz-drop-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15.5l-4.5-4.5L5.5 21"/></svg>
+            <span data-i18n="dz.dropLabel">Нажмите или перетащите файл</span>
+            <span class="dz-hint" data-i18n="dz.dropHint">PNG с прозрачным фоном · минимум 1500 px по длинной стороне</span>
+          </div>
+        </div>
+        <input type="file" id="dz-file" accept="image/png,image/jpeg,image/webp" style="display:none" />
+        <p class="dz-hint" id="dz-file-info"></p>
+
+        <div class="form-row">
+          <div class="field">
+            <label class="field-label" for="dz-title" data-i18n="dz.workTitle">Название</label>
+            <input id="dz-title" class="field-input" maxlength="80" placeholder="Ночной Ташкент" data-i18n-attr="placeholder:dz.workTitlePh" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="dz-markup" data-i18n="dz.markup">Ваша наценка, сум</label>
+            <input id="dz-markup" class="field-input" type="number" min="0" max="200000" step="1000" value="0" />
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="dz-tags" data-i18n="dz.tags">Теги</label>
+          <input id="dz-tags" class="field-input" maxlength="200" placeholder="минимализм, город, линии" data-i18n-attr="placeholder:dz.tagsPh" />
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-primary" id="dz-submit-btn" data-i18n="dz.submitWork">Отправить на проверку</button>
+          <span class="msg-ok" id="dz-submit-msg"></span>
+          <span class="msg-err" id="dz-submit-err"></span>
+        </div>
+      </div>
+
+      <!-- Submissions -->
+      <div class="card" id="dz-works-card" style="display:none">
+        <p class="card-title" data-i18n="dz.myWorks">Мои работы</p>
+        <div id="dz-works"><p class="empty-state" data-i18n="acc.loading">Загрузка…</p></div>
+      </div>
+    </div>
+
     <!-- ── TAB: Settings ────────────────────────────── -->
     <div class="tab-panel" id="tab-settings">
 
@@ -449,8 +632,12 @@
         </div>
       </div>
 
+      <!-- How this account signs in. Shown only when there is no password to
+           change — see applyAuthMethod() in assets/account.js. -->
+      <p class="msg-note" id="auth-method-note" style="display:none"></p>
+
       <!-- Change password -->
-      <div class="card">
+      <div class="card" id="pw-card">
         <p class="card-title" data-i18n="acc.changePw">Изменить пароль</p>
         <div class="field">
           <label class="field-label" for="pw-current" data-i18n="acc.pwCurrent">Текущий пароль</label>
@@ -495,6 +682,23 @@
         <div class="form-actions">
           <button class="btn-primary" id="save-notif-btn" data-i18n="acc.save">Сохранить</button>
           <span class="msg-ok" id="notif-msg"></span>
+        </div>
+      </div>
+
+      <!-- Danger zone. Two presses, never one: the first arms it and says what
+           will happen, the second does it. -->
+      <div class="card card--danger">
+        <p class="card-title" data-i18n="acc.deleteTitle">Удалить аккаунт</p>
+        <p class="dz-lead" data-i18n="acc.deleteLead">
+          Профиль, адрес и загруженные файлы будут удалены безвозвратно.
+          Оформленные заказы останутся в бухгалтерии в обезличенном виде.
+        </p>
+        <p class="msg-err" id="delete-confirm" style="display:none" data-i18n="acc.deleteWarn">
+          Это действие нельзя отменить. Нажмите ещё раз, чтобы подтвердить.
+        </p>
+        <div class="form-actions">
+          <button class="btn-ghost btn-danger" id="delete-account-btn" data-i18n="acc.deleteBtn">Удалить аккаунт</button>
+          <span class="msg-err" id="delete-err"></span>
         </div>
       </div>
     </div>

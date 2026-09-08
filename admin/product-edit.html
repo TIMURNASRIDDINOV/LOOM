@@ -28,7 +28,9 @@
     .form-textarea { resize: vertical; min-height: 96px; line-height: var(--lh-base); }
     select.form-input { cursor: pointer; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
-    @media (max-width: 700px) { .form-row { grid-template-columns: 1fr; } }
+    .form-row--3 { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 980px) { .form-row--3 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 700px) { .form-row, .form-row--3 { grid-template-columns: 1fr; } }
     .field-label .req { color: var(--danger); margin-left: 2px; }
 
     /* Toggle */
@@ -101,16 +103,26 @@
           </div>
         </div>
 
-        <div class="form-row">
+        <!-- Three names, one per interface language. Only RU is required:
+             the storefront falls back to it, so a half-translated catalogue
+             renders correctly rather than showing blanks. -->
+        <div class="form-row form-row--3">
           <div class="field">
             <label class="field-label" for="f-name-ru">Название (RU) <span class="req">*</span></label>
             <input id="f-name-ru" class="form-input" placeholder="Базовая футболка" required />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-name-uz">Название (UZ)</label>
+            <input id="f-name-uz" class="form-input" placeholder="Oddiy futbolka" />
           </div>
           <div class="field">
             <label class="field-label" for="f-name-en">Название (EN)</label>
             <input id="f-name-en" class="form-input" placeholder="Basic T-shirt" />
           </div>
         </div>
+        <p class="field-hint" style="margin:calc(var(--sp-2) * -1) 0 0">
+          Пустые поля не ломают витрину — покупатель увидит русское название.
+        </p>
 
         <div class="field">
           <label class="field-label" for="f-desc">Описание</label>
@@ -197,6 +209,6 @@
   <script src="assets/ui.js?v=30"></script>
   <script src="assets/layout.js?v=30"></script>
   <script>LOOM_LAYOUT.init('products', { title: 'Товар', crumbs: [{ label: 'Товары', href: 'products.html' }] })</script>
-  <script src="assets/product-edit.js?v=30"></script>
+  <script src="assets/product-edit.js?v=31"></script>
 </body>
 </html>

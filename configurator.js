@@ -338,6 +338,9 @@ document.addEventListener("DOMContentLoaded", async function () {
   await _productReady;
 
   if (editItem) applyCartEditDesign(editItem);
+  // A design chosen in the marketplace lands last, so it sits on top of a
+  // restored cart design rather than being overwritten by it.
+  else applyPendingArtwork();
 });
 
 // ── Edit-from-cart (configurator.html?item=ID) ──────────────────
@@ -456,6 +459,15 @@ async function applyCartEditDesign(item) {
           nx: s.nx, ny: s.ny, rotation: s.rotation || 0,
           img, name: s.name || "", scalePct: s.scalePct || 100, key: s.key || null,
         });
+        // Carry the designer credit through an edit. Without this, reopening a
+        // bag item and saving it would quietly drop the artwork id, and the
+        // designer would not be paid for the re-added row.
+        if (s.artworkId) {
+          el.artworkId = s.artworkId;
+          el.artworkPrice = s.artworkPrice || 0;
+          el.artworkAuthor = s.artworkAuthor || null;
+          el.artworkKey = s.artworkKey || null;
+        }
         dst.elements.push(el);
         uploadedFileData[el.id] = { base64: dataUrl, name: s.name || "", type: blob.type, size: blob.size };
       } catch (e) { /* logo fetch failed — text still rehydrates */ }
@@ -464,6 +476,7 @@ async function applyCartEditDesign(item) {
   }
 
   syncPanelFromState();
+  refreshPriceLabels();
 
   drawTexture("front");
   drawTexture("back");
@@ -653,20 +666,22 @@ function initThreeJS() {
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.LinearToneMapping;
-  // 0.5, not 0.82: at 0.82 a white garment clipped to pure white across the
-  // whole chest, so no fold shading and no fabric weave could show through.
-  renderer.toneMappingExposure = 0.5;
+  // ACES, not Linear. Linear clips: the old rig had to be held at exposure 0.5
+  // to stop a white chest blowing out, and everything else went grey with it.
+  // ACES rolls the highlights off instead, so the garment can be lit properly
+  // and still keep detail in the brightest folds.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = STUDIO_EXPOSURE;
+  // Soft shadows. The single thing that stops a garment reading as a flat
+  // cut-out is the sleeve dropping a shadow onto the body.
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.appendChild(renderer.domElement);
 
-  // Neutral studio environment (PMREM) for realistic fabric shading
-  if (typeof THREE.RoomEnvironment === "function") {
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(
-      new THREE.RoomEnvironment(),
-      0.04,
-    ).texture;
-  }
+  // Studio environment (PMREM). A photographer's softboxes, not a living room:
+  // RoomEnvironment is furniture-shaped and lit the cloth from everywhere at
+  // once, which is precisely the "white mess" look.
+  scene.environment = buildStudioEnvironment(renderer);
 
   // Lighting rig
   setupLighting();
@@ -691,24 +706,175 @@ function initThreeJS() {
   }
 }
 
-function setupLighting() {
-  // Very soft ambient — just enough to lift pure shadow off black
-  scene.add(new THREE.AmbientLight(0xffffff, 0.08));
+// ── Studio rig ───────────────────────────────────────────────────
+// One flat key light is why the garment used to read as a paper cut-out.
+// A product shot uses three sources and so does this: a big soft KEY that
+// carves the folds, a weak FILL that keeps the shadow side legible, and two
+// RIM lights behind that draw a bright edge down the silhouette.
+//
+// The whole rig lives in a group that follows the camera's azimuth, so the
+// key stays front-left of *the viewer* no matter how far the shirt is orbited.
+// A fixed rig lights the front beautifully and the back not at all, and the
+// back is half of what a customer came to look at.
+const STUDIO_EXPOSURE = 0.95;
 
-  // Hemisphere — subtle top/bottom bias, not a light source itself
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 0.12);
+let studioRig = null;
+let keyLight = null;
+let shadowWall = null;
+
+/**
+ * Build the environment map from an explicit softbox layout, so the
+ * reflections on the cloth are the long vertical highlights a studio gives —
+ * not the blotchy room the default RoomEnvironment bakes.
+ */
+function buildStudioEnvironment(rend) {
+  if (typeof THREE.PMREMGenerator !== "function") return null;
+  const pmrem = new THREE.PMREMGenerator(rend);
+
+  const env = new THREE.Scene();
+  const panel = (w, h, color, x, y, z, ry) => {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }),
+    );
+    m.position.set(x, y, z);
+    if (ry) m.rotation.y = ry;
+    env.add(m);
+    return m;
+  };
+
+  // Room shell: a dark warm box, so nothing bounces back except our panels.
+  env.add(new THREE.Mesh(
+    new THREE.BoxGeometry(14, 10, 14),
+    new THREE.MeshBasicMaterial({ color: 0x14130f, side: THREE.BackSide }),
+  ));
+
+  panel(7, 7, 0xffffff, -3.4, 1.6, 4.2, 0.5);      // key softbox, front-left
+  panel(4, 4, 0x8d959f, 4.4, 0.6, 3.0, -0.6);      // cool fill, front-right
+  panel(9, 1.8, 0xf2ece2, 0, 4.4, 0, 0);           // overhead strip
+  panel(1.8, 6, 0xc9d2dd, -5.2, 0.4, -2.4, 1.2);   // rim strip, back-left
+  panel(1.8, 6, 0xc9d2dd, 5.2, 0.4, -2.4, -1.2);   // rim strip, back-right
+
+  const tex = pmrem.fromScene(env, 0.04).texture;
+  env.traverse((o) => {
+    if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); }
+  });
+  pmrem.dispose();
+  return tex;
+}
+
+function setupLighting() {
+  // Ambient and hemisphere are deliberately faint. They lift the deepest
+  // shadow off pure black and nothing more: every unit of light that arrives
+  // from everywhere is a unit that flattens the shape the key just carved.
+  scene.add(new THREE.AmbientLight(0xffffff, 0.05));
+  const hemi = new THREE.HemisphereLight(0xf7f3ea, 0x33302b, 0.14);
   hemi.position.set(0, 1, 0);
   scene.add(hemi);
 
-  // Key light: front-right — defines shape without blowing out white
-  const key = new THREE.DirectionalLight(0xffffff, 0.45);
-  key.position.set(2.5, 3.5, 3);
-  scene.add(key);
+  // Everything below is camera-relative: +Z is "towards the viewer".
+  studioRig = new THREE.Group();
+  scene.add(studioRig);
 
-  // Fill light: front-left — very subtle rim
-  const fill = new THREE.DirectionalLight(0xffffff, 0.12);
-  fill.position.set(-3, 1.5, 2);
-  scene.add(fill);
+  // KEY — a close softbox, high front-left, and the only shadow caster. It is
+  // a SpotLight rather than a DirectionalLight for one reason: parallel rays
+  // light a broad surface at a near-constant angle, so the chest came out one
+  // even sheet of white. A positional light falls off across the garment, and
+  // that falloff IS the modelling. Measured: with the directional key 67% of
+  // garment pixels sat in the top 16 levels; with this one, 86% spread across
+  // the three bands below it and nothing clips.
+  keyLight = new THREE.SpotLight(0xfff4e8, 3.0, 1, 0.75, 1.0, 2.0);
+  keyLight.position.set(-0.62, 0.72, 0.66);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.bias = -0.0006;
+  keyLight.shadow.normalBias = 0.02;
+  studioRig.add(keyLight);
+  studioRig.add(keyLight.target);
+
+  // FILL — front-right, cool and weak: it opens the shadow side without
+  // undoing the modelling.
+  const fill = new THREE.DirectionalLight(0xdde7f4, 0.28);
+  fill.position.set(0.8, 0.26, 0.6);
+  studioRig.add(fill);
+
+  // RIMS — behind and wide, one per shoulder. This edge highlight is what
+  // makes cotton look like cloth instead of like a white silhouette.
+  const rimL = new THREE.DirectionalLight(0xffffff, 0.85);
+  rimL.position.set(-0.8, 0.42, -0.7);
+  studioRig.add(rimL);
+
+  const rimR = new THREE.DirectionalLight(0xeef4ff, 0.5);
+  rimR.position.set(0.85, 0.3, -0.72);
+  studioRig.add(rimR);
+}
+
+/**
+ * Point the rig at the garment once its final size is known. Called after
+ * fitCameraToObject(), which is what actually scales the model — a shadow
+ * frustum sized before that is either empty or covers the whole world.
+ */
+function fitStudioToObject(object) {
+  if (!object || !studioRig) return;
+
+  object.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(object);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y, size.z) * 0.62;
+
+  studioRig.position.copy(center);
+
+  // Light positions are authored as unit directions; push them out to a
+  // sensible distance for this garment. The key sits close (its falloff is
+  // the point); the rims are far, so their edge highlight stays even.
+  studioRig.children.forEach((l) => {
+    if (!l.isDirectionalLight) return;
+    l.position.normalize().multiplyScalar(radius * 4);
+  });
+  keyLight.position.normalize().multiplyScalar(radius * 2.2);
+  keyLight.distance = radius * 6;
+  keyLight.shadow.camera.near = radius * 0.4;
+  keyLight.shadow.camera.far = radius * 8;
+  keyLight.shadow.camera.updateProjectionMatrix();
+
+  // Garment casts onto itself (sleeve → body) and takes the key's shadow.
+  object.traverse((child) => {
+    if (!child.isMesh || child.userData.isLining) return;
+    child.castShadow = true;
+    child.receiveShadow = true;
+  });
+
+  // A soft cast shadow on the backdrop behind the garment. At this camera
+  // height a floor shadow is edge-on and invisible; the wall is what a
+  // photographer actually sees behind a hanging garment. It rides the rig, so
+  // it is always the far side from the viewer.
+  if (!shadowWall) {
+    shadowWall = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.ShadowMaterial({ opacity: 0.28, transparent: true, depthWrite: false }),
+    );
+    shadowWall.receiveShadow = true;
+    shadowWall.renderOrder = -1;
+    studioRig.add(shadowWall);
+  }
+  // Wide enough that its own edge never crosses the frame, and close enough
+  // behind the garment that the cast shadow stays shirt-shaped instead of
+  // smearing into a blob.
+  shadowWall.scale.set(radius * 11, radius * 11, 1);
+  shadowWall.position.set(0, 0, -radius * 0.85);
+}
+
+/**
+ * Keep the rig square to the viewer. Called every frame while the 3D is up —
+ * an atan2 and one matrix update, which is far cheaper than the orbit itself.
+ */
+function updateStudioRig() {
+  if (!studioRig || !camera) return;
+  studioRig.rotation.y = Math.atan2(
+    camera.position.x - studioRig.position.x,
+    camera.position.z - studioRig.position.z,
+  );
 }
 
 let _lastResizeW = 0;
@@ -782,20 +948,51 @@ function initCanvasTextures() {
 // model's own textures were authored for. Set by normalizeModelUVsGlobally().
 const FABRIC_NORMAL_URL = "assets/textures/fabric-jersey-normal.jpg?v=1";
 const FABRIC_ROUGH_URL = "assets/textures/fabric-jersey-roughness.jpg?v=1";
-const FABRIC_TILES = 12;          // ~170 px per tile across the 2048² atlas ≈ 12 cm of cloth
-const FABRIC_NORMAL_SCALE = 0.9;  // visible weave at arm's length, not burlap
-const FABRIC_ENV_INTENSITY = 0.7; // the studio environment was washing white cloth out
+const FABRIC_ENV_INTENSITY = 0.28; // the studio environment was washing white cloth out
+
+// One material for every garment is why a hoodie and a tee looked like the
+// same white sheet. Each preset is the same tiled weave read at a different
+// scale, with the sheen and roughness that cloth actually has: `tiles` sets
+// how many centimetres of cloth one atlas tile covers, `sheen` is the soft
+// halo cotton gets at grazing angles. Chosen from the product slug, because
+// that is the only garment-type signal the catalog carries.
+const FABRIC_PRESETS = {
+  jersey: { tiles: 12, normalScale: 0.9, sheen: 0.32, sheenRough: 0.75, rough: 1.0 },
+  heavy:  { tiles: 9,  normalScale: 1.15, sheen: 0.26, sheenRough: 0.85, rough: 1.05 },
+  fleece: { tiles: 7,  normalScale: 1.5, sheen: 0.5, sheenRough: 0.95, rough: 1.1 },
+  pique:  { tiles: 14, normalScale: 1.05, sheen: 0.22, sheenRough: 0.6, rough: 0.95 },
+  twill:  { tiles: 16, normalScale: 0.75, sheen: 0.14, sheenRough: 0.5, rough: 0.9 },
+};
+let fabricPreset = FABRIC_PRESETS.jersey;
+
+/** Which cloth a garment is cut from, guessed from its slug / name. */
+function fabricForProduct(product) {
+  // Match on every name the product has, not just the Russian one: the
+  // patterns below cover both alphabets, and a product named only in Uzbek
+  // should still be recognised as a hoodie.
+  const tag = [product && product.slug, product && product.name_ru,
+               product && product.name_uz, product && product.name_en]
+    .filter(Boolean).join(" ").toLowerCase();
+  if (/hood|худи|толстов|sweat|свитш/.test(tag)) return FABRIC_PRESETS.fleece;
+  if (/polo|поло/.test(tag)) return FABRIC_PRESETS.pique;
+  if (/cap|кепк|панам|pant|штан|шорт|short/.test(tag)) return FABRIC_PRESETS.twill;
+  if (/oversize|оверсайз|heavy|плотн/.test(tag)) return FABRIC_PRESETS.heavy;
+  return FABRIC_PRESETS.jersey;
+}
+
 let fabricNormalTexture = null;
 let fabricRoughTexture = null;
+let _fabricImages = null;
 let _modelUvNative = false;
 
 function tileImageToTexture(img) {
   const cv = document.createElement("canvas");
   cv.width = cv.height = TEX_SIZE;
   const g = cv.getContext("2d");
-  const step = TEX_SIZE / FABRIC_TILES;
-  for (let y = 0; y < FABRIC_TILES; y++) {
-    for (let x = 0; x < FABRIC_TILES; x++) g.drawImage(img, x * step, y * step, step, step);
+  const tiles = fabricPreset.tiles;
+  const step = TEX_SIZE / tiles;
+  for (let y = 0; y < tiles; y++) {
+    for (let x = 0; x < tiles; x++) g.drawImage(img, x * step, y * step, step, step);
   }
   const t = new THREE.CanvasTexture(cv);
   t.flipY = false; // same convention as the design canvases
@@ -817,11 +1014,19 @@ function loadImage(url) {
 
 /** Load the fabric maps and hand them to every material that exists or appears later. */
 function loadFabricDetail() {
-  return Promise.all([loadImage(FABRIC_NORMAL_URL), loadImage(FABRIC_ROUGH_URL)])
-    .then(([n, r]) => {
-      fabricNormalTexture = tileImageToTexture(n);
-      fabricRoughTexture = tileImageToTexture(r);
+  const imgs = _fabricImages
+    ? Promise.resolve(_fabricImages)
+    : Promise.all([loadImage(FABRIC_NORMAL_URL), loadImage(FABRIC_ROUGH_URL)]);
+  return imgs
+    .then((pair) => {
+      _fabricImages = pair;
+      // Re-tiled, not just re-scaled: three r128 drives every map on a
+      // material from the `map`'s UV transform, and the design canvas must
+      // stay at 1×, so tile density has to be baked into the atlas.
+      fabricNormalTexture = tileImageToTexture(pair[0]);
+      fabricRoughTexture = tileImageToTexture(pair[1]);
       shirtMaterials.forEach(applyFabricDetail);
+      if (renderer && scene && camera && !flatMode) { updateStudioRig(); renderer.render(scene, camera); }
     })
     .catch((e) => {
       // Flat shading is the pre-existing behaviour — never block the preview on this.
@@ -833,11 +1038,33 @@ function loadFabricDetail() {
 function applyFabricDetail(mat) {
   if (mat.userData.ownNormalMap) return; // authored maps win
   if (!fabricNormalTexture) return;
+  const f = fabricPreset;
   mat.normalMap = fabricNormalTexture;
-  mat.normalScale = new THREE.Vector2(FABRIC_NORMAL_SCALE, FABRIC_NORMAL_SCALE);
+  mat.normalScale = new THREE.Vector2(f.normalScale, f.normalScale);
   mat.roughnessMap = fabricRoughTexture;
-  mat.roughness = 1.0; // the map carries the value (cotton ≈ 0.7–0.85)
+  mat.roughness = f.rough; // the map carries the variation (cotton ≈ 0.7–0.85)
+  // Sheen is what separates cloth from plastic: a soft halo where the surface
+  // turns away from the camera. The API changed shape across three versions —
+  // r128 (vendored here) takes a Color and treats null as off, later builds
+  // take a float plus a separate sheenColor. Feed whichever this build wants;
+  // the placeholder garment is a Standard material and has neither.
+  if ("sheen" in mat) {
+    if (mat.sheen === null || (mat.sheen && mat.sheen.isColor)) {
+      mat.sheen = new THREE.Color(f.sheen, f.sheen, f.sheen);
+    } else {
+      mat.sheen = f.sheen;
+      if ("sheenRoughness" in mat) mat.sheenRoughness = f.sheenRough;
+    }
+  }
   mat.needsUpdate = true;
+}
+
+/** Swap the cloth when the garment changes. No-op before the maps are loaded. */
+function setFabricPreset(preset) {
+  if (!preset || preset === fabricPreset) return;
+  fabricPreset = preset;
+  if (!_fabricImages) return;
+  loadFabricDetail();
 }
 
 function initThreeTextures() {
@@ -881,6 +1108,7 @@ function drawPlainTexture() {
   // Null until the 3D preview is opened — the flat editor reads the canvas
   // directly and needs no GPU upload.
   if (plainTexture) plainTexture.needsUpdate = true;
+  updateLiningColor();
 }
 
 /**
@@ -1031,6 +1259,49 @@ function updatePlainColorMaterials() {
   });
 }
 
+// ── Lining ───────────────────────────────────────────────────────
+// The garment mesh is an open shell: at the neck and the armholes you look
+// straight through it. FrontSide leaves a hole, DoubleSide lights the inside
+// as though it faced you (a white band across a navy shirt). A real garment
+// has an inside, and the inside is darker — so give it one: the same geometry
+// again, back faces only, in a shaded-down version of the shirt colour.
+let liningMaterial = null;
+
+function liningColor() {
+  const c = new THREE.Color(designState.shirtColor || "#ffffff");
+  // Interiors sit ~2 stops under the lit face; the floor keeps black cloth
+  // from turning into a void.
+  c.multiplyScalar(0.34);
+  c.r = Math.max(c.r, 0.035); c.g = Math.max(c.g, 0.035); c.b = Math.max(c.b, 0.035);
+  return c;
+}
+
+/** Duplicate every garment mesh as a back-facing shell inside it. */
+function addLining(root) {
+  if (!liningMaterial) {
+    liningMaterial = new THREE.MeshStandardMaterial({
+      color: liningColor(),
+      roughness: 0.95,
+      metalness: 0,
+      side: THREE.BackSide,
+    });
+  }
+  const meshes = [];
+  root.traverse((child) => { if (child.isMesh && !child.userData.isLining) meshes.push(child); });
+  meshes.forEach((m) => {
+    const inner = new THREE.Mesh(m.geometry, liningMaterial);
+    inner.userData.isLining = true;
+    inner.castShadow = false;      // the outer shell already casts this silhouette
+    inner.receiveShadow = true;
+    inner.renderOrder = -1;
+    m.add(inner);                  // child: inherits the parent's transform exactly
+  });
+}
+
+function updateLiningColor() {
+  if (liningMaterial) liningMaterial.color.copy(liningColor());
+}
+
 /**
  * Apply the front or back texture to all shirt mesh materials.
  * Called every time the active view switches.
@@ -1047,7 +1318,7 @@ function applyActiveTexture() {
   });
 
   updatePlainColorMaterials();
-  if (renderer && camera && scene) renderer.render(scene, camera);
+  if (renderer && camera && scene) { updateStudioRig(); renderer.render(scene, camera); }
 }
 
 function nodeHasAnyNameInHierarchy(node, tokens) {
@@ -1113,22 +1384,63 @@ function normalizeModelUVsGlobally(object) {
  * ?slug, and a price with no product attached ("Создайте свой дизайн — 150 000
  * сум") reads like placeholder text, so the header names the real garment.
  */
-function applyProductToHeader(product) {
-  if (!product) return;
-  const numFmt = new Intl.NumberFormat("ru-RU").format(product.price);
-  const fmt = numFmt + " сум";
-  document
-    .querySelectorAll(".summary-price .summary-val, .summary-price .summary-value, .configurator-price")
-    .forEach((el) => { el.textContent = fmt; });
+// ── Price ────────────────────────────────────────────────────────
+// A marketplace design costs the garment plus its designer's markup. The
+// server re-reads the markup from the artwork row at checkout, so this is a
+// display and cart-hint value, never the source of truth.
+
+function basePrice() {
+  return currentProduct ? currentProduct.price : 150000;
+}
+
+function artworkMarkupTotal() {
+  const seen = {};
+  ["front", "back"].forEach((v) => {
+    elementsOf(v).forEach((el) => {
+      if (el.artworkId && !seen[el.artworkId]) seen[el.artworkId] = el.artworkPrice || 0;
+    });
+  });
+  return Object.keys(seen).reduce((sum, k) => sum + (seen[k] || 0), 0);
+}
+
+function currentUnitPrice() {
+  return basePrice() + artworkMarkupTotal();
+}
+
+/** Repaint every place the total is shown. */
+function refreshPriceLabels() {
+  const total = currentUnitPrice();
+  const numFmt = new Intl.NumberFormat("ru-RU").format(total);
   ["panel-price", "foot-price-num", "sheet-price-num"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.textContent = numFmt;
   });
-  if (!product.name_ru) return;
-  // Drop the i18n key so a language switch won't overwrite the product name
+  document
+    .querySelectorAll(".summary-price .summary-val, .summary-price .summary-value, .configurator-price")
+    .forEach((el) => { el.textContent = numFmt + " " + CT("cfg.currency", "сум"); });
+}
+
+/** The product's name in the visitor's language (0020 added name_uz). */
+function productName(product) {
+  try {
+    if (window.LOOM_I18N && window.LOOM_I18N.productName) {
+      return window.LOOM_I18N.productName(product);
+    }
+  } catch (e) { /* i18n not loaded yet */ }
+  return (product && (product.name_ru || product.slug)) || "";
+}
+
+function applyProductToHeader(product) {
+  if (!product) return;
+  refreshPriceLabels();
+  const name = productName(product);
+  if (!name) return;
+  // Drop the i18n key: this string is data, not a translation table entry, so
+  // i18n.apply() must not overwrite it. Re-applied by hand on a language
+  // switch instead — see bindLangChange().
   ["panel-product-name", "sheet-product-name"].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) { el.removeAttribute("data-i18n"); el.textContent = product.name_ru; }
+    if (el) { el.removeAttribute("data-i18n"); el.textContent = name; }
   });
 }
 
@@ -1143,6 +1455,47 @@ async function fetchDefaultProduct() {
   return items.find((p) => (p.product_type || "custom") !== "ready") || null;
 }
 
+/**
+ * Pick up an artwork the marketplace handed over. market.js writes the chosen
+ * work into sessionStorage and sends the visitor here; refetching the image as
+ * a File means it goes through exactly the same path as an upload — same
+ * downscaling, same print master, same order payload — with the designer's id
+ * stamped on the layer so checkout can pay them.
+ */
+const PENDING_ART_KEY = "loom_pending_art";
+
+async function applyPendingArtwork() {
+  let art = null;
+  try {
+    const raw = sessionStorage.getItem(PENDING_ART_KEY);
+    if (!raw) return;
+    sessionStorage.removeItem(PENDING_ART_KEY);   // one-shot: a reload must not re-apply it
+    art = JSON.parse(raw);
+  } catch (e) { return; }
+  if (!art || !art.image_url) return;
+
+  try {
+    const res = await fetch(art.image_url, { mode: "cors" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    const name = (art.title || "artwork").replace(/[^\w\-. ]+/g, "_").slice(0, 60) + ".png";
+    const file = new File([blob], name, { type: blob.type || "image/png" });
+    _pendingLogoIsNew = true;
+    handleImageFile(file, {
+      artworkId: art.id,
+      markup: art.markup || 0,
+      author: art.author || null,
+      title: art.title || null,
+      imageKey: art.image_key || null,
+    });
+    const by = art.author ? " · " + art.author : "";
+    showToast(CT("mk.applied", "Дизайн добавлен") + by);
+  } catch (e) {
+    console.warn("[LOOM] could not apply marketplace artwork:", e.message);
+    showToast(CT("mk.applyFailed", "Не удалось загрузить работу"), "error");
+  }
+}
+
 async function loadProductFromSlug() {
   const slug = new URLSearchParams(window.location.search).get("slug");
   let glbUrl = DEFAULT_MODEL_URL;
@@ -1155,6 +1508,7 @@ async function loadProductFromSlug() {
       const def = await fetchDefaultProduct();
       if (def) {
         currentProduct = def;
+        setFabricPreset(fabricForProduct(def));
         applyProductToHeader(def);
       }
     } catch (e) {
@@ -1177,6 +1531,7 @@ async function loadProductFromSlug() {
           return;
         }
         currentProduct = product;
+        setFabricPreset(fabricForProduct(product));
         if (product.glb_url) glbUrl = product.glb_url;
         applyProductToHeader(product);
       }
@@ -1273,10 +1628,17 @@ function loadShirtModel(glbUrl) {
         if (isBackBody) map = backTexture;
         if (!isFrontBody && !isBackBody) map = plainTexture;
 
-        const mat = new THREE.MeshStandardMaterial({
+        // Physical, not Standard: cotton needs sheen (see applyFabricDetail).
+        // Standard is the fallback for a three build without it — the garment
+        // still renders, just without the fibre halo.
+        const Fabric = THREE.MeshPhysicalMaterial || THREE.MeshStandardMaterial;
+        const mat = new Fabric({
           map,
+          // FrontSide, with a BackSide lining added below — see addLining().
+          // DoubleSide alone lights the inside of the collar as if it faced
+          // the camera, which put a white band across a navy shirt.
           side: THREE.FrontSide,
-          roughness: 0.7,
+          roughness: 0.75,
           metalness: 0.0,
           envMapIntensity: FABRIC_ENV_INTENSITY,
         });
@@ -1313,12 +1675,17 @@ function loadShirtModel(glbUrl) {
 
       scene.add(object);
       shirtObject = object;
+      addLining(object);
 
       // Ensure maps/colors are coherent right after model load.
       applyActiveTexture();
 
       // Auto-fit: normalize size and frame camera to fill ~75% of viewport.
       fitCameraToObject(object);
+
+      // Lights and the contact shadow follow the garment's final size — which
+      // only exists after the fit above rescales the model.
+      fitStudioToObject(object);
 
       // Extract UV→world triangles AFTER the fit (which scales the model), so the
       // 2D editor's texture↔screen map uses final world positions.
@@ -1420,6 +1787,7 @@ function createPlaceholderShirt() {
   group.scale.setScalar(0.72);
   scene.add(group);
   shirtObject = group;
+  fitStudioToObject(group);
   applyActiveTexture();
   console.info(
     "Placeholder shirt rendered. Replace assets/models/oversized-tshirt.obj with a proper GLB for best results.",
@@ -1521,7 +1889,7 @@ function fitCameraToObject(object) {
   camAnim.targetLookZ = controls.target.z;
   camAnim.active = false;
 
-  if (renderer && scene && camera) renderer.render(scene, camera);
+  if (renderer && scene && camera) { updateStudioRig(); renderer.render(scene, camera); }
 }
 
 // ================================================================
@@ -1588,6 +1956,7 @@ function animate() {
   }
 
   controls.update();
+  updateStudioRig();
   // While the flat editor is up the 3D canvas is display:none, so drawing it
   // every frame burns battery on a phone for pixels nobody can see. In split
   // mode it IS on screen, so it draws. Snapshots and exports call
@@ -1610,7 +1979,7 @@ function setCameraView(view) {
   controls.target.set(target.x, target.y, target.z);
   controls.update();
   camAnim.active = false;
-  if (renderer && camera && scene) renderer.render(scene, camera);
+  if (renderer && camera && scene) { updateStudioRig(); renderer.render(scene, camera); }
 }
 
 function bindResetViewButton() {
@@ -2585,6 +2954,7 @@ function deleteElement(id) {
   markUndo("delete");
   st.elements.splice(i, 1);
   delete uploadedFileData[id];
+  refreshPriceLabels();
   delete _boxes[designState.activeView][id];
   const next = st.elements[Math.min(i, st.elements.length - 1)];
   st.selId = next ? next.id : null;
@@ -2685,6 +3055,8 @@ function initUI() {
   bindFlatEditor();
   bindSurfaceToggle();
   bindSheet();
+  bindStepNext();
+  bindLab();
   bindMoreMenu();
   bindCart();
   bindSizeGuide();
@@ -2717,6 +3089,9 @@ function bindLangChange() {
     // flat editor paints its "область печати" caption into a canvas.
     try { if (typeof updateCartCta === "function") updateCartCta(); } catch (e) {}
     try { if (typeof renderFlatEditor === "function") renderFlatEditor(); } catch (e) {}
+    // The garment's name is data with its own per-language columns, so it is
+    // re-resolved here rather than by i18n.apply().
+    try { if (currentProduct) applyProductToHeader(currentProduct); } catch (e) {}
   });
 }
 
@@ -2827,6 +3202,7 @@ async function loadLayout() {
   }
 
   syncPanelFromState();
+  refreshPriceLabels();
   drawTexture("front");
   drawTexture("back");
   applyActiveTexture();
@@ -3117,7 +3493,17 @@ function renderFlatEditor() {
 
   const box = _flatGarmentBox(face, W, H);
   _flatBox = box;
+
+  // Ground the garment the same way the 3D does. Without a shadow a white
+  // shirt on the light studio sweep is a white shape on a near-white field —
+  // it reads as a gap in the page rather than as a product.
+  ctx.save();
+  ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
+  ctx.shadowBlur = Math.max(18, box.w * 0.09);
+  ctx.shadowOffsetX = Math.max(6, box.w * 0.022);
+  ctx.shadowOffsetY = Math.max(8, box.w * 0.030);
   ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
+  ctx.restore();
 
   const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
   const rect = {
@@ -3537,7 +3923,7 @@ const SHEET_STEPS = ["design", "color", "order"];
 // is the same mistake as a full-screen wizard page.
 // Must match --peek in the phone stylesheet: the CSS derives the stage height
 // and the Перед/Зад position from it, and this drives the snap points.
-const SHEET_PEEK = 54;      // dvh — design: garment gets the screen
+const SHEET_PEEK = 54;      // dvh — design: question + both answers fit, garment keeps the rest
 const SHEET_MID  = 62;      // dvh — colour/size: garment still visible above
 const SHEET_FULL = 86;      // dvh — order: a summary, nothing to watch
 const SHEET_H = { design: SHEET_PEEK, color: SHEET_MID, order: SHEET_FULL };
@@ -3577,7 +3963,85 @@ function setStep(step) {
   if (step === "order") updateSummaryTab();
 
   markStepsDone();
+  updateStepNext();
+  animateStepIn();
   snapSheetToStep();
+}
+
+/**
+ * Replay the step's entrance animation. Re-adding the class alone does
+ * nothing — the browser coalesces the remove and the add into no change — so
+ * force a reflow between them.
+ */
+function animateStepIn() {
+  [document.getElementById("design-dock"), document.querySelector(".tab-scroll")]
+    .forEach((el) => {
+      if (!el) return;
+      el.classList.remove("step-in");
+      void el.offsetWidth;
+      el.classList.add("step-in");
+    });
+}
+
+// The wizard's forward action. Steps 1 and 2 have exactly one button and it
+// says where it goes; the cart button only appears on step 3, where deciding
+// is actually the task.
+const NEXT_STEP = { design: "color", color: "order" };
+
+function updateStepNext() {
+  const label = document.getElementById("step-next-label");
+  if (!label) return;
+  // The long label wraps to two lines on a 375px phone, and those 40px are the
+  // difference between seeing both choices in step 1 and seeing one.
+  const narrow = window.matchMedia("(max-width: 560px)").matches;
+  const key = currentStep === "design"
+    ? (narrow ? "cfg.nextColorShort" : "cfg.nextColor")
+    : (narrow ? "cfg.nextOrderShort" : "cfg.nextOrder");
+  label.setAttribute("data-i18n", key);
+  label.textContent = CT(
+    key,
+    currentStep === "design"
+      ? (narrow ? "Дальше: цвет" : "Дальше: цвет и размер")
+      : "Дальше: заказ",
+  );
+}
+
+// ── LOOM Lab ────────────────────────────────────────────────────
+// The AI half of the product. The admin harness behind it is live
+// (backend/src/routes/admin-ai.ts), but nothing customer-facing is wired yet,
+// so the tile explains what is coming instead of pretending to work. Flip
+// LOOM_FLAGS.lab in assets/config.js to release it.
+
+function labEnabled() {
+  try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.lab); } catch (e) { return false; }
+}
+
+function bindLab() {
+  const btn = document.getElementById("btn-lab");
+  const sheet = document.getElementById("lab-sheet");
+  if (!btn || !sheet) return;
+
+  const shell = document.getElementById("studio-sheet");
+  if (shell) shell.classList.toggle("lab-live", labEnabled());
+
+  const close = () => sheet.classList.remove("open");
+  btn.addEventListener("click", () => {
+    trackStep("cfg_lab_teaser");
+    sheet.classList.add("open");
+  });
+  const backdrop = document.getElementById("lab-sheet-backdrop");
+  if (backdrop) backdrop.addEventListener("click", close);
+  const closeBtn = document.getElementById("lab-sheet-close");
+  if (closeBtn) closeBtn.addEventListener("click", close);
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+}
+
+function bindStepNext() {
+  const btn = document.getElementById("btn-step-next");
+  if (!btn) return;
+  btn.addEventListener("click", () => setStep(NEXT_STEP[currentStep] || "order"));
+  window.addEventListener("resize", updateStepNext);
+  updateStepNext();
 }
 
 /** Rest the sheet at the height this step actually needs. */
@@ -3816,6 +4280,7 @@ function performUndo() {
   syncPanelFromState();
   redrawActive();
   updateViewToggleMarkers();
+  refreshPriceLabels();
 }
 
 /** Toast with an action. The plain showToast() is pointer-events:none. */
@@ -3903,6 +4368,14 @@ function syncPanelFromState() {
     });
   }
 
+  // The drag/resize/rotate hint is advice about a thing that is not there
+  // yet until something has been added, so it only appears once it applies.
+  const hint = document.querySelector(".dock-hint");
+  if (hint) {
+    hint.style.display =
+      (_viewHasContent("front") || _viewHasContent("back")) ? "" : "none";
+  }
+
   updateViewToggleMarkers();
   renderPositionGuide();
 }
@@ -3938,7 +4411,14 @@ function _serializeElement(el) {
       color: el.color, bold: !!el.bold, italic: !!el.italic,
     });
   }
-  return Object.assign(base, { name: el.name, scalePct: el.scalePct, key: el.key || null });
+  const img = Object.assign(base, { name: el.name, scalePct: el.scalePct, key: el.key || null });
+  if (el.artworkId) {
+    img.artworkId = el.artworkId;
+    img.artworkPrice = el.artworkPrice || 0;
+    img.artworkAuthor = el.artworkAuthor || null;
+    img.artworkKey = el.artworkKey || null;
+  }
+  return img;
 }
 
 function _serializeView(view) {
@@ -4085,12 +4565,14 @@ async function captureProofs() {
       // user-panned orbit target would tilt both mockups off-axis.
       if (INITIAL_VIEW.target) controls.target.copy(INITIAL_VIEW.target);
       controls.update();
+      updateStudioRig();
       renderer.render(scene, camera);
       mockData[v] = _snapshotURL("image/jpeg", 0.85);
     });
     camera.position.copy(camPos);
     controls.target.copy(camTgt);
     controls.update();
+    updateStudioRig();
     renderer.render(scene, camera);
   }
 
@@ -4150,7 +4632,7 @@ async function addToCart(opts) {
         frontMockupKey: proofs.frontMockupKey,
         backMockupKey: proofs.backMockupKey,
         modelKey: proofs.modelKey,
-        unitPrice: currentProduct ? currentProduct.price : 150000,
+        unitPrice: currentUnitPrice(),
         quantity: 1,
       });
     } catch (err) {
@@ -4391,7 +4873,7 @@ function selectShirtColor(hex, clickedBtn) {
   // The flat editor is the surface the user is actually looking at while they
   // pick a colour, so it has to repaint too — the 3D alone is not enough.
   renderFlatEditor();
-  if (renderer && camera && scene && !flatMode) renderer.render(scene, camera);
+  if (renderer && camera && scene && !flatMode) { updateStudioRig(); renderer.render(scene, camera); }
 }
 
 // ================================================================
@@ -4481,7 +4963,7 @@ function bindImageControls() {
   }
 }
 
-function handleImageFile(file) {
+function handleImageFile(file, meta) {
   if (!file.type.startsWith("image/")) {
     showToast(
       "Пожалуйста, загрузите файл изображения (PNG, JPG, SVG)",
@@ -4541,9 +5023,25 @@ function handleImageFile(file) {
       _pendingLogoIsNew = false;
 
       el.img = finalImg;
-      el.name = file.name;
+      el.name = (meta && meta.title) || file.name;
       el.scalePct = scalePct;
       el.key = null; // re-uploaded on the next order
+
+      // Marketplace artwork carries its designer with it: `artworkId` is what
+      // the checkout reads to credit the sale (see cart.ts artworkIdsIn), and
+      // the markup is added to the garment's price.
+      if (meta && meta.artworkId) {
+        el.artworkId = meta.artworkId;
+        el.artworkPrice = meta.markup || 0;
+        el.artworkAuthor = meta.author || null;
+        // The canvas copy is capped at TEX_SIZE, so the re-uploaded logo is a
+        // 2048px derivative. Keep the designer's original R2 key alongside it:
+        // the print shop should be able to pull the full-resolution file.
+        el.artworkKey = meta.imageKey || null;
+      } else {
+        delete el.artworkId; delete el.artworkPrice;
+        delete el.artworkAuthor; delete el.artworkKey;
+      }
 
       // Store (possibly downscaled) file data per ELEMENT for order submission
       uploadedFileData[el.id] = {
@@ -4556,6 +5054,7 @@ function handleImageFile(file) {
       syncPanelFromState();
       redrawActive();
       updateViewToggleMarkers();
+      refreshPriceLabels();
       trackStep("cfg_design_add");
       maybeShowFirstDesignReward();
       }; // apply()
@@ -4591,33 +5090,34 @@ function _snapshotURL(type, quality) {
   try {
     drawTexture("front");
     drawTexture("back");
-    if (renderer && scene && camera) renderer.render(scene, camera);
+    if (renderer && scene && camera) { updateStudioRig(); renderer.render(scene, camera); }
     return renderer.domElement.toDataURL(type, quality);
   } finally {
     _showHandles = prev;
     redrawActive();
-    if (renderer && scene && camera) renderer.render(scene, camera);
+    if (renderer && scene && camera) { updateStudioRig(); renderer.render(scene, camera); }
   }
 }
 
 function updateSummaryTab() {
-  // Take a snapshot of the Three.js renderer
-  if (renderer) {
-    const snap = document.getElementById("summary-snapshot");
-    if (snap) {
-      const ctx = snap.getContext("2d");
-      const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0, 0, snap.width, snap.height);
-        // Crop to center square
-        const src = renderer.domElement;
-        const side = Math.min(src.width, src.height);
-        const sx = (src.width - side) / 2;
-        const sy = (src.height - side) / 2;
-        ctx.drawImage(src, sx, sy, side, side, 0, 0, snap.width, snap.height);
-      };
-      img.src = _snapshotURL();
-    }
+  // A picture of what they are about to buy. The 3D is the better likeness,
+  // but it only exists once the preview has been opened — and most people
+  // reach step 3 without ever opening it, which left a black square sitting
+  // where the product should be. The flat editor is always drawn, so it is
+  // the fallback.
+  const snap = document.getElementById("summary-snapshot");
+  const src = (renderer && shirtObject)
+    ? renderer.domElement
+    : document.getElementById("flat-canvas");
+  if (snap && src && src.width && src.height) {
+    const ctx = snap.getContext("2d");
+    ctx.clearRect(0, 0, snap.width, snap.height);
+    const side = Math.min(src.width, src.height);
+    ctx.drawImage(
+      src,
+      (src.width - side) / 2, (src.height - side) / 2, side, side,
+      0, 0, snap.width, snap.height,
+    );
   }
 
   // Update text summary
@@ -4693,6 +5193,7 @@ function resetDesign() {
   applyActiveTexture();
   renderFlatEditor();
   updateViewToggleMarkers();
+  refreshPriceLabels();
   showUndoToast(CT("cfg.wasReset", "Дизайн сброшен"));
 }
 
@@ -4707,6 +5208,7 @@ function bindSaveDesign() {
   btn.addEventListener("click", () => {
     if (!renderer) return;
     // Render one extra frame to ensure latest state
+    updateStudioRig();
     renderer.render(scene, camera);
     const url = _snapshotURL("image/png");
     const a = document.createElement("a");
@@ -4777,7 +5279,7 @@ function _openOrderModalInner(cartMode) {
   setTxt("summaryText", _textSummary("front") || CT("order.textNone", "Не указан"));
   setTxt("summaryFont", _fontSummary("front") || "—");
   setTxt("summaryImage", _logoSummary("front") || CT("cfg.notUploaded", "Не загружено"));
-  const _price = currentProduct ? currentProduct.price : 150000;
+  const _price = currentUnitPrice();
   setTxt("summaryPrice", window.LOOM_I18N ? window.LOOM_I18N.formatPrice(_price) : (_price.toLocaleString("ru-RU") + " " + CT("cfg.currency", "сум")));
 
   // Copy 3D renderer screenshot into summary canvas
@@ -5262,7 +5764,7 @@ async function handleOrderSubmit(event) {
     const designJson = _buildDesignJson();
 
     // ── 4. POST /api/orders ────────────────────────────────────────────────
-    const totalPrice = currentProduct ? currentProduct.price : 150000;
+    const totalPrice = currentUnitPrice();
     const apiHeaders = { "Content-Type": "application/json" };
     if (window.LOOM_AUTH) {
       const token = window.LOOM_AUTH.getToken();
@@ -5311,7 +5813,7 @@ async function handleOrderSubmit(event) {
 
     // ── 5. Also notify Telegram worker (non-blocking, best effort) ─────────
     const workerPayload = {
-      item: currentProduct ? currentProduct.name_ru : "Футболка",
+      item: currentProduct ? productName(currentProduct) : "Футболка",
       color: getColorName(designState.shirtColor),
       size: selectedSize,
       frontText: _textSummary("front"),
