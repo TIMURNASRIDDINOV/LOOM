@@ -43,10 +43,14 @@ export default function ProfileEdit() {
     }
   }, [user])
 
-  if (!signedIn) {
-    router.replace('/login')
-    return null
-  }
+  // Navigating during render updates the navigator while this component is
+  // still rendering — React warns, and under concurrent rendering it can run
+  // more than once. The redirect belongs in an effect.
+  useEffect(() => {
+    if (!signedIn) router.replace('/login')
+  }, [signedIn, router])
+
+  if (!signedIn) return null
 
   const pickAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()

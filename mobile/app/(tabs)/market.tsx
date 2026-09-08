@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router'
 import { C, RULE, fmt, offset } from '../../src/theme/tokens'
 import { body, disp, mono } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
+import { EmptyState } from '../../src/components/EmptyState'
 import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
 import { fetchArtworks, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
 import type { Artwork } from '../../src/api/types'
@@ -63,10 +64,12 @@ export default function Market() {
             <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={reload} />
           </View>
         ) : items.length === 0 ? (
-          <View style={styles.empty}>
-            <T style={[disp(24, 1.1, { ls: -0.02, color: C.coral }), { maxWidth: 280 }]}>{t('mk.emptyTitle')}</T>
-            <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 12 }]}>{t('mk.emptyBody')}</T>
-          </View>
+          <EmptyState
+            eyebrow={t('empty.tagEmpty')}
+            title={t('mk.emptyTitle')}
+            body={t('mk.emptyBody')}
+            action={{ title: t('pub.becomeTitle'), onPress: () => router.push('/publish') }}
+          />
         ) : (
           <View style={styles.grid}>
             {items.map((a) => (

@@ -4,9 +4,10 @@ import { useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 
 import { C, RULE, STATUSES, fmt } from '../../src/theme/tokens'
-import { body, disp, mono, monoSemi } from '../../src/theme/type'
+import { disp, mono, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
-import { Button, Panel, SlashTitle, T, Tap } from '../../src/components/ui'
+import { EmptyState } from '../../src/components/EmptyState'
+import { Panel, SlashTitle, T, Tap } from '../../src/components/ui'
 import { GARMENT_FLAT, fetchMyOrders, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
 import { summarizeDesign } from '../../src/api/design'
 import type { Order } from '../../src/api/types'
@@ -42,36 +43,28 @@ export default function Orders() {
         </SlashTitle>
 
         {!signedIn ? (
-          <View style={{ gap: 18 }}>
-            <T style={body(14, 1.6, { color: C.i55 })}>{t('orders.signIn')}</T>
-            <Button
-              title={t('common.signIn')}
-              variant="ink"
-              size={12.5}
-              vPad={15}
-              style={{ alignSelf: 'flex-start', paddingHorizontal: 26 }}
-              onPress={() => router.push('/login')}
-            />
-          </View>
+          <EmptyState
+            eyebrow={t('empty.tagSignIn')}
+            title={t('orders.signIn')}
+            body={t('orders.signedOutBody')}
+            action={{ title: t('common.signIn'), onPress: () => router.push('/login') }}
+          />
         ) : loading && !orders.length ? (
           <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
         ) : error ? (
-          <View style={{ gap: 16 }}>
-            <T style={body(14, 1.6, { color: C.i55 })}>{error.message}</T>
-            <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={reload} />
-          </View>
+          <EmptyState
+            eyebrow={t('empty.tagNotFound')}
+            title={error.message}
+            action={{ title: t('common.retry'), onPress: reload }}
+            art={false}
+          />
         ) : !orders.length ? (
-          <View style={{ gap: 18 }}>
-            <T style={[disp(26, 1.1, { ls: -0.02, color: C.coral }), { maxWidth: 260 }]}>{t('orders.empty')}</T>
-            <Button
-              title={t('orders.openStudio')}
-              variant="ink"
-              size={12.5}
-              vPad={15}
-              style={{ alignSelf: 'flex-start', paddingHorizontal: 26 }}
-              onPress={() => router.push('/studio')}
-            />
-          </View>
+          <EmptyState
+            eyebrow={t('empty.tagEmpty')}
+            title={t('orders.empty')}
+            body={t('orders.emptyBody')}
+            action={{ title: t('orders.openStudio'), onPress: () => router.push('/studio') }}
+          />
         ) : (
           <>
             <CurrentOrder order={current} t={t} />
