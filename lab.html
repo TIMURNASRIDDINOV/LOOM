@@ -23,11 +23,11 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="assets/theme.css?v=12" />
   <link rel="stylesheet" href="assets/nav.css?v=12" />
-  <link rel="stylesheet" href="assets/auth.css?v=12" />
+  <link rel="stylesheet" href="assets/auth.css?v=13" />
 
   <script src="assets/boot.js?v=8" data-intro></script>
 
@@ -35,12 +35,12 @@
   <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
   <script defer src="assets/vendor/lenis.min.js?v=1"></script>
   <script defer src="assets/config.js?v=3"></script>
-  <script defer src="assets/layout.js?v=4"></script>
-  <script defer src="assets/i18n.js?v=24"></script>
+  <script defer src="assets/layout.js?v=5"></script>
+  <script defer src="assets/i18n.js?v=28"></script>
   <script defer src="assets/auth.js?v=4"></script>
   <script defer src="assets/tma.js?v=3"></script>
   <script defer src="assets/nav.js?v=2"></script>
-  <script defer src="assets/motion.js?v=9"></script>
+  <script defer src="assets/motion.js?v=11"></script>
   <script defer src="assets/track.js?v=3"></script>
 
   <style>
@@ -135,6 +135,45 @@
       background: var(--paper-3);
     }
     .lab-out__text { margin: 0; max-width: 46ch; font-size: var(--text-sm); line-height: 1.7; color: var(--ink-70); }
+
+    /* ══════════════════════════════════════════════════════════════
+       MAXIMALIST SKIN — lab
+       Matches assets/theme.css §11 (tokens come from there).
+       Last in the block so it wins on order, not specificity.
+       ═══════════════════════════════════════════════════════════ */
+    /* Accent as a field, not an outline — same stamp as the home band. */
+    .lab-badge {
+      padding: 0.5rem 0.85rem;
+      border: none;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-weight: 700;
+    }
+
+    /* Step indices become the filled chip used across the site, and the
+       step rules keep the 2px seam they already had. */
+    .lab-step__n {
+      display: inline-block;
+      padding: 0.18rem 0.42rem;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.02em;
+    }
+
+    /* Status: a thick head seam over hairline rows, like the cabinet ledger,
+       and each state reads as a stamp rather than coloured text. */
+    .lab-status__list { border-top: var(--rule); }
+    .lab-status__row { border-bottom: 1px solid var(--line); }
+    .lab-status__state {
+      padding: 0.18rem 0.5rem;
+      border: 1.5px solid currentColor;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    .lab-out__box { border: var(--rule); box-shadow: var(--hard); }
   </style>
 </head>
 <body data-page="lab" data-preloader>

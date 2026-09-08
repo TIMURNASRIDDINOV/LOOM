@@ -163,7 +163,12 @@ body.loom-modal-open { overflow: hidden; }
 /* Primary CTA look — mobile browsers block the automatic window.open
    (it fires after an await), so this link IS the way into Telegram */
 .loom-modal__tg-link {
-  display: block;
+  /* was a 📱 emoji: system colour font, so it ignored the button's white
+     text and looked different on every OS */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   margin-bottom: 1.25rem;
   padding: 0.85rem 1.25rem;
   background: #2aabee; /* Telegram brand */
@@ -178,6 +183,7 @@ body.loom-modal-open { overflow: hidden; }
 }
 .loom-modal__tg-link:hover { background: #1e96d6; border-color: #1e96d6; color: #fff; }
 .loom-modal__tg-link:active { transform: scale(0.98); }
+.loom-modal__tg-ico { width: 17px; height: 17px; flex-shrink: 0; }
 
 .loom-modal__timeout-bar {
   height: 2px;

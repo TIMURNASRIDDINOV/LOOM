@@ -315,8 +315,8 @@
     'order.savedTitle':  { uz: 'Saqlangan manzil', ru: 'Сохранённый адрес', en: 'Saved address' },
     'order.useSaved':    { uz: 'Saqlangandan foydalanish', ru: 'Использовать сохранённый', en: 'Use saved' },
     'order.enterNew':    { uz: 'Yangi kiritish', ru: 'Ввести новый', en: 'Enter new' },
-    'order.onMap':       { uz: '📍 Xaritada', ru: '📍 На карте', en: '📍 On map' },
-    'order.addressTab':  { uz: '✏️ Manzil', ru: '✏️ Адрес', en: '✏️ Address' },
+    'order.onMap':       { uz: 'Xaritada', ru: 'На карте', en: 'On map' },
+    'order.addressTab':  { uz: 'Manzil', ru: 'Адрес', en: 'Address' },
     'order.addressPh':   { uz: 'Toshkent, Amir Temur ko‘chasi, 10-uy', ru: 'Ташкент, улица Амира Темура, дом 10', en: 'Tashkent, Amir Temur street, 10' },
     'order.submit':      { uz: 'Buyurtma berish', ru: 'Оформить заказ', en: 'Place order' },
     'order.sending':     { uz: 'Yuborilmoqda…', ru: 'Отправка…', en: 'Sending…' },
@@ -345,7 +345,7 @@
     'acc.defaultAddr': { uz: 'Yetkazib berish manzili (asosiy)', ru: 'Адрес доставки (по умолчанию)', en: 'Delivery address (default)' },
     'acc.enterAddr':   { uz: 'Manzilni kiriting', ru: 'Введите адрес', en: 'Enter address' },
     'acc.find':        { uz: 'Topish',     ru: 'Найти',       en: 'Find' },
-    'acc.pickOnMap':   { uz: '📍 Xaritada tanlash', ru: '📍 Выбрать на карте', en: '📍 Pick on map' },
+    'acc.pickOnMap':   { uz: 'Xaritada tanlash', ru: 'Выбрать на карте', en: 'Pick on map' },
     'acc.saveAddr':    { uz: 'Manzilni saqlash', ru: 'Сохранить адрес', en: 'Save address' },
     'acc.clear':       { uz: 'Tozalash',   ru: 'Очистить',    en: 'Clear' },
     'acc.myGeo':       { uz: 'Mening joylashuvim', ru: 'Моя геолокация', en: 'My location' },
@@ -480,6 +480,13 @@
     'lab.sheetLead':  { uz: 'Bosmani oddiy ibora bilan tasvirlang — Lab uni chizadi, fonni oladi va futbolkaga bosma o‘lchamida joylaydi.', ru: 'Опишите принт обычной фразой — Lab нарисует его, уберёт фон и положит на футболку в печатном разрешении.', en: 'Describe the print in a plain sentence — Lab draws it, removes the background and puts it on the shirt at print resolution.' },
     'cfg.close':      { uz: 'Yopish', ru: 'Закрыть', en: 'Close' },
 
+    // ===== 404 =====
+    'e404.t1':        { uz: 'Sahifa', ru: 'Страница', en: 'This page' },
+    'e404.t2':        { uz: 'so‘kilib ketdi.', ru: 'распустилась.', en: 'came apart.' },
+    'e404.lead':      { uz: 'Bunday sahifa yo‘q — u olib tashlangan bo‘lishi yoki havolada xato bo‘lishi mumkin. Konstruktor esa joyida: o‘zingiznikini yig‘ing.', ru: 'Такой страницы нет — её могли убрать, или в ссылке опечатка. Зато конструктор на месте: соберите что-нибудь своё.', en: 'There is no page at this address — it may have been removed, or the link has a typo. The configurator is still where you left it.' },
+    'e404.code':      { uz: 'Xato 404', ru: 'Ошибка 404', en: 'Error 404' },
+    'e404.caption':   { uz: 'Bosilmagan yagona narsa', ru: 'Единственное, что мы не напечатали', en: 'The one thing we never printed' },
+
     // ===== Marketplace (market.html, designer.html) =====
     'mk.heroT1':      { uz: 'Odamlar', ru: 'Дизайны,', en: 'Designs made' },
     'mk.heroT2':      { uz: 'o‘ylab topgan dizaynlar.', ru: 'придуманные людьми.', en: 'by people.' },
@@ -493,6 +500,26 @@
     'mk.failed':      { uz: 'Yuklab bo‘lmadi. Sahifani yangilang.', ru: 'Не удалось загрузить. Обновите страницу.', en: 'Could not load. Please refresh.' },
     'mk.loadMore':    { uz: 'Yana ko‘rsatish', ru: 'Показать ещё', en: 'Show more' },
     'mk.backToMarket':{ uz: '← Marketga', ru: '← В маркет', en: '← Back to market' },
+    // ----- Designer directory (designers.html) -----
+    'dir.title1':   { uz: 'Ishning ortidagi', ru: 'Люди, которые', en: 'The people' },
+    'dir.title2':   { uz: 'odamlar.', ru: 'придумывают принты.', en: 'behind the prints.' },
+    'dir.lead':     { uz: 'LOOM marketida ishlari tasdiqlangan mustaqil dizaynerlar. Har biriga kirib, uning barcha ishlarini ko‘ring.', ru: 'Независимые дизайнеры, чьи работы прошли проверку и продаются в маркете LOOM. Загляните к любому — увидите все его принты.', en: 'Independent designers whose work passed review and sells in the LOOM market. Open any of them to see everything they have made.' },
+    'dir.works':    { uz: 'ta ish', ru: 'работ', en: 'works' },
+    'dir.sold':     { uz: 'sotilgan', ru: 'продано', en: 'sold' },
+    'dir.none':     { uz: 'dizaynerlar yo‘q', ru: 'пока никого', en: 'nobody yet' },
+    'dir.count':    { uz: 'ta dizayner', ru: 'дизайнеров', en: 'designers' },
+    'dir.view':     { uz: 'Ishlarni ko‘rish', ru: 'Смотреть работы', en: 'See their work' },
+    'dir.failed':   { uz: 'Yuklab bo‘lmadi. Sahifani yangilang.', ru: 'Не удалось загрузить. Обновите страницу.', en: 'Could not load. Please refresh.' },
+    'nav.designers':{ uz: 'Dizaynerlar', ru: 'Дизайнеры', en: 'Designers' },
+
+    // ----- Market: open call shown when there are no works yet -----
+    'mk.openEyebrow': { uz: 'Ochiq chaqiruv', ru: 'Открытый набор', en: 'Open call' },
+    'mk.openT1':      { uz: 'Hozircha bo‘sh.', ru: 'Здесь пока пусто.', en: 'Nothing here yet.' },
+    'mk.openT2':      { uz: 'Birinchisi siz bo‘lishingiz mumkin.', ru: 'Первым можете стать вы.', en: 'You could be the first.' },
+    'mk.openLead':    { uz: 'Market dizaynerlar uchun ochiq. Ishingizni yuklang — biz uni tekshiramiz, shu yerda ko‘rsatamiz, va har bir sotilgan buyum uchun o‘z ustamangizni olasiz.', ru: 'Маркет открыт для дизайнеров. Загрузите работу — мы проверим её, покажем здесь, и вы будете получать свою наценку с каждой проданной вещи.', en: 'The market is open to designers. Upload a work — we review it, show it here, and you take your markup on every item sold.' },
+    'mk.openSlot':    { uz: 'Sizning printingiz shu yerda', ru: 'Ваш принт здесь', en: 'Your print goes here' },
+    'mk.openHow':     { uz: 'Bu qanday ishlaydi', ru: 'Как это работает', en: 'How it works' },
+
     'mk.designer':    { uz: 'Dizayner', ru: 'Дизайнер', en: 'Designer' },
     'mk.notFound':    { uz: 'Dizayner topilmadi', ru: 'Дизайнер не найден', en: 'Designer not found' },
     'mk.applied':     { uz: 'Dizayn qo‘shildi', ru: 'Дизайн добавлен', en: 'Design added' },
@@ -683,8 +710,46 @@
     boot();
   }
 
+  /* ── Plurals ──────────────────────────────────────────────────
+     Russian agrees a noun with the number in three forms, and the site
+     was picking the genitive plural for everything: "3 дизайнеров",
+     "2 работ". Uzbek does not pluralise after a numeral at all (one
+     form), English has two.
+
+       ru: 1, 21, 101      -> one     работа   дизайнер
+           2-4, 22-24      -> few     работы   дизайнера
+           0, 5-20, 11-14  -> many    работ    дизайнеров
+
+     Forms are ordered [one, few, many] for ru, [one, other] for en and
+     [any] for uz. */
+  const PLURALS = {
+    'plural.works':     { uz: ['ta ish'],       ru: ['работа', 'работы', 'работ'],          en: ['work', 'works'] },
+    'plural.designers': { uz: ['ta dizayner'],  ru: ['дизайнер', 'дизайнера', 'дизайнеров'], en: ['designer', 'designers'] }
+  };
+
+  function pluralIndex(lang, n) {
+    const abs = Math.abs(Math.floor(Number(n) || 0));
+    if (lang === 'uz') return 0;
+    if (lang === 'en') return abs === 1 ? 0 : 1;
+    /* ru */
+    const mod10 = abs % 10;
+    const mod100 = abs % 100;
+    if (mod10 === 1 && mod100 !== 11) return 0;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 1;
+    return 2;
+  }
+
+  /** The correct noun form for `n` — the number itself is the caller's. */
+  function plural(n, key) {
+    const lang = getLang();
+    const entry = PLURALS[key];
+    if (!entry) return '';
+    const forms = entry[lang] || entry[DEFAULT] || [];
+    return forms[Math.min(pluralIndex(lang, n), forms.length - 1)] || forms[0] || '';
+  }
+
   window.LOOM_I18N = {
-    getLang: getLang, setLang: setLang, t: t, apply: apply,
+    getLang: getLang, setLang: setLang, t: t, apply: apply, plural: plural,
     applyTo: applyTo, formatPrice: formatPrice, initSwitchers: initSwitchers,
     productName: productName,
     LANGS: LANGS

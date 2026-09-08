@@ -105,6 +105,11 @@
 
     bindGrid(grid, byId)
 
+    function showOpenCall(on) {
+      const el = $('mk-open-call')
+      if (el) el.hidden = !on
+    }
+
     async function load(p, append) {
       if (!append) grid.innerHTML = skeletons(8)
       try {
@@ -116,20 +121,30 @@
         items.forEach((a) => { byId[a.id] = a })
 
         const html = items.map(cardHtml).join('')
-        if (append) grid.insertAdjacentHTML('beforeend', html)
-        else grid.innerHTML = html || '<p class="mk-empty">' +
-          esc(T('mk.empty', 'Здесь пока пусто. Первые работы появятся совсем скоро — или загрузите свою.')) + '</p>'
+        if (append) {
+          grid.insertAdjacentHTML('beforeend', html)
+        } else if (html) {
+          grid.innerHTML = html
+          showOpenCall(false)
+        } else {
+          /* No approved works yet. An apology in the grid is worth less than
+             the pitch below it, so hand the page over to the open call. */
+          grid.innerHTML = ''
+          showOpenCall(true)
+        }
 
         const shown = grid.querySelectorAll('.mk-card').length
         const count = $('mk-count')
         if (count) {
           count.textContent = total
-            ? total + ' ' + T('mk.works', 'работ')
+            ? total + ' ' + plural(total, 'plural.works', T('mk.works', 'работ'))
             : T('mk.worksNone', 'пока пусто')
         }
         if (moreBtn) moreBtn.style.display = shown < total ? '' : 'none'
       } catch (e) {
         if (!append) {
+          /* A failed fetch is not an empty market — never recruit on an error. */
+          showOpenCall(false)
           grid.innerHTML = '<p class="mk-error">' +
             esc(T('mk.failed', 'Не удалось загрузить маркет. Обновите страницу.')) + '</p>'
         }
@@ -214,8 +229,105 @@
     }
   }
 
+  // ── designers.html — the public directory ─────────────────────────────────
+
+  function plural(n, key, fallback) {
+    try {
+      const w = window.LOOM_I18N && window.LOOM_I18N.plural(n, key)
+      if (w) return w
+    } catch (e) { /* i18n not ready */ }
+    return fallback
+  }
+
+  function designerCardHtml(d) {
+    const handle = esc(d.handle || '')
+    const href = 'designer.html?handle=' + encodeURIComponent(String(d.handle || '').replace(/^@/, ''))
+    const art = d.cover_url
+      ? '<span class="dir-card__art"><img src="' + esc(d.cover_url) + '" alt="" loading="lazy" decoding="async" /></span>'
+      : '<span class="dir-card__art dir-card__art--blank"></span>'
+    const name = d.name
+      ? '<p class="dir-card__name">' + esc(d.name) + '</p>'
+      : ''
+    const bio = d.bio ? '<p class="dir-card__bio">' + esc(d.bio) + '</p>' : ''
+    return (
+      '<a class="dir-card" href="' + href + '">' + art +
+      '<span class="dir-card__body">' +
+        '<p class="dir-card__handle">' + handle + '</p>' + name + bio +
+        '<span class="dir-card__stats">' +
+          '<span><b>' + (d.works || 0) + '</b> ' + esc(plural(d.works || 0, 'plural.works', T('dir.works', 'работ'))) + '</span>' +
+          '<span><b>' + (d.units_sold || 0) + '</b> ' + esc(T('dir.sold', 'продано')) + '</span>' +
+        '</span>' +
+        '<span class="dir-card__go">' + esc(T('dir.view', 'Смотреть работы')) + ' \u2192</span>' +
+      '</span></a>'
+    )
+  }
+
+  async function initDirectory() {
+    const grid = $('dir-grid')
+    if (!grid) return
+    const moreBtn = $('dir-more-btn')
+    let page = 1
+    let total = 0
+
+    function showOpenCall(on) {
+      const el = $('mk-open-call')
+      if (el) el.hidden = !on
+    }
+
+    async function load(p, append) {
+      if (!append) grid.innerHTML = skeletons(6)
+      try {
+        const res = await fetch(API() + '/api/designers?page=' + p)
+        if (!res.ok) throw new Error('HTTP ' + res.status)
+        const data = await res.json()
+        const items = data.items || []
+        total = data.total || items.length
+
+        const html = items.map(designerCardHtml).join('')
+        if (append) {
+          grid.insertAdjacentHTML('beforeend', html)
+        } else if (html) {
+          grid.innerHTML = html
+          showOpenCall(false)
+        } else {
+          grid.innerHTML = ''
+          showOpenCall(true)
+        }
+
+        const shown = grid.querySelectorAll('.dir-card').length
+        const count = $('dir-count')
+        if (count) {
+          count.textContent = total
+            ? total + ' ' + plural(total, 'plural.designers', T('dir.count', 'дизайнеров'))
+            : T('dir.none', 'пока никого')
+        }
+        if (moreBtn) moreBtn.style.display = shown < total ? '' : 'none'
+      } catch (e) {
+        if (!append) {
+          /* A failed fetch is not an empty directory — never recruit on an error. */
+          showOpenCall(false)
+          grid.innerHTML = '<p class="mk-error">' + esc(T('dir.failed', 'Не удалось загрузить. Обновите страницу.')) + '</p>'
+        }
+        console.warn('[LOOM] designer directory load failed:', e.message)
+      }
+    }
+
+    if (moreBtn) {
+      moreBtn.addEventListener('click', async () => {
+        moreBtn.disabled = true
+        page += 1
+        await load(page, true)
+        moreBtn.disabled = false
+      })
+    }
+
+    await load(1, false)
+    window.addEventListener('loom:langchange', () => { page = 1; load(1, false) })
+  }
+
   function init() {
-    if ($('mk-count')) initMarket()
+    if ($('dir-grid')) initDirectory()
+    else if ($('mk-count')) initMarket()
     else initDesigner()
   }
 

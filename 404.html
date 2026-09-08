@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4f2ed" />
+  <meta name="robots" content="noindex, follow" />
+  <title>LOOM — 404</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="assets/theme.css?v=12" />
+  <link rel="stylesheet" href="assets/nav.css?v=12" />
+  <link rel="stylesheet" href="assets/auth.css?v=13" />
+
+  <script src="assets/boot.js?v=8"></script>
+
+  <script defer src="assets/vendor/gsap.min.js?v=1"></script>
+  <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
+  <script defer src="assets/vendor/lenis.min.js?v=1"></script>
+  <script defer src="assets/config.js?v=3"></script>
+  <script defer src="assets/layout.js?v=5"></script>
+  <script defer src="assets/i18n.js?v=28"></script>
+  <script defer src="assets/auth.js?v=4"></script>
+  <script defer src="assets/tma.js?v=3"></script>
+  <script defer src="assets/nav.js?v=2"></script>
+  <script defer src="assets/motion.js?v=11"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font-body); background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ============================================================
+       404 — the page that was never printed.
+       One inverted band, the same studio tile the Lab uses, and the
+       only garment on this site carrying a print nobody ordered.
+    ============================================================ */
+    .e404 {
+      background: var(--surface-ink);
+      color: var(--on-ink);
+      border-bottom: var(--rule);
+      padding: calc(var(--nav-h) + clamp(2.5rem, 7vw, 5rem)) 0 clamp(3rem, 8vw, 5.5rem);
+      overflow: hidden;
+    }
+    .e404__grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: clamp(2rem, 6vw, 5rem);
+      align-items: center;
+    }
+    .e404__eyebrow { display: block; margin-bottom: clamp(1rem, 2.4vw, 1.5rem); color: var(--accent); }
+    .e404__title .line { display: block; }
+    .e404__lead {
+      max-width: 46ch;
+      margin: clamp(1.4rem, 3vw, 2rem) 0 0;
+      font-size: var(--text-sm);
+      line-height: 1.75;
+      color: var(--on-ink-55);
+    }
+
+    /* Where you can go instead — the primary action reads as a slab. */
+    .e404__actions {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem 1.1rem;
+      flex-wrap: wrap;
+      margin-top: clamp(1.8rem, 4vw, 2.6rem);
+    }
+    .e404__links {
+      display: flex;
+      gap: 1.4rem;
+      flex-wrap: wrap;
+      font-family: var(--font-mono);
+      font-size: var(--text-label);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .e404__link { color: var(--on-ink-55); transition: color 0.18s ease; }
+    .e404__link:hover { color: var(--accent); }
+
+    /* Studio tile — the Lab's frame, so the two read as one system. */
+    .e404__demo {
+      border: 2px solid var(--on-ink);
+      background: rgba(0, 0, 0, 0.35);
+      box-shadow: 6px 6px 0 var(--accent);
+      padding: clamp(1rem, 2.5vw, 1.6rem);
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.85rem, 1.6vw, 1.1rem);
+    }
+    .e404__canvas {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border: 2px solid var(--on-ink-line);
+      background:
+        radial-gradient(120% 100% at 50% 30%, rgba(255,255,255,0.07), transparent 70%),
+        rgba(0, 0, 0, 0.28);
+      overflow: hidden;
+    }
+    .e404__garment { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .e404__print {
+      position: absolute;
+      top: 33%;
+      left: 50%;
+      width: 38%;
+      aspect-ratio: 1 / 1;
+      transform: translateX(-50%);
+      border: 1.5px dashed var(--accent-55);
+      overflow: hidden;
+    }
+    /* Cream-on-black art, inverted and multiplied = ink on white cotton. */
+    .e404__art {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      /* The frayed thread is far finer than the Lab's prints, so inverting
+         alone leaves it mid-grey; the contrast push pulls the stitches back
+         to real ink without touching the white it prints onto. */
+      filter: invert(1) contrast(1.9);
+      mix-blend-mode: multiply;
+    }
+    .e404__caption {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-family: var(--font-mono);
+      font-size: var(--text-label);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--on-ink-55);
+    }
+    .e404__caption b { color: var(--accent); font-weight: 700; }
+
+    @media (max-width: 900px) {
+      .e404__grid { grid-template-columns: 1fr; }
+      .e404__demo { order: -1; }
+    }
+    @media (max-width: 560px) {
+      .e404__print { width: 42%; top: 32%; }
+    }
+  </style>
+</head>
+<body data-page="404">
+
+  <!-- Header + footer injected by assets/layout.js -->
+
+  <header class="e404">
+    <div class="container e404__grid">
+      <div class="e404__copy">
+        <span class="eyebrow e404__eyebrow" data-reveal>LOOM<span class="slash">/</span> <span data-i18n="e404.code">Ошибка 404</span></span>
+        <h1 class="e404__title h2" data-reveal="mask">
+          <span class="line" data-i18n="e404.t1">Страница</span>
+          <span class="line" data-i18n="e404.t2">распустилась.</span>
+        </h1>
+        <p class="e404__lead" data-reveal data-i18n="e404.lead">
+          Такой страницы нет — её могли убрать, или в ссылке опечатка.
+          Зато конструктор на месте: соберите что-нибудь своё.
+        </p>
+        <div class="e404__actions" data-reveal data-delay="0.1">
+          <a href="index.html" class="btn btn--on-ink" data-i18n="nav.home">Главная</a>
+          <span class="e404__links">
+            <a href="catalog.html" class="e404__link" data-i18n="nav.catalog">Каталог</a>
+            <a href="configurator.html" class="e404__link" data-i18n="nav.start">Создать дизайн</a>
+            <a href="market.html" class="e404__link" data-i18n="nav.market">Маркет</a>
+          </span>
+        </div>
+      </div>
+
+      <!-- The one garment on this site carrying a print nobody ordered. -->
+      <div class="e404__demo" data-reveal data-delay="0.15" aria-hidden="true">
+        <div class="e404__canvas">
+          <img class="e404__garment" src="configuratorprodutcs/tshirt_flat_white_600.png" alt="" width="600" height="600" decoding="async" />
+          <div class="e404__print">
+            <img class="e404__art" src="images/lab/404-print.png" alt="" width="400" height="400" decoding="async" />
+          </div>
+        </div>
+        <p class="e404__caption">
+          <span data-i18n="e404.caption">Единственное, что мы не напечатали</span>
+          <b>404</b>
+        </p>
+      </div>
+    </div>
+  </header>
+
+  <script>document.addEventListener('DOMContentLoaded',function(){window.LOOM_AUTH&&window.LOOM_AUTH.renderAuthNav()})</script>
+</body>
+</html>

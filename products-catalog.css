@@ -341,3 +341,23 @@
   .quick-size-btn:hover, .carousel-arrow:hover,
   .bag-btn:active, .customize-btn:active, .quick-size-btn:active { transform: none; }
 }
+
+/* The product tile itself. §11 gives .pcard__media the slab treatment, but
+   the catalog renders .product-card__image-container — a different class, so
+   the rule never reached these cards and they kept a 1px --line-soft frame
+   while every other tile on the site had a 2px rule and a hard shadow.
+   Specificity matches the base rule (.product-grid .product-card__…), so
+   source order decides. */
+.product-grid .product-card__image-container,
+.product-carousel .product-card__image-container {
+  border: var(--rule, 2px solid var(--ink));
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: box-shadow var(--dur-fast, 0.22s) ease;
+}
+.product-grid .product-card:hover .product-card__image-container {
+  box-shadow: 6px 6px 0 var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-grid .product-card__image-container,
+  .product-carousel .product-card__image-container { transition: none; }
+}

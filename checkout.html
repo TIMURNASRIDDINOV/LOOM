@@ -17,13 +17,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- Leaflet is fetched on demand by checkout.js; warm the socket now -->
   <link rel="preconnect" href="https://unpkg.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <!-- Design system -->
   <link rel="stylesheet" href="assets/theme.css?v=12" />
   <link rel="stylesheet" href="assets/nav.css?v=12" />
-  <link rel="stylesheet" href="assets/auth.css?v=12" />
-  <link rel="stylesheet" href="assets/login-modal.css?v=5" />
+  <link rel="stylesheet" href="assets/auth.css?v=13" />
+  <link rel="stylesheet" href="assets/login-modal.css?v=6" />
   <script src="assets/boot.js?v=8"></script>
 
   <!-- Page scripts: deferred so the parser is never blocked and the
@@ -33,14 +33,14 @@
        checkout.js injects it only when the map is actually mounted. -->
   <script defer src="assets/vendor/gsap.min.js?v=1"></script>
   <script defer src="assets/config.js?v=3"></script>
-  <script defer src="assets/layout.js?v=4"></script>
-  <script defer src="assets/i18n.js?v=24"></script>
+  <script defer src="assets/layout.js?v=5"></script>
+  <script defer src="assets/i18n.js?v=28"></script>
   <script defer src="assets/auth.js?v=4"></script>
   <script defer src="assets/tma.js?v=3"></script>
   <script defer src="assets/nav.js?v=2"></script>
-  <script defer src="assets/motion.js?v=9"></script>
+  <script defer src="assets/motion.js?v=11"></script>
   <script defer src="assets/track.js?v=3"></script>
-  <script defer src="assets/login-modal.js?v=2"></script>
+  <script defer src="assets/login-modal.js?v=3"></script>
   <script defer src="assets/cart.js?v=2"></script>
   <script defer src="assets/address-picker.js?v=2"></script>
   <script defer src="assets/checkout.js?v=3"></script>
@@ -371,7 +371,7 @@
           <section class="co-section">
             <div class="co-section-head">
               <span class="co-step">04</span>
-              <h2 class="co-section-title"><span data-i18n="co.orderComment">Комментарий к заказу</span> <span style="font-size:0.8rem;font-weight:400;color:var(--ink-38)">· <span data-i18n="co.optional">необязательно</span></span></h2>
+              <h2 class="co-section-title"><span data-i18n="co.orderComment">Комментарий к заказу</span> <span style="font-family:var(--font-body);font-size:0.8rem;font-weight:400;color:var(--ink-38)">· <span data-i18n="co.optional">необязательно</span></span></h2>
             </div>
             <textarea class="f-input" id="co-comment" rows="3" maxlength="500" style="resize:vertical"></textarea>
           </section>

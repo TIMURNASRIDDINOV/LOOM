@@ -25,10 +25,16 @@
     if (window.LOOM_I18N) return window.LOOM_I18N.formatPrice(n)
     return Number(n || 0).toLocaleString('ru-RU') + ' сум'
   }
+  function locale() { return { ru: 'ru-RU', uz: 'uz-UZ', en: 'en-US' }[lang()] || 'ru-RU' }
   function fmtDate(ts) {
     if (!ts) return '—'
-    const loc = { ru: 'ru-RU', uz: 'uz-UZ', en: 'en-US' }[lang()] || 'ru-RU'
-    return new Date(Number(ts)).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })
+    return new Date(Number(ts)).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  /* The cabinet's headline figure. It was pinned to ru-RU, so an English
+     reader still got "300 тыс." */
+  function fmtSpent(total) {
+    if (!total) return '0'
+    return new Intl.NumberFormat(locale(), { notation: 'compact', maximumFractionDigits: 0 }).format(total)
   }
   function fmtYear(ts) {
     if (!ts) return '—'
@@ -158,9 +164,7 @@
 
     // Stats
     document.getElementById('stat-orders').textContent = u.order_count ?? '0'
-    document.getElementById('stat-spent').textContent = u.total_spent
-      ? new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 0 }).format(u.total_spent)
-      : '0'
+    document.getElementById('stat-spent').textContent = fmtSpent(u.total_spent)
     document.getElementById('stat-since').textContent = fmtYear(u.created_at)
 
     // Location
@@ -597,6 +601,7 @@
     window.addEventListener('loom:langchange', () => {
       if (user) {
         document.getElementById('profile-since').textContent = AT('acc.statSince', 'С нами с') + ' ' + fmtDate(user.created_at)
+        document.getElementById('stat-spent').textContent = fmtSpent(user.total_spent)
       }
       loadOrders()
       loadNotifications(notifPage)

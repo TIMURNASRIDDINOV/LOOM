@@ -107,6 +107,7 @@
               '<p class="site-footer__heading" data-i18n="footer.designersTitle">Дизайнерам</p>' +
               '<ul class="site-footer__links">' +
                 '<li><a href="market.html" data-i18n="nav.market">Маркет</a></li>' +
+                '<li><a href="designers.html" data-i18n="nav.designers">Дизайнеры</a></li>' +
                 '<li><a href="account.html#designer" data-i18n="footer.becomeDesigner">Стать дизайнером</a></li>' +
                 '<li><a href="lab.html" data-i18n="nav.lab">LOOM Lab</a></li>' +
               '</ul>' +

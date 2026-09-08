@@ -225,3 +225,292 @@
   .mk-card:hover .mk-card__art img { transform: none; }
   .mk-skeleton { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   MAXIMALIST SKIN — market & designer page
+   Matches assets/theme.css §11 (tokens come from there).
+   Last in the file so it wins on order, not specificity.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Work tiles read as framed slabs that lift, the way .pcard does on the
+   catalog. The old hover used --menu-shadow — a soft blurred drop shadow,
+   the one thing this system never does. */
+.mk-card {
+  border: var(--rule, 2px solid var(--ink));
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.mk-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--accent);
+}
+.mk-card__art { border-bottom: var(--rule, 2px solid var(--ink)); }
+.mk-card__price {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mk-card__title { font-weight: 700; letter-spacing: -0.02em; }
+.mk-card__try { font-family: var(--font-display, sans-serif); font-weight: 700; }
+
+.mk-skeleton { border: var(--rule, 2px solid var(--ink)); }
+
+/* Nothing to show — said in the mono register the rest of the site uses. */
+.mk-empty, .mk-error {
+  padding: clamp(2rem, 5vw, 3rem) 1rem;
+  border: 1.5px dashed var(--line);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-38);
+}
+
+.btn-line {
+  border: var(--rule, 2px solid var(--ink));
+  border-radius: 0;
+  font-family: var(--font-display, sans-serif);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.btn-line:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: var(--hard, 3px 3px 0 var(--ink)); }
+.btn-line:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+
+/* Designer page: the avatar is a stamped square, the stats sit on a real seam. */
+.dzp-avatar {
+  border: var(--rule, 2px solid var(--ink));
+  box-shadow: var(--hard, 3px 3px 0 var(--ink));
+}
+.dzp-stats { border-bottom: var(--rule, 2px solid var(--ink)); }
+.dzp-stat__value { letter-spacing: -0.04em; }
+.dzp-handle { letter-spacing: -0.035em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-card:hover, .btn-line:hover:not(:disabled), .btn-line:active:not(:disabled) { transform: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   OPEN CALL — the empty market
+   Rendered only when /api/artworks comes back with nothing. An inverted
+   band, the studio tile from the Lab, and the print area left empty on
+   purpose: the page shows the space the designer's work would occupy.
+   ═══════════════════════════════════════════════════════════════ */
+.mk-open {
+  background: var(--surface-ink);
+  color: var(--on-ink);
+  border-top: var(--rule, 2px solid var(--ink));
+  border-bottom: var(--rule, 2px solid var(--ink));
+  padding: clamp(3rem, 8vw, 5.5rem) 0;
+  overflow: hidden;
+}
+.mk-open__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: clamp(2rem, 6vw, 5rem);
+  align-items: center;
+}
+.mk-open__eyebrow { display: block; margin-bottom: clamp(1rem, 2.4vw, 1.5rem); color: var(--accent); }
+.mk-open__title .line { display: block; }
+.mk-open__lead {
+  max-width: 48ch;
+  margin: clamp(1.4rem, 3vw, 2rem) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.75;
+  color: var(--on-ink-55);
+}
+
+.mk-open__steps {
+  list-style: none;
+  margin: clamp(1.6rem, 3.5vw, 2.2rem) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+  counter-reset: mkstep;
+}
+.mk-open__steps li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.85rem;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--on-ink);
+}
+/* The markup's 1/2/3 are replaced by the counter so translations cannot
+   drift out of order; the digits stay in the HTML for no-CSS fallback. */
+.mk-open__n {
+  counter-increment: mkstep;
+  flex-shrink: 0;
+  padding: 0.18rem 0.42rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 0;
+}
+.mk-open__n::before { content: counter(mkstep, decimal-leading-zero); font-size: 0.68rem; }
+
+.mk-open__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem 1.4rem;
+  flex-wrap: wrap;
+  margin-top: clamp(1.8rem, 4vw, 2.6rem);
+}
+.mk-open__link {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--on-ink-55);
+  transition: color 0.18s ease;
+}
+.mk-open__link:hover { color: var(--accent); }
+
+/* Studio tile — the Lab's frame, so the two read as one system. */
+.mk-open__demo {
+  border: 2px solid var(--on-ink);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 6px 6px 0 var(--accent);
+  padding: clamp(1rem, 2.5vw, 1.6rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 1.6vw, 1.1rem);
+}
+.mk-open__canvas {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 2px solid var(--on-ink-line);
+  background:
+    radial-gradient(120% 100% at 50% 30%, rgba(255,255,255,0.07), transparent 70%),
+    rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+.mk-open__garment { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* Deliberately empty: this is the slot a designer's work would fill. */
+.mk-open__slot {
+  position: absolute;
+  top: 36%;
+  left: 50%;
+  width: 30%;
+  aspect-ratio: 1 / 1;
+  transform: translateX(-50%);
+  border: 1.5px dashed var(--accent-55);
+}
+.mk-open__caption {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--on-ink-55);
+}
+
+@media (max-width: 900px) {
+  .mk-open__grid { grid-template-columns: 1fr; }
+  .mk-open__demo { order: -1; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DESIGNER DIRECTORY (designers.html)
+   A person is not a product tile: the card leads with their cover work,
+   then the handle at display size, then what they have actually shipped.
+   ═══════════════════════════════════════════════════════════════ */
+.dir-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: clamp(1rem, 2.2vw, 1.6rem);
+  margin-top: clamp(1.6rem, 4vw, 2.4rem);
+}
+.dir-card {
+  display: flex;
+  flex-direction: column;
+  border: var(--rule, 2px solid var(--ink));
+  box-shadow: var(--hard-sm, 2px 2px 0 var(--ink));
+  background: var(--paper-3);
+  color: inherit;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.dir-card:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--accent); }
+.dir-card__art {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.1rem;
+  background: linear-gradient(135deg, var(--paper-2) 0%, var(--media-bg) 60%, var(--paper-2) 100%);
+  border-bottom: var(--rule, 2px solid var(--ink));
+  overflow: hidden;
+}
+.dir-card__art img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform var(--dur) var(--ease-out);
+}
+.dir-card:hover .dir-card__art img { transform: scale(1.05); }
+/* No approved cover yet is not a broken card — it is a blank print area. */
+.dir-card__art--blank::after {
+  content: '';
+  position: absolute;
+  width: 38%;
+  aspect-ratio: 1 / 1;
+  border: 1.5px dashed var(--line);
+}
+
+.dir-card__body { padding: 0.95rem 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
+.dir-card__handle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: var(--accent-deep);
+  overflow-wrap: anywhere;
+}
+.dir-card__name { margin: 0; font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-55); }
+.dir-card__bio {
+  margin: 0.3rem 0 0;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: var(--ink-70);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.dir-card__stats {
+  margin-top: auto;
+  padding-top: 0.85rem;
+  display: flex;
+  gap: 1.1rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+}
+.dir-card__stats b { color: var(--ink); font-weight: 700; }
+.dir-card__go {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+.dir-card:hover .dir-card__go { color: var(--accent-deep); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dir-card, .dir-card__art img { transition: none; }
+  .dir-card:hover { transform: none; }
+  .dir-card:hover .dir-card__art img { transform: none; }
+}

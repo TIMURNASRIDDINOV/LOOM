@@ -1824,6 +1824,74 @@ export async function getDesignerByHandle(db: D1Database, handle: string): Promi
   })
 }
 
+/**
+ * The public designer directory: everyone with at least one approved artwork.
+ *
+ * Designers with nothing approved are deliberately excluded — a directory of
+ * empty profiles is worth less than an honest empty state, and the market's
+ * open call already recruits. Ordered by what they have actually sold, so the
+ * page leads with people whose work moves.
+ */
+export interface PublicDesignerRow {
+  id: number
+  handle: string
+  name: string | null
+  bio: string | null
+  avatar_key: string | null
+  created_at: number
+  works: number
+  units_sold: number
+  cover_key: string | null
+}
+
+export async function getPublicDesigners(
+  db: D1Database,
+  page = 1,
+  limit = 40,
+): Promise<{ items: PublicDesignerRow[]; total: number }> {
+  return safeQuery('getPublicDesigners', async () => {
+    const offset = (page - 1) * limit
+    const { results } = await db
+      .prepare(
+        `SELECT u.id                AS id,
+                u.designer_handle   AS handle,
+                u.name              AS name,
+                u.designer_bio      AS bio,
+                u.avatar_key        AS avatar_key,
+                u.created_at        AS created_at,
+                COUNT(DISTINCT a.id) AS works,
+                COALESCE(SUM(CASE WHEN o.id IS NOT NULL AND o.status != 'cancelled'
+                                  THEN s.quantity ELSE 0 END), 0) AS units_sold,
+                (SELECT a2.image_key FROM artworks a2
+                  WHERE a2.user_id = u.id AND a2.status = 'approved'
+                  ORDER BY a2.created_at DESC LIMIT 1) AS cover_key
+           FROM users u
+           JOIN artworks a       ON a.user_id = u.id AND a.status = 'approved'
+           LEFT JOIN artwork_sales s ON s.artwork_id = a.id
+           LEFT JOIN orders o        ON o.id = s.order_id
+          WHERE u.is_designer = 1 AND u.status = 'active'
+                AND u.designer_handle IS NOT NULL
+          GROUP BY u.id
+          ORDER BY units_sold DESC, works DESC, u.created_at ASC
+          LIMIT ? OFFSET ?`,
+      )
+      .bind(limit, offset)
+      .all<PublicDesignerRow>()
+    const row = await db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM (
+           SELECT u.id FROM users u
+             JOIN artworks a ON a.user_id = u.id AND a.status = 'approved'
+            WHERE u.is_designer = 1 AND u.status = 'active'
+                  AND u.designer_handle IS NOT NULL
+            GROUP BY u.id
+         )`,
+      )
+      .first<{ c: number }>()
+    return { items: results, total: row?.c ?? 0 }
+  })
+}
+
 export async function createArtwork(
   db: D1Database,
   params: {
