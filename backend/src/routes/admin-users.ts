@@ -229,7 +229,7 @@ router.post('/notifications', requireAdmin, requireCap('notifications.send'), as
     return c.json({ error: 'Invalid JSON' }, 400)
   }
 
-  const { user_id, message, button_label, button_url } = body as Record<string, unknown>
+  const { user_id, message, button_label, button_url, category } = body as Record<string, unknown>
 
   if (typeof user_id !== 'number' && typeof user_id !== 'string') {
     return c.json({ error: 'user_id is required' }, 400)
@@ -255,6 +255,23 @@ router.post('/notifications', requireAdmin, requireCap('notifications.send'), as
 
   if (!user.telegram_user_id) {
     return c.json({ error: 'User has no Telegram account linked' }, 422)
+  }
+
+  // The customer's switches (0019) are the point of having them: refuse rather
+  // than send. `order` is the default so anything the panel already sends —
+  // which is order-related — keeps working unchanged.
+  const kind = category === 'promo' ? 'promo' : 'order'
+  const optedIn = kind === 'promo' ? (user.notify_promo ?? 1) : (user.notify_orders ?? 1)
+  if (!optedIn) {
+    return c.json(
+      {
+        error: kind === 'promo'
+          ? 'Пользователь отключил рассылки об акциях'
+          : 'Пользователь отключил уведомления о заказах',
+        code: 'notifications_opted_out',
+      },
+      422,
+    )
   }
 
   const botToken = c.env.TELEGRAM_BOT_TOKEN

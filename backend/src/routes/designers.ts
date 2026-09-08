@@ -10,6 +10,7 @@ import {
   getDesignerByHandle,
   getDesignerSales,
   getDesignerStats,
+  getPublicDesigners,
   getUserById,
 } from '../db/queries'
 import type { BaseEnv, UserEnv } from '../types'
@@ -73,6 +74,32 @@ router.get('/artworks', async (c) => {
     items: items.map((a) =>
       publicArtwork(c.req.url, a, a.author_handle ?? a.author_name ?? 'LOOM', sold[a.id] ?? 0),
     ),
+    page,
+    total,
+  })
+})
+
+// ─── GET /api/designers — the public directory ───────────────────────────────
+//
+// Registered BEFORE /designers/:handle so the literal path wins; Hono matches
+// in registration order and ':handle' would otherwise swallow nothing here,
+// but keeping them adjacent makes the precedence obvious to the next reader.
+
+router.get('/designers', async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1)
+  const { items, total } = await getPublicDesigners(c.env.DB, page)
+  const { protocol, host } = new URL(c.req.url)
+  return c.json({
+    items: items.map((d) => ({
+      handle: d.handle,
+      name: d.name,
+      bio: d.bio,
+      avatar_url: d.avatar_key ? `${protocol}//${host}/api/files/avatars/${d.avatar_key}` : null,
+      cover_url: d.cover_key ? `${protocol}//${host}/api/files/artwork/${d.cover_key}` : null,
+      since: d.created_at,
+      works: d.works,
+      units_sold: d.units_sold,
+    })),
     page,
     total,
   })

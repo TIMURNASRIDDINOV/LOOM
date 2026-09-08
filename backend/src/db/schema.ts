@@ -16,6 +16,9 @@ export interface Product {
   slug: string
   name_ru: string
   name_en: string | null
+  // Added in migration 0020. Nullable: the customer site falls back to
+  // name_ru, so an untranslated product still renders.
+  name_uz: string | null
   description_ru: string | null
   price: number
   glb_key: string | null
@@ -49,6 +52,10 @@ export interface User {
   is_designer: number
   designer_handle: string | null
   designer_bio: string | null
+  // Added in migration 0019 — the notification switches in the cabinet.
+  // Nullable in TS because a row read before the migration ran has neither.
+  notify_orders: number | null
+  notify_promo: number | null
 }
 
 /** A social sign-in linked to a user. Added in migration 0017. */

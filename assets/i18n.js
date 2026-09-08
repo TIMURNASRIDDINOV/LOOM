@@ -24,6 +24,8 @@
     'nav.catalog':    { uz: 'Katalog',     ru: 'Каталог',       en: 'Catalog' },
     'nav.configure':  { uz: 'Konstruktor', ru: 'Кастомизация',  en: 'Customize' },
     'nav.about':      { uz: 'Biz haqimizda', ru: 'О нас',        en: 'About' },
+    'nav.market':     { uz: 'Market',      ru: 'Маркет',        en: 'Market' },
+    'nav.lab':        { uz: 'LOOM Lab',    ru: 'LOOM Lab',      en: 'LOOM Lab' },
     'nav.start':      { uz: 'Dizayn yaratish', ru: 'Создать дизайн', en: 'Start designing' },
     'nav.login':      { uz: 'Kirish',      ru: 'Войти',          en: 'Sign in' },
     'nav.account':    { uz: 'Shaxsiy kabinet', ru: 'Личный кабинет', en: 'My account' },
@@ -77,6 +79,8 @@
     'footer.contact':  { uz: 'Aloqa',  ru: 'Контакты',  en: 'Contact' },
     'footer.location': { uz: 'Toshkent, O‘zbekiston', ru: 'Ташкент, Узбекистан', en: 'Tashkent, Uzbekistan' },
     'footer.navTitle':    { uz: 'Sahifalar', ru: 'Навигация', en: 'Navigate' },
+    'footer.designersTitle': { uz: 'Dizaynerlarga', ru: 'Дизайнерам', en: 'For designers' },
+    'footer.becomeDesigner': { uz: 'Dizayner bo‘lish', ru: 'Стать дизайнером', en: 'Become a designer' },
     'footer.socialTitle': { uz: 'Aloqa',     ru: 'Связь',     en: 'Connect' },
 
     // ===== Marquee (redesign) =====
@@ -100,6 +104,7 @@
     'catalog.readyNote':    { uz: 'Sotib olishga tayyor — o‘lchamni tanlang', ru: 'Готовы к покупке — просто выберите размер', en: 'Ready to buy — just pick a size' },
 
     // ===== Configurator — panel =====
+    'cfg.eyebrow':      { uz: 'Konstruktor', ru: 'Конфигуратор', en: 'Configurator' },
     'cfg.panelProduct': { uz: 'O‘z dizayningizni yarating', ru: 'Создайте свой дизайн', en: 'Create your design' },
     'cfg.currency':     { uz: 'so‘m', ru: 'сум', en: 'UZS' },
     'cfg.tabColor':     { uz: 'Rang',   ru: 'Цвет',   en: 'Color' },
@@ -137,6 +142,23 @@
     'cfg.previewCaption': { uz: 'Ko‘rib chiqish', ru: 'Предпросмотр', en: 'Preview' },
     'cfg.undo':         { uz: 'Bekor qilish', ru: 'Отменить', en: 'Undo' },
     /* Mobile sheet steps */
+    // ── Guided steps: each one says what it wants, in a sentence ──
+    'cfg.stepCount1':   { uz: '1-qadam / 3', ru: 'Шаг 1 из 3', en: 'Step 1 of 3' },
+    'cfg.stepCount2':   { uz: '2-qadam / 3', ru: 'Шаг 2 из 3', en: 'Step 2 of 3' },
+    'cfg.stepCount3':   { uz: '3-qadam / 3', ru: 'Шаг 3 из 3', en: 'Step 3 of 3' },
+    'cfg.step1Title':   { uz: 'Nima bosamiz?', ru: 'Что напечатать?', en: 'What shall we print?' },
+    'cfg.step1Lead':    { uz: 'Rasm yuklang yoki matn yozing — futbolkada darhol ko‘rinadi.', ru: 'Загрузите картинку или напишите текст — вы сразу увидите её на футболке.', en: 'Upload a picture or write some text — you will see it on the shirt straight away.' },
+    'cfg.step2Title':   { uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour and size' },
+    'cfg.step2Lead':    { uz: 'Mato rangini tanlash uchun doirachani bosing va o‘z o‘lchamingizni tanlang.', ru: 'Нажмите на кружок, чтобы сменить цвет ткани, и выберите свой размер.', en: 'Tap a circle to change the fabric colour, then pick your size.' },
+    'cfg.step3Title':   { uz: 'Tekshiring va buyurtma bering', ru: 'Проверьте и закажите', en: 'Check it and order' },
+    'cfg.step3Lead':    { uz: 'Hammasi joyidami? Pastdagi katta tugmani bosing — tikib, yetkazib beramiz.', ru: 'Всё верно? Нажмите большую кнопку внизу — мы сошьём и привезём.', en: 'All good? Press the big button below — we will make it and deliver.' },
+    'cfg.addImageSub':  { uz: 'Rasm, logotip yoki chizma', ru: 'Фото, логотип или рисунок', en: 'A photo, a logo or a drawing' },
+    'cfg.addTextSub':   { uz: 'Ism, yozuv yoki tilak', ru: 'Имя, надпись или пожелание', en: 'A name, a slogan or a wish' },
+    'cfg.nextColor':    { uz: 'Keyingisi: rang va o‘lcham', ru: 'Дальше: цвет и размер', en: 'Next: colour and size' },
+    'cfg.nextOrder':    { uz: 'Keyingisi: buyurtma', ru: 'Дальше: заказ', en: 'Next: your order' },
+    'cfg.nextColorShort': { uz: 'Keyingisi: rang', ru: 'Дальше: цвет', en: 'Next: colour' },
+    'cfg.nextOrderShort': { uz: 'Keyingisi: buyurtma', ru: 'Дальше: заказ', en: 'Next: order' },
+    'cfg.moreActions':  { uz: 'Yana', ru: 'Ещё', en: 'More' },
     'cfg.stepDesign':   { uz: 'Dizayn',        ru: 'Дизайн',        en: 'Design' },
     'cfg.stepColorSize':{ uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour & size' },
     'cfg.stepOrder':    { uz: 'Buyurtma',      ru: 'Заказ',         en: 'Order' },
@@ -293,8 +315,8 @@
     'order.savedTitle':  { uz: 'Saqlangan manzil', ru: 'Сохранённый адрес', en: 'Saved address' },
     'order.useSaved':    { uz: 'Saqlangandan foydalanish', ru: 'Использовать сохранённый', en: 'Use saved' },
     'order.enterNew':    { uz: 'Yangi kiritish', ru: 'Ввести новый', en: 'Enter new' },
-    'order.onMap':       { uz: '📍 Xaritada', ru: '📍 На карте', en: '📍 On map' },
-    'order.addressTab':  { uz: '✏️ Manzil', ru: '✏️ Адрес', en: '✏️ Address' },
+    'order.onMap':       { uz: 'Xaritada', ru: 'На карте', en: 'On map' },
+    'order.addressTab':  { uz: 'Manzil', ru: 'Адрес', en: 'Address' },
     'order.addressPh':   { uz: 'Toshkent, Amir Temur ko‘chasi, 10-uy', ru: 'Ташкент, улица Амира Темура, дом 10', en: 'Tashkent, Amir Temur street, 10' },
     'order.submit':      { uz: 'Buyurtma berish', ru: 'Оформить заказ', en: 'Place order' },
     'order.sending':     { uz: 'Yuborilmoqda…', ru: 'Отправка…', en: 'Sending…' },
@@ -306,6 +328,16 @@
     'acc.tabOrders':   { uz: 'Buyurtmalar', ru: 'Заказы',     en: 'Orders' },
     'acc.tabNotif':    { uz: 'Bildirishnomalar', ru: 'Уведомления', en: 'Notifications' },
     'acc.tabSettings': { uz: 'Sozlamalar', ru: 'Настройки',   en: 'Settings' },
+    'acc.tabDesigner': { uz: 'Dizayner',   ru: 'Дизайнер',    en: 'Designer' },
+    'acc.saved':       { uz: 'Saqlandi!',  ru: 'Сохранено!',  en: 'Saved!' },
+    'acc.noPassword':  { uz: 'Siz {via} orqali kirasiz — bu akkaunt uchun parol ishlatilmaydi.', ru: 'Вы входите через {via} — пароль для этого аккаунта не используется.', en: 'You sign in with {via} — this account does not use a password.' },
+    'acc.viaTelegram': { uz: 'Telegram',   ru: 'Telegram',    en: 'Telegram' },
+    'acc.viaSocial':   { uz: 'ijtimoiy tarmoq akkaunti', ru: 'аккаунт социальной сети', en: 'a social account' },
+    'acc.deleteTitle': { uz: 'Akkauntni o‘chirish', ru: 'Удалить аккаунт', en: 'Delete account' },
+    'acc.deleteLead':  { uz: 'Profil, manzil va yuklangan fayllar butunlay o‘chiriladi. Rasmiylashtirilgan buyurtmalar buxgalteriyada shaxssiz ko‘rinishda qoladi.', ru: 'Профиль, адрес и загруженные файлы будут удалены безвозвратно. Оформленные заказы останутся в бухгалтерии в обезличенном виде.', en: 'Your profile, address and uploaded files are erased for good. Completed orders stay in the books, anonymised.' },
+    'acc.deleteWarn':  { uz: 'Bu amalni bekor qilib bo‘lmaydi. Tasdiqlash uchun yana bosing.', ru: 'Это действие нельзя отменить. Нажмите ещё раз, чтобы подтвердить.', en: 'This cannot be undone. Press again to confirm.' },
+    'acc.deleteBtn':   { uz: 'Akkauntni o‘chirish', ru: 'Удалить аккаунт', en: 'Delete account' },
+    'acc.deleteConfirm': { uz: 'Ha, butunlay o‘chirilsin', ru: 'Да, удалить навсегда', en: 'Yes, delete permanently' },
     'acc.myProfile':   { uz: 'Mening profilim', ru: 'Мой профиль', en: 'My profile' },
     'acc.statOrders':  { uz: 'Buyurtmalar', ru: 'Заказов',    en: 'Orders' },
     'acc.statSpent':   { uz: 'Sarflangan', ru: 'Потрачено',   en: 'Spent' },
@@ -313,7 +345,7 @@
     'acc.defaultAddr': { uz: 'Yetkazib berish manzili (asosiy)', ru: 'Адрес доставки (по умолчанию)', en: 'Delivery address (default)' },
     'acc.enterAddr':   { uz: 'Manzilni kiriting', ru: 'Введите адрес', en: 'Enter address' },
     'acc.find':        { uz: 'Topish',     ru: 'Найти',       en: 'Find' },
-    'acc.pickOnMap':   { uz: '📍 Xaritada tanlash', ru: '📍 Выбрать на карте', en: '📍 Pick on map' },
+    'acc.pickOnMap':   { uz: 'Xaritada tanlash', ru: 'Выбрать на карте', en: 'Pick on map' },
     'acc.saveAddr':    { uz: 'Manzilni saqlash', ru: 'Сохранить адрес', en: 'Save address' },
     'acc.clear':       { uz: 'Tozalash',   ru: 'Очистить',    en: 'Clear' },
     'acc.myGeo':       { uz: 'Mening joylashuvim', ru: 'Моя геолокация', en: 'My location' },
@@ -407,7 +439,135 @@
     'reset.setBtn':    { uz: 'Parolni saqlash', ru: 'Сохранить пароль', en: 'Save password' },
     'reset.mismatch':  { uz: 'Parollar mos kelmadi', ru: 'Пароли не совпадают', en: 'Passwords do not match' },
     'reset.done':      { uz: 'Parol yangilandi! Endi yangi parol bilan kiring.', ru: 'Пароль обновлён! Теперь войдите с новым паролем.', en: 'Password updated! Sign in with your new password.' },
-    'reset.toLogin':   { uz: 'Kirish', ru: 'Войти', en: 'Sign in' }
+    'reset.toLogin':   { uz: 'Kirish', ru: 'Войти', en: 'Sign in' },
+
+    // ===== LOOM Lab (index.html band, lab.html, configurator tile) =====
+    'lab.t1':         { uz: 'So‘z bilan tasvirlang.', ru: 'Опишите словами.', en: 'Describe it in words.' },
+    'lab.t2':         { uz: 'Kiyib yuring.', ru: 'Наденьте на себя.', en: 'Then wear it.' },
+    'lab.lead':       { uz: 'LOOM Lab iborani tayyor bosmaga aylantiradi: rasm chizadi, fonni olib tashlaydi va uni bosma maydoniga moslaydi — to‘g‘ridan-to‘g‘ri konstruktorda.', ru: 'LOOM Lab превращает фразу в готовый принт: рисует картинку, убирает фон и подгоняет её под область печати — прямо в конструкторе.', en: 'LOOM Lab turns a sentence into a finished print: it draws the image, removes the background and fits it to the print area — right inside the configurator.' },
+    'lab.f1':         { uz: 'Matnli tavsifdan bosma', ru: 'Принт из текстового описания', en: 'A print from a written description' },
+    'lab.f2':         { uz: 'Fonni avtomatik olib tashlash', ru: 'Автоматическое удаление фона', en: 'Automatic background removal' },
+    'lab.f3':         { uz: 'Bosmaga tayyor o‘lcham', ru: 'Готовое к печати разрешение', en: 'Print-ready resolution' },
+    'lab.soon':       { uz: 'Tez orada', ru: 'Скоро', en: 'Coming soon' },
+    'lab.more':       { uz: 'Bu nima bo‘ladi →', ru: 'Что это будет →', en: 'What it will be →' },
+    'lab.p1':         { uz: 'ingichka chiziqlarda Toshkent xaritasi', ru: 'карта Ташкента тонкими линиями', en: 'a map of Tashkent in thin lines' },
+    'lab.p2':         { uz: 'so‘zana uslubidagi anor naqshi', ru: 'гранатовый узор в стиле сюзане', en: 'a pomegranate pattern in suzani style' },
+    'lab.p3':         { uz: 'quyosh botishida Chimyon tog‘lari, minimalizm', ru: 'горы Чимгана на закате, минимализм', en: 'the Chimgan mountains at sunset, minimal' },
+    'lab.pageLead':   { uz: 'LOOM Lab — konstruktor ichidagi bosma generatori. Siz g‘oyani oddiy ibora bilan tasvirlaysiz, Lab uni chizadi, fonni kesadi va bosmaga kerakli o‘lchamdagi faylni beradi. Bu qismni ichkarida yig‘ib, sinab ko‘rdik — endi uni hammaga ochish qoldi.', ru: 'LOOM Lab — это генератор принтов внутри конструктора. Вы описываете идею обычной фразой, Lab рисует её, вырезает фон и отдаёт файл в том разрешении, которое нужно печати. Мы уже собрали и протестировали эту часть внутри — осталось открыть её всем.', en: 'LOOM Lab is a print generator inside the configurator. You describe the idea in a plain sentence, Lab draws it, cuts out the background and hands over a file at the resolution printing needs. We have built and tested this part internally — all that is left is opening it to everyone.' },
+    'lab.noDate':     { uz: 'Sanani shu yerda va Telegramda e’lon qilamiz', ru: 'Дату объявим здесь и в Telegram', en: 'We will announce the date here and on Telegram' },
+    'lab.howLabel':   { uz: 'Bu qanday ishlaydi', ru: 'Как это будет работать', en: 'How it will work' },
+    'lab.s1t':        { uz: 'Bosmani tasvirlang', ru: 'Опишите принт', en: 'Describe the print' },
+    'lab.s1b':        { uz: 'Rus, o‘zbek yoki ingliz tilida bitta ibora bilan. «Ingichka chiziqlarda Toshkent xaritasi» — shuning o‘zi yetarli.', ru: 'Одной фразой на русском, узбекском или английском. «Карта Ташкента тонкими линиями» — этого достаточно.', en: 'One sentence in Russian, Uzbek or English. “A map of Tashkent in thin lines” is enough.' },
+    'lab.s2t':        { uz: 'Variantni tanlang', ru: 'Выберите вариант', en: 'Pick a version' },
+    'lab.s2b':        { uz: 'Lab bir nechta variantni ko‘rsatadi. Fon avtomatik olinadi, shuning uchun bosma har qanday rangdagi matoga darhol yotadi.', ru: 'Lab покажет несколько версий. Фон снимается автоматически, поэтому принт сразу ложится на ткань любого цвета.', en: 'Lab shows a few versions. The background is removed automatically, so the print sits on fabric of any colour straight away.' },
+    'lab.s3t':        { uz: 'Kiyib ko‘ring va buyurtma bering', ru: 'Примерьте и закажите', en: 'Try it on and order' },
+    'lab.s3b':        { uz: 'Tayyor rasm konstruktorda oddiy qatlam sifatida paydo bo‘ladi: suring, o‘lchamini o‘zgartiring, 3D’da ko‘ring va buyurtma bering.', ru: 'Готовая картинка появляется в конструкторе как обычный слой: двигайте, меняйте размер, смотрите в 3D и заказывайте.', en: 'The finished image appears in the configurator as an ordinary layer: move it, resize it, view it in 3D and order.' },
+    'lab.statusLabel':{ uz: 'Nima tayyor', ru: 'Что уже готово', en: 'What is ready' },
+    'lab.st1':        { uz: 'Rasm generatsiyasi va modellarni solishtirish', ru: 'Генерация изображений и сравнение моделей', en: 'Image generation and model comparison' },
+    'lab.st2':        { uz: 'Fonni avtomatik olib tashlash', ru: 'Автоматическое удаление фона', en: 'Automatic background removal' },
+    'lab.st3':        { uz: 'Foydalanuvchi bo‘yicha limit va narx', ru: 'Лимиты и стоимость на пользователя', en: 'Per-customer limits and cost' },
+    'lab.st4':        { uz: 'Bosmadan oldin tekshiruv', ru: 'Проверка сгенерированного перед печатью', en: 'Review of generated art before printing' },
+    'lab.st5':        { uz: 'Konstruktordagi tugma', ru: 'Кнопка в конструкторе', en: 'The button in the configurator' },
+    'lab.stDone':     { uz: 'Tayyor', ru: 'Готово', en: 'Done' },
+    'lab.stWip':      { uz: 'Ishlanmoqda', ru: 'В работе', en: 'In progress' },
+    'lab.stNext':     { uz: 'Keyingi qadam', ru: 'Следующий шаг', en: 'Next up' },
+    'lab.meanwhile':  { uz: 'Ayni paytda — bosmani qo‘lda yig‘ing yoki dizaynerlarimizdan tayyorini oling. Lab’da paydo bo‘ladigan hamma narsa xuddi shu konstruktorda ishlaydi.', ru: 'А пока — соберите принт руками или возьмите готовый у наших дизайнеров. Всё, что появится в Lab, будет работать в том же конструкторе.', en: 'In the meantime, build a print by hand or take a ready one from our designers. Everything Lab adds will work in the same configurator.' },
+    'lab.toConfig':   { uz: 'Konstruktorga', ru: 'В конструктор', en: 'Open the configurator' },
+    'lab.toMarket':   { uz: 'Marketga', ru: 'В маркет', en: 'Open the market' },
+    'lab.tileTitle':  { uz: 'LOOM Lab bilan o‘ylab topish', ru: 'Придумать с LOOM Lab', en: 'Invent it with LOOM Lab' },
+    'lab.tileSub':    { uz: 'Bosmani so‘z bilan tasvirlang — Lab chizib beradi', ru: 'Опишите принт словами — Lab нарисует его', en: 'Describe the print — Lab will draw it' },
+    'lab.sheetTitle': { uz: 'LOOM Lab', ru: 'LOOM Lab', en: 'LOOM Lab' },
+    'lab.sheetLead':  { uz: 'Bosmani oddiy ibora bilan tasvirlang — Lab uni chizadi, fonni oladi va futbolkaga bosma o‘lchamida joylaydi.', ru: 'Опишите принт обычной фразой — Lab нарисует его, уберёт фон и положит на футболку в печатном разрешении.', en: 'Describe the print in a plain sentence — Lab draws it, removes the background and puts it on the shirt at print resolution.' },
+    'cfg.close':      { uz: 'Yopish', ru: 'Закрыть', en: 'Close' },
+
+    // ===== 404 =====
+    'e404.t1':        { uz: 'Sahifa', ru: 'Страница', en: 'This page' },
+    'e404.t2':        { uz: 'so‘kilib ketdi.', ru: 'распустилась.', en: 'came apart.' },
+    'e404.lead':      { uz: 'Bunday sahifa yo‘q — u olib tashlangan bo‘lishi yoki havolada xato bo‘lishi mumkin. Konstruktor esa joyida: o‘zingiznikini yig‘ing.', ru: 'Такой страницы нет — её могли убрать, или в ссылке опечатка. Зато конструктор на месте: соберите что-нибудь своё.', en: 'There is no page at this address — it may have been removed, or the link has a typo. The configurator is still where you left it.' },
+    'e404.code':      { uz: 'Xato 404', ru: 'Ошибка 404', en: 'Error 404' },
+    'e404.caption':   { uz: 'Bosilmagan yagona narsa', ru: 'Единственное, что мы не напечатали', en: 'The one thing we never printed' },
+
+    // ===== Marketplace (market.html, designer.html) =====
+    'mk.heroT1':      { uz: 'Odamlar', ru: 'Дизайны,', en: 'Designs made' },
+    'mk.heroT2':      { uz: 'o‘ylab topgan dizaynlar.', ru: 'придуманные людьми.', en: 'by people.' },
+    'mk.heroLead':    { uz: 'Mustaqil dizaynerlarning ishlari. Bosmani tanlang — u konstruktorda ochiladi, muallif esa har bir sotuvdan o‘z ulushini oladi.', ru: 'Работы независимых дизайнеров. Выберите принт — он откроется в конструкторе, а автор получит свою долю с каждой проданной вещи.', en: 'Work by independent designers. Pick a print — it opens in the configurator, and its author earns a share of every sale.' },
+    'mk.becomeCta':   { uz: 'Dizayner bo‘lish →', ru: 'Стать дизайнером →', en: 'Become a designer →' },
+    'mk.try':         { uz: 'Kiyib ko‘rish', ru: 'Примерить', en: 'Try it on' },
+    'mk.sold':        { uz: 'Sotilgan', ru: 'Продано', en: 'Sold' },
+    'mk.works':       { uz: 'ta ish', ru: 'работ', en: 'works' },
+    'mk.worksNone':   { uz: 'hozircha bo‘sh', ru: 'пока пусто', en: 'nothing yet' },
+    'mk.empty':       { uz: 'Hozircha bo‘sh. Birinchi ishlar tez orada paydo bo‘ladi — yoki o‘zingiznikini yuklang.', ru: 'Здесь пока пусто. Первые работы появятся совсем скоро — или загрузите свою.', en: 'Nothing here yet. The first works are coming soon — or upload your own.' },
+    'mk.failed':      { uz: 'Yuklab bo‘lmadi. Sahifani yangilang.', ru: 'Не удалось загрузить. Обновите страницу.', en: 'Could not load. Please refresh.' },
+    'mk.loadMore':    { uz: 'Yana ko‘rsatish', ru: 'Показать ещё', en: 'Show more' },
+    'mk.backToMarket':{ uz: '← Marketga', ru: '← В маркет', en: '← Back to market' },
+    // ----- Designer directory (designers.html) -----
+    'dir.title1':   { uz: 'Ishning ortidagi', ru: 'Люди, которые', en: 'The people' },
+    'dir.title2':   { uz: 'odamlar.', ru: 'придумывают принты.', en: 'behind the prints.' },
+    'dir.lead':     { uz: 'LOOM marketida ishlari tasdiqlangan mustaqil dizaynerlar. Har biriga kirib, uning barcha ishlarini ko‘ring.', ru: 'Независимые дизайнеры, чьи работы прошли проверку и продаются в маркете LOOM. Загляните к любому — увидите все его принты.', en: 'Independent designers whose work passed review and sells in the LOOM market. Open any of them to see everything they have made.' },
+    'dir.works':    { uz: 'ta ish', ru: 'работ', en: 'works' },
+    'dir.sold':     { uz: 'sotilgan', ru: 'продано', en: 'sold' },
+    'dir.none':     { uz: 'dizaynerlar yo‘q', ru: 'пока никого', en: 'nobody yet' },
+    'dir.count':    { uz: 'ta dizayner', ru: 'дизайнеров', en: 'designers' },
+    'dir.view':     { uz: 'Ishlarni ko‘rish', ru: 'Смотреть работы', en: 'See their work' },
+    'dir.failed':   { uz: 'Yuklab bo‘lmadi. Sahifani yangilang.', ru: 'Не удалось загрузить. Обновите страницу.', en: 'Could not load. Please refresh.' },
+    'nav.designers':{ uz: 'Dizaynerlar', ru: 'Дизайнеры', en: 'Designers' },
+
+    // ----- Market: open call shown when there are no works yet -----
+    'mk.openEyebrow': { uz: 'Ochiq chaqiruv', ru: 'Открытый набор', en: 'Open call' },
+    'mk.openT1':      { uz: 'Hozircha bo‘sh.', ru: 'Здесь пока пусто.', en: 'Nothing here yet.' },
+    'mk.openT2':      { uz: 'Birinchisi siz bo‘lishingiz mumkin.', ru: 'Первым можете стать вы.', en: 'You could be the first.' },
+    'mk.openLead':    { uz: 'Market dizaynerlar uchun ochiq. Ishingizni yuklang — biz uni tekshiramiz, shu yerda ko‘rsatamiz, va har bir sotilgan buyum uchun o‘z ustamangizni olasiz.', ru: 'Маркет открыт для дизайнеров. Загрузите работу — мы проверим её, покажем здесь, и вы будете получать свою наценку с каждой проданной вещи.', en: 'The market is open to designers. Upload a work — we review it, show it here, and you take your markup on every item sold.' },
+    'mk.openSlot':    { uz: 'Sizning printingiz shu yerda', ru: 'Ваш принт здесь', en: 'Your print goes here' },
+    'mk.openHow':     { uz: 'Bu qanday ishlaydi', ru: 'Как это работает', en: 'How it works' },
+
+    'mk.designer':    { uz: 'Dizayner', ru: 'Дизайнер', en: 'Designer' },
+    'mk.notFound':    { uz: 'Dizayner topilmadi', ru: 'Дизайнер не найден', en: 'Designer not found' },
+    'mk.applied':     { uz: 'Dizayn qo‘shildi', ru: 'Дизайн добавлен', en: 'Design added' },
+    'mk.applyFailed': { uz: 'Ishni yuklab bo‘lmadi', ru: 'Не удалось загрузить работу', en: 'Could not load that work' },
+    'common.free':    { uz: 'Bepul', ru: 'Бесплатно', en: 'Free' },
+
+    // ===== Designer studio (account.html → Дизайнер) =====
+    'dz.becomeTitle': { uz: 'LOOM dizayneri bo‘ling', ru: 'Станьте дизайнером LOOM', en: 'Become a LOOM designer' },
+    'dz.becomeLead':  { uz: 'O‘z grafikangizni yuklang. Biz uni tekshiramiz, marketda ko‘rsatamiz — va siz har bir sotilgan buyumdan o‘z ustamangizni olasiz.', ru: 'Загрузите свою графику. Мы проверим её, покажем в маркете — и вы получаете свою наценку с каждой проданной вещи.', en: 'Upload your graphics. We review them, put them in the market — and you earn your markup on every item sold.' },
+    'dz.step1':       { uz: 'Nik o‘ylab toping — ishlaringizni xaridorlar shu nom ostida ko‘radi.', ru: 'Придумайте ник — под ним ваши работы увидят покупатели.', en: 'Pick a handle — buyers will see your work under it.' },
+    'dz.step2':       { uz: 'Faylni yuklang va o‘z ustamangizni belgilang.', ru: 'Загрузите файл и назначьте свою наценку.', en: 'Upload the file and set your markup.' },
+    'dz.step3':       { uz: 'Tekshiruvdan so‘ng ish marketda paydo bo‘ladi, sotuvlar esa — shu yerda.', ru: 'После проверки работа появится в маркете, а продажи — здесь.', en: 'Once approved it appears in the market, and the sales appear here.' },
+    'dz.handle':      { uz: 'Dizayner nomi', ru: 'Ник дизайнера', en: 'Designer handle' },
+    'dz.handleHint':  { uz: '3–24 belgi: lotin harflari, raqamlar, nuqta yoki pastki chiziq.', ru: '3–24 символа: латиница, цифры, точка или подчёркивание.', en: '3–24 characters: latin letters, digits, dot or underscore.' },
+    'dz.handleBad':   { uz: 'Nik: 3–24 belgi, lotin harflari, raqamlar, nuqta yoki pastki chiziq.', ru: 'Ник: 3–24 символа, латиница, цифры, точка или подчёркивание.', en: 'Handle: 3–24 characters, latin letters, digits, dot or underscore.' },
+    'dz.bio':         { uz: 'O‘zingiz haqingizda', ru: 'О себе', en: 'About you' },
+    'dz.bioPh':       { uz: 'O‘zingiz va uslubingiz haqida bir necha so‘z', ru: 'Пара слов о вас и вашем стиле', en: 'A line or two about you and your style' },
+    'dz.apply':       { uz: 'Dizayner bo‘lish', ru: 'Стать дизайнером', en: 'Become a designer' },
+    'dz.applied':     { uz: 'Tayyor! Endi siz LOOM dizaynerisiz.', ru: 'Готово! Теперь вы дизайнер LOOM.', en: 'Done — you are a LOOM designer now.' },
+    'dz.saveProfile': { uz: 'Saqlash', ru: 'Сохранить', en: 'Save' },
+    'dz.editProfile': { uz: 'O‘zgartirish', ru: 'Изменить', en: 'Edit' },
+    'dz.publicPage':  { uz: 'Mening sahifam →', ru: 'Моя страница →', en: 'My page →' },
+    'dz.studioTitle': { uz: 'Dizayner kabineti', ru: 'Кабинет дизайнера', en: 'Designer studio' },
+    'dz.statWorks':   { uz: 'Ishlar', ru: 'Работ', en: 'Works' },
+    'dz.statSold':    { uz: 'Sotilgan', ru: 'Продано', en: 'Sold' },
+    'dz.statEarned':  { uz: 'Ishlangan', ru: 'Заработано', en: 'Earned' },
+    'dz.commission':  { uz: 'Har bir sotuvdan LOOM ustamangizning {pct}% ini ushlab qoladi, qolgani — sizniki.', ru: 'С каждой продажи LOOM удерживает {pct}% вашей наценки, остальное — ваше.', en: 'LOOM keeps {pct}% of your markup on each sale; the rest is yours.' },
+    'dz.uploadTitle': { uz: 'Ish yuklash', ru: 'Загрузить работу', en: 'Upload a work' },
+    'dz.dropLabel':   { uz: 'Bosing yoki faylni tashlang', ru: 'Нажмите или перетащите файл', en: 'Click, or drop a file here' },
+    'dz.dropHint':    { uz: 'Shaffof fonli PNG · uzun tomoni kamida 1500 px', ru: 'PNG с прозрачным фоном · минимум 1500 px по длинной стороне', en: 'PNG with a transparent background · at least 1500 px on the long edge' },
+    'dz.workTitle':   { uz: 'Nomi', ru: 'Название', en: 'Title' },
+    'dz.workTitlePh': { uz: 'Tungi Toshkent', ru: 'Ночной Ташкент', en: 'Tashkent at night' },
+    'dz.markup':      { uz: 'Sizning ustamangiz, so‘m', ru: 'Ваша наценка, сум', en: 'Your markup, UZS' },
+    'dz.markupShort': { uz: 'Ustama', ru: 'Наценка', en: 'Markup' },
+    'dz.tags':        { uz: 'Teglar', ru: 'Теги', en: 'Tags' },
+    'dz.tagsPh':      { uz: 'minimalizm, shahar, chiziqlar', ru: 'минимализм, город, линии', en: 'minimal, city, lines' },
+    'dz.submitWork':  { uz: 'Tekshiruvga yuborish', ru: 'Отправить на проверку', en: 'Submit for review' },
+    'dz.submitted':   { uz: 'Tekshiruvga yuborildi. Odatda bir kundan ko‘p vaqt olmaydi.', ru: 'Отправлено на проверку. Обычно это занимает не больше дня.', en: 'Sent for review. It usually takes less than a day.' },
+    'dz.uploading':   { uz: 'Yuklanmoqda…', ru: 'Загружаем…', en: 'Uploading…' },
+    'dz.needFile':    { uz: 'Avval faylni tanlang.', ru: 'Сначала выберите файл.', en: 'Choose a file first.' },
+    'dz.needTitle':   { uz: 'Ish nomini kiriting.', ru: 'Укажите название работы.', en: 'Give the work a title.' },
+    'dz.notImage':    { uz: 'Bu rasmga o‘xshamaydi.', ru: 'Это не похоже на картинку.', en: 'That does not look like an image.' },
+    'dz.tooSmall':    { uz: 'Uzun tomoni kamida {n} px bo‘lsin — sizda {w}×{h}.', ru: 'Минимум {n} px по длинной стороне — у вас {w}×{h}.', en: 'At least {n} px on the long edge — yours is {w}×{h}.' },
+    'dz.myWorks':     { uz: 'Mening ishlarim', ru: 'Мои работы', en: 'My works' },
+    'dz.noWorks':     { uz: 'Siz hali hech narsa yuklamadingiz. Yuqoridagi shakldan boshlang.', ru: 'Вы пока ничего не загрузили. Начните с формы выше.', en: 'You have not uploaded anything yet. Start with the form above.' },
+    'dz.noPublicWorks': { uz: 'Bu dizaynerda hali tasdiqlangan ishlar yo‘q.', ru: 'У этого дизайнера пока нет одобренных работ.', en: 'This designer has no approved works yet.' },
+    'dz.soldTimes':   { uz: 'Sotilgan: ', ru: 'Продано: ', en: 'Sold: ' },
+
   };
 
   // ── Core ──────────────────────────────────────────────────────
@@ -472,6 +632,27 @@
     return grouped + ' ' + t('cfg.currency', lang);
   }
 
+  /**
+   * The display name of a catalogue product in the current language.
+   *
+   * Products carry name_ru (required), name_uz and name_en (both optional,
+   * migration 0020). Everything customer-facing has to go through here rather
+   * than reading name_ru directly — that is why a customer browsing in Uzbek
+   * used to see Russian product names on an otherwise fully translated page.
+   *
+   * Falls back deliberately: asked language → Russian → English → slug. A
+   * half-translated catalogue renders correctly instead of showing blanks,
+   * which is what lets the names be filled in from admin over time.
+   */
+  function productName(p, lang) {
+    if (!p) return '';
+    lang = lang || getLang();
+    var key = lang === 'uz' ? 'name_uz' : lang === 'en' ? 'name_en' : 'name_ru';
+    var pick = p[key];
+    if (typeof pick === 'string' && pick.trim()) return pick.trim();
+    return (p.name_ru || p.name_en || p.name_uz || p.slug || '').trim();
+  }
+
   // ── Language switcher UI ──────────────────────────────────────
   function buildSwitcher(mount) {
     if (!mount || mount.dataset.langBuilt) return;
@@ -529,9 +710,48 @@
     boot();
   }
 
+  /* ── Plurals ──────────────────────────────────────────────────
+     Russian agrees a noun with the number in three forms, and the site
+     was picking the genitive plural for everything: "3 дизайнеров",
+     "2 работ". Uzbek does not pluralise after a numeral at all (one
+     form), English has two.
+
+       ru: 1, 21, 101      -> one     работа   дизайнер
+           2-4, 22-24      -> few     работы   дизайнера
+           0, 5-20, 11-14  -> many    работ    дизайнеров
+
+     Forms are ordered [one, few, many] for ru, [one, other] for en and
+     [any] for uz. */
+  const PLURALS = {
+    'plural.works':     { uz: ['ta ish'],       ru: ['работа', 'работы', 'работ'],          en: ['work', 'works'] },
+    'plural.designers': { uz: ['ta dizayner'],  ru: ['дизайнер', 'дизайнера', 'дизайнеров'], en: ['designer', 'designers'] }
+  };
+
+  function pluralIndex(lang, n) {
+    const abs = Math.abs(Math.floor(Number(n) || 0));
+    if (lang === 'uz') return 0;
+    if (lang === 'en') return abs === 1 ? 0 : 1;
+    /* ru */
+    const mod10 = abs % 10;
+    const mod100 = abs % 100;
+    if (mod10 === 1 && mod100 !== 11) return 0;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 1;
+    return 2;
+  }
+
+  /** The correct noun form for `n` — the number itself is the caller's. */
+  function plural(n, key) {
+    const lang = getLang();
+    const entry = PLURALS[key];
+    if (!entry) return '';
+    const forms = entry[lang] || entry[DEFAULT] || [];
+    return forms[Math.min(pluralIndex(lang, n), forms.length - 1)] || forms[0] || '';
+  }
+
   window.LOOM_I18N = {
-    getLang: getLang, setLang: setLang, t: t, apply: apply,
+    getLang: getLang, setLang: setLang, t: t, apply: apply, plural: plural,
     applyTo: applyTo, formatPrice: formatPrice, initSwitchers: initSwitchers,
+    productName: productName,
     LANGS: LANGS
   };
 })();

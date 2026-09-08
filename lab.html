@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4f2ed" />
+  <title>LOOM Lab — скоро</title>
+  <meta name="description" content="LOOM Lab: принт из текстового описания, автоматическое удаление фона и печатное разрешение — прямо в конструкторе. Скоро." />
+
+  <link rel="canonical" href="https://loomdesign.uz/lab" />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="LOOM" />
+  <meta property="og:title" content="LOOM Lab — скоро" />
+  <meta property="og:description" content="Опишите принт словами — LOOM Lab нарисует его и подготовит к печати." />
+  <meta property="og:url" content="https://loomdesign.uz/lab" />
+  <meta property="og:image" content="https://loomdesign.uz/images/og-image.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="assets/theme.css?v=12" />
+  <link rel="stylesheet" href="assets/nav.css?v=12" />
+  <link rel="stylesheet" href="assets/auth.css?v=13" />
+
+  <script src="assets/boot.js?v=8" data-intro></script>
+
+  <script defer src="assets/vendor/gsap.min.js?v=1"></script>
+  <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
+  <script defer src="assets/vendor/lenis.min.js?v=1"></script>
+  <script defer src="assets/config.js?v=3"></script>
+  <script defer src="assets/layout.js?v=5"></script>
+  <script defer src="assets/i18n.js?v=28"></script>
+  <script defer src="assets/auth.js?v=4"></script>
+  <script defer src="assets/tma.js?v=3"></script>
+  <script defer src="assets/nav.js?v=2"></script>
+  <script defer src="assets/motion.js?v=11"></script>
+  <script defer src="assets/track.js?v=3"></script>
+
+  <style>
+    /* ============================================================
+       LOOM LAB — a page about something that does not exist yet.
+       It has one job: make the plan legible and the timing honest.
+       Tokens only; no new colours.
+    ============================================================ */
+    .lab-hero {
+      padding: calc(var(--nav-h) + clamp(3.5rem, 9vw, 7rem)) 0 clamp(2.5rem, 6vw, 4rem);
+      background: var(--surface-ink);
+      color: var(--on-ink);
+    }
+    .lab-hero__eyebrow { display: block; margin-bottom: 1.5rem; color: var(--accent); }
+    .lab-hero__title { max-width: 15ch; }
+    .lab-hero__title .line { display: block; }
+    .lab-hero__lead {
+      max-width: 54ch;
+      margin: clamp(1.5rem, 3vw, 2.2rem) 0 0;
+      font-size: var(--text-body);
+      line-height: 1.75;
+      color: var(--on-ink-55);
+    }
+    .lab-hero__row { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; margin-top: 2.4rem; }
+    .lab-badge {
+      padding: 0.45rem 0.85rem;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: var(--text-label);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    .lab-hero__note { font-family: var(--font-mono); font-size: var(--text-label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--on-ink-55); }
+
+    /* Steps */
+    .lab-steps { padding: var(--sect-y) 0; }
+    .lab-steps__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: clamp(1.2rem, 3vw, 2.2rem);
+      margin-top: clamp(2rem, 5vw, 3rem);
+    }
+    .lab-step { border-top: 2px solid var(--ink); padding-top: 1.2rem; }
+    .lab-step__n {
+      font-family: var(--font-mono);
+      font-size: var(--text-label);
+      letter-spacing: 0.2em;
+      color: var(--accent);
+    }
+    .lab-step__title {
+      margin: 0.7rem 0 0.6rem;
+      font-family: var(--font-display);
+      font-size: var(--text-h3);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .lab-step__body { margin: 0; font-size: var(--text-sm); line-height: 1.7; color: var(--ink-55); }
+
+    /* Honest status table */
+    .lab-status { padding-bottom: var(--sect-y); }
+    .lab-status__list { list-style: none; margin: clamp(1.5rem, 4vw, 2.5rem) 0 0; padding: 0; border-top: 1px solid var(--line); }
+    .lab-status__row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1.2rem;
+      padding: 1.1rem 0;
+      border-bottom: 1px solid var(--line);
+      font-size: var(--text-sm);
+    }
+    .lab-status__state {
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+      font-size: var(--text-label);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-38);
+    }
+    .lab-status__state--done { color: var(--ok); }
+    .lab-status__state--wip { color: var(--warn); }
+
+    .lab-out { padding-bottom: var(--sect-y); }
+    .lab-out__box {
+      border: var(--rule, 1px solid var(--line));
+      padding: clamp(1.6rem, 4vw, 2.6rem);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.4rem;
+      background: var(--paper-3);
+    }
+    .lab-out__text { margin: 0; max-width: 46ch; font-size: var(--text-sm); line-height: 1.7; color: var(--ink-70); }
+
+    /* ══════════════════════════════════════════════════════════════
+       MAXIMALIST SKIN — lab
+       Matches assets/theme.css §11 (tokens come from there).
+       Last in the block so it wins on order, not specificity.
+       ═══════════════════════════════════════════════════════════ */
+    /* Accent as a field, not an outline — same stamp as the home band. */
+    .lab-badge {
+      padding: 0.5rem 0.85rem;
+      border: none;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-weight: 700;
+    }
+
+    /* Step indices become the filled chip used across the site, and the
+       step rules keep the 2px seam they already had. */
+    .lab-step__n {
+      display: inline-block;
+      padding: 0.18rem 0.42rem;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.02em;
+    }
+
+    /* Status: a thick head seam over hairline rows, like the cabinet ledger,
+       and each state reads as a stamp rather than coloured text. */
+    .lab-status__list { border-top: var(--rule); }
+    .lab-status__row { border-bottom: 1px solid var(--line); }
+    .lab-status__state {
+      padding: 0.18rem 0.5rem;
+      border: 1.5px solid currentColor;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    .lab-out__box { border: var(--rule); box-shadow: var(--hard); }
+  </style>
+</head>
+<body data-page="lab" data-preloader>
+  <!-- Header + footer injected by assets/layout.js -->
+
+  <header class="lab-hero">
+    <div class="container">
+      <span class="lab-hero__eyebrow eyebrow">LOOM<span class="slash">/</span> LAB</span>
+      <h1 class="lab-hero__title h2" data-reveal="mask">
+        <span class="line" data-i18n="lab.t1">Опишите словами.</span>
+        <span class="line" data-i18n="lab.t2">Наденьте на себя.</span>
+      </h1>
+      <p class="lab-hero__lead" data-reveal data-i18n="lab.pageLead">
+        LOOM Lab — это генератор принтов внутри конструктора. Вы описываете идею
+        обычной фразой, Lab рисует её, вырезает фон и отдаёт файл в том разрешении,
+        которое нужно печати. Мы уже собрали и протестировали эту часть внутри —
+        осталось открыть её всем.
+      </p>
+      <div class="lab-hero__row" data-reveal data-delay="0.1">
+        <span class="lab-badge" data-i18n="lab.soon">Скоро</span>
+        <span class="lab-hero__note" data-i18n="lab.noDate">Дату объявим здесь и в Telegram</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="lab-steps">
+    <div class="container">
+      <span class="eyebrow" data-reveal data-i18n="lab.howLabel">Как это будет работать</span>
+      <div class="lab-steps__grid" data-stagger>
+        <div class="lab-step">
+          <span class="lab-step__n">01</span>
+          <h2 class="lab-step__title" data-i18n="lab.s1t">Опишите принт</h2>
+          <p class="lab-step__body" data-i18n="lab.s1b">Одной фразой на русском, узбекском или английском. «Карта Ташкента тонкими линиями» — этого достаточно.</p>
+        </div>
+        <div class="lab-step">
+          <span class="lab-step__n">02</span>
+          <h2 class="lab-step__title" data-i18n="lab.s2t">Выберите вариант</h2>
+          <p class="lab-step__body" data-i18n="lab.s2b">Lab покажет несколько версий. Фон снимается автоматически, поэтому принт сразу ложится на ткань любого цвета.</p>
+        </div>
+        <div class="lab-step">
+          <span class="lab-step__n">03</span>
+          <h2 class="lab-step__title" data-i18n="lab.s3t">Примерьте и закажите</h2>
+          <p class="lab-step__body" data-i18n="lab.s3b">Готовая картинка появляется в конструкторе как обычный слой: двигайте, меняйте размер, смотрите в 3D и заказывайте.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lab-status">
+    <div class="container">
+      <span class="eyebrow" data-reveal data-i18n="lab.statusLabel">Что уже готово</span>
+      <ul class="lab-status__list" data-reveal>
+        <li class="lab-status__row">
+          <span data-i18n="lab.st1">Генерация изображений и сравнение моделей</span>
+          <span class="lab-status__state lab-status__state--done" data-i18n="lab.stDone">Готово</span>
+        </li>
+        <li class="lab-status__row">
+          <span data-i18n="lab.st2">Автоматическое удаление фона</span>
+          <span class="lab-status__state lab-status__state--done" data-i18n="lab.stDone">Готово</span>
+        </li>
+        <li class="lab-status__row">
+          <span data-i18n="lab.st3">Лимиты и стоимость на пользователя</span>
+          <span class="lab-status__state lab-status__state--wip" data-i18n="lab.stWip">В работе</span>
+        </li>
+        <li class="lab-status__row">
+          <span data-i18n="lab.st4">Проверка сгенерированного перед печатью</span>
+          <span class="lab-status__state lab-status__state--wip" data-i18n="lab.stWip">В работе</span>
+        </li>
+        <li class="lab-status__row">
+          <span data-i18n="lab.st5">Кнопка в конструкторе</span>
+          <span class="lab-status__state" data-i18n="lab.stNext">Следующий шаг</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab-out">
+    <div class="container">
+      <div class="lab-out__box" data-reveal>
+        <p class="lab-out__text" data-i18n="lab.meanwhile">
+          А пока — соберите принт руками или возьмите готовый у наших дизайнеров.
+          Всё, что появится в Lab, будет работать в том же конструкторе.
+        </p>
+        <div style="display:flex;gap:0.7rem;flex-wrap:wrap">
+          <a href="configurator.html" class="btn btn--outline" data-i18n="lab.toConfig">В конструктор</a>
+          <a href="market.html" class="btn btn--outline" data-i18n="lab.toMarket">В маркет</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>document.addEventListener('DOMContentLoaded',function(){window.LOOM_AUTH&&window.LOOM_AUTH.renderAuthNav()})</script>
+</body>
+</html>

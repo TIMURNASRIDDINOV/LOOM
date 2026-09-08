@@ -64,12 +64,12 @@
   <!-- Fonts: full Cyrillic coverage (Inter Tight / Inter / IBM Plex Mono) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <!-- Design system -->
   <link rel="stylesheet" href="assets/theme.css?v=12" />
   <link rel="stylesheet" href="assets/nav.css?v=12" />
-  <link rel="stylesheet" href="assets/auth.css?v=12" />
+  <link rel="stylesheet" href="assets/auth.css?v=13" />
 
   <!-- Pre-paint guard (must be synchronous, before first render) -->
   <script src="assets/boot.js?v=8" data-intro></script>
@@ -81,13 +81,13 @@
   <script defer src="assets/vendor/gsap.min.js?v=1"></script>
   <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
   <script defer src="assets/vendor/lenis.min.js?v=1"></script>
-  <script defer src="assets/config.js?v=2"></script>
-  <script defer src="assets/layout.js?v=3"></script>
-  <script defer src="assets/i18n.js?v=21"></script>
+  <script defer src="assets/config.js?v=3"></script>
+  <script defer src="assets/layout.js?v=5"></script>
+  <script defer src="assets/i18n.js?v=28"></script>
   <script defer src="assets/auth.js?v=4"></script>
   <script defer src="assets/tma.js?v=3"></script>
   <script defer src="assets/nav.js?v=2"></script>
-  <script defer src="assets/motion.js?v=9"></script>
+  <script defer src="assets/motion.js?v=11"></script>
   <script defer src="assets/track.js?v=3"></script>
 
   <style>
@@ -233,6 +233,211 @@
       line-height: 1.65;
       font-size: clamp(0.9rem, 1.1vw, 1rem);
     }
+
+    /* ── LOOM LAB band ─────────────────────────────────────────
+       An inverted block, like the CTA, so the eye reads it as a different
+       kind of statement from the product sections above it. */
+    .lab {
+      background: var(--surface-ink);
+      color: var(--on-ink);
+      overflow: hidden;
+    }
+    .lab__grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: clamp(2rem, 6vw, 5rem);
+      align-items: center;
+    }
+    .lab__eyebrow { display: block; margin-bottom: 1.5rem; color: var(--accent); }
+    .lab__title .line { display: block; }
+    .lab__lead {
+      max-width: 46ch;
+      margin: 1.6rem 0 0;
+      font-size: var(--text-sm);
+      line-height: 1.75;
+      color: var(--on-ink-55);
+    }
+    .lab__list {
+      list-style: none;
+      margin: 2.2rem 0 0;
+      padding: 0;
+      display: grid;
+      gap: 0.9rem;
+      counter-reset: labstep;
+    }
+    .lab__list li {
+      display: flex;
+      align-items: baseline;
+      gap: 0.9rem;
+      font-size: var(--text-sm);
+      color: var(--on-ink);
+    }
+    .lab__list li::before {
+      counter-increment: labstep;
+      content: counter(labstep, decimal-leading-zero);
+      flex-shrink: 0;
+      padding: 0.18rem 0.42rem;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .lab__actions { display: flex; align-items: center; gap: 1.1rem; margin-top: 2.6rem; flex-wrap: wrap; }
+    /* Accent as a field, not an outline — the badge is the section's stamp. */
+    .lab__badge {
+      padding: 0.5rem 0.85rem;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: var(--text-label);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    /* Demo panel */
+    .lab__demo {
+      border: 2px solid var(--on-ink);
+      background: rgba(0, 0, 0, 0.35);
+      box-shadow: 6px 6px 0 var(--accent);
+      padding: clamp(1rem, 2.5vw, 1.6rem);
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.85rem, 1.6vw, 1.1rem);
+    }
+    .lab__prompt {
+      display: flex;
+      align-items: baseline;
+      gap: 0.7rem;
+      padding: 0.85rem 1rem;
+      border: 2px solid var(--on-ink-line);
+      background: rgba(0, 0, 0, 0.45);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      min-height: 3.1em;
+    }
+    .lab__prompt-label {
+      flex-shrink: 0;
+      padding: 0.16rem 0.4rem;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-size: var(--text-label);
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .lab__prompt-text { color: var(--on-ink); line-height: 1.5; }
+    .lab__caret {
+      display: inline-block;
+      width: 7px;
+      height: 1em;
+      margin-left: 1px;
+      background: var(--accent);
+      transform: translateY(2px);
+      animation: labBlink 1s steps(2, start) infinite;
+    }
+    @keyframes labBlink { 50% { opacity: 0; } }
+
+    /* A real product shot on a studio tile, framed the way every other
+       garment photo on the site is framed. The wireframe outline that used
+       to live here described a t-shirt; this one sells it. */
+    .lab__canvas {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border: 2px solid var(--on-ink-line);
+      background:
+        radial-gradient(120% 100% at 50% 30%, rgba(255,255,255,0.07), transparent 70%),
+        rgba(0, 0, 0, 0.28);
+      overflow: hidden;
+    }
+    /* The configurator's own flat tee — transparent PNG, so it sits straight
+       on the studio wash and the print lands exactly where it does in the
+       real 2D editor. */
+    .lab__garment {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    /* The print area, marked out the way the configurator marks it, with the
+       image still being generated inside it — a band of light sweeping across.
+       It is sized and placed to land on the chest, not to cover the shirt. */
+    .lab__print {
+      position: absolute;
+      top: 36%;
+      left: 50%;
+      width: 30%;
+      aspect-ratio: 1 / 1;
+      transform: translateX(-50%);
+      border: 1.5px dashed var(--accent-55);
+      overflow: hidden;
+    }
+    .lab__scan {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg,
+        rgba(252, 80, 68, 0.06) 0%,
+        rgba(252, 80, 68, 0.60) 45%,
+        rgba(252, 80, 68, 0.06) 90%);
+      background-size: 260% 100%;
+      animation: labSweep 2.8s linear infinite;
+      transition: opacity 0.45s var(--ease-out);
+    }
+    /* The sweep is the "working on it" state; once the print lands it goes. */
+    .lab__print.has-art .lab__scan { opacity: 0; }
+
+    /* The prints themselves: cream line art drawn on solid black, so `screen`
+       drops the black out and leaves the artwork sitting on the garment —
+       which is also the feature being described two columns to the left. */
+    .lab__art {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      /* The art is cream-on-black; inverted and multiplied it becomes dark
+         ink on a white tee, and picks up the fabric's own shading. */
+      filter: invert(1);
+      mix-blend-mode: multiply;
+      opacity: 0;
+      transition: opacity 0.5s var(--ease-out);
+    }
+    .lab__art.is-on { opacity: 1; }
+    @keyframes labSweep {
+      from { background-position: 160% 0; }
+      to   { background-position: -60% 0; }
+    }
+
+    @media (max-width: 900px) {
+      .lab__grid { grid-template-columns: 1fr; }
+      .lab__demo { order: -1; }
+    }
+    /* The panel shrinks faster than the artwork stays readable, so the print
+       takes a slightly larger share of the chest on phones. */
+    @media (max-width: 560px) {
+      .lab__print { width: 33%; top: 35%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .lab__caret, .lab__scan { animation: none; }
+      .lab__art { transition: none; }
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       MAXIMALIST SKIN — home
+       Matches assets/theme.css §11 (tokens come from there). §11 already
+       gives .pcard a 2px right/bottom seam and .pcard__media a hard
+       shadow; these are the frames and seams it cannot reach from a
+       shared stylesheet, left at 1px and reading a weight too light.
+       Last in the block so it wins on order, not specificity.
+       ═══════════════════════════════════════════════════════════ */
+    /* Media frames are slabs, like every other framed thing on the site. */
+    .hero__video, .spotlight__photo { border: var(--rule); box-shadow: var(--hard); }
+    /* Seams: the grid's own outer edges were a third the weight of the
+       cell borders §11 draws, so the grid looked unfinished on two sides. */
+    .product-grid3 { border-left: var(--rule); border-top: var(--rule); }
+    .hero__meta { border-top: var(--rule); }
   </style>
 </head>
 <body data-page="home" data-preloader>
@@ -417,6 +622,55 @@
   </section>
 
   <!-- ============================================================
+       LOOM LAB — the AI half of the product, announced before it ships.
+       It sits directly after the spotlight because that is where the page
+       stops describing what LOOM sells and starts describing what it is
+       becoming. Everything here is inert until LOOM_FLAGS.lab flips.
+  ============================================================ -->
+  <section class="sect lab" id="lab">
+    <div class="container lab__grid">
+      <div class="lab__copy">
+        <span class="eyebrow lab__eyebrow" data-reveal>LOOM<span class="slash">/</span> LAB</span>
+        <h2 class="lab__title h2" data-reveal="mask">
+          <span class="line" data-i18n="lab.t1">Опишите словами.</span>
+          <span class="line" data-i18n="lab.t2">Наденьте на себя.</span>
+        </h2>
+        <p class="lab__lead" data-reveal data-i18n="lab.lead">
+          LOOM Lab превращает фразу в готовый принт: рисует картинку, убирает фон
+          и подгоняет её под область печати — прямо в конструкторе.
+        </p>
+        <ul class="lab__list" data-stagger>
+          <li data-i18n="lab.f1">Принт из текстового описания</li>
+          <li data-i18n="lab.f2">Автоматическое удаление фона</li>
+          <li data-i18n="lab.f3">Готовое к печати разрешение</li>
+        </ul>
+        <div class="lab__actions" data-reveal data-delay="0.1">
+          <span class="lab__badge" data-i18n="lab.soon">Скоро</span>
+          <a href="lab.html" class="btn btn--on-ink"><span data-i18n="lab.more">Что это будет →</span></a>
+        </div>
+      </div>
+
+      <!-- A picture of the idea, not a working demo: a prompt line that types
+           itself and a shirt that never quite finishes rendering. -->
+      <div class="lab__demo" data-reveal data-delay="0.15" aria-hidden="true">
+        <div class="lab__prompt">
+          <span class="lab__prompt-label">prompt</span>
+          <span class="lab__prompt-text" id="labPrompt"></span><span class="lab__caret"></span>
+        </div>
+        <div class="lab__canvas">
+          <img class="lab__garment" src="configuratorprodutcs/tshirt_flat_white_600.png" alt="" width="600" height="600" loading="lazy" decoding="async" />
+          <div class="lab__print" id="labPrint">
+            <img class="lab__art" src="images/lab/tashkent.png" alt="" width="400" height="400" loading="lazy" decoding="async" />
+            <img class="lab__art" src="images/lab/suzani.png" alt="" width="400" height="400" loading="lazy" decoding="async" />
+            <img class="lab__art" src="images/lab/chimgan.png" alt="" width="400" height="400" loading="lazy" decoding="async" />
+            <span class="lab__scan"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
        CTA — inverted ink block
   ============================================================ -->
   <section class="sect sect--ink cta">
@@ -431,6 +685,56 @@
       <a href="configurator.html" class="btn btn--on-ink" data-reveal data-delay="0.15" data-i18n="cta.open">Открыть конфигуратор →</a>
     </div>
   </section>
+
+  <!-- LOOM Lab: the prompt line types itself. Purely decorative — it
+       describes the feature rather than running it. -->
+  <script>
+  (function () {
+    var el = document.getElementById('labPrompt');
+    if (!el) return;
+    /* Each prompt has a print to go with it; the art lands when its phrase
+       finishes typing and lifts when the line starts erasing. */
+    var frame = document.getElementById('labPrint');
+    var arts = frame ? frame.querySelectorAll('.lab__art') : [];
+    function setArt(n) {
+      for (var a = 0; a < arts.length; a++) {
+        if (a === n) arts[a].classList.add('is-on');
+        else arts[a].classList.remove('is-on');
+      }
+      if (frame) {
+        if (n < 0) frame.classList.remove('has-art');
+        else frame.classList.add('has-art');
+      }
+    }
+
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      el.textContent = (window.LOOM_I18N && window.LOOM_I18N.t('lab.p1')) || 'хлопковая футболка с картой Ташкента';
+      setArt(0);
+      return;
+    }
+    var keys = ['lab.p1', 'lab.p2', 'lab.p3'];
+    var fallback = {
+      'lab.p1': 'карта Ташкента тонкими линиями',
+      'lab.p2': 'гранатовый узор в стиле сюзане',
+      'lab.p3': 'горы Чимгана на закате, минимализм'
+    };
+    function phrase(k) {
+      try { return (window.LOOM_I18N && window.LOOM_I18N.t(k)) || fallback[k]; }
+      catch (e) { return fallback[k]; }
+    }
+    var i = 0, j = 0, erasing = false;
+    (function tick() {
+      var text = phrase(keys[i]);
+      j += erasing ? -1 : 1;
+      el.textContent = text.slice(0, j);
+      var wait = erasing ? 22 : 52;
+      if (!erasing && j >= text.length) { erasing = true; wait = 2200; setArt(i); }
+      else if (erasing && j <= 0) { erasing = false; i = (i + 1) % keys.length; wait = 420; }
+      else if (erasing && j === text.length - 1) { setArt(-1); }
+      setTimeout(tick, wait);
+    })();
+  })();
+  </script>
 
   <!-- ============================================================
        Scripts are deferred from <head>; these inline hooks must wait

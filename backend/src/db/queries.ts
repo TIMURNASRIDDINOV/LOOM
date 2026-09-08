@@ -200,7 +200,7 @@ export async function clearAllAdminPermissions(db: D1Database, adminId: number):
 export async function updateUserProfile(
   db: D1Database,
   id: number,
-  params: { name?: string | null; phone?: string | null; email?: string | null; first_name?: string | null; last_name?: string | null; location_preset?: string | null },
+  params: { name?: string | null; phone?: string | null; email?: string | null; first_name?: string | null; last_name?: string | null; location_preset?: string | null; notify_orders?: number; notify_promo?: number },
 ): Promise<void> {
   return safeQuery('updateUserProfile', async () => {
     const sets: string[] = []
@@ -211,6 +211,9 @@ export async function updateUserProfile(
     if ('first_name' in params) { sets.push('first_name = ?'); vals.push(params.first_name ?? null) }
     if ('last_name' in params) { sets.push('last_name = ?'); vals.push(params.last_name ?? null) }
     if ('location_preset' in params) { sets.push('location_preset = ?'); vals.push(params.location_preset ?? null) }
+    // 0019: the notification switches finally write somewhere the sender reads.
+    if ('notify_orders' in params) { sets.push('notify_orders = ?'); vals.push(params.notify_orders ? 1 : 0) }
+    if ('notify_promo' in params) { sets.push('notify_promo = ?'); vals.push(params.notify_promo ? 1 : 0) }
     if (!sets.length) return
     vals.push(id)
     await db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run()
@@ -522,7 +525,7 @@ export async function getAdminProducts(
 }
 
 const ALLOWED_PRODUCT_COLUMNS = new Set([
-  'slug', 'name_ru', 'name_en', 'description_ru', 'price',
+  'slug', 'name_ru', 'name_en', 'name_uz', 'description_ru', 'price',
   'glb_key', 'thumbnail_key', 'base_colors', 'product_type', 'active', 'display_order',
 ])
 
@@ -532,6 +535,7 @@ export async function createProduct(
     slug: string
     name_ru: string
     name_en: string | null
+    name_uz: string | null
     description_ru: string | null
     price: number
     glb_key: string | null
@@ -547,12 +551,12 @@ export async function createProduct(
     const result = await db
       .prepare(
         `INSERT INTO products
-           (slug, name_ru, name_en, description_ru, price, glb_key, thumbnail_key,
+           (slug, name_ru, name_en, name_uz, description_ru, price, glb_key, thumbnail_key,
             base_colors, product_type, active, display_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
-        params.slug, params.name_ru, params.name_en, params.description_ru,
+        params.slug, params.name_ru, params.name_en, params.name_uz, params.description_ru,
         params.price, params.glb_key, params.thumbnail_key,
         params.base_colors, params.product_type, params.active, params.display_order,
         now, now,
@@ -566,7 +570,8 @@ export async function updateProduct(
   db: D1Database,
   id: number,
   params: Partial<{
-    slug: string; name_ru: string; name_en: string | null; description_ru: string | null
+    slug: string; name_ru: string; name_en: string | null; name_uz: string | null
+    description_ru: string | null
     price: number; glb_key: string | null; thumbnail_key: string | null
     base_colors: string | null; product_type: string; active: number; display_order: number
   }>,
@@ -1091,6 +1096,10 @@ export interface AdminUserRow {
   last_login_at: number | null
   orders_count: number
   total_spent: number
+  // 0019 — only selected by getAdminUserById (the notification sender needs
+  // them); the list query leaves them undefined.
+  notify_orders?: number | null
+  notify_promo?: number | null
 }
 
 export async function getAdminUsers(
@@ -1151,6 +1160,7 @@ export async function getAdminUserById(db: D1Database, id: number): Promise<Admi
         `SELECT u.id, u.phone, u.email, u.name, u.first_name, u.last_name, u.avatar_key,
                 u.telegram_username, u.telegram_user_id, u.role, u.status,
                 u.location_preset, u.created_at, u.last_login_at,
+                u.notify_orders, u.notify_promo,
                 COUNT(o.id) as orders_count,
                 COALESCE(SUM(o.total_price), 0) as total_spent
          FROM users u
@@ -1811,6 +1821,74 @@ export async function getDesignerByHandle(db: D1Database, handle: string): Promi
       .prepare('SELECT * FROM users WHERE designer_handle = ?')
       .bind(handle)
       .first<User>()
+  })
+}
+
+/**
+ * The public designer directory: everyone with at least one approved artwork.
+ *
+ * Designers with nothing approved are deliberately excluded — a directory of
+ * empty profiles is worth less than an honest empty state, and the market's
+ * open call already recruits. Ordered by what they have actually sold, so the
+ * page leads with people whose work moves.
+ */
+export interface PublicDesignerRow {
+  id: number
+  handle: string
+  name: string | null
+  bio: string | null
+  avatar_key: string | null
+  created_at: number
+  works: number
+  units_sold: number
+  cover_key: string | null
+}
+
+export async function getPublicDesigners(
+  db: D1Database,
+  page = 1,
+  limit = 40,
+): Promise<{ items: PublicDesignerRow[]; total: number }> {
+  return safeQuery('getPublicDesigners', async () => {
+    const offset = (page - 1) * limit
+    const { results } = await db
+      .prepare(
+        `SELECT u.id                AS id,
+                u.designer_handle   AS handle,
+                u.name              AS name,
+                u.designer_bio      AS bio,
+                u.avatar_key        AS avatar_key,
+                u.created_at        AS created_at,
+                COUNT(DISTINCT a.id) AS works,
+                COALESCE(SUM(CASE WHEN o.id IS NOT NULL AND o.status != 'cancelled'
+                                  THEN s.quantity ELSE 0 END), 0) AS units_sold,
+                (SELECT a2.image_key FROM artworks a2
+                  WHERE a2.user_id = u.id AND a2.status = 'approved'
+                  ORDER BY a2.created_at DESC LIMIT 1) AS cover_key
+           FROM users u
+           JOIN artworks a       ON a.user_id = u.id AND a.status = 'approved'
+           LEFT JOIN artwork_sales s ON s.artwork_id = a.id
+           LEFT JOIN orders o        ON o.id = s.order_id
+          WHERE u.is_designer = 1 AND u.status = 'active'
+                AND u.designer_handle IS NOT NULL
+          GROUP BY u.id
+          ORDER BY units_sold DESC, works DESC, u.created_at ASC
+          LIMIT ? OFFSET ?`,
+      )
+      .bind(limit, offset)
+      .all<PublicDesignerRow>()
+    const row = await db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM (
+           SELECT u.id FROM users u
+             JOIN artworks a ON a.user_id = u.id AND a.status = 'approved'
+            WHERE u.is_designer = 1 AND u.status = 'active'
+                  AND u.designer_handle IS NOT NULL
+            GROUP BY u.id
+         )`,
+      )
+      .first<{ c: number }>()
+    return { items: results, total: row?.c ?? 0 }
   })
 }
 

@@ -42,6 +42,7 @@
         '<div class="nav-links">' +
           '<a href="index.html" class="nav-link' + act('home') + '" data-i18n="nav.home">Главная</a>' +
           '<a href="catalog.html" class="nav-link' + act('catalog') + '" data-i18n="nav.catalog">Каталог</a>' +
+          '<a href="market.html" class="nav-link' + act('market') + '" data-i18n="nav.market">Маркет</a>' +
           '<a href="configurator.html" class="nav-link' + act('configurator') + '" data-i18n="nav.configure">Кастомизация</a>' +
         '</div>' +
         '<div class="nav-right">' +
@@ -70,6 +71,7 @@
       '<div class="mobile-menu-links">' +
         '<a href="index.html" class="mobile-menu-link' + act('home') + '" data-i18n="nav.home">Главная</a>' +
         '<a href="catalog.html" class="mobile-menu-link' + act('catalog') + '" data-i18n="nav.catalog">Каталог</a>' +
+        '<a href="market.html" class="mobile-menu-link' + act('market') + '" data-i18n="nav.market">Маркет</a>' +
         '<a href="configurator.html" class="mobile-menu-link' + act('configurator') + '" data-i18n="nav.configure">Кастомизация</a>' +
         '<a href="account.html" class="mobile-menu-link' + act('account') + '" id="mobile-account-link" data-i18n="nav.account">Личный кабинет</a>' +
         '<a href="configurator.html" class="mobile-menu-link mobile-menu-link--cta" data-i18n="nav.start">Создать дизайн</a>' +
@@ -96,8 +98,18 @@
               '<ul class="site-footer__links">' +
                 '<li><a href="index.html" data-i18n="nav.home">Главная</a></li>' +
                 '<li><a href="catalog.html" data-i18n="nav.catalog">Каталог</a></li>' +
+                '<li><a href="market.html" data-i18n="nav.market">Маркет</a></li>' +
                 '<li><a href="configurator.html" data-i18n="nav.configure">Кастомизация</a></li>' +
                 '<li><a href="account.html" data-i18n="nav.account">Личный кабинет</a></li>' +
+              '</ul>' +
+            '</div>' +
+            '<div>' +
+              '<p class="site-footer__heading" data-i18n="footer.designersTitle">Дизайнерам</p>' +
+              '<ul class="site-footer__links">' +
+                '<li><a href="market.html" data-i18n="nav.market">Маркет</a></li>' +
+                '<li><a href="designers.html" data-i18n="nav.designers">Дизайнеры</a></li>' +
+                '<li><a href="account.html#designer" data-i18n="footer.becomeDesigner">Стать дизайнером</a></li>' +
+                '<li><a href="lab.html" data-i18n="nav.lab">LOOM Lab</a></li>' +
               '</ul>' +
             '</div>' +
             '<div>' +

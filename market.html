@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4f2ed" />
+  <title>LOOM — Маркет дизайнеров</title>
+  <meta name="description" content="Работы независимых дизайнеров Узбекистана. Выберите принт, примерьте на футболке в 3D и закажите." />
+
+  <!-- SEO -->
+  <link rel="canonical" href="https://loomdesign.uz/market" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="LOOM" />
+  <meta property="og:title" content="LOOM — Маркет дизайнеров" />
+  <meta property="og:description" content="Работы независимых дизайнеров Узбекистана. Выберите принт и примерьте его в 3D." />
+  <meta property="og:url" content="https://loomdesign.uz/market" />
+  <meta property="og:image" content="https://loomdesign.uz/images/og-image.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="assets/theme.css?v=12" />
+  <link rel="stylesheet" href="assets/nav.css?v=12" />
+  <link rel="stylesheet" href="assets/auth.css?v=13" />
+  <link rel="stylesheet" href="assets/market.css?v=4" />
+
+  <script src="assets/boot.js?v=8" data-intro></script>
+
+  <script defer src="assets/vendor/gsap.min.js?v=1"></script>
+  <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
+  <script defer src="assets/vendor/lenis.min.js?v=1"></script>
+  <script defer src="assets/config.js?v=3"></script>
+  <script defer src="assets/layout.js?v=5"></script>
+  <script defer src="assets/i18n.js?v=28"></script>
+  <script defer src="assets/auth.js?v=4"></script>
+  <script defer src="assets/tma.js?v=3"></script>
+  <script defer src="assets/nav.js?v=2"></script>
+  <script defer src="assets/motion.js?v=11"></script>
+  <script defer src="assets/track.js?v=3"></script>
+  <script defer src="assets/market.js?v=4"></script>
+</head>
+<body data-page="market" data-preloader>
+  <!-- Header + footer injected by assets/layout.js -->
+
+  <header class="mk-hero">
+    <div class="container">
+      <span class="mk-hero__eyebrow eyebrow">LOOM<span class="slash">/</span> Market</span>
+      <h1 class="mk-hero__title h2" data-reveal="mask">
+        <span class="line" data-i18n="mk.heroT1">Дизайны,</span>
+        <span class="line" data-i18n="mk.heroT2">придуманные людьми.</span>
+      </h1>
+      <p class="mk-hero__lead" data-reveal data-i18n="mk.heroLead">
+        Работы независимых дизайнеров. Выберите принт — он откроется в конструкторе,
+        а автор получит свою долю с каждой проданной вещи.
+      </p>
+      <div class="mk-hero__meta" data-reveal>
+        <span id="mk-count">—</span>
+        <a class="mk-hero__cta" href="designers.html" data-i18n="nav.designers">Дизайнеры</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="mk-section">
+    <div class="container">
+      <div class="mk-grid" id="mk-grid"></div>
+      <div class="mk-more">
+        <button class="btn-line" id="mk-more-btn" style="display:none" data-i18n="mk.loadMore">Показать ещё</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Shown by assets/market.js only when the market has no approved works.
+       An empty marketplace is the one moment where recruiting a designer is
+       worth more than apologising for the emptiness, so the empty state is
+       the pitch — and the garment shows the print area still waiting. -->
+  <section class="mk-open" id="mk-open-call" hidden>
+    <div class="container mk-open__grid">
+      <div class="mk-open__copy">
+        <span class="eyebrow mk-open__eyebrow">LOOM<span class="slash">/</span> <span data-i18n="mk.openEyebrow">Открытый набор</span></span>
+        <h2 class="mk-open__title h2">
+          <span class="line" data-i18n="mk.openT1">Здесь пока пусто.</span>
+          <span class="line" data-i18n="mk.openT2">Первым можете стать вы.</span>
+        </h2>
+        <p class="mk-open__lead" data-i18n="mk.openLead">
+          Маркет открыт для дизайнеров. Загрузите работу — мы проверим её, покажем здесь,
+          и вы будете получать свою наценку с каждой проданной вещи.
+        </p>
+        <ol class="mk-open__steps">
+          <li><span class="mk-open__n">1</span><span data-i18n="dz.step1">Придумайте ник — под ним ваши работы увидят покупатели.</span></li>
+          <li><span class="mk-open__n">2</span><span data-i18n="dz.step2">Загрузите файл и назначьте свою наценку.</span></li>
+          <li><span class="mk-open__n">3</span><span data-i18n="dz.step3">После проверки работа появится в маркете, а продажи — здесь.</span></li>
+        </ol>
+        <div class="mk-open__actions">
+          <a href="account.html#designer" class="btn btn--on-ink" data-i18n="dz.apply">Стать дизайнером</a>
+          <a href="lab.html" class="mk-open__link" data-i18n="mk.openHow">Как это работает</a>
+        </div>
+      </div>
+
+      <div class="mk-open__demo" aria-hidden="true">
+        <div class="mk-open__canvas">
+          <img class="mk-open__garment" src="configuratorprodutcs/tshirt_flat_white_600.png" alt="" width="600" height="600" loading="lazy" decoding="async" />
+          <span class="mk-open__slot"></span>
+        </div>
+        <p class="mk-open__caption"><span data-i18n="mk.openSlot">Ваш принт здесь</span></p>
+      </div>
+    </div>
+  </section>
+
+  <script>document.addEventListener('DOMContentLoaded',function(){window.LOOM_AUTH&&window.LOOM_AUTH.renderAuthNav()})</script>
+</body>
+</html>

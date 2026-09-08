@@ -59,7 +59,8 @@
               Перейдите в Telegram и нажмите<br>«Поделиться номером телефона».
             </p>
             <a id="loom-tg-link" href="#" target="_blank" rel="noopener" class="loom-modal__tg-link">
-              📱 Открыть Telegram бот
+              <svg class="loom-modal__tg-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.2 4.3 2.9 11.2c-1 .4-1 1.8.1 2l4.6 1.3 1.7 5c.3.9 1.4 1.1 2 .4l2.4-2.6 4.6 3.4c.8.6 1.9.1 2.1-.8l3-14.2c.2-1-.8-1.8-1.7-1.4z"/><path d="M7.6 14.5 18.6 6.4l-7.9 9.5"/></svg>
+              <span>Открыть Telegram бот</span>
             </a>
             <div class="loom-modal__timeout-bar">
               <div class="loom-modal__timeout-fill" id="loom-timeout-fill"></div>

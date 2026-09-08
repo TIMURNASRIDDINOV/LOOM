@@ -522,3 +522,15 @@
   .auth-field { margin-bottom: 0.7rem; }
   .auth-footer { margin-top: 0.9rem; }
 }
+
+/* The nav avatar was the last circle on the site. The cabinet's own avatar
+   is a stamped square, so a round one in the header two rules away read as
+   a different product's control. */
+.auth-nav-initials {
+  border-radius: 0;
+  border: var(--rule, 2px solid var(--ink));
+  font-family: var(--font-display, sans-serif);
+  font-weight: 700;
+  color: var(--ink);
+}
+.auth-nav-avatar { border-radius: 0; border: var(--rule, 2px solid var(--ink)); }

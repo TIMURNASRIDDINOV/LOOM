@@ -8,6 +8,12 @@
     catch (e) { return fallback }
   }
 
+  /** Product name in the visitor's language, falling back to Russian. */
+  function PN(product) {
+    if (window.LOOM_I18N && window.LOOM_I18N.productName) return window.LOOM_I18N.productName(product)
+    return (product && (product.name_ru || product.slug)) || ''
+  }
+
   function formatPrice(price) {
     if (window.LOOM_I18N) return window.LOOM_I18N.formatPrice(price)
     return Number(price).toLocaleString('ru-RU') + ' сум'
@@ -95,7 +101,7 @@
       img.loading = 'lazy'
       img.decoding = 'async'
       img.src = product.thumbnail_url
-      img.alt = product.name_ru
+      img.alt = PN(product)
       img.className = 'product-card__image'
       img.onerror = function () {
         this.style.display = 'none'
@@ -117,7 +123,7 @@
     altTag.textContent = isReady ? T('catalog.readyBadge', 'Готовый дизайн') : 'Apparel'
     const altName = document.createElement('span')
     altName.className = 'pcard__alt-name'
-    altName.textContent = product.name_ru
+    altName.textContent = PN(product)
     const altSlash = document.createElement('span')
     altSlash.className = 'pcard__alt-slash'
     altSlash.textContent = '/'
@@ -150,7 +156,7 @@
 
     const title = document.createElement('h3')
     title.className = 'product-card__title'
-    title.textContent = product.name_ru
+    title.textContent = PN(product)
 
     const desc = document.createElement('p')
     desc.className = 'product-card__description'
@@ -168,7 +174,7 @@
       const btn = document.createElement('button')
       btn.className = 'customize-btn btn-primary'
       btn.textContent = T('catalog.customize', 'Настроить дизайн')
-      btn.setAttribute('aria-label', `${T('catalog.customize', 'Настроить дизайн')} ${esc(product.name_ru)}`)
+      btn.setAttribute('aria-label', `${T('catalog.customize', 'Настроить дизайн')} ${esc(PN(product))}`)
       btn.addEventListener('click', () => {
         window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
       })
