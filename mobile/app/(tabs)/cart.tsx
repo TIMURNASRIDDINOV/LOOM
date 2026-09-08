@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router'
 import { C, RULE, fmt } from '../../src/theme/tokens'
 import { body, disp, mono, monoMed, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
+import { EmptyState } from '../../src/components/EmptyState'
 import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
 import { GARMENT_FLAT } from '../../src/api/catalog'
 import { useT } from '../../src/i18n'
@@ -26,17 +27,13 @@ export default function CartScreen() {
         </T>
 
         {items.length === 0 ? (
-          <View>
-            <T style={[disp(26, 1.1, { ls: -0.02, color: C.coral }), styles.empty]}>{t('cart.emptyTitle')}</T>
-            <Button
-              title={t('cart.openStudio')}
-              variant="ink"
-              size={12.5}
-              vPad={15}
-              style={{ alignSelf: 'flex-start', paddingHorizontal: 26 }}
-              onPress={() => router.push('/studio')}
-            />
-          </View>
+          <EmptyState
+            eyebrow={t('empty.tagEmpty')}
+            title={t('cart.emptyTitle')}
+            body={t('cart.emptyBody')}
+            action={{ title: t('cart.openStudio'), onPress: () => router.push('/studio') }}
+            secondary={{ title: t('dz.toMarket'), onPress: () => router.push('/market') }}
+          />
         ) : (
           <>
             {items.map((it) => (

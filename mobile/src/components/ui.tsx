@@ -333,7 +333,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
     paddingBottom: 10,
     marginHorizontal: 18,
     marginBottom: 14,

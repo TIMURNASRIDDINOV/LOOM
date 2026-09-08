@@ -7,11 +7,26 @@ import { C, F } from './tokens'
 
 type Opts = { color?: string; ls?: number; upper?: boolean; align?: TextStyle['textAlign'] }
 
+/**
+ * iOS clips a line box shorter than the font's ink height. Lowercase survives
+ * a tight one, but the breve on uppercase Cyrillic Й sits above cap height and
+ * gets sheared off — ДИЗАЙН rendered as ДИЗАИН. Both families' `head`/`OS/2`
+ * tables give the ink height, so uppercase runs get it as a floor; lowercase
+ * keeps the tight display leading the design asks for.
+ */
+const INK_HEIGHT: Record<string, number> = { IBMPlexMono: 1.3, InterTight: 1.21, Inter: 1.21 }
+
+function inkHeight(family: string) {
+  const key = Object.keys(INK_HEIGHT).find((k) => family.startsWith(k))
+  return key ? INK_HEIGHT[key] : 1.3
+}
+
 function make(family: string, size: number, lh: number, o: Opts = {}): TextStyle {
+  const lineHeight = o.upper ? Math.max(lh, inkHeight(family)) : lh
   const s: TextStyle = {
     fontFamily: family,
     fontSize: size,
-    lineHeight: Math.round(size * lh * 100) / 100,
+    lineHeight: Math.round(size * lineHeight * 100) / 100,
     color: o.color ?? C.ink,
   }
   if (o.ls !== undefined) s.letterSpacing = o.ls * size
