@@ -30,3 +30,6 @@ This repository is public. Vulnerabilities are tracked as **draft security advis
 
 | PRD | Title | Milestone | Status |
 |---|---|---|---|
+| [PRD-001](PRD-001-server-authoritative-money.md) | Server-authoritative money and COD launch · [#5](https://github.com/TIMURNASRIDDINOV/LOOM/issues/5) | M1 · COD live | Draft |
+| [PRD-002](PRD-002-operability-and-deploy-safety.md) | Operability, deploy safety and the funnel readout · [#14](https://github.com/TIMURNASRIDDINOV/LOOM/issues/14) | M1 · COD live | Draft |
+| [PRD-003](PRD-003-print-handoff-and-designer-payouts.md) | Print-partner handoff and designer payouts · [#24](https://github.com/TIMURNASRIDDINOV/LOOM/issues/24) | M2 · Payme + payouts | Draft |
