@@ -1,14 +1,15 @@
 # LOOM — notes for Claude
 
-## Work comes from GitHub issues
+## Work comes from Jira
 
-Planning lives in GitHub, not in chat. Read `docs/prd/README.md` once; the short version:
+The backlog lives in Jira Cloud — **loomdesign.atlassian.net, project KAN** ("LOOM Progress panel"). Read `docs/prd/README.md` once; the short version:
 
-- **Before starting a task,** read its issue (`gh issue view <n>`), its parent PRD issue, and the PRD doc in `docs/prd/` it links. The acceptance criteria in the issue are the definition of done — if they are ambiguous, say so instead of guessing.
-- **Branch** `task/<issue>-<slug>` off `main`. **PR description** starts with `Closes #<issue>` and names the PRD requirement (`PRD-001 · R2`). One task per PR.
-- **If the scope turns out different** from the PRD, update the PRD doc in the same PR and add a changelog line — do not let the issue and the doc disagree.
-- **New work you notice** goes in as a new sub-issue of the relevant PRD (`gh api repos/{owner}/{repo}/issues/<prd>/sub_issues -F sub_issue_id=<id>`), not into the current PR.
-- **Never put vulnerability details in an issue, PR, commit message or PRD** — this repo is public. Security findings go to a draft advisory (`gh api repos/{owner}/{repo}/security-advisories`) and the public text says only "security context is tracked in a private advisory".
+- **A PRD is an Epic** titled `PRD-NNN — <title>`; its description is the PRD. **Tasks are its children** (the epic is their parent). Before starting a task, read the task, its epic, and any linked blockers. The acceptance criteria in the task are the definition of done — if they are ambiguous, say so instead of guessing.
+- **Branch** `KAN-<n>-<slug>` off `main`; put the key in the PR title too, so Jira links branch, commits and PR to the task. One task per PR.
+- **If the scope turns out different** from the epic, update the epic description and say so in the PR — do not let the task and the epic disagree.
+- **New work you notice** becomes a new task under the relevant epic, not part of the current PR.
+- **Jira access:** this repo has no Jira connector. The DOMO gateway's Jira tools point at a different company's Jira — never put LOOM data there. Ask the founder how to reach KAN.
+- **Never put vulnerability details in Jira, an issue, a PR, a commit message or a doc** — this repo is public and Jira is shared. Security findings are GitHub **draft security advisories** (`gh api repos/{owner}/{repo}/security-advisories`); public text says only "security context is tracked in a private advisory".
 
 ## Traps in this repo
 

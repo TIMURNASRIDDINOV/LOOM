@@ -1,8 +1,8 @@
-Closes #
+**Jira:** KAN-
 
-<!-- One task per PR. "Closes #N" links this PR to the task, closes it on merge, and moves it to Done on the board. -->
+<!-- One Jira task per PR. Put the key in the branch name (KAN-123-short-slug) and in this title so Jira links the branch, commits and PR to the task. -->
 
-**PRD:** PRD-NNN · R#
+**Epic:** PRD-NNN · R#
 
 ## What changed
 

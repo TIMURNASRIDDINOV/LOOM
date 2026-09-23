@@ -1,10 +1,11 @@
-# PRD-NNN — Title in plain words
+<!-- Paste this into the description of a Jira epic titled "PRD-NNN — Title in plain words" in project KAN.
+     Epic labels: prd, the milestone label, and the area labels. If it grows past ~30K characters, keep
+     the first sections in the description and continue whole sections in numbered comments. -->
 
 | | |
 |---|---|
 | **Status** | Draft · Approved · In progress · Shipped · Dropped |
 | **Owner** | @TIMURNASRIDDINOV |
-| **Tracking issue** | #NN — tasks live there as sub-issues |
 | **Milestone** | M1 · COD live |
 | **Last updated** | YYYY-MM-DD |
 
@@ -64,9 +65,9 @@ Order of deploys (migration → Worker → Pages → app), how each step is veri
 
 ## 9. Tasks
 
-Tracked as sub-issues of the tracking issue — that list is the source of truth. Summary for reading offline:
+Tasks are this epic's child issues in Jira — that list is the source of truth. Summary:
 
-| # | Task | Req | Size |
+| Task | Title | Req | Size |
 |---|---|---|---|
 
 ## Changelog

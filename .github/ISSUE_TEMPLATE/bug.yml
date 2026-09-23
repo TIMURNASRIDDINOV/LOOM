@@ -1,12 +1,13 @@
 name: Bug
 description: Something on loomdesign.uz, the app or the admin does not work as it should.
 labels: ["bug"]
-projects: ["TIMURNASRIDDINOV/1"]
 body:
   - type: markdown
     attributes:
       value: |
         **Security issue?** Do not file it here — this repository is public. Use "Security issue" on the new-issue page instead.
+
+        The LOOM backlog lives in Jira; the maintainer triages bugs filed here into it.
   - type: dropdown
     id: surface
     attributes:
