@@ -1,0 +1,52 @@
+name: Task
+description: One unit of work under a PRD. Create it as a sub-issue of the PRD issue.
+labels: ["task"]
+projects: ["TIMURNASRIDDINOV/1"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Prefer **"Create sub-issue"** on the PRD issue — it links the task automatically.
+        Found a security problem? Do **not** file it here; this repository is public. See "Security issue" on the new-issue page.
+  - type: input
+    id: prd
+    attributes:
+      label: PRD and requirement
+      placeholder: "PRD-001 · R2"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The user or business consequence, in 2–4 sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The change, concretely — functions and files to create or modify.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: A checklist a reviewer can verify without asking you. Include how it is checked in production.
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where
+      description: "`file:line` references."
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options: ["S — under half a day", "M — a day or two", "L — most of a week", "XL — split it"]
+    validations:
+      required: true

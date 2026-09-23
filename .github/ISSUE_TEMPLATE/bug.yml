@@ -1,0 +1,42 @@
+name: Bug
+description: Something on loomdesign.uz, the app or the admin does not work as it should.
+labels: ["bug"]
+projects: ["TIMURNASRIDDINOV/1"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security issue?** Do not file it here — this repository is public. Use "Security issue" on the new-issue page instead.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options: ["Website (storefront / configurator)", "Mobile app", "Admin panel", "API / backend", "Telegram bot / Mini App"]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what should have happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1. 
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      options: ["Blocks orders or payments", "Wrong data or money", "Broken feature, workaround exists", "Cosmetic"]
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Device, browser, app version, language
+      placeholder: "Android 14, Chrome 131, ru — or app 1.1.0 build 12"
