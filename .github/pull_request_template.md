@@ -1,6 +1,6 @@
-**Jira:** KAN-
+**Jira:** LOOM-
 
-<!-- One Jira task per PR. Put the key in the branch name (KAN-123-short-slug) and in this title so Jira links the branch, commits and PR to the task. -->
+<!-- One Jira task per PR. Put the key in the branch name (LOOM-123-short-slug) and in this title so Jira links the branch, commits and PR to the task. -->
 
 **Epic:** PRD-NNN · R#
 

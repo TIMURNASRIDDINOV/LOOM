@@ -1,4 +1,4 @@
-<!-- Paste this into the description of a Jira epic titled "PRD-NNN — Title in plain words" in project KAN.
+<!-- Paste this into the description of a Jira epic titled "PRD-NNN — Title in plain words" in project LOOM (Feature Management board).
      Epic labels: prd, the milestone label, and the area labels. If it grows past ~30K characters, keep
      the first sections in the description and continue whole sections in numbered comments. -->
 
