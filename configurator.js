@@ -614,7 +614,7 @@ function prefetchPreview3D() {
   _prefetched = true;
   // rel=prefetch is explicitly the lowest-priority hint, so an in-flight
   // critical request keeps the bandwidth.
-  [DEFAULT_MODEL_URL, THREE_CHUNKS[0]].forEach((href) => {
+  [_pendingGlbUrl || DEFAULT_MODEL_URL, THREE_CHUNKS[0]].forEach((href) => {
     const l = document.createElement("link");
     l.rel = "prefetch";
     l.href = href;
