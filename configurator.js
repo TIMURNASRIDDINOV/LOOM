@@ -3051,6 +3051,7 @@ function initUI() {
   bindFlatEditor();
   bindSurfaceToggle();
   bindSheet();
+  bindKeyboardLayout();
   bindStepNext();
   bindLab();
   bindMoreMenu();
@@ -3233,6 +3234,10 @@ function addTextElement() {
   const st = designState[designState.activeView];
   const proto = newTextElement({
     content: CT("cfg.newTextDefault", "Ваш текст"),
+    // The default shows on the shirt but not in the field, which stays empty
+    // under its placeholder: the first keystroke replaces the default instead
+    // of mixing into it. Never serialised (see _serializeElement).
+    placeholder: true,
     // Black-on-black is invisible; start new text with a colour that reads on
     // the current garment. The user can still pick anything afterwards.
     color: _flatDarkGarment() ? "#FFFFFF" : "#000000",
@@ -3252,7 +3257,7 @@ function addTextElement() {
   // type, and swapping the surface out from under a focused field is hostile.
   // The reward fires on the image path, where the action is already finished.
   const ti = document.getElementById("text-content-input");
-  if (ti) { ti.focus(); ti.select(); }
+  if (ti) ti.focus();
   return el;
 }
 
@@ -4117,6 +4122,53 @@ function bindSheet() {
   handle.addEventListener("pointercancel", end);
 }
 
+// ── On-screen keyboard ──────────────────────────────────────────
+// Chrome 108+ and iOS Safari shrink only the VISUAL viewport for the keyboard,
+// so the fixed sheet would sit behind it — with the field being typed in.
+// While a field in the sheet has focus and the visual viewport is well short
+// of the tallest one seen at this width, body.kb-open pins the studio to the
+// visual viewport (--vvt/--vvh, phone stylesheet): garment on top, the layer's
+// controls under it, everything else away until the keyboard closes. A hardware
+// keyboard shrinks nothing, and a fine pointer (desktop) never qualifies.
+function bindKeyboardLayout() {
+  const vv = window.visualViewport;
+  const sheet = document.getElementById("studio-sheet");
+  const dock = document.getElementById("design-dock");
+  if (!vv || !sheet || !dock) return;
+  const body = document.body;
+  const tallest = {}; // per layout width, i.e. per orientation
+  let dockScroll = 0;
+  const update = () => {
+    const w = document.documentElement.clientWidth;
+    const h = vv.height * vv.scale; // pinch-zoom is not a keyboard
+    // innerHeight keeps the full height while only the visual viewport
+    // shrinks, so a rotation with the keyboard already up still has a baseline;
+    // where the layout viewport shrinks too, the height seen before counts.
+    tallest[w] = Math.max(tallest[w] || 0, h, window.innerHeight);
+    const f = document.activeElement;
+    const open = _isSheetLayout() && matchMedia("(pointer: coarse)").matches &&
+      !!f && sheet.contains(f) && f.matches("input, textarea") && h < tallest[w] * 0.75;
+    const was = body.classList.contains("kb-open");
+    if (open) {
+      body.style.setProperty("--vvt", vv.offsetTop + "px");
+      body.style.setProperty("--vvh", vv.height + "px");
+    }
+    // The dock sheds its other rows while open, which resets its scroll; put
+    // it back where the field was when the keyboard closes.
+    if (open && !was) dockScroll = dock.scrollTop;
+    body.classList.toggle("kb-open", open);
+    if (open) f.scrollIntoView({ block: "nearest" });
+    else if (was) dock.scrollTop = dockScroll;
+  };
+  // Only the viewport drives this, never focus on its own: a tap on B or ×
+  // moves focus at mousedown, and re-laying out the sheet then would send the
+  // tap's click to whatever moved under the finger. The keyboard hiding after
+  // that blur is a resize, and that resize is what restores the layout.
+  vv.addEventListener("resize", update);
+  vv.addEventListener("scroll", update);
+  update();
+}
+
 // ── Cart CTA state ──────────────────────────────────────────────
 // A blank shirt is a real product, so the button is never disabled — but it
 // should say what it will actually do, which doubles as a nudge that nothing
@@ -4351,7 +4403,7 @@ function syncPanelFromState() {
   }
 
   const ti = document.getElementById("text-content-input");
-  if (ti) ti.value = isText ? el.content : "";
+  if (ti) ti.value = isText && !el.placeholder ? el.content : "";
 
   if (isText) {
     const fs = document.getElementById("font-family-select");
@@ -4898,6 +4950,7 @@ function bindTextControls() {
     const t = getTxt();
     if (!t) return;
     t.content = textIn.value;
+    t.placeholder = false;
     updateViewToggleMarkers();
     scheduleRedraw(); // coalesce — fast typing must not re-upload per keystroke
   });
