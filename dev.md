@@ -224,10 +224,10 @@ npm run dev                         # Worker at http://localhost:8787
 
 ### Database migrations
 ```bash
-npm run migrate:local               # base schema (local D1)
-npm run migrate:prod                # base schema (production D1)
-# Later migrations are applied explicitly by file, e.g.:
-wrangler d1 execute loom-db --local --file migrations/0005_visitors.sql
+npm run migrate:local               # apply pending migrations (local D1)
+npm run migrate:prod                # apply pending migrations (production D1)
+# Never run a migration file directly (d1 execute --file): wrangler tracks
+# applied migrations in d1_migrations, and some are not safe to re-run.
 ```
 
 ### Frontend
