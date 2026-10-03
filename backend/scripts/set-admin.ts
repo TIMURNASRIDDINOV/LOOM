@@ -28,7 +28,7 @@ function normalizePhone(raw: string): string {
 }
 
 const phone = normalizePhone(phoneArg)
-const dbFlag = isProd ? '' : '--local'
+const dbFlag = isProd ? '--remote' : '--local'
 const envNote = isProd ? 'PRODUCTION' : 'local'
 
 console.log(`Setting role=admin for phone ${phone} in ${envNote} D1...`)
