@@ -597,42 +597,46 @@ export async function getAdminProducts(
 }
 
 const ALLOWED_PRODUCT_COLUMNS = new Set([
-  'slug', 'name_ru', 'name_en', 'name_uz', 'description_ru', 'price',
-  'glb_key', 'thumbnail_key', 'base_colors', 'product_type', 'active', 'display_order',
+  'slug', 'name_ru', 'name_en', 'name_uz', 'description_ru', 'description_uz', 'description_en',
+  'price', 'glb_key', 'thumbnail_key', 'base_colors', 'product_type', 'active', 'display_order',
+  'sizes_json', 'colors_json', 'print_area_json', 'flat_art_json',
 ])
 
-export async function createProduct(
-  db: D1Database,
-  params: {
-    slug: string
-    name_ru: string
-    name_en: string | null
-    name_uz: string | null
-    description_ru: string | null
-    price: number
-    glb_key: string | null
-    thumbnail_key: string | null
-    base_colors: string | null
-    product_type: string
-    active: number
-    display_order: number
-  },
-): Promise<number> {
+type ProductWritable = {
+  slug: string; name_ru: string; name_en: string | null; name_uz: string | null
+  description_ru: string | null; description_uz: string | null; description_en: string | null
+  price: number; glb_key: string | null; thumbnail_key: string | null
+  base_colors: string | null; product_type: string; active: number; display_order: number
+  // Config columns: left out of an INSERT when undefined so the column
+  // DEFAULT (today's hardcoded config, migration 0022) applies.
+  sizes_json: string; colors_json: string; print_area_json: string; flat_art_json: string
+}
+
+type ProductCreate = Omit<ProductWritable,
+  'description_uz' | 'description_en' | 'sizes_json' | 'colors_json' | 'print_area_json' | 'flat_art_json'>
+  & Partial<ProductWritable>
+
+/** Allowed columns with a defined value, in a stable order. */
+function productColumns(params: Partial<ProductWritable>): [string[], (string | number | null)[]] {
+  const cols: string[] = []
+  const vals: (string | number | null)[] = []
+  for (const [k, v] of Object.entries(params)) {
+    if (!ALLOWED_PRODUCT_COLUMNS.has(k) || v === undefined) continue
+    cols.push(k)
+    vals.push(v as string | number | null)
+  }
+  return [cols, vals]
+}
+
+export async function createProduct(db: D1Database, params: ProductCreate): Promise<number> {
   return safeQuery('createProduct', async () => {
     const now = Date.now()
+    const [cols, vals] = productColumns(params)
+    cols.push('created_at', 'updated_at')
+    vals.push(now, now)
     const result = await db
-      .prepare(
-        `INSERT INTO products
-           (slug, name_ru, name_en, name_uz, description_ru, price, glb_key, thumbnail_key,
-            base_colors, product_type, active, display_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        params.slug, params.name_ru, params.name_en, params.name_uz, params.description_ru,
-        params.price, params.glb_key, params.thumbnail_key,
-        params.base_colors, params.product_type, params.active, params.display_order,
-        now, now,
-      )
+      .prepare(`INSERT INTO products (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`)
+      .bind(...vals)
       .run()
     return Number(result.meta.last_row_id)
   })
@@ -641,22 +645,12 @@ export async function createProduct(
 export async function updateProduct(
   db: D1Database,
   id: number,
-  params: Partial<{
-    slug: string; name_ru: string; name_en: string | null; name_uz: string | null
-    description_ru: string | null
-    price: number; glb_key: string | null; thumbnail_key: string | null
-    base_colors: string | null; product_type: string; active: number; display_order: number
-  }>,
+  params: Partial<ProductWritable>,
 ): Promise<void> {
   return safeQuery('updateProduct', async () => {
-    const sets: string[] = []
-    const vals: (string | number | null)[] = []
-    for (const [k, v] of Object.entries(params)) {
-      if (!ALLOWED_PRODUCT_COLUMNS.has(k)) continue
-      sets.push(`${k} = ?`)
-      vals.push(v as string | number | null)
-    }
-    if (!sets.length) return
+    const [cols, vals] = productColumns(params)
+    if (!cols.length) return
+    const sets = cols.map((k) => `${k} = ?`)
     sets.push('updated_at = ?')
     vals.push(Date.now(), id)
     await db

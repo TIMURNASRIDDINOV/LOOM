@@ -81,6 +81,119 @@ function parseColors(val: unknown): string | null | { error: string } {
   }
 }
 
+// ─── Configurator config (LOOM-165) ───────────────────────────────────────────
+// Each field arrives as a JSON string. It is parsed, checked, and re-serialised
+// from the checked values only, so unknown keys never reach the DB. Absent
+// field = leave as is; present but empty = rejected (the configurator needs it).
+
+type ConfigField = 'sizes_json' | 'colors_json' | 'print_area_json' | 'flat_art_json'
+type Checked = { value: unknown } | { error: string }
+
+const HEX_RE = /^#[0-9A-Fa-f]{6}$/
+const SIZE_RE = /^[A-Za-z0-9]{1,8}$/
+// Site-relative path or R2-style key: no scheme, no "..", no leading slash.
+const ART_KEY_RE = /^[A-Za-z0-9_-][A-Za-z0-9._/-]{0,199}$/
+
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+const isFrac = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1
+
+function shortText(v: unknown, field: string): string | { error: string } {
+  if (typeof v !== 'string' || !v.trim() || v.length > 60) return { error: `${field} must be 1–60 characters` }
+  return v.trim()
+}
+
+function checkSizes(v: unknown): Checked {
+  if (!Array.isArray(v) || v.length < 1 || v.length > 20) return { error: 'sizes must be a list of 1–20 sizes' }
+  const out: string[] = []
+  for (const s of v) {
+    if (typeof s !== 'string' || !SIZE_RE.test(s.trim())) return { error: `invalid size "${String(s)}" (letters/digits, ≤ 8)` }
+    const size = s.trim().toUpperCase()
+    if (out.includes(size)) return { error: `duplicate size "${size}"` }
+    out.push(size)
+  }
+  return { value: out }
+}
+
+function checkColors(v: unknown): Checked {
+  if (!Array.isArray(v) || v.length < 1 || v.length > 30) return { error: 'colors must be a list of 1–30 colours' }
+  const out: { hex: string; name_uz: string; name_ru: string; name_en: string; available: boolean }[] = []
+  for (const c of v) {
+    if (!isObj(c)) return { error: 'each colour must be an object' }
+    if (typeof c.hex !== 'string' || !HEX_RE.test(c.hex)) return { error: `invalid hex "${String(c.hex)}" (expected #RRGGBB)` }
+    const hex = c.hex.toUpperCase()
+    if (out.some((o) => o.hex === hex)) return { error: `duplicate colour ${hex}` }
+    const names: Record<string, string> = {}
+    for (const k of ['name_uz', 'name_ru', 'name_en']) {
+      const n = shortText(c[k], `${hex} ${k}`)
+      if (typeof n !== 'string') return n
+      names[k] = n
+    }
+    if (typeof c.available !== 'boolean') return { error: `${hex} available must be true or false` }
+    out.push({ hex, name_uz: names.name_uz, name_ru: names.name_ru, name_en: names.name_en, available: c.available })
+  }
+  if (!out.some((c) => c.available)) return { error: 'at least one colour must be available' }
+  return { value: out }
+}
+
+function checkPrintArea(v: unknown): Checked {
+  if (!isObj(v) || !isObj(v.platen_cm)) return { error: 'print_area must be {platen_cm:{w,h}, width_frac, top_frac}' }
+  const { w, h } = v.platen_cm
+  const cm = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= 100
+  if (!cm(w) || !cm(h)) return { error: 'platen_cm w and h must be numbers in (0, 100]' }
+  if (!isFrac(v.width_frac) || v.width_frac === 0) return { error: 'width_frac must be a number in (0, 1]' }
+  if (!isFrac(v.top_frac)) return { error: 'top_frac must be a number in [0, 1]' }
+  return { value: { platen_cm: { w, h }, width_frac: v.width_frac, top_frac: v.top_frac } }
+}
+
+function checkFlatArt(v: unknown): Checked {
+  if (!isObj(v)) return { error: 'flat_art must be {front:{src,src_small}, back:{src,src_small}}' }
+  const out: Record<string, { src: string; src_small: string }> = {}
+  for (const face of ['front', 'back']) {
+    const f = v[face]
+    if (!isObj(f)) return { error: `flat_art.${face} is required` }
+    for (const k of ['src', 'src_small']) {
+      const key = f[k]
+      if (typeof key !== 'string' || !ART_KEY_RE.test(key) || key.includes('..')) {
+        return { error: `flat_art.${face}.${k} must be a relative path (letters, digits, . _ - /)` }
+      }
+    }
+    out[face] = { src: f.src as string, src_small: f.src_small as string }
+  }
+  return { value: out }
+}
+
+const CONFIG_CHECKS: Record<ConfigField, (v: unknown) => Checked> = {
+  sizes_json: checkSizes,
+  colors_json: checkColors,
+  print_area_json: checkPrintArea,
+  flat_art_json: checkFlatArt,
+}
+
+type ConfigUpdates = Partial<Record<ConfigField, string>> & { description_uz?: string | null; description_en?: string | null }
+
+/** Validated config + uz/en description fields present in the form. */
+function parseProductConfig(formData: FormData): { updates: ConfigUpdates } | { field: string; error: string } {
+  const updates: ConfigUpdates = {}
+  for (const field of ['description_uz', 'description_en'] as const) {
+    const raw = formData.get(field)
+    if (raw === null) continue
+    if (typeof raw !== 'string' || raw.length > 5000) return { field, error: `${field} must be text ≤ 5000 characters` }
+    updates[field] = raw.trim() || null
+  }
+  for (const field of Object.keys(CONFIG_CHECKS) as ConfigField[]) {
+    const raw = formData.get(field)
+    if (raw === null) continue
+    if (typeof raw !== 'string' || raw.length > 20000) return { field, error: `${field} must be a JSON string` }
+    let parsed: unknown
+    try { parsed = JSON.parse(raw) } catch { return { field, error: `${field} must be valid JSON` } }
+    const checked = CONFIG_CHECKS[field](parsed)
+    if ('error' in checked) return { field, error: checked.error }
+    updates[field] = JSON.stringify(checked.value)
+  }
+  return { updates }
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const router = new Hono<AdminEnv>()
@@ -160,6 +273,11 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
   }
   const base_colors = colorsResult as string | null
 
+  const config = parseProductConfig(formData)
+  if ('error' in config) {
+    return c.json({ ok: false, error: { code: 'INVALID', message: config.error, field: config.field } }, 400)
+  }
+
   // GLB — required for configurator products; ready-made designs are
   // bought as-is and never open the 3D scene, so the model is optional
   const glbFile = getFileField(formData, 'glb')
@@ -199,6 +317,7 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
     const id = await createProduct(c.env.DB, {
       slug, name_ru, name_en, name_uz, description_ru, price,
       glb_key, thumbnail_key, base_colors, product_type, active, display_order,
+      ...config.updates,
     })
 
     const product = await getProductById(c.env.DB, id)
@@ -278,6 +397,10 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
     if (result !== null && typeof result === 'object' && 'error' in result) return c.json({ error: result.error }, 400)
     updates.base_colors = result as string | null
   }
+
+  const config = parseProductConfig(formData)
+  if ('error' in config) return c.json({ error: `${config.field}: ${config.error}` }, 400)
+  Object.assign(updates, config.updates)
 
   // New GLB
   const glbFile = getFileField(formData, 'glb')
