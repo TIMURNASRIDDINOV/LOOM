@@ -12,6 +12,8 @@ import {
   getDesignerStats,
   getPublicDesigners,
   getUserById,
+  isOwnUpload,
+  isArtworkKey,
 } from '../db/queries'
 import type { BaseEnv, UserEnv } from '../types'
 
@@ -224,6 +226,10 @@ me.post('/artworks', async (c) => {
   const imageKey = typeof body.image_key === 'string' ? body.image_key.trim() : ''
   if (!title) return c.json({ error: 'Укажите название работы' }, 400)
   if (!imageKey) return c.json({ error: 'Сначала загрузите файл' }, 400)
+  // The file must be one this designer uploaded and not already another artwork.
+  if (!(await isOwnUpload(c.env.DB, imageKey, c.get('userId'))) || (await isArtworkKey(c.env.DB, imageKey, true))) {
+    return c.json({ error: 'Сначала загрузите файл', code: 'invalid_file_key' }, 400)
+  }
 
   const width = typeof body.width === 'number' ? Math.round(body.width) : null
   const height = typeof body.height === 'number' ? Math.round(body.height) : null

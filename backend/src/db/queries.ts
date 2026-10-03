@@ -225,9 +225,81 @@ export async function updateUserPassword(
   id: number,
   passwordHash: string,
 ): Promise<void> {
+  // A new password signs out every existing session.
   return safeQuery('updateUserPassword', async () => {
-    await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(passwordHash, id).run()
+    await db
+      .prepare('UPDATE users SET password_hash = ?, tokens_valid_after = ? WHERE id = ?')
+      .bind(passwordHash, nowSec(), id)
+      .run()
   })
+}
+
+const nowSec = () => Math.floor(Date.now() / 1000)
+
+/** Reject every token issued to this user before now (logout, sign-out-everywhere). */
+export async function revokeUserTokens(db: D1Database, id: number): Promise<void> {
+  return safeQuery('revokeUserTokens', async () => {
+    await db.prepare('UPDATE users SET tokens_valid_after = ? WHERE id = ?').bind(nowSec(), id).run()
+  })
+}
+
+export async function revokeAdminTokens(db: D1Database, id: number): Promise<void> {
+  return safeQuery('revokeAdminTokens', async () => {
+    await db.prepare('UPDATE admins SET tokens_valid_after = ? WHERE id = ?').bind(nowSec(), id).run()
+  })
+}
+
+// ─── Upload ownership (migration 0021) ──────────────────────────────────────
+
+export async function recordUpload(db: D1Database, key: string, userId: number): Promise<void> {
+  return safeQuery('recordUpload', async () => {
+    await db
+      .prepare('INSERT INTO uploads (key, user_id, created_at) VALUES (?, ?, ?)')
+      .bind(key, userId, Date.now())
+      .run()
+  })
+}
+
+export async function isOwnUpload(db: D1Database, key: string, userId: number): Promise<boolean> {
+  return safeQuery('isOwnUpload', async () => {
+    const row = await db
+      .prepare('SELECT 1 AS ok FROM uploads WHERE key = ? AND user_id = ?')
+      .bind(key, userId)
+      .first<{ ok: number }>()
+    return !!row
+  })
+}
+
+/** Is `key` the file of an artwork row (approved only, unless anyStatus)? */
+export async function isArtworkKey(db: D1Database, key: string, anyStatus = false): Promise<boolean> {
+  return safeQuery('isArtworkKey', async () => {
+    const row = await db
+      .prepare(
+        `SELECT 1 AS ok FROM artworks WHERE image_key = ?${anyStatus ? '' : " AND status = 'approved'"} LIMIT 1`,
+      )
+      .bind(key)
+      .first<{ ok: number }>()
+    return !!row
+  })
+}
+
+/**
+ * The first key in `keys` the user may NOT attach to their cart or order, or
+ * null when all are fine. Allowed: files the user uploaded, and approved
+ * marketplace artwork (a buyer prints the designer's file).
+ */
+export async function firstForeignKey(
+  db: D1Database,
+  userId: number,
+  keys: (string | null | undefined)[],
+): Promise<string | null> {
+  for (const key of keys) {
+    if (!key) continue
+    if (await isOwnUpload(db, key, userId)) continue
+    if (await isArtworkKey(db, key)) continue
+    return key
+  }
+  return null
 }
 
 
@@ -1340,7 +1412,7 @@ export async function getUsersWithRole(db: D1Database, role: string): Promise<Us
   })
 }
 
-export async function updateUserAvatar(db: D1Database, id: number, avatarKey: string): Promise<void> {
+export async function updateUserAvatar(db: D1Database, id: number, avatarKey: string | null): Promise<void> {
   return safeQuery('updateUserAvatar', async () => {
     await db
       .prepare('UPDATE users SET avatar_key = ? WHERE id = ?')

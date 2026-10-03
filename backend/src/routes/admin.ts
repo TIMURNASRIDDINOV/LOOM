@@ -25,9 +25,12 @@ import {
   setAdminPermission,
   clearAdminPermission,
   clearAllAdminPermissions,
+  revokeAdminTokens,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { signToken, verifyToken } from '../lib/jwt'
+import { serveObject } from '../lib/r2'
+import { clientIp, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
 import { requireAdmin, requireRole, requireCap } from '../middleware/requireAdmin'
 import {
   permissionCatalog,
@@ -108,15 +111,21 @@ admin.post('/login', async (c) => {
     return c.json({ error: 'email and password required' }, 400)
   }
 
-  const adminRow = await getAdminByEmail(c.env.DB, email.toLowerCase())
-  if (!adminRow) return c.json({ error: 'Invalid credentials' }, 401)
+  // Failed attempts are counted per IP and per account; either one tripping
+  // blocks further attempts for the window.
+  const failKeys = [`admin-login:ip:${clientIp(c)}`, `admin-login:id:${email.toLowerCase()}`]
+  if (await tooManyFailures(c.env.RATE_LIMIT, failKeys, 5)) return c.json(TOO_MANY, 429)
 
-  if (adminRow.password_hash === 'PLACEHOLDER_USE_SETUP_ENDPOINT') {
+  const adminRow = await getAdminByEmail(c.env.DB, email.toLowerCase())
+  if (adminRow?.password_hash === 'PLACEHOLDER_USE_SETUP_ENDPOINT') {
     return c.json({ error: 'Password not set. Use POST /api/admin/setup first.' }, 403)
   }
 
-  const valid = await verifyPassword(password, adminRow.password_hash)
-  if (!valid) return c.json({ error: 'Invalid credentials' }, 401)
+  const valid = !!adminRow && (await verifyPassword(password, adminRow.password_hash))
+  if (!adminRow || !valid) {
+    await recordFailure(c.env.RATE_LIMIT, failKeys, 15 * 60)
+    return c.json({ error: 'Invalid credentials' }, 401)
+  }
 
   const token = await signToken(
     { sub: String(adminRow.id), role: 'admin' },
@@ -137,7 +146,11 @@ admin.post('/login', async (c) => {
 
 // ─── POST /api/admin/logout ───────────────────────────────────────────────────
 
-admin.post('/logout', (c) => {
+admin.post('/logout', async (c) => {
+  // Revoke server-side too, so a copied token stops working with the cookie.
+  const token = getCookie(c, 'admin_token')
+  const payload = token ? await verifyToken(token, c.env.JWT_SECRET) : null
+  if (payload?.role === 'admin') await revokeAdminTokens(c.env.DB, parseInt(payload.sub, 10))
   deleteCookie(c, 'admin_token', { path: '/' })
   return c.json({ ok: true })
 })
@@ -510,26 +523,15 @@ admin.get('/media/:key{.+}', requireAdmin, requireCap('orders.view'), async (c) 
   const key = c.req.param('key')
   const object = await c.env.LOOM_UPLOADS.get(key)
   if (!object) return c.json({ error: 'Not found' }, 404)
-
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  headers.set('etag', object.httpEtag)
-  headers.set('cache-control', 'private, max-age=3600')
-
-  return new Response(object.body, { headers })
+  return serveObject(object, key, 'private, max-age=3600')
 })
 
 // ─── Refresh admin cookie (extend session) ────────────────────────────────────
 
-admin.post('/refresh', async (c) => {
-  const token = getCookie(c, 'admin_token')
-  if (!token) return c.json({ error: 'Unauthorized' }, 401)
-
-  const payload = await verifyToken(token, c.env.JWT_SECRET)
-  if (!payload || payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 401)
-
+// requireAdmin first: a revoked or deleted admin must not mint a fresh token.
+admin.post('/refresh', requireAdmin, async (c) => {
   const newToken = await signToken(
-    { sub: payload.sub, role: 'admin' },
+    { sub: String(c.get('adminId')), role: 'admin' },
     c.env.JWT_SECRET,
     '12h',
   )

@@ -77,6 +77,7 @@
   }
 
   async function logout() {
+    const token = getToken()
     clearToken()
     // Inside the Telegram Mini App tma.js would log the visitor straight back
     // in on the post-logout reload. Respect the logout for this app session;
@@ -91,6 +92,8 @@
       await fetch((window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz') + '/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
+        // Lets the server revoke an email-login (Bearer) session too.
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
       })
     } catch {}
     window.location.href = 'index.html'

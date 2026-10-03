@@ -18,6 +18,8 @@ export const requireAdmin = createMiddleware<AdminEnv>(async (c, next) => {
 
   const admin = await getAdminById(c.env.DB, parseInt(payload.sub, 10))
   if (!admin) return c.json({ error: 'Unauthorized' }, 401)
+  // Tokens issued before the admin's last logout are dead.
+  if ((payload.iat ?? 0) < (admin.tokens_valid_after ?? 0)) return c.json({ error: 'Unauthorized' }, 401)
 
   const role = admin.role || 'staff'
   // The owner resolves to every capability without consulting the overrides

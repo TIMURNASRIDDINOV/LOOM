@@ -38,6 +38,7 @@ export type Bindings = {
   // see lib/payments.ts for the wrangler secret names)
   PAYME_MERCHANT_ID?: string
   PAYME_KEY?: string
+  PAYME_LIVE?: string
   CLICK_MERCHANT_ID?: string
   CLICK_SERVICE_ID?: string
   CLICK_SECRET?: string

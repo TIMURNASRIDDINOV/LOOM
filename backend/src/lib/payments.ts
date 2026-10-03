@@ -7,7 +7,7 @@
    Providers flip payment_status via webhooks (routes/payments.ts).
 
    To CONNECT a provider, set its secrets and fill in the marked TODOs:
-     wrangler secret put PAYME_MERCHANT_ID     (+ PAYME_KEY)
+     wrangler secret put PAYME_MERCHANT_ID     (+ PAYME_KEY; then PAYME_LIVE=true)
      wrangler secret put CLICK_MERCHANT_ID     (+ CLICK_SERVICE_ID, CLICK_SECRET)
      wrangler secret put UZUM_MERCHANT_ID      (+ UZUM_SECRET)
    Nothing else in the checkout flow needs to change.
@@ -20,6 +20,8 @@ export const PAYMENT_METHODS: PaymentMethod[] = ['cod', 'payme', 'click', 'uzum'
 export interface PaymentEnvVars {
   PAYME_MERCHANT_ID?: string
   PAYME_KEY?: string
+  /** 'true' enables Payme for checkout and its webhook (go-live switch). */
+  PAYME_LIVE?: string
   CLICK_MERCHANT_ID?: string
   CLICK_SERVICE_ID?: string
   CLICK_SECRET?: string
@@ -35,7 +37,7 @@ export function isValidMethod(m: unknown): m is PaymentMethod {
 export function providerConfigured(method: PaymentMethod, env: PaymentEnvVars): boolean {
   switch (method) {
     case 'cod': return true
-    case 'payme': return !!(env.PAYME_MERCHANT_ID && env.PAYME_KEY)
+    case 'payme': return !!(env.PAYME_MERCHANT_ID && env.PAYME_KEY && env.PAYME_LIVE === 'true')
     case 'click': return !!(env.CLICK_MERCHANT_ID && env.CLICK_SERVICE_ID && env.CLICK_SECRET)
     case 'uzum': return !!(env.UZUM_MERCHANT_ID && env.UZUM_SECRET)
   }

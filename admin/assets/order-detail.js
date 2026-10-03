@@ -7,9 +7,14 @@ function showError(msg) {
   el.style.display = 'block'
 }
 
-function escHtml(s) {
-  if (s == null) return ''
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+// Shared escaper (ui.js): safe in text and in quoted attributes.
+const escHtml = (s) => window.LOOM_UI.esc(s)
+
+// Colours come from customer design data and land inside style attributes;
+// anything that is not a plain colour value renders as transparent.
+function safeColor(c) {
+  const s = String(c == null ? '' : c).trim()
+  return /^#[0-9a-f]{3,8}$|^[a-z]{3,20}$|^rgba?\([0-9.,%\s]+\)$/i.test(s) ? s : 'transparent'
 }
 
 function parseDesign(json) {
@@ -59,7 +64,7 @@ function renderOrderItems(items, anchorCard) {
       const font = summaryFonts(d, 'front')
       const logoName = summaryLogos(d, 'front') || summaryLogos(d, 'back')
       const meta = [
-        `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${escHtml(color)};border:1px solid var(--input-border);vertical-align:middle;margin-right:5px"></span>${escHtml(color)}`,
+        `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${safeColor(color)};border:1px solid var(--input-border);vertical-align:middle;margin-right:5px"></span>${escHtml(color)}`,
         escHtml(size),
         text ? `«${escHtml(text)}»${font ? ' (' + escHtml(font) + ')' : ''}` : '',
         logoName ? 'лого: ' + escHtml(logoName) : '',
@@ -198,7 +203,7 @@ async function loadOrder(id) {
     const logoName = summaryLogos(design, 'front') || summaryLogos(design, 'back') || '—'
 
     document.getElementById('design-color').innerHTML =
-      `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${escHtml(color)};border:1px solid var(--input-border);vertical-align:middle;margin-right:6px"></span>${escHtml(color)}`
+      `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${safeColor(color)};border:1px solid var(--input-border);vertical-align:middle;margin-right:6px"></span>${escHtml(color)}`
     document.getElementById('design-size').textContent = size
     document.getElementById('design-front-text').textContent = frontText
     document.getElementById('design-back-text').textContent = backText
@@ -567,7 +572,7 @@ async function buildView(name, vm, mockUrl, printUrl, logoUrl) {
   if (printUrl) {
     fig.innerHTML = `<div class="ps-print-wrap"><img src="${printUrl}" alt="Печать ${label}"></div>`
     const cap = document.createElement('figcaption'); cap.className = 'ps-figcap'
-    cap.innerHTML = `<span>Печать · ${vm.platenCm.w} × ${vm.platenCm.h} см</span>`
+    cap.innerHTML = `<span>Печать · ${escHtml(vm.platenCm.w)} × ${escHtml(vm.platenCm.h)} см</span>`
     const dl = document.createElement('a')
     dl.className = 'ps-dl'; dl.href = printUrl; dl.download = `print-${name}.png`; dl.textContent = 'Скачать PNG'
     cap.appendChild(dl)
@@ -651,7 +656,7 @@ function buildSpecTable(d) {
   const wrap = document.createElement('div')
   const color = d.shirtColor || '—'
   const rows = [
-    `<tr><td>Цвет</td><td colspan="2"><span class="ps-swatch" style="background:${escHtml(color)}"></span>${escHtml(color)}</td></tr>`,
+    `<tr><td>Цвет</td><td colspan="2"><span class="ps-swatch" style="background:${safeColor(color)}"></span>${escHtml(color)}</td></tr>`,
     `<tr><td>Размер</td><td colspan="2">${escHtml(d.size || '—')}</td></tr>`,
   ]
   ;['front', 'back'].forEach((v) => {
@@ -666,17 +671,17 @@ function buildSpecTable(d) {
       if (el.type === 'text') {
         const wstyle = [el.bold ? 'Bold' : '', el.italic ? 'Italic' : ''].filter(Boolean).join(' ') || 'Regular'
         rows.push(`<tr><td>${label} · текст</td><td colspan="2">«${escHtml(el.content)}»</td></tr>`)
-        rows.push(`<tr><td></td><td>Шрифт</td><td>${escHtml(el.font || '—')} · ${wstyle} · ${el.size || '—'}px</td></tr>`)
-        rows.push(`<tr><td></td><td>Цвет</td><td><span class="ps-swatch" style="background:${escHtml(el.color || '#000')}"></span>${escHtml(el.color || '—')}</td></tr>`)
-        rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${posStr(el, vm.platenCm)}</td></tr>`)
+        rows.push(`<tr><td></td><td>Шрифт</td><td>${escHtml(el.font || '—')} · ${wstyle} · ${escHtml(el.size || '—')}px</td></tr>`)
+        rows.push(`<tr><td></td><td>Цвет</td><td><span class="ps-swatch" style="background:${safeColor(el.color || '#000')}"></span>${escHtml(el.color || '—')}</td></tr>`)
+        rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${escHtml(posStr(el, vm.platenCm))}</td></tr>`)
       } else {
         rows.push(`<tr><td>${label} · логотип</td><td colspan="2">${escHtml(el.name || '—')}</td></tr>`)
         if (el.artworkId) {
           // A marketplace file: print from the designer's original (design_json.key), not a customer upload.
           rows.push(`<tr><td></td><td>Дизайнер</td><td>${escHtml(el.author || '—')} · маркетплейс #${escHtml(String(el.artworkId))}</td></tr>`)
         }
-        rows.push(`<tr><td></td><td>Масштаб</td><td>${el.scalePct ?? '—'}%</td></tr>`)
-        rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${posStr(el, vm.platenCm)}</td></tr>`)
+        rows.push(`<tr><td></td><td>Масштаб</td><td>${escHtml(el.scalePct ?? '—')}%</td></tr>`)
+        rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${escHtml(posStr(el, vm.platenCm))}</td></tr>`)
       }
     })
   })

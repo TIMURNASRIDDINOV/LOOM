@@ -9,6 +9,8 @@ import {
   touchUserLogin,
 } from '../db/queries'
 import { signToken } from '../lib/jwt'
+import { hasUsablePassword } from '../lib/password'
+import { clientIp, isRateLimited } from '../lib/rateLimit'
 import {
   OAuthError,
   configuredProviders,
@@ -45,15 +47,9 @@ router.post('/oauth/:provider', async (c) => {
   const provider = c.req.param('provider')
   if (!isProviderId(provider)) return c.json({ error: 'Unknown provider' }, 404)
 
-  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
-  const rlKey = `oauth:${ip}`
-  const seen = await c.env.RATE_LIMIT.get(rlKey)
-  if (seen && parseInt(seen, 10) >= 10) {
+  if (await isRateLimited(c.env.RATE_LIMIT, `oauth:${clientIp(c)}`, 10, 60)) {
     return c.json({ error: 'Слишком много попыток. Подождите минуту.' }, 429)
   }
-  await c.env.RATE_LIMIT.put(rlKey, String((seen ? parseInt(seen, 10) : 0) + 1), {
-    expirationTtl: 60,
-  })
 
   let body: Record<string, unknown>
   try {
@@ -84,12 +80,21 @@ router.post('/oauth/:provider', async (c) => {
   // 1. Already linked → straight in.
   let user = await getUserByIdentity(c.env.DB, provider, profile.providerUserId)
 
-  // 2. Not linked, but the provider vouches for an email we already know →
-  //    attach the identity to that account. The `emailVerified` guard is what
-  //    stops someone registering "victim@gmail.com" at a sloppy provider and
-  //    walking into the victim's LOOM account.
+  // 2. Not linked, but the provider vouches for an email we already know.
+  //    Attach the identity only to an account that has no password of its own
+  //    (created by Telegram or another provider). A password account with
+  //    this email is not merged; its owner signs in with the password.
   if (!user && profile.email && profile.emailVerified) {
     const existing = await getUserByEmail(c.env.DB, profile.email.toLowerCase())
+    if (existing && hasUsablePassword(existing.password_hash)) {
+      return c.json(
+        {
+          error: 'Аккаунт с этим email уже существует. Войдите по email и паролю.',
+          code: 'email_account_exists',
+        },
+        409,
+      )
+    }
     if (existing) user = existing
   }
 

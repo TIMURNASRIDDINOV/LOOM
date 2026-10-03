@@ -328,6 +328,8 @@
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Ошибка')
+      // A password change signs out every session; keep this one with the new token.
+      if (data.token && window.LOOM_AUTH && window.LOOM_AUTH.getToken()) window.LOOM_AUTH.setToken(data.token)
       msgOk.textContent = 'Пароль обновлён!'
       document.getElementById('pw-current').value = ''
       document.getElementById('pw-new').value = ''

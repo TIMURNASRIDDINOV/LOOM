@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
-import { trackPageVisit } from '../db/queries'
+import { trackPageVisit, isArtworkKey } from '../db/queries'
+import { serveObject, LEGACY_AVATAR_KEY } from '../lib/r2'
 import type { BaseEnv } from '../types'
 
 const files = new Hono<BaseEnv>()
@@ -8,48 +9,37 @@ const files = new Hono<BaseEnv>()
 
 files.get('/models/:key{.+}', async (c) => {
   const key = c.req.param('key')
+  // Product meshes and thumbnails only; avatars have their own route.
+  if (key.startsWith('avatars/')) return c.json({ error: 'Not found' }, 404)
   const object = await c.env.LOOM_MODELS.get(key)
   if (!object) return c.json({ error: 'Not found' }, 404)
-
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  headers.set('etag', object.httpEtag)
-  headers.set('cache-control', 'public, max-age=31536000, immutable')
-
-  return new Response(object.body, { headers })
+  return serveObject(object, key, 'public, max-age=31536000, immutable')
 })
 
 // ─── GET /api/files/artwork/:key  (public, long-cached) ──────────────────────
-// Designer artwork lives in loom-uploads alongside order logos. Only keys that
-// an approved artwork row points at are ever handed out as URLs, so serving the
-// bucket object directly is safe and keeps the marketplace on the CDN.
+// Designer artwork lives in loom-uploads alongside order logos and print
+// files. Only keys that an artwork row points at are served here; anything
+// else in the bucket is 404. Pending/rejected submissions stay reachable so
+// the designer and the moderation queue can preview them.
 
 files.get('/artwork/:key{.+}', async (c) => {
   const key = c.req.param('key')
+  if (!(await isArtworkKey(c.env.DB, key, true))) return c.json({ error: 'Not found' }, 404)
   const object = await c.env.LOOM_UPLOADS.get(key)
   if (!object) return c.json({ error: 'Not found' }, 404)
-
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  headers.set('etag', object.httpEtag)
-  headers.set('cache-control', 'public, max-age=31536000, immutable')
-
-  return new Response(object.body, { headers })
+  return serveObject(object, key, 'public, max-age=31536000, immutable')
 })
 
 // ─── GET /api/files/avatars/:key  (public, short-cached) ─────────────────────
 
 files.get('/avatars/:key{.+}', async (c) => {
+  // `key` is the full stored key (avatars/…). Keys derived from the user id
+  // are not served; current avatar keys carry a random part.
   const key = c.req.param('key')
+  if (!key.startsWith('avatars/') || LEGACY_AVATAR_KEY.test(key)) return c.json({ error: 'Not found' }, 404)
   const object = await c.env.LOOM_MODELS.get(key)
   if (!object) return c.json({ error: 'Not found' }, 404)
-
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  headers.set('etag', object.httpEtag)
-  headers.set('cache-control', 'public, max-age=86400')
-
-  return new Response(object.body, { headers })
+  return serveObject(object, key, 'public, max-age=86400')
 })
 
 // ─── POST /api/track  (public — visitor analytics) ───────────────────────────

@@ -55,3 +55,13 @@ export async function verifyPassword(password: string, stored: string): Promise<
   for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i]
   return diff === 0
 }
+
+/**
+ * A password that could actually be verified. Telegram sign-up writes
+ * `telegram_auth` and social sign-up writes `oauth_<provider>`; both are
+ * sentinels, not hashes.
+ */
+export function hasUsablePassword(hash: string | null | undefined): boolean {
+  if (!hash) return false
+  return hash !== 'telegram_auth' && hash !== 'deleted' && !hash.startsWith('oauth_')
+}
