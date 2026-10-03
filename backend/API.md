@@ -26,14 +26,15 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/uploads` | Upload logo/image to R2 (rate-limited 10/min/IP) |
+| POST | `/api/uploads` | Upload PNG/JPEG/GLB to R2. Signed-in users only (Bearer or cookie); rate-limited 30/min per IP and per user. Returns `{ key }`. |
+| GET | `/api/uploads/:key` | The uploader's own file (Bearer or cookie) |
 
 ### Files
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/files/models/:key` | Serve GLB/thumbnail (public, immutable cache, `Access-Control-Allow-Origin: *`) |
-| GET | `/api/files/artwork/:key` | Serve designer artwork from `loom-uploads` (public, immutable, CORS `*`) |
+| GET | `/api/files/artwork/:key` | Serve designer artwork from `loom-uploads` (public, immutable, CORS `*`). Only keys that belong to an artwork row. |
 | GET | `/api/files/avatars/:key` | Serve a user avatar (public, 24 h cache) |
 | POST | `/api/files/track` | Funnel analytics event (`session_id`, `page`, `event`, device fields). Allow-listed events only. |
 
@@ -45,7 +46,7 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 | GET | `/api/designers/:handle` | — | A designer's public page: `handle`, `name`, `bio`, `avatar_url`, `since`, `works[]`, `units_sold`. |
 | POST | `/api/designer/apply` | Bearer | `{ handle, bio? }` — opt in as a designer (also edits handle/bio). |
 | GET | `/api/designer/artworks` | Bearer | The designer's own works in every moderation state, with `sold` counts. |
-| POST | `/api/designer/artworks` | Bearer | `{ title, image_key, tags?, width?, height?, markup }` — submit for moderation. `image_key` comes from `POST /api/uploads`. |
+| POST | `/api/designer/artworks` | Bearer | `{ title, image_key, tags?, width?, height?, markup }` — submit for moderation. `image_key` comes from `POST /api/uploads` by the same user. |
 | GET | `/api/designer/stats` | Bearer | `works_*` counts, `units_sold`, `earned`, `earned_settled` (delivered orders), `commission_pct`, recent `sales[]`. |
 
 **Sales attribution.** A `design_json` image element may carry `artworkId`. At
@@ -97,7 +98,7 @@ share frozen at `markup × qty × (100 − commission) / 100`. Migration 0018.
 |--------|------|------|-------------|
 | POST | `/api/auth/telegram/start` | `{ phone }` | Start auth session. Phone must be E.164 (`+998…`). Returns `{ session_id, telegram_deep_link, expires_at }` |
 | GET | `/api/auth/telegram/status` | `?session_id=…` | Poll status. Returns `{ status }` where status is `pending\|verified\|failed\|expired`. Sets `user_token` cookie on `verified`. |
-| POST | `/api/auth/logout` | — | Clear `user_token` cookie |
+| POST | `/api/auth/logout` | Bearer or cookie | Clear `user_token` cookie and sign the account out on every device |
 
 ### Telegram Mini App
 
@@ -168,7 +169,7 @@ All endpoints require `admin_token` cookie (set by `/api/admin/login`).
 |--------|------|------|-------------|
 | POST | `/api/admin/setup` | `{ email, password }` | One-time admin setup |
 | POST | `/api/admin/login` | `{ email, password }` | Login, sets `admin_token` cookie |
-| POST | `/api/admin/logout` | — | Clear cookie |
+| POST | `/api/admin/logout` | cookie | Clear cookie and invalidate the admin's issued tokens |
 | POST | `/api/admin/refresh` | — | Extend session |
 | GET | `/api/admin/me` | — | Current admin info |
 

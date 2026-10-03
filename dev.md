@@ -146,7 +146,7 @@ Cloudflare D1 (SQLite at the edge), binding `DB`, database `loom-db`.
 
 A REST API on a single Worker. Highlights:
 
-**Public** — `GET /api/products`, `GET /api/products/:slug`, `POST /api/orders` (rate-limited), `POST /api/uploads` (rate-limited), `GET /api/files/models/:key`
+**Public** — `GET /api/products`, `GET /api/products/:slug`, `POST /api/orders` (rate-limited), `POST /api/uploads` (signed-in, rate-limited), `GET /api/files/models/:key`
 
 **User auth** — `POST /api/auth/register`, `/login`, `GET /api/auth/me`, `PATCH /api/auth/profile`, `/password`, `POST /api/auth/avatar`
 

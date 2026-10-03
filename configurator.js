@@ -109,11 +109,6 @@ const FONT_OPTIONS = [
   { value: "Pacifico", label: "Pacifico (Script)" },
 ];
 
-// Cloudflare Worker endpoint for Telegram order notifications
-const WORKER_URL =
-  window.LOOM_CONFIG?.TELEGRAM_WORKER_URL
-  ?? "https://loom-telegram-orders.timurnasriddinov56.workers.dev";
-
 // API base — resolved via config.js if available
 function getApiBase() {
   if (window.LOOM_CONFIG) return window.LOOM_CONFIG.API_BASE;
@@ -4456,7 +4451,10 @@ async function _uploadDataUrl(dataUrl, filename) {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const fd = new FormData();
     fd.append("file", new File([new Blob([bytes], { type: mime })], filename || "asset.png", { type: mime }));
-    const up = await fetch(getApiBase() + "/api/uploads", { method: "POST", body: fd });
+    // Uploads are tied to the signed-in user, so send the session along.
+    const up = await fetch(getApiBase() + "/api/uploads", {
+      method: "POST", body: fd, headers: _authHeaders(false), credentials: "include",
+    });
     if (up.ok) return (await up.json()).key || null;
   } catch (e) { /* non-fatal */ }
   return null;
@@ -5755,10 +5753,7 @@ async function handleOrderSubmit(event) {
 
     // ── 2. Capture production proofs: shadow-free print masters + 3D mockups.
     //      Persisted with the order so the admin can reprint the EXACT artwork.
-    //      Mockup data URLs are reused for the Telegram notification below.
     const proofs = await captureProofs();
-    const frontScreenshot = proofs.frontMockupData;
-    const backScreenshot = proofs.backMockupData;
 
     // ── 3. Build FULL design JSON (placement, rotation, both views) ────────
     const designJson = _buildDesignJson();
@@ -5811,31 +5806,7 @@ async function handleOrderSubmit(event) {
       console.warn("API order failed:", errData.error);
     }
 
-    // ── 5. Also notify Telegram worker (non-blocking, best effort) ─────────
-    const workerPayload = {
-      item: currentProduct ? productName(currentProduct) : "Футболка",
-      color: getColorName(designState.shirtColor),
-      size: selectedSize,
-      frontText: _textSummary("front"),
-      backText: _textSummary("back"),
-      frontImage: _logoSummary("front") || "Не загружено",
-      backImage: _logoSummary("back") || "Не загружено",
-      mapCoordinates: coords,
-      customerName: nameVal,
-      phone: phoneFmt,
-      address: addrVal,
-      comment,
-      timestamp: new Date().toISOString(),
-      orderId: orderId || "?",
-      frontScreenshot,
-      backScreenshot,
-    };
-    fetch(WORKER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(workerPayload),
-    }).catch(() => {});
-
+    // The backend sends the order notification itself after saving the order.
     const idLabel = orderId ? ` #${orderId}` : "";
     showToast("✅ Заказ" + idLabel + " принят!", "success");
     setTimeout(closeOrderModal, 2500);
@@ -5936,36 +5907,3 @@ function bindMobileNav() {
     if (window.innerWidth >= 768 && menu.classList.contains("active")) close();
   });
 }
-
-// ================================================================
-// SECTION 19 — TEST UTILITY (console debugging)
-// ================================================================
-
-window.testTelegramConnection = async function () {
-  const data = {
-    item: "Тестовый заказ",
-    color: "Белый",
-    text: "Тест",
-    font: "Arial",
-    imageUploaded: "Не загружено",
-    scale: "100%",
-    customerName: "Тест Тестович",
-    phone: "+998 90 123-45-67",
-    phoneClean: "998901234567",
-    address: "Тестовый адрес",
-    timestamp: new Date().toISOString(),
-  };
-  try {
-    const r = await fetch(WORKER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    const result = r.ok ? "✅ OK" : `❌ ${r.status}`;
-    console.log(result, await r.text());
-    showToast(result, r.ok ? "success" : "error");
-  } catch (e) {
-    console.error(e);
-    showToast("❌ " + e.message, "error");
-  }
-};

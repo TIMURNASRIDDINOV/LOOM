@@ -17,8 +17,11 @@ import {
   getUserById,
   getUserByTelegramId,
   updateUserPassword,
+  revokeUserTokens,
 } from '../db/queries'
-import { signToken } from '../lib/jwt'
+import { signToken, verifyToken } from '../lib/jwt'
+import { clientIp, isRateLimited, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
+import { userTokenFrom } from '../middleware/requireAuth'
 import { hashPassword } from '../lib/password'
 import { validateWebAppInitData } from '../lib/telegram-webapp'
 import type { BaseEnv } from '../types'
@@ -67,6 +70,13 @@ router.post('/telegram/start', async (c) => {
   const phone = normalizePhone(rawPhone.trim())
   if (!isValidE164(phone)) {
     return c.json({ error: 'Invalid phone number. Use international format, e.g. +998901234567' }, 400)
+  }
+
+  if (
+    (await isRateLimited(c.env.RATE_LIMIT, `tg-start:ip:${clientIp(c)}`, 10, 10 * 60)) ||
+    (await isRateLimited(c.env.RATE_LIMIT, `tg-start:phone:${phone}`, 5, 10 * 60))
+  ) {
+    return c.json(TOO_MANY, 429)
   }
 
   const botUsername = c.env.BOT_USERNAME
@@ -179,8 +189,16 @@ router.get('/telegram/status', async (c) => {
   const sessionId = c.req.query('session_id')
   if (!sessionId) return c.json({ error: 'session_id is required' }, 400)
 
+  // Polling a real session is cheap and frequent, so only lookups of unknown
+  // session ids are counted (one KV write per miss, none per normal poll).
+  const missKey = [`tg-status:ip:${clientIp(c)}`]
+  if (await tooManyFailures(c.env.RATE_LIMIT, missKey, 20)) return c.json(TOO_MANY, 429)
+
   const session = await getAuthSession(c.env.DB, sessionId)
-  if (!session) return c.json({ error: 'Session not found' }, 404)
+  if (!session) {
+    await recordFailure(c.env.RATE_LIMIT, missKey, 10 * 60)
+    return c.json({ error: 'Session not found' }, 404)
+  }
 
   if (session.status === 'pending' && Date.now() > session.expires_at) {
     return c.json({ status: 'expired' })
@@ -227,6 +245,9 @@ router.post('/reset-password', async (c) => {
   let body: unknown
   try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
   const { session_id, new_password } = body as Record<string, unknown>
+  if (await isRateLimited(c.env.RATE_LIMIT, `reset:ip:${clientIp(c)}`, 10, 15 * 60)) {
+    return c.json(TOO_MANY, 429)
+  }
   if (typeof session_id !== 'string' || !session_id) return c.json({ error: 'session_id is required' }, 400)
   if (typeof new_password !== 'string' || new_password.length < 8) {
     return c.json({ error: 'Пароль должен содержать минимум 8 символов' }, 400)
@@ -241,6 +262,7 @@ router.post('/reset-password', async (c) => {
   }
 
   const hash = await hashPassword(new_password)
+  // Also signs out every existing session of this account.
   await updateUserPassword(c.env.DB, session.user_id, hash)
   await markAuthSessionUsed(c.env.DB, session_id) // one-time use
   await insertUserActivity(c.env.DB, {
@@ -251,7 +273,12 @@ router.post('/reset-password', async (c) => {
 
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────
 
-router.post('/logout', (c) => {
+// Revokes server-side as well as clearing the cookie: every token issued to
+// this account before now stops working, on all devices.
+router.post('/logout', async (c) => {
+  const token = userTokenFrom(c)
+  const payload = token ? await verifyToken(token, c.env.JWT_SECRET) : null
+  if (payload?.role === 'user') await revokeUserTokens(c.env.DB, parseInt(payload.sub, 10))
   deleteCookie(c, 'user_token', { path: '/' })
   return c.json({ ok: true })
 })

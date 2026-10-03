@@ -1,12 +1,15 @@
 import { Hono } from 'hono'
+import { getCookie, setCookie } from 'hono/cookie'
 import {
   getUserByEmail, getUserById, createUser,
   updateUserProfile, updateUserPassword, updateUserAvatar,
   getUserOrderStats, anonymizeUser,
 } from '../db/queries'
-import { hashPassword, verifyPassword } from '../lib/password'
+import { hashPassword, verifyPassword, hasUsablePassword } from '../lib/password'
 import { signToken } from '../lib/jwt'
 import { requireAuth } from '../middleware/requireAuth'
+import { AVATAR_TYPES, LEGACY_AVATAR_KEY, validateUpload } from '../lib/r2'
+import { clientIp, isRateLimited, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
 import type { UserEnv } from '../types'
 
 const auth = new Hono<UserEnv>()
@@ -22,6 +25,10 @@ auth.post('/register', async (c) => {
   }
 
   const { email, password, name, phone } = body as Record<string, unknown>
+
+  if (await isRateLimited(c.env.RATE_LIMIT, `register:${clientIp(c)}`, 5, 60 * 60)) {
+    return c.json(TOO_MANY, 429)
+  }
 
   if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return c.json({ error: 'Invalid email format' }, 400)
@@ -61,11 +68,17 @@ auth.post('/login', async (c) => {
     return c.json({ error: 'email and password required' }, 400)
   }
 
-  const user = await getUserByEmail(c.env.DB, email.toLowerCase())
-  if (!user) return c.json({ error: 'Invalid credentials' }, 401)
+  // Failed attempts are counted per IP and per account.
+  const failKeys = [`login:ip:${clientIp(c)}`, `login:id:${email.toLowerCase()}`]
+  if (await tooManyFailures(c.env.RATE_LIMIT, failKeys, 10)) return c.json(TOO_MANY, 429)
 
-  const valid = await verifyPassword(password, user.password_hash)
-  if (!valid) return c.json({ error: 'Invalid credentials' }, 401)
+  const user = await getUserByEmail(c.env.DB, email.toLowerCase())
+  const valid = !!user && (await verifyPassword(password, user.password_hash))
+  if (!user || !valid) {
+    await recordFailure(c.env.RATE_LIMIT, failKeys, 15 * 60)
+    return c.json({ error: 'Invalid credentials' }, 401)
+  }
+  if (user.status !== 'active') return c.json({ error: 'Your account has been blocked' }, 403)
 
   const token = await signToken({ sub: String(user.id), role: 'user' }, c.env.JWT_SECRET, '30d')
   return c.json({ token, user: { id: user.id, email: user.email, name: user.name } })
@@ -79,6 +92,9 @@ auth.get('/me', requireAuth, async (c) => {
   const stats = await getUserOrderStats(c.env.DB, user.id)
 
   let avatarUrl: string | null = null
+  if (user.avatar_key && LEGACY_AVATAR_KEY.test(user.avatar_key)) {
+    user.avatar_key = await moveLegacyAvatar(c.env.LOOM_MODELS, c.env.DB, user.id, user.avatar_key)
+  }
   if (user.avatar_key) {
     const { protocol, host } = new URL(c.req.url)
     avatarUrl = `${protocol}//${host}/api/files/avatars/${user.avatar_key}`
@@ -120,14 +136,33 @@ auth.get('/me', requireAuth, async (c) => {
   })
 })
 
-/**
- * A password that could actually be verified. Telegram sign-up writes
- * `telegram_auth` and social sign-up writes `oauth_<provider>`; both are
- * sentinels, not hashes.
- */
-function hasUsablePassword(hash: string | null | undefined): boolean {
-  if (!hash) return false
-  return hash !== 'telegram_auth' && !hash.startsWith('oauth_')
+// Avatars used to live at a key derived from the user id (LEGACY_AVATAR_KEY).
+// Those keys are no longer served; the owner's next /me moves the file to a
+// random key.
+
+function newAvatarKey(userId: number, ext: string): string {
+  return `avatars/u${userId}_${crypto.randomUUID()}.${ext}`
+}
+
+async function moveLegacyAvatar(bucket: R2Bucket, db: D1Database, userId: number, oldKey: string): Promise<string | null> {
+  const obj = await bucket.get(oldKey)
+  if (!obj) {
+    await updateUserAvatar(db, userId, null)
+    return null
+  }
+  const bytes = new Uint8Array(await obj.arrayBuffer())
+  const check = validateUpload(bytes, AVATAR_TYPES)
+  if (!check.ok) {
+    // Not a real image: drop it rather than carry it forward.
+    await bucket.delete(oldKey)
+    await updateUserAvatar(db, userId, null)
+    return null
+  }
+  const key = newAvatarKey(userId, check.type.ext)
+  await bucket.put(key, bytes, { httpMetadata: { contentType: check.type.mime } })
+  await updateUserAvatar(db, userId, key)
+  await bucket.delete(oldKey)
+  return key
 }
 
 // ─── DELETE /api/auth/account  (requires Bearer token) ───────────────────────
@@ -200,8 +235,16 @@ auth.patch('/password', requireAuth, async (c) => {
   if (!valid) return c.json({ error: 'Current password is incorrect' }, 401)
 
   const newHash = await hashPassword(new_password)
+  // Signs out every existing session, including this one; hand back a fresh
+  // token so the caller stays signed in.
   await updateUserPassword(c.env.DB, user.id, newHash)
-  return c.json({ ok: true })
+  const token = await signToken({ sub: String(user.id), role: 'user' }, c.env.JWT_SECRET, '30d')
+  if (getCookie(c, 'user_token')) {
+    setCookie(c, 'user_token', token, {
+      httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: 30 * 24 * 60 * 60,
+    })
+  }
+  return c.json({ ok: true, token })
 })
 
 // ─── POST /api/auth/avatar  (requires Bearer token, multipart) ────────────────
@@ -213,23 +256,22 @@ auth.post('/avatar', requireAuth, async (c) => {
   const f = formData.get('avatar') as File | null
   if (!f || typeof f.name !== 'string') return c.json({ error: 'avatar file required' }, 400)
 
-  const ALLOWED_IMG_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
-  const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
-  const mime = f.type || 'application/octet-stream'
-  if (!ALLOWED_IMG_TYPES.has(mime) && !['png','jpg','jpeg','webp'].includes(ext)) {
-    return c.json({ error: 'Avatar must be PNG, JPG, or WebP' }, 400)
-  }
   if (f.size > 2 * 1024 * 1024) return c.json({ error: 'Avatar must be ≤ 2 MB' }, 400)
+  // The stored type comes from the file content; name and declared type are ignored.
+  const bytes = new Uint8Array(await f.arrayBuffer())
+  const check = validateUpload(bytes, AVATAR_TYPES, 2 * 1024 * 1024)
+  if (!check.ok) return c.json({ error: 'Avatar must be PNG, JPG, or WebP' }, 400)
 
   const userId = c.get('userId')
-  const fileExt = ALLOWED_IMG_TYPES.has(mime) ? mime.split('/')[1].replace('jpeg','jpg') : ext
-  const key = `avatars/user_${userId}.${fileExt}`
+  const previous = (await getUserById(c.env.DB, userId))?.avatar_key
+  const key = newAvatarKey(userId, check.type.ext)
 
-  await c.env.LOOM_MODELS.put(key, f.stream(), {
-    httpMetadata: { contentType: mime },
+  await c.env.LOOM_MODELS.put(key, bytes, {
+    httpMetadata: { contentType: check.type.mime },
   })
 
   await updateUserAvatar(c.env.DB, userId, key)
+  if (previous && previous.startsWith('avatars/')) await c.env.LOOM_MODELS.delete(previous)
 
   const { protocol, host } = new URL(c.req.url)
   return c.json({ avatar_key: key, avatar_url: `${protocol}//${host}/api/files/avatars/${key}` })

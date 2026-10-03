@@ -5,7 +5,6 @@
     API_BASE: (h === 'localhost' || h === '127.0.0.1')
       ? 'http://localhost:8787'
       : 'https://api.loomdesign.uz',
-    TELEGRAM_WORKER_URL: 'https://loom-telegram-orders.timurnasriddinov56.workers.dev',
   }
 
   // Feature flags. `lab` is the customer-facing LOOM Lab (AI print generation):

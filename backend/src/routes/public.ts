@@ -1,27 +1,13 @@
 import { Hono } from 'hono'
-import { getCookie } from 'hono/cookie'
-import { getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId, getUserById, getUserNotifications } from '../db/queries'
-import { validateUpload, generateLogoKey } from '../lib/r2'
-import { verifyToken } from '../lib/jwt'
-import { requireAuth } from '../middleware/requireAuth'
+import {
+  getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId,
+  getUserNotifications, recordUpload, isOwnUpload, firstForeignKey,
+} from '../db/queries'
+import { validateUpload, generateLogoKey, serveObject } from '../lib/r2'
+import { requireAuth, authenticateUser, userTokenFrom } from '../middleware/requireAuth'
+import { clientIp, isRateLimited } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import type { BaseEnv, UserEnv } from '../types'
-
-// ─── Global KV-based rate limiter ────────────────────────────────────────────
-// Uses Cloudflare KV so limits are enforced across all Worker isolates globally.
-
-async function isRateLimited(
-  kv: KVNamespace,
-  key: string,
-  limit: number,
-  windowSec: number,
-): Promise<boolean> {
-  const current = await kv.get(key)
-  const count = current ? parseInt(current, 10) : 0
-  if (count >= limit) return true
-  await kv.put(key, String(count + 1), { expirationTtl: windowSec })
-  return false
-}
 
 const pub = new Hono<BaseEnv>()
 
@@ -58,8 +44,7 @@ pub.get('/products/:slug', async (c) => {
 // ─── POST /api/orders ─────────────────────────────────────────────────────────
 
 pub.post('/orders', async (c) => {
-  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
-  if (await isRateLimited(c.env.RATE_LIMIT, `orders:${ip}`, 5, 60)) {
+  if (await isRateLimited(c.env.RATE_LIMIT, `orders:${clientIp(c)}`, 5, 60)) {
     return c.json({ error: 'Too many requests. Please wait a minute before placing another order.' }, 429)
   }
 
@@ -86,34 +71,13 @@ pub.post('/orders', async (c) => {
     return c.json({ error: 'totalPrice must be a non-negative number' }, 400)
   }
 
-  // Required auth: Bearer token or user_token cookie
-  let userId: number | null = null
-  let token: string | undefined
-  const authHeader = c.req.header('Authorization')
-  if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.slice(7)
-  } else {
-    token = getCookie(c, 'user_token') ?? undefined
-  }
-
-  if (!token) {
-    return c.json({ error: 'Authentication required to place an order' }, 401)
-  }
-
-  const payload = await verifyToken(token, c.env.JWT_SECRET)
-  if (!payload || payload.role !== 'user') {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
-
-  userId = parseInt(payload.sub, 10)
-
-  // Check if user is banned
-  const userRecord = await getUserById(c.env.DB, userId)
-  if (userRecord?.status === 'banned') {
-    return c.json({ error: 'Your account has been blocked' }, 403)
-  }
+  // Required auth (same checks as requireAuth: deleted, banned, revoked).
+  const auth = await authenticateUser(c.env, userTokenFrom(c))
+  if (!auth.ok) return c.json(auth.body, auth.status)
+  const userRecord = auth.user
+  const userId = userRecord.id
   // Require a Telegram-verified phone number before an order can be placed.
-  if (!userRecord?.telegram_user_id) {
+  if (!userRecord.telegram_user_id) {
     return c.json({ error: 'Подтвердите номер телефона через Telegram, чтобы оформить заказ.', code: 'phone_not_verified' }, 403)
   }
 
@@ -125,6 +89,20 @@ pub.post('/orders', async (c) => {
     productId = product.id
   }
 
+  const keyField = (v: unknown) => (typeof v === 'string' ? v : null)
+  const keys = {
+    logo_key: keyField(b.logoKey),
+    front_print_key: keyField(b.frontPrintKey),
+    back_print_key: keyField(b.backPrintKey),
+    front_mockup_key: keyField(b.frontMockupKey),
+    back_mockup_key: keyField(b.backMockupKey),
+    back_logo_key: keyField(b.backLogoKey),
+    model_key: keyField(b.modelKey),
+  }
+  if (await firstForeignKey(c.env.DB, userId, Object.values(keys))) {
+    return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
+  }
+
   const orderId = await createOrder(c.env.DB, {
     user_id: userId,
     product_id: productId,
@@ -134,14 +112,8 @@ pub.post('/orders', async (c) => {
     coordinates: typeof b.coordinates === 'string' ? b.coordinates.trim() : null,
     comment: typeof b.comment === 'string' ? b.comment.trim() : null,
     design_json: b.designJson as string,
-    logo_key: typeof b.logoKey === 'string' ? b.logoKey : null,
     total_price: b.totalPrice as number,
-    front_print_key: typeof b.frontPrintKey === 'string' ? b.frontPrintKey : null,
-    back_print_key: typeof b.backPrintKey === 'string' ? b.backPrintKey : null,
-    front_mockup_key: typeof b.frontMockupKey === 'string' ? b.frontMockupKey : null,
-    back_mockup_key: typeof b.backMockupKey === 'string' ? b.backMockupKey : null,
-    back_logo_key: typeof b.backLogoKey === 'string' ? b.backLogoKey : null,
-    model_key: typeof b.modelKey === 'string' ? b.modelKey : null,
+    ...keys,
   })
 
   // Send Telegram notification without blocking the response
@@ -165,13 +137,19 @@ pub.post('/orders', async (c) => {
   return c.json({ id: orderId, status: 'new' }, 201)
 })
 
-// ─── POST /api/uploads ────────────────────────────────────────────────────────
-// Direct multipart upload; Worker writes blob to R2 loom-uploads.
+// ─── POST /api/uploads  (signed-in users) ────────────────────────────────────
+// Direct multipart upload; Worker writes blob to R2 loom-uploads and records
+// the uploader, so later routes can check a submitted key belongs to them.
 
-pub.post('/uploads', async (c) => {
-  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
-  // An order now uploads up to 6 assets (2 prints + 2 mockups + 2 logos), so allow 30/min.
-  if (await isRateLimited(c.env.RATE_LIMIT, `uploads:${ip}`, 30, 60)) {
+const uploads = new Hono<UserEnv>()
+
+uploads.post('/', requireAuth, async (c) => {
+  const userId = c.get('userId')
+  // An order uploads up to 7 assets (2 prints + 2 mockups + 2 logos + model), so allow 30/min.
+  if (
+    (await isRateLimited(c.env.RATE_LIMIT, `uploads:${clientIp(c)}`, 30, 60)) ||
+    (await isRateLimited(c.env.RATE_LIMIT, `uploads:user:${userId}`, 30, 60))
+  ) {
     return c.json({ error: 'Too many uploads. Please wait a minute before trying again.' }, 429)
   }
 
@@ -187,18 +165,35 @@ pub.post('/uploads', async (c) => {
   if (!file || typeof (file as { name?: unknown }).name !== 'string') {
     return c.json({ error: 'file field is required' }, 400)
   }
-  const fileObj = file as unknown as { name: string; type: string; size: number; stream: () => ReadableStream }
+  const fileObj = file as unknown as { size: number; arrayBuffer: () => Promise<ArrayBuffer> }
+  if (fileObj.size > 15 * 1024 * 1024) return c.json({ error: 'File must be ≤ 15 MB' }, 400)
 
-  const validation = validateUpload(fileObj.type, fileObj.size)
+  // Type is decided by the file's content, not the declared MIME type or name.
+  const bytes = new Uint8Array(await fileObj.arrayBuffer())
+  const validation = validateUpload(bytes)
   if (!validation.ok) return c.json({ error: validation.error }, 400)
 
-  const key = generateLogoKey(validation.ext)
-  await c.env.LOOM_UPLOADS.put(key, fileObj.stream(), {
-    httpMetadata: { contentType: fileObj.type },
+  const key = generateLogoKey(validation.type.ext)
+  await c.env.LOOM_UPLOADS.put(key, bytes, {
+    httpMetadata: { contentType: validation.type.mime },
   })
+  await recordUpload(c.env.DB, key, userId)
 
   return c.json({ key }, 201)
 })
+
+// ─── GET /api/uploads/:key  (the uploader only) ──────────────────────────────
+// Lets the configurator re-load a logo the user uploaded earlier.
+
+uploads.get('/:key{.+}', requireAuth, async (c) => {
+  const key = c.req.param('key')
+  if (!(await isOwnUpload(c.env.DB, key, c.get('userId')))) return c.json({ error: 'Not found' }, 404)
+  const object = await c.env.LOOM_UPLOADS.get(key)
+  if (!object) return c.json({ error: 'Not found' }, 404)
+  return serveObject(object, key, 'private, max-age=3600')
+})
+
+pub.route('/uploads', uploads)
 
 // ─── GET /api/me/orders  (requires Bearer token) ─────────────────────────────
 // Cast to UserEnv just for this handler — requireAuth guarantees userId is set

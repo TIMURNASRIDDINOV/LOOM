@@ -16,10 +16,8 @@
   let userId = null
   let currentUser = null
 
-  function escHtml(s) {
-    if (!s) return ''
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  }
+  // Shared escaper (ui.js): safe in text and in quoted attributes.
+  const escHtml = (s) => window.LOOM_UI.esc(s)
 
   function roleBadge(role) {
     return `<span class="badge">${escHtml(window.LOOM.userRoleLabel(role))}</span>`

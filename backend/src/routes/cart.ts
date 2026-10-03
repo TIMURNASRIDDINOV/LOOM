@@ -13,7 +13,10 @@ import {
   createOrderItem,
   getArtworkById,
   recordArtworkSale,
+  firstForeignKey,
 } from '../db/queries'
+import { serveObject } from '../lib/r2'
+import { isRateLimited, TOO_MANY } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
 import { DESIGNER_COMMISSION_PCT } from './designers'
@@ -71,20 +74,29 @@ router.post('/', async (c) => {
   }
   const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
 
+  // Proofs are captured while the design is live (here); copied to order_items at checkout.
+  const keyField = (v: unknown) => (typeof v === 'string' ? v : null)
+  const keys = {
+    logo_key: keyField(b.logoKey),
+    front_print_key: keyField(b.frontPrintKey),
+    back_print_key: keyField(b.backPrintKey),
+    front_mockup_key: keyField(b.frontMockupKey),
+    back_mockup_key: keyField(b.backMockupKey),
+    back_logo_key: keyField(b.backLogoKey),
+    model_key: keyField(b.modelKey),
+  }
+  // Only files this user uploaded, or approved marketplace artwork.
+  if (await firstForeignKey(c.env.DB, c.get('userId'), Object.values(keys))) {
+    return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
+  }
+
   await addCartItem(c.env.DB, {
     user_id: c.get('userId'),
     product_id: productId,
     design_json: b.designJson,
-    logo_key: typeof b.logoKey === 'string' ? b.logoKey : null,
     unit_price: b.unitPrice,
     quantity,
-    // Proofs are captured while the design is live (here); copied to order_items at checkout.
-    front_print_key: typeof b.frontPrintKey === 'string' ? b.frontPrintKey : null,
-    back_print_key: typeof b.backPrintKey === 'string' ? b.backPrintKey : null,
-    front_mockup_key: typeof b.frontMockupKey === 'string' ? b.frontMockupKey : null,
-    back_mockup_key: typeof b.backMockupKey === 'string' ? b.backMockupKey : null,
-    back_logo_key: typeof b.backLogoKey === 'string' ? b.backLogoKey : null,
-    model_key: typeof b.modelKey === 'string' ? b.modelKey : null,
+    ...keys,
   })
 
   const items = await getCartItems(c.env.DB, c.get('userId'))
@@ -118,11 +130,7 @@ router.get('/:id{[0-9]+}/file/:field', async (c) => {
   if (!key) return c.json({ error: 'No file' }, 404)
   const object = await c.env.LOOM_UPLOADS.get(key)
   if (!object) return c.json({ error: 'Not found' }, 404)
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  if (!headers.get('content-type')) headers.set('content-type', 'application/octet-stream')
-  headers.set('cache-control', 'private, max-age=3600')
-  return new Response(object.body, { headers })
+  return serveObject(object, key, 'private, max-age=3600')
 })
 
 // PATCH /api/cart/:id — change quantity
@@ -160,6 +168,9 @@ router.delete('/', async (c) => {
 
 // POST /api/cart/checkout — turn the cart into ONE multi-item order
 router.post('/checkout', async (c) => {
+  if (await isRateLimited(c.env.RATE_LIMIT, `checkout:user:${c.get('userId')}`, 10, 10 * 60)) {
+    return c.json(TOO_MANY, 429)
+  }
   let b: Record<string, unknown>
   try { b = (await c.req.json()) as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON' }, 400) }
 

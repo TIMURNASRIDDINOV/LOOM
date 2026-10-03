@@ -56,6 +56,8 @@ export interface User {
   // Nullable in TS because a row read before the migration ran has neither.
   notify_orders: number | null
   notify_promo: number | null
+  // Added in migration 0021 — tokens with iat before this (unix s) are rejected.
+  tokens_valid_after?: number | null
 }
 
 /** A social sign-in linked to a user. Added in migration 0017. */
@@ -123,6 +125,7 @@ export interface Admin {
   password_hash: string
   created_at: number
   role: string  // owner|manager|staff
+  tokens_valid_after?: number | null  // migration 0021
 }
 
 export interface Order {
