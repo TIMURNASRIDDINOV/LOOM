@@ -22,6 +22,9 @@ Applies `EXT_meshopt_compression` + `KHR_mesh_quantization` (POSITION 14-bit,
 NORMAL 10-bit). Decoded by `MeshoptDecoder`, registered on the loader via
 `GLTFLoader.setMeshoptDecoder()`. three r128 supports both extensions natively.
 
+Product `tshirt-regular` serves this file from R2 under a versioned key, `glb/tshirt-regular/<uuid>.glb`
+(LOOM-168). The old 6.8 MB `glb/tshirt-regular.glb` stays in R2 untouched as rollback.
+
 ### Two things that must not change
 
 **1. Use `meshopt`, never `optimize`.**
