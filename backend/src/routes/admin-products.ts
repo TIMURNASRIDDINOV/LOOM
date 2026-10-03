@@ -29,6 +29,13 @@ function withUrls(requestUrl: string, p: Record<string, unknown>) {
   }
 }
 
+// Every upload gets a fresh key: files are served immutable for a year, so a
+// reused key would leave customers on the old file. Old objects are kept;
+// rows that still hold a legacy key (glb/<slug>.glb) keep resolving as-is.
+function newAssetKey(prefix: 'glb' | 'thumbnails', slug: string, ext: string): string {
+  return `${prefix}/${slug}/${crypto.randomUUID()}.${ext}`
+}
+
 type FileField = { name: string; type: string; size: number; stream: () => ReadableStream; arrayBuffer: () => Promise<ArrayBuffer> }
 
 function getFileField(formData: FormData, key: string): FileField | null {
@@ -173,7 +180,7 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
       if ('error' in thumbResult) {
         return c.json({ ok: false, error: { code: 'INVALID', message: thumbResult.error, field: 'thumbnail' } }, 400)
       }
-      thumbnail_key = `thumbnails/${slug}.${thumbResult.ext}`
+      thumbnail_key = newAssetKey('thumbnails', slug, thumbResult.ext)
       await c.env.LOOM_MODELS.put(thumbnail_key, thumbFile.stream(), {
         httpMetadata: { contentType: thumbFile.type },
       })
@@ -183,7 +190,7 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
     let glb_key: string | null = null
     if (glbFile) {
       const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
-      glb_key = `glb/${slug}.${glbExt}`
+      glb_key = newAssetKey('glb', slug, glbExt)
       await c.env.LOOM_MODELS.put(glb_key, glbFile.stream(), {
         httpMetadata: { contentType: glbFile.type || 'model/gltf-binary' },
       })
@@ -278,7 +285,7 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
     const glbError = validateGlb(glbFile)
     if (glbError) return c.json({ error: glbError }, 400)
     const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
-    const glb_key = `glb/${effectiveSlug}.${glbExt}`
+    const glb_key = newAssetKey('glb', effectiveSlug, glbExt)
     await c.env.LOOM_MODELS.put(glb_key, glbFile.stream(), {
       httpMetadata: { contentType: glbFile.type || 'model/gltf-binary' },
     })
@@ -290,7 +297,7 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
   if (thumbFile) {
     const thumbResult = validateThumbnail(thumbFile)
     if ('error' in thumbResult) return c.json({ error: thumbResult.error }, 400)
-    const thumbnail_key = `thumbnails/${effectiveSlug}.${thumbResult.ext}`
+    const thumbnail_key = newAssetKey('thumbnails', effectiveSlug, thumbResult.ext)
     await c.env.LOOM_MODELS.put(thumbnail_key, thumbFile.stream(), {
       httpMetadata: { contentType: thumbFile.type },
     })
