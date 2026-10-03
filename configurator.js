@@ -1496,14 +1496,15 @@ async function loadProductFromSlug() {
   let glbUrl = DEFAULT_MODEL_URL;
 
   if (!slug) {
-    // No slug → name the default garment instead of leaving the placeholder.
-    // Purely cosmetic: the model still comes from the bundled default, so a
-    // failed or slow catalog call costs nothing but the generic headline.
+    // No slug → take name, fabric and model from the default garment. The
+    // bundled DEFAULT_MODEL_URL stays as fallback when the catalog call fails
+    // or times out (5s), or the product has no glb_url.
     try {
       const def = await fetchDefaultProduct();
       if (def) {
         currentProduct = def;
         setFabricPreset(fabricForProduct(def));
+        if (def.glb_url) glbUrl = def.glb_url;
         applyProductToHeader(def);
       }
     } catch (e) {
@@ -1551,7 +1552,7 @@ async function loadProductFromSlug() {
  * should touch this function, the <script> tag in configurator.html, and
  * nothing else.
  *
- * Product models fetched from R2 via product.glb_url are NOT compressed.
+ * Product models fetched from R2 via product.glb_url may be uncompressed.
  * GLTFLoader only calls a registered decoder when the file actually declares
  * EXT_meshopt_compression, so registering unconditionally leaves them alone.
  */
