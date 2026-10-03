@@ -52,6 +52,37 @@ binding = "IMAGES"
 #   TELEGRAM_CHAT_ID         — admin chat ID for order notifications
 #   TELEGRAM_WEBHOOK_SECRET  — 32+ char random string, set via set-telegram-webhook.ts
 
+# ─── Staging ────────────────────────────────────────────────────────────────
+# Deploy: npx wrangler deploy --env staging   (rebuild steps: scripts/staging-setup.md)
+# DANGER: `routes` is inherited from the top level. Keep `routes = []` here or a
+# staging deploy moves api./admin.loomdesign.uz onto the staging Worker.
+# Bindings are NOT inherited: everything staging uses is declared below, and
+# only *-staging resources. No [ai] / [images]: those routes fail closed (502).
+[env.staging]
+routes = []
+workers_dev = true
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+BOT_USERNAME = ""
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "loom-db-staging"
+database_id = "9f6e4867-6655-4ce8-84cd-455d2bc20e61"
+
+[[env.staging.r2_buckets]]
+binding = "LOOM_MODELS"
+bucket_name = "loom-models-staging"
+
+[[env.staging.r2_buckets]]
+binding = "LOOM_UPLOADS"
+bucket_name = "loom-uploads-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "0f0c4d22269f4385abe8550cb49800dc"
+
 [dev]
 port = 8787
 local_protocol = "http"
