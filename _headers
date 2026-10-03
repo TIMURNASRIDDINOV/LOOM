@@ -71,6 +71,13 @@
 /sitemap.xml
   Cache-Control: public, max-age=86400
 
+# ── Internal docs: served because the repo root is the deploy root, never indexed
+/docs/*
+  X-Robots-Tag: noindex, nofollow
+
+/CLAUDE.md
+  X-Robots-Tag: noindex, nofollow
+
 # ── HTML: never cached, so ?v= bumps land immediately ────────────
 /
   Cache-Control: public, max-age=0, must-revalidate
