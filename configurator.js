@@ -3344,6 +3344,12 @@ let _flatBoxes = {};    // element id → drawn box, this face, this render
 let _flatGesture = null;
 let _flatPinch = null;
 const _flatPointers = new Map();
+// Fitting the whole garment leaves the print rect ~46 px wide on a phone: text
+// is unreadable and the handles overlap. While a layer is selected in step 1
+// the garment is scaled up around the rect instead (_flatZoomBox).
+const FLAT_ZOOM_MIN_W = 240; // CSS px
+let _flatZoomId = null;      // element the zoomed view last centred on; null = not zoomed
+let _flatZoomV = 0.5;        // rect y (0 top … 1 bottom) at the canvas's vertical centre
 // Keyed by SRC, not by face: front and back share one file (the back is derived
 // from it), so this keeps it to a single fetch and a single decode.
 const _flatImgCache = {};
@@ -3385,6 +3391,41 @@ function _flatGarmentBox(face, W, H) {
   return { x: (W - w) / 2, y: (H - h) / 2, w, h, usingArt };
 }
 
+/**
+ * Scale and shift the garment box so the print rect is big enough to edit:
+ * as large as fits with room for the label and handles, and at least
+ * FLAT_ZOOM_MIN_W wide where the canvas allows. On a phone that rect is taller
+ * than the canvas, so the view shows the band around the selected element.
+ */
+function _flatZoomBox(face, box, el, W, H) {
+  const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
+  const pr = printRect(face);
+  // Same aspect renderFlatEditor forces on the rect.
+  const aspect = pr && pr.w && pr.h ? pr.w / pr.h : (pf.w * box.w) / (pf.h * box.h);
+  // Corner handles at the sides; the label and the rotate handle above.
+  const mx = 24, mTop = FLAT_ROTATE_OFFSET + 14, mBot = 24;
+  const rw = Math.min(W - 2 * mx, Math.max(FLAT_ZOOM_MIN_W, (H - mTop - mBot) * aspect));
+  const rh = rw / aspect;
+  let ry;
+  if (rh + mTop + mBot <= H) {
+    ry = (H - rh + mTop - mBot) / 2;
+  } else {
+    // Centre on a newly selected element; afterwards follow it only once its
+    // centre has left the view. Never mid-gesture: move deltas are measured
+    // against the rect, so shifting it would make the element run away.
+    if (el.id !== _flatZoomId) _flatZoomV = el.ny;
+    else if (!_flatGesture && !_flatPinch && Math.abs(el.ny - _flatZoomV) * rh > H / 2) _flatZoomV = el.ny;
+    // Never past the rect's top (label, rotate handle) or bottom edge.
+    ry = Math.min(mTop, Math.max(H - mBot - rh, H / 2 - _flatZoomV * rh));
+  }
+  _flatZoomV = (H / 2 - ry) / rh;
+  _flatZoomId = el.id;
+  const s = rw / (pf.w * box.w);
+  box.w *= s; box.h *= s;
+  box.x = (W - rw) / 2 - pf.x * box.w;
+  box.y = ry - pf.y * box.h;
+}
+
 // Tinting a 1200px image every pointermove is far too slow, so the coloured
 // garment is composited once into an offscreen canvas and reused until the
 // face, size or colour actually changes.
@@ -3396,7 +3437,9 @@ function _flatGarmentLayer(face, box, color) {
   if (_flatTint.key === key && _flatTint.cv) return _flatTint.cv;
 
   const cv = document.createElement("canvas");
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  // Capped at 2048 px: a zoomed box runs to thousands of px, and past that the
+  // store only costs memory and fill time (the art itself is 1200 px).
+  const dpr = Math.min(window.devicePixelRatio || 1, 2, 2048 / Math.max(w, h));
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
   const c = cv.getContext("2d");
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -3493,16 +3536,25 @@ function renderFlatEditor() {
   _flatArtImg(face); // kicks off the load on first use; repaints on arrival
 
   const box = _flatGarmentBox(face, W, H);
+  // Zoom only while a layer is being edited: steps 2 and 3 show the whole
+  // shirt, because picking a colour needs it.
+  const zoomEl = currentStep === "design" ? selectedElement(face) : null;
+  if (zoomEl) _flatZoomBox(face, box, zoomEl, W, H);
+  else _flatZoomId = null;
   _flatBox = box;
 
   // Ground the garment the same way the 3D does. Without a shadow a white
   // shirt on the light studio sweep is a white shape on a near-white field —
-  // it reads as a gap in the page rather than as a product.
+  // it reads as a gap in the page rather than as a product. Not when zoomed:
+  // the garment fills the view, and blurring a box that size is slow on a
+  // mid-range phone.
   ctx.save();
-  ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
-  ctx.shadowBlur = Math.max(18, box.w * 0.09);
-  ctx.shadowOffsetX = Math.max(6, box.w * 0.022);
-  ctx.shadowOffsetY = Math.max(8, box.w * 0.030);
+  if (!zoomEl) {
+    ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
+    ctx.shadowBlur = Math.max(18, box.w * 0.09);
+    ctx.shadowOffsetX = Math.max(6, box.w * 0.022);
+    ctx.shadowOffsetY = Math.max(8, box.w * 0.030);
+  }
   ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
   ctx.restore();
 
@@ -3696,11 +3748,15 @@ function _flatOnPointerDown(e) {
     const other = _flatElementAt(p.x, p.y);
     if (other) { selectElement(other, { redraw: false }); renderFlatEditor(); hit = { type: "move" }; }
   }
-  if (!hit) {
+  if (!hit && !_flatActiveId()) {
     // Empty garment → drop the selection, the way every canvas editor does.
-    if (_flatActiveId()) { selectElement(null); renderFlatEditor(); }
+    // Any selection, drawn or not: an emptied text layer still holds the zoom.
+    if (selectedElement()) { selectElement(null); renderFlatEditor(); }
     return;
   }
+  // Off the element this may be the first finger of a pinch, so the deselect
+  // waits for pointerup (_flatOnPointerUp).
+  if (!hit) hit = { type: "pending" };
 
   e.preventDefault();
   _flatPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -3711,7 +3767,9 @@ function _flatOnPointerDown(e) {
   const b = _flatBoxes[el.id];
   const center = b ? { x: b.cx, y: b.cy } : p;
 
-  if (hit.type === "move") {
+  if (hit.type === "pending") {
+    _flatGesture = hit;
+  } else if (hit.type === "move") {
     _flatGesture = { type: "move", lastX: p.x, lastY: p.y };
   } else if (hit.type === "scale") {
     const d0 = Math.hypot(p.x - center.x, p.y - center.y);
@@ -3727,6 +3785,7 @@ function _flatOnPointerMove(e) {
   if (_flatPointers.has(e.pointerId)) _flatPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (_flatPinch) { _flatUpdatePinch(); e.preventDefault(); return; }
   if (!_flatGesture) { _flatHoverCursor(e); return; }
+  if (_flatGesture.type === "pending") return;
 
   const el = _flatActiveEl();
   if (!el || !_flatRect) return;
@@ -3780,6 +3839,9 @@ function _flatOnPointerUp(e) {
   _flatPointers.delete(e.pointerId);
   if (_flatPinch && _flatPointers.size < 2) _flatPinch = null;
   if (_flatPointers.size === 0) {
+    // No second finger came, so it was a tap on the empty garment. A cancelled
+    // touch is not a tap.
+    if (e.type === "pointerup" && _flatGesture && _flatGesture.type === "pending") selectElement(null);
     _flatGesture = null;
     renderFlatEditor();
   }
@@ -3830,7 +3892,9 @@ function _flatUpdatePinch() {
 function _flatSyncEmptyState() {
   const btn = document.getElementById("flat-empty");
   if (!btn || !_flatRect) return;
-  const empty = !_viewHasContent(designState.activeView);
+  // Not while zoomed: a layer (an emptied text) is being edited, and the
+  // prompt would cover the whole view.
+  const empty = !_flatZoomId && !_viewHasContent(designState.activeView);
   btn.style.display = empty ? "flex" : "none";
   if (!empty) return;
   // This is the beginner's first action, so it has to be readable ON the
@@ -3880,6 +3944,10 @@ function bindFlatEditor() {
   window.addEventListener("pointermove", _flatOnPointerMove);
   window.addEventListener("pointerup", _flatOnPointerUp);
   window.addEventListener("pointercancel", _flatOnPointerUp);
+  // touch-action:none keeps the pinch away from the page everywhere but iOS
+  // Safari, which still zooms the page unless its gesture events are cancelled.
+  const ed = cv.closest(".flat-editor") || cv;
+  ["gesturestart", "gesturechange"].forEach((t) => ed.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
 
   const empty = document.getElementById("flat-empty");
   if (empty) empty.addEventListener("click", _flatOpenAddSheet);
@@ -3938,6 +4006,9 @@ function _isSheetLayout() {
 function setStep(step) {
   if (SHEET_STEPS.indexOf(step) < 0) step = "design";
   currentStep = step;
+  // The 2D zoom belongs to step 1. Repaint now, before the order summary
+  // snapshots the flat canvas.
+  renderFlatEditor();
 
   const sheet = document.getElementById("studio-sheet");
   if (sheet) sheet.dataset.step = step;
