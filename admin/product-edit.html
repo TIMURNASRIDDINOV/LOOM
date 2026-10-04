@@ -186,6 +186,7 @@
       <div class="card">
         <div class="card-head"><div><h3 class="card-title">Конфигуратор</h3><p class="card-sub">Размеры, цвета ткани, область печати и картинки плоского вида для этого товара.</p></div></div>
         <p id="cfg-new-note" class="notice" style="display:none;margin:0 0 var(--sp-3)">Новый товар получит стандартные настройки футболки. Изменить их можно после сохранения.</p>
+        <p id="cfg-old-api-note" class="notice notice--warning" style="display:none;margin:0 0 var(--sp-3)">Сервер ещё не обновлён: настройки конфигуратора и описания UZ/EN появятся после обновления API. Остальные поля сохраняются как обычно.</p>
         <fieldset id="cfg-fields" style="border:0;padding:0;margin:0;min-width:0">
 
         <div class="field">
@@ -201,25 +202,30 @@
           <p class="field-hint">HEX в формате #RRGGBB, название на трёх языках. Снятая галочка скрывает цвет, не удаляя его.</p>
         </div>
 
-        <div class="form-row">
+        <div class="form-row form-row--3">
           <div class="field">
             <label class="field-label" for="f-platen-w">Платен, ширина (см) <span class="req">*</span></label>
-            <input id="f-platen-w" class="form-input" type="number" min="1" max="100" step="0.1" />
+            <input id="f-platen-w" class="form-input" type="number" min="1" max="100" step="any" />
           </div>
           <div class="field">
             <label class="field-label" for="f-platen-h">Платен, высота (см) <span class="req">*</span></label>
-            <input id="f-platen-h" class="form-input" type="number" min="1" max="100" step="0.1" />
+            <input id="f-platen-h" class="form-input" type="number" min="1" max="100" step="any" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-panel-w">Ширина передней панели (см)</label>
+            <input id="f-panel-w" class="form-input" type="number" min="1" max="200" step="any" />
+            <p class="field-hint">Не сохраняется: пересчитывает долю ширины. Оверсайз-футболка ≈ 63.5 см.</p>
           </div>
         </div>
         <div class="form-row">
           <div class="field">
             <label class="field-label" for="f-width-frac">Доля ширины панели (0–1) <span class="req">*</span></label>
-            <input id="f-width-frac" class="form-input" type="number" min="0.01" max="1" step="0.01" />
+            <input id="f-width-frac" class="form-input" type="number" min="0.001" max="1" step="any" />
             <p class="field-hint">Ширина платена ÷ ширина передней панели. 30 см на панели 54 см ≈ 0.55.</p>
           </div>
           <div class="field">
             <label class="field-label" for="f-top-frac">Отступ сверху (0–1) <span class="req">*</span></label>
-            <input id="f-top-frac" class="form-input" type="number" min="0" max="1" step="0.01" />
+            <input id="f-top-frac" class="form-input" type="number" min="0" max="1" step="any" />
             <p class="field-hint">Доля ширины платена от горловины. 0.20 × 30 см = 6 см.</p>
           </div>
         </div>

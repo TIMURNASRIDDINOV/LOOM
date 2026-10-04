@@ -14,6 +14,10 @@ const { API_BASE, apiJSON } = window.LOOM
 let editId = null
 let baseColors = []
 let canEdit = true
+// Set false when a loaded product has no config columns (API before migration
+// 0022): the card stays locked and nothing config-related is sent, so saves
+// still work against the old API.
+let hasConfig = true
 
 // ── Colors UI ─────────────────────────────────────────────────────────────────
 
@@ -89,6 +93,7 @@ function addConfigColorRow(c = { hex: '#FFFFFF', name_uz: '', name_ru: '', name_
 document.getElementById('btn-add-cfg-color').addEventListener('click', () => addConfigColorRow())
 
 function fillConfig(p) {
+  hasConfig = typeof p.sizes_json === 'string'
   const parse = (s, fallback) => { try { return JSON.parse(s) ?? fallback } catch { return fallback } }
   document.getElementById('f-sizes').value = parse(p.sizes_json, []).join(', ')
   document.getElementById('cfg-colors').replaceChildren()
@@ -98,6 +103,7 @@ function fillConfig(p) {
   document.getElementById('f-platen-h').value = pa.platen_cm?.h ?? ''
   document.getElementById('f-width-frac').value = pa.width_frac ?? ''
   document.getElementById('f-top-frac').value = pa.top_frac ?? ''
+  document.getElementById('f-panel-w').value = pa.platen_cm?.w && pa.width_frac ? +(pa.platen_cm.w / pa.width_frac).toFixed(1) : ''
   const art = parse(p.flat_art_json, {})
   document.getElementById('f-art-front').value = art.front?.src || ''
   document.getElementById('f-art-front-small').value = art.front?.src_small || ''
@@ -151,10 +157,22 @@ function collectConfig() {
   }
 }
 
+// Panel-width helper: width_frac = platen width / front panel width.
+function syncWidthFrac() {
+  const w = Number(document.getElementById('f-platen-w').value)
+  const panel = Number(document.getElementById('f-panel-w').value)
+  if (w > 0 && panel > 0) document.getElementById('f-width-frac').value = +(w / panel).toFixed(3)
+}
+document.getElementById('f-panel-w').addEventListener('input', syncWidthFrac)
+document.getElementById('f-platen-w').addEventListener('input', syncWidthFrac)
+
 // New products take the DB defaults (today's T-shirt config); edit after saving.
 function syncConfigMode() {
+  const oldApi = !!editId && !hasConfig
   document.getElementById('cfg-new-note').style.display = editId ? 'none' : ''
-  document.getElementById('cfg-fields').disabled = !editId || !canEdit
+  document.getElementById('cfg-old-api-note').style.display = oldApi ? '' : 'none'
+  document.getElementById('cfg-fields').disabled = !editId || !canEdit || oldApi
+  for (const id of ['f-desc-uz', 'f-desc-en']) document.getElementById(id).disabled = !canEdit || oldApi
 }
 
 // ── Thumbnail preview ─────────────────────────────────────────────────────────
@@ -305,9 +323,11 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
   fd.append('active', document.getElementById('f-active').checked ? '1' : '0')
   fd.append('product_type', document.getElementById('f-type').value)
   fd.append('base_colors', JSON.stringify(baseColors))
-  fd.append('description_uz', document.getElementById('f-desc-uz').value.trim())
-  fd.append('description_en', document.getElementById('f-desc-en').value.trim())
-  if (editId) {
+  if (!editId || hasConfig) {
+    fd.append('description_uz', document.getElementById('f-desc-uz').value.trim())
+    fd.append('description_en', document.getElementById('f-desc-en').value.trim())
+  }
+  if (editId && hasConfig) {
     try {
       for (const [k, v] of Object.entries(collectConfig())) fd.append(k, v)
     } catch (err) {
@@ -393,6 +413,7 @@ window.LOOM_LAYOUT.onReady(async (me, caps) => {
   if (editId) {
     try {
       await loadProduct(editId)
+      syncConfigMode()
     } catch (e) {
       window.LOOM_UI.toast('Не удалось загрузить товар: ' + e.message, 'error')
     }

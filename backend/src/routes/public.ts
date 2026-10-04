@@ -16,11 +16,33 @@ function buildFileUrl(requestUrl: string, key: string): string {
   return `${protocol}//${host}/api/files/models/${key}`
 }
 
+/**
+ * Configurator config (LOOM-165, migration 0022) as one parsed object:
+ *   { sizes: string[],
+ *     colors: {hex, name_uz, name_ru, name_en, available}[],
+ *     print_area: {platen_cm: {w, h}, width_frac, top_frac},
+ *     flat_art: {front: {src, src_small}, back: {src, src_small}} }
+ * null when the row has no config (DB before 0022) or a column is not valid
+ * JSON; clients then keep their built-in defaults.
+ */
+function productConfig(p: Record<string, unknown>) {
+  try {
+    const [sizes, colors, print_area, flat_art] =
+      ['sizes_json', 'colors_json', 'print_area_json', 'flat_art_json'].map((k) => JSON.parse(p[k] as string))
+    return sizes && colors && print_area && flat_art ? { sizes, colors, print_area, flat_art } : null
+  } catch {
+    return null
+  }
+}
+
 function withUrls(requestUrl: string, p: Record<string, unknown>) {
+  // The raw *_json columns are served only as the parsed `config`.
+  const { sizes_json, colors_json, print_area_json, flat_art_json, ...rest } = p
   return {
-    ...p,
+    ...rest,
     glb_url: p.glb_key ? buildFileUrl(requestUrl, p.glb_key as string) : null,
     thumbnail_url: p.thumbnail_key ? buildFileUrl(requestUrl, p.thumbnail_key as string) : null,
+    config: productConfig(p),
   }
 }
 

@@ -8,6 +8,8 @@
 # any other personal data.
 #
 # Run from backend/:  bash scripts/staging-copy-catalogue.sh
+# Needs migration 0022 (LOOM-165) on both prod and staging: it copies the
+# per-product config columns.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
