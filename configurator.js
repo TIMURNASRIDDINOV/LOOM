@@ -2079,6 +2079,7 @@ function _syncSlider(id, dispId, val, suffix) {
 function _syncSelNum(el) {
   const n = document.getElementById("dock-sel-num");
   if (n && el) n.value = el.type === "text" ? el.size : el.scalePct;
+  checkPrintDpi(el); // every scale gesture (drag handle, pinch, flat editor) lands here
 }
 
 // ================================================================
@@ -3124,7 +3125,7 @@ function bindLayerControls() {
     const v = parseInt(e.target.value, 10);
     if (!Number.isFinite(v)) return;
     if (el.type === "text") el.size = Math.max(24, Math.min(240, v));
-    else el.scalePct = Math.max(10, Math.min(200, v));
+    else { el.scalePct = Math.max(10, Math.min(200, v)); checkPrintDpi(el); }
     scheduleRedraw();
   });
 
@@ -5090,40 +5091,82 @@ function bindImageControls() {
   }
 }
 
+// Pinned, verbatim upstream (assets/vendor/README.md). Loaded only when the
+// browser cannot decode a HEIC photo itself (everything except Safari).
+const HEIC_DECODER = "assets/vendor/heic-to.js?v=1";
+
+// Print resolution of a raster logo: the pixels it keeps over its placed size.
+// A 100% logo's long edge is 0.30 × TEX_SIZE against REF_RECT's width, and the
+// print rect is PLATEN_CM.w wide, so the placed size is the same on any view.
+const MIN_PRINT_DPI = 150;
+function printDpi(longEdgePx, scalePct) {
+  const longCm = (scalePct / 100) * (TEX_SIZE * 0.30 / REF_RECT.w) * PLATEN_CM.w;
+  return longEdgePx / (longCm / 2.54);
+}
+
+/** Warn once each time a raster logo drops below MIN_PRINT_DPI. SVG is vector. */
+function checkPrintDpi(el) {
+  if (!el || el.type !== "image" || !el.img) return;
+  const f = uploadedFileData[el.id];
+  if (f && f.type === "image/svg+xml") return;
+  const px = Math.max(el.img.naturalWidth || 0, el.img.naturalHeight || 0);
+  const low = px > 0 && printDpi(px, el.scalePct) < MIN_PRINT_DPI;
+  if (low && !el._lowDpi) {
+    showToast(CT("cfg.uploadLowDpi", "Низкое разрешение: при таком размере печать может быть размытой. Уменьшите изображение или загрузите файл побольше."), "warning");
+  }
+  el._lowDpi = low;
+}
+
 function handleImageFile(file, meta) {
-  if (!file.type.startsWith("image/")) {
-    showToast(
-      "Пожалуйста, загрузите файл изображения (PNG, JPG, SVG)",
-      "error",
-    );
+  // Phones often hand over HEIC with an empty or generic type, so the
+  // extension counts too.
+  const heic = /^image\/hei[cf]$/.test(file.type) || /\.hei[cf]$/i.test(file.name || "");
+  if (!file.type.startsWith("image/") && !heic) {
+    showToast(CT("cfg.uploadErrType", "Пожалуйста, загрузите файл изображения (PNG, JPG, WebP, HEIC, SVG)"), "error");
     return;
   }
 
   if (file.size > 15 * 1024 * 1024) {
-    showToast("Файл слишком большой (макс. 15 МБ)", "error");
+    showToast(CT("cfg.uploadErrSize", "Файл слишком большой (макс. 15 МБ)"), "error");
     return;
   }
 
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
+    img.onerror = () => {
+      const failed = () => showToast(CT("cfg.uploadErrRead", "Не удалось открыть изображение. Попробуйте файл JPG или PNG."), "error");
+      if (!heic) return failed();
+      // Convert to JPEG and start over; the result is no longer HEIC, so this
+      // cannot loop.
+      _loadChunk(HEIC_DECODER)
+        .then(() => window.HeicTo({ blob: file, type: "image/jpeg", quality: 0.92 }))
+        .then((blob) => handleImageFile(
+          new File([blob], (file.name || "photo").replace(/\.hei[cf]$/i, "") + ".jpg", { type: "image/jpeg" }),
+          meta,
+        ))
+        .catch(failed);
+    };
     img.onload = () => {
-      // Downscale phone-camera photos: the texture canvas is 2048px, so
-      // anything larger only makes every redraw (and the order upload)
-      // pay for pixels that can never be seen
+      // Re-encode through a canvas when the image is larger than the 2048px
+      // texture (phone photos: those pixels can never be seen, yet every redraw
+      // and the order upload would pay for them) or is a format the upload
+      // endpoint does not store (only PNG and JPEG; WebP, HEIC, GIF are not).
       let finalImg = img;
       let finalData = e.target.result;
       const maxDim = Math.max(img.naturalWidth || 0, img.naturalHeight || 0);
-      if (maxDim > TEX_SIZE && file.type !== "image/svg+xml") {
-        const k = TEX_SIZE / maxDim;
+      const stored = file.type === "image/png" || file.type === "image/jpeg";
+      if (file.type !== "image/svg+xml" && (maxDim > TEX_SIZE || !stored)) {
+        const k = Math.min(1, TEX_SIZE / maxDim);
         const c = document.createElement("canvas");
         c.width = Math.round(img.naturalWidth * k);
         c.height = Math.round(img.naturalHeight * k);
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        finalData = c.toDataURL(file.type === "image/jpeg" ? "image/jpeg" : "image/png", 0.92);
+        finalData = c.toDataURL(file.type === "image/jpeg" || heic ? "image/jpeg" : "image/png", 0.92);
         finalImg = new Image();
         finalImg.src = finalData;
       }
+      const finalType = finalData.slice(5, finalData.indexOf(";"));
 
       const apply = () => {
       const st = designState[designState.activeView];
@@ -5170,14 +5213,17 @@ function handleImageFile(file, meta) {
         delete el.artworkAuthor; delete el.artworkKey;
       }
 
-      // Store (possibly downscaled) file data per ELEMENT for order submission
+      // Store (possibly re-encoded) file data per ELEMENT for order submission
       uploadedFileData[el.id] = {
         base64: finalData,
-        name: file.name,
-        type: file.type,
+        name: finalType === file.type ? file.name
+          : file.name.replace(/\.[^.]*$/, "") + (finalType === "image/jpeg" ? ".jpg" : ".png"),
+        type: finalType,
         size: file.size,
       };
 
+      el._lowDpi = false; // new pixels: judge them afresh
+      checkPrintDpi(el);
       syncPanelFromState();
       redrawActive();
       updateViewToggleMarkers();
@@ -5873,7 +5919,7 @@ async function handleOrderSubmit(event) {
     // ── 1. Upload both logos to R2 (front + back, independently) ──────────
     const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
     if (_logoUploadIncomplete("front") || _logoUploadIncomplete("back")) {
-      showToast("Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.", "error");
+      showToast(CT("cfg.uploadErrLogo", "Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа."), "error");
       btn.disabled = false;
       if (txt) txt.style.display = "block";
       if (loader) loader.style.display = "none";
@@ -5960,13 +6006,15 @@ function showToast(message, type = "success") {
 
   const toast = document.createElement("div");
   toast.id = "loom-toast";
-  const bg = type === "success" ? "var(--ok)" : "var(--danger)";
+  const bg = type === "success" ? "var(--ok)" : type === "warning" ? "var(--warn)" : "var(--danger)";
+  // --warn is dark amber in light mode and yellow in dark mode: --paper-3 reads on both.
+  const fg = type === "warning" ? "var(--paper-3)" : "var(--on-accent)";
 
   toast.style.cssText = `
     position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
     transform:translateX(-50%) translateY(20px);
     width:max-content; max-width:calc(100vw - 32px); text-align:center;
-    background:${bg}; color:var(--on-accent); padding:14px 24px; border-radius:12px;
+    background:${bg}; color:${fg}; padding:14px 24px; border-radius:12px;
     font-family:var(--font-body); font-size:.95rem; font-weight:500;
     box-shadow:var(--menu-shadow); display:flex; align-items:center; gap:10px;
     z-index:10001; opacity:0; transition:opacity .3s ease,transform .3s ease;

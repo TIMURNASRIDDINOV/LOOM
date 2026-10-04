@@ -25,6 +25,7 @@ is invisible to returning visitors for up to twelve months.
 | `RoomEnvironment.js` | three | 0.128.0 | `…/three@0.128.0/examples/js/environments/RoomEnvironment.js` | `configurator.js` |
 | `GLTFExporter.js` | three | 0.128.0 | `…/three@0.128.0/examples/js/exporters/GLTFExporter.js` | `configurator.js` |
 | `meshopt_decoder.js` | meshoptimizer | 0.25.0 | `https://cdn.jsdelivr.net/npm/meshoptimizer@0.25.0/meshopt_decoder.js` | `configurator.js` |
+| `heic-to.js` | heic-to (LGPL-3.0, libheif 1.22.2) | 1.5.2 | `https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js` | `configurator.js` (`HEIC_DECODER`) |
 
 All at `?v=1`.
 
@@ -42,10 +43,13 @@ All at `?v=1`.
 | `lenis.min.js` | 12,790 | 3,637 |
 | `RoomEnvironment.js` | 3,425 | 1,041 |
 | **Total** | **948,919** | **248,549** |
+| `heic-to.js` (on demand only) | 2,999,737 | 738,215 |
 
 Only `gsap.min.js` is on the critical path of a normal page load. The five three files
 plus the decoder are injected on demand when the 3D preview opens — see `SECTION 4B` in
-`configurator.js`. `ScrollTrigger` and `lenis` load on the three pages that scroll.
+`configurator.js`. `ScrollTrigger` and `lenis` load on the three pages that scroll. `heic-to.js` loads only
+when a customer picks a HEIC photo the browser cannot decode itself (every browser but
+Safari) — see `handleImageFile` in `configurator.js`.
 
 ## The three files
 
@@ -69,6 +73,7 @@ newer bitstream correctly, are in `assets/models/README.md`.
     RoomEnvironment.js     sha384-UpJYDNQ/8wDmBlzh4lZ9VMbunag9yRAOGFiBWYVaf6/FCnrwc9qlto25EZVLhpph
     GLTFExporter.js        sha384-rGtaymDtw9nk80MOKrYMkPbGnrELAWx6L/Lxn7kG4sc4+09Aa1xll+AwI+/ZKGSz
     meshopt_decoder.js     sha384-qtyoEcJqidpmpJZePD4g2NeV9GzkrFg09oxBPqPuxVAfoSLNPySYr8NfweaEe2n8
+    heic-to.js             sha384-cVm8gaWQ5+URpoh6ACKXpm8TuyoHkfIDDBkxvDoUdIZ18w8nV5en0lVQvWMwO/6S
 
 ## Still third-party (not vendored)
 
