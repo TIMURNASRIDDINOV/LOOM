@@ -67,6 +67,13 @@
 
     .thumb-preview { max-width: 120px; max-height: 120px; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--hairline); margin-top: var(--sp-2); display: none; }
 
+    /* Configurator colours: one row per colour */
+    .cfg-colors { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+    .cfg-color-row { display: grid; grid-template-columns: 40px 7.5rem repeat(3, minmax(0, 1fr)) auto auto; gap: var(--sp-2); align-items: center; }
+    .cfg-color-row .form-input.is-invalid { border-color: var(--danger); }
+    .cfg-avail { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); color: var(--text-secondary); white-space: nowrap; }
+    @media (max-width: 700px) { .cfg-color-row { grid-template-columns: 40px 1fr auto auto; } .cfg-color-row .cfg-name { grid-column: 1 / -1; } }
+
     .submit-row { display: flex; align-items: center; gap: var(--sp-4); margin-top: var(--sp-5); flex-wrap: wrap; }
     .form-error { color: var(--danger); font-size: var(--fs-base); }
     .form-success { color: var(--success); font-size: var(--fs-base); }
@@ -124,9 +131,19 @@
           Пустые поля не ломают витрину — покупатель увидит русское название.
         </p>
 
-        <div class="field">
-          <label class="field-label" for="f-desc">Описание</label>
-          <textarea id="f-desc" class="form-textarea" placeholder="Описание продукта…"></textarea>
+        <div class="form-row form-row--3">
+          <div class="field">
+            <label class="field-label" for="f-desc">Описание (RU)</label>
+            <textarea id="f-desc" class="form-textarea" placeholder="Описание продукта…"></textarea>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-desc-uz">Описание (UZ)</label>
+            <textarea id="f-desc-uz" class="form-textarea" maxlength="5000"></textarea>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-desc-en">Описание (EN)</label>
+            <textarea id="f-desc-en" class="form-textarea" maxlength="5000"></textarea>
+          </div>
         </div>
 
         <div class="form-row">
@@ -162,6 +179,77 @@
           <button type="button" id="btn-add-color" class="btn">+ Добавить цвет</button>
         </div>
         
+      </div>
+
+      <!-- Configurator config (LOOM-165). Stored per product; the configurator
+           starts reading it in LOOM-166. Defaults = today's hardcoded values. -->
+      <div class="card">
+        <div class="card-head"><div><h3 class="card-title">Конфигуратор</h3><p class="card-sub">Размеры, цвета ткани, область печати и картинки плоского вида для этого товара.</p></div></div>
+        <p id="cfg-new-note" class="notice" style="display:none;margin:0 0 var(--sp-3)">Новый товар получит стандартные настройки футболки. Изменить их можно после сохранения.</p>
+        <p id="cfg-old-api-note" class="notice notice--warning" style="display:none;margin:0 0 var(--sp-3)">Сервер ещё не обновлён: настройки конфигуратора и описания UZ/EN появятся после обновления API. Остальные поля сохраняются как обычно.</p>
+        <fieldset id="cfg-fields" style="border:0;padding:0;margin:0;min-width:0">
+
+        <div class="field">
+          <label class="field-label" for="f-sizes">Размеры <span class="req">*</span></label>
+          <input id="f-sizes" class="form-input" placeholder="XS, S, M, L, XL, XXL, XXXL" />
+          <p class="field-hint">Через запятую, в порядке показа. Буквы и цифры, до 8 символов.</p>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Цвета ткани <span class="req">*</span></span>
+          <div class="cfg-colors" id="cfg-colors"></div>
+          <button type="button" id="btn-add-cfg-color" class="btn">+ Добавить цвет</button>
+          <p class="field-hint">HEX в формате #RRGGBB, название на трёх языках. Снятая галочка скрывает цвет, не удаляя его.</p>
+        </div>
+
+        <div class="form-row form-row--3">
+          <div class="field">
+            <label class="field-label" for="f-platen-w">Платен, ширина (см) <span class="req">*</span></label>
+            <input id="f-platen-w" class="form-input" type="number" min="1" max="100" step="any" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-platen-h">Платен, высота (см) <span class="req">*</span></label>
+            <input id="f-platen-h" class="form-input" type="number" min="1" max="100" step="any" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-panel-w">Ширина передней панели (см)</label>
+            <input id="f-panel-w" class="form-input" type="number" min="1" max="200" step="any" />
+            <p class="field-hint">Не сохраняется: пересчитывает долю ширины. Оверсайз-футболка ≈ 63.5 см.</p>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label class="field-label" for="f-width-frac">Доля ширины панели (0–1) <span class="req">*</span></label>
+            <input id="f-width-frac" class="form-input" type="number" min="0.001" max="1" step="any" />
+            <p class="field-hint">Ширина платена ÷ ширина передней панели. 30 см на панели 54 см ≈ 0.55.</p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-top-frac">Отступ сверху (0–1) <span class="req">*</span></label>
+            <input id="f-top-frac" class="form-input" type="number" min="0" max="1" step="any" />
+            <p class="field-hint">Доля ширины платена от горловины. 0.20 × 30 см = 6 см.</p>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label class="field-label" for="f-art-front">Плоский вид: перед <span class="req">*</span></label>
+            <input id="f-art-front" class="form-input" placeholder="configuratorprodutcs/…_1200.png" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-art-front-small">Перед, малая версия <span class="req">*</span></label>
+            <input id="f-art-front-small" class="form-input" placeholder="configuratorprodutcs/…_600.png" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-art-back">Плоский вид: спина <span class="req">*</span></label>
+            <input id="f-art-back" class="form-input" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-art-back-small">Спина, малая версия <span class="req">*</span></label>
+            <input id="f-art-back-small" class="form-input" />
+          </div>
+        </div>
+        <p class="field-hint" style="margin:0">Относительные пути к файлам на сайте: буквы, цифры и . _ - /</p>
+        </fieldset>
       </div>
 
       <!-- GLB upload -->
@@ -209,6 +297,6 @@
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=30"></script>
   <script>LOOM_LAYOUT.init('products', { title: 'Товар', crumbs: [{ label: 'Товары', href: 'products.html' }] })</script>
-  <script src="assets/product-edit.js?v=31"></script>
+  <script src="assets/product-edit.js?v=32"></script>
 </body>
 </html>

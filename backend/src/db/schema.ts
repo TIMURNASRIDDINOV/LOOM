@@ -20,6 +20,9 @@ export interface Product {
   // name_ru, so an untranslated product still renders.
   name_uz: string | null
   description_ru: string | null
+  // Added in migration 0022 (LOOM-165). Nullable, fall back to description_ru.
+  description_uz: string | null
+  description_en: string | null
   price: number
   glb_key: string | null
   thumbnail_key: string | null
@@ -29,6 +32,12 @@ export interface Product {
   display_order: number
   created_at: number
   updated_at: number
+  // Added in migration 0022 (LOOM-165): configurator config as JSON text.
+  // Shapes are validated in routes/admin-products.ts (parseProductConfig).
+  sizes_json: string | null       // ["XS","S","M"]
+  colors_json: string | null      // [{hex,name_uz,name_ru,name_en,available}]
+  print_area_json: string | null  // {platen_cm:{w,h},width_frac,top_frac}
+  flat_art_json: string | null    // {front:{src,src_small},back:{src,src_small}}
 }
 
 export interface User {

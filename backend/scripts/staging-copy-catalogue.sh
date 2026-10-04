@@ -8,12 +8,14 @@
 # any other personal data.
 #
 # Run from backend/:  bash scripts/staging-copy-catalogue.sh
+# Needs migration 0022 (LOOM-165) on both prod and staging: it copies the
+# per-product config columns.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-COLS="id, slug, name_ru, name_en, name_uz, description_ru, price, glb_key, thumbnail_key, base_colors, active, display_order, product_type, created_at, updated_at"
+COLS="id, slug, name_ru, name_en, name_uz, description_ru, description_uz, description_en, price, glb_key, thumbnail_key, base_colors, active, display_order, product_type, sizes_json, colors_json, print_area_json, flat_art_json, created_at, updated_at"
 
 # 1. Read prod catalogue (read-only).
 npx wrangler d1 execute loom-db --remote --json \
