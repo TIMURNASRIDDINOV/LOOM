@@ -212,6 +212,11 @@
     'cfg.toastAddError':   { uz: 'Qo‘shishda xatolik', ru: 'Ошибка добавления', en: 'Could not add item' },
     'cfg.toastCartUpdated':{ uz: 'Savat yangilandi', ru: 'Корзина обновлена', en: 'Cart updated' },
     'cfg.editingFromCart': { uz: 'Savatdagi mahsulot tahrirlanmoqda — qo‘shilganda saqlanadi', ru: 'Редактируем товар из корзины — сохранится при добавлении', en: 'Editing a bag item — re-add to save changes' },
+    'cfg.uploadErrType':   { uz: 'Iltimos, rasm faylini yuklang (PNG, JPG, WebP, HEIC, SVG)', ru: 'Пожалуйста, загрузите файл изображения (PNG, JPG, WebP, HEIC, SVG)', en: 'Please upload an image file (PNG, JPG, WebP, HEIC, SVG)' },
+    'cfg.uploadErrSize':   { uz: 'Fayl juda katta (maks. 15 MB)', ru: 'Файл слишком большой (макс. 15 МБ)', en: 'File is too large (max 15 MB)' },
+    'cfg.uploadErrRead':   { uz: 'Rasmni ochib bo‘lmadi. JPG yoki PNG faylni sinab ko‘ring.', ru: 'Не удалось открыть изображение. Попробуйте файл JPG или PNG.', en: 'Could not open this image. Try a JPG or PNG file.' },
+    'cfg.uploadErrLogo':   { uz: 'Logotipni yuklashda xatolik. Buyurtma berishdan oldin qayta urinib ko‘ring.', ru: 'Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.', en: 'Could not upload your logo. Please try again before placing the order.' },
+    'cfg.uploadLowDpi':    { uz: 'Past sifat: bu o‘lchamda rasm xira chiqishi mumkin. Uni kichraytiring yoki kattaroq fayl yuklang.', ru: 'Низкое разрешение: при таком размере печать может быть размытой. Уменьшите изображение или загрузите файл побольше.', en: 'Low resolution: this image may print blurry at this size. Make it smaller or upload a larger file.' },
 
     // ===== Bag (shared cart drawer) =====
     'cart.edit':    { uz: 'O‘zgartirish', ru: 'Изменить',  en: 'Edit' },
