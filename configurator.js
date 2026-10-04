@@ -565,6 +565,8 @@ function ensurePreview3D() {
       return (_productReady || Promise.resolve()).catch(() => {});
     })
     .then(() => loadShirtModel(_pendingGlbUrl || DEFAULT_MODEL_URL))
+    // Model or placeholder: open on the side picked in 2D before the 3D existed.
+    .then(() => setCameraView(designState.activeView))
     .catch((err) => {
       _preview3D = null;
       showPreviewError(err);
@@ -1969,6 +1971,8 @@ function animate() {
 
 /** Instantly snap camera to front or back position (no lerp). */
 function setCameraView(view) {
+  // No camera until the 3D preview boots; ensurePreview3D() opens on designState.activeView then.
+  if (!camera || !controls) return;
   const pos = CAM_VIEWS[view];
   const target = INITIAL_VIEW.target || new THREE.Vector3(0, 0, 0);
   camera.position.set(pos.x, pos.y, pos.z);
