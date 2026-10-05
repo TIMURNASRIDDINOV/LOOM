@@ -52,7 +52,7 @@
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=2"></script>
-    <script defer src="configurator.js?v=57"></script>
+    <script defer src="configurator.js?v=58"></script>
 
     <style>
       /* ============================================================
@@ -168,22 +168,38 @@
       .view-btn.active { background: var(--text); color: var(--paper); }
       .view-btn:hover:not(.active) { color: var(--text); background: var(--hover-wash); }
 
-      /* Loading overlay */
+      /* Loading overlay. Below the chips (z 30) and click-through, so the
+         2D/3D switch and the chips stay usable while the 3D loads; only the
+         retry button takes clicks. */
       .loading-overlay {
-        position: absolute; inset: var(--nav-h) 0 0 0; z-index: 40;
+        position: absolute; inset: var(--nav-h) 0 0 0; z-index: 20; pointer-events: none;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
         background: radial-gradient(140% 110% at 50% 32%, var(--studio-0) 0%, var(--studio-1) 70%);
         transition: opacity 0.5s ease;
       }
       .loading-overlay.hidden { opacity: 0; pointer-events: none; }
-      .loading-spinner-ring {
-        width: 40px; height: 40px; border-radius: 50%;
-        border: 2px solid var(--line); border-top-color: var(--brand);
-        animation: spin 0.8s linear infinite;
-      }
       @keyframes spin { to { transform: rotate(360deg); } }
-      .loading-text { font-size: 0.85rem; color: var(--muted); }
-      #loading-pct { color: var(--brand); font-family: var(--mono); }
+      /* Loader: LOOM/ wordmark (as .nav-brand) over a 180x3 bar. The bar
+         slides while the 3D scripts load (no size known), then fills from the
+         model download's real progress. Text and bar in --text: the accent
+         is under 3:1 on the light stage. Shared by phone and desktop. */
+      .loading-mark {
+        font-family: var(--font-display, sans-serif); font-size: 1.05rem;
+        font-weight: 800; letter-spacing: 0.14em; color: var(--text);
+      }
+      .loading-bar { position: relative; width: 180px; height: 3px; overflow: hidden; background: var(--line); }
+      .loading-bar-fill {
+        position: absolute; top: 0; bottom: 0; left: 0; width: 100%;
+        background: var(--text); transform: scaleX(0); transform-origin: left;
+        transition: transform 0.2s linear;
+      }
+      .loading-bar.is-indeterminate .loading-bar-fill { width: 40%; animation: loading-slide 1.2s ease-in-out infinite; }
+      @keyframes loading-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+      @media (prefers-reduced-motion: reduce) {
+        .loading-bar.is-indeterminate .loading-bar-fill { animation: none; transform: translateX(75%); }
+      }
+      .loading-text { font-size: 0.85rem; color: var(--text); }
+      #loading-pct { color: var(--text); font-family: var(--mono); }
       /* Busy and error are mutually exclusive: the overlay must always land on
          one of them, never on a spinner that spins forever. */
       .loading-busy  { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
@@ -191,7 +207,7 @@
       .loading-overlay.is-error .loading-busy  { display: none; }
       .loading-overlay.is-error .loading-error { display: flex; }
       .btn-retry {
-        font: inherit; font-size: 0.8rem; cursor: pointer;
+        pointer-events: auto; font: inherit; font-size: 0.8rem; cursor: pointer;
         padding: 0.5rem 1.1rem; border: 1px solid var(--line);
         background: var(--text); color: var(--paper);
       }
@@ -1764,6 +1780,10 @@
           font-size: clamp(1.17rem, calc(var(--panel-w) / 18.75), 1.28rem);
           padding-left: 1.1rem; padding-right: 1.1rem;
         }
+        /* Save before the 3D has loaded: dimmed and still, no hover lift. */
+        .chip-save[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+        .chip-save[aria-disabled="true"]:hover,
+        .chip-save[aria-disabled="true"]:active { transform: none; box-shadow: var(--hard-sm); }
       }
       /* Narrow desktop: three bottom chips share less than ~600px, and the
          Uzbek "Reset view" label ran into Front/Back. The two utility chips go
@@ -1785,7 +1805,8 @@
            nothing to wait for until then. -->
       <div id="loading-overlay" class="loading-overlay" style="display:none">
         <div class="loading-busy">
-          <div class="loading-spinner-ring"></div>
+          <p class="loading-mark" aria-hidden="true">LOOM/</p>
+          <div id="loading-bar" class="loading-bar is-indeterminate" role="progressbar" aria-valuemin="0" aria-valuemax="100" data-i18n-attr="aria-label:cfg.loadingLabel" aria-label="Загрузка 3D-превью"><span class="loading-bar-fill"></span></div>
           <p class="loading-text"><span data-i18n="cfg.loading3d">Загрузка 3D модели…</span> <span id="loading-pct"></span></p>
         </div>
         <div class="loading-error">
@@ -1850,7 +1871,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 10 9 10"/></svg>
         <span data-i18n="cfg.resetView">Сброс вида</span>
       </button>
-      <button id="btn-save-design" class="stage-chip chip-save" title="Сохранить дизайн как PNG" data-i18n-attr="aria-label:cfg.save;title:cfg.savePng" aria-label="Сохранить">
+      <!-- aria-disabled (not disabled) until the 3D has loaded: the PNG is a
+           3D snapshot. It stays focusable so the hint (title) is reachable;
+           configurator.js swaps the title key back to cfg.savePng. -->
+      <button id="btn-save-design" class="stage-chip chip-save" title="Откройте 3D-превью, чтобы сохранить PNG" data-i18n-attr="aria-label:cfg.save;title:cfg.exportPngNeeds3d" aria-label="Сохранить" aria-disabled="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span data-i18n="cfg.save">Сохранить</span>
       </button>
