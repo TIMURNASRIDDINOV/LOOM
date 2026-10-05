@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 
-import { C, COLORS, RULE, SIZES, fmt, noShadow, offset } from '../theme/tokens'
+import { C, RULE, fmt, noShadow, offset } from '../theme/tokens'
 import { body, disp, label as labelType, mono } from '../theme/type'
 import { uploadFile } from '../api/client'
 import { fetchArtworks, useAsync } from '../api/catalog'
@@ -10,7 +10,8 @@ import { useStudio } from '../state/studio'
 import { useToast } from '../state/toast'
 import { Upload } from './icons'
 import { Button, Panel, T, Tap } from './ui'
-import { colorName, useT } from '../i18n'
+import { useI18n, useT } from '../i18n'
+import { swatchName, useStudioProduct } from '../lib/product-config'
 import type { StringKey } from '../i18n/strings'
 
 const TITLES: Record<string, StringKey> = {
@@ -245,23 +246,31 @@ function DesignerGrid() {
 
 function ColorTool() {
   const { s, setColor } = useStudio()
-  const t = useT()
+  const { t, lang } = useI18n()
+  const { flash } = useToast()
+  const { config } = useStudioProduct()
+  const chosen = config.colors.find((c) => c.hex === s.color.toUpperCase())
   return (
     <View>
       <View style={styles.colorGrid}>
-        {COLORS.map((c) => {
-          const on = s.color === c.hex
+        {config.colors.map((c) => {
+          const on = s.color.toUpperCase() === c.hex
+          const name = swatchName(c, lang, t)
           return (
             <Tap
               key={c.hex}
-              onPress={() => setColor(c.hex)}
-              style={[styles.colorSwatch, { backgroundColor: c.hex }, on && styles.swatchOn]}
+              // A colour switched off in admin stays visible, dimmed, and says why.
+              onPress={() => (c.available ? setColor(c.hex) : flash(t('st.colorUnavailable')))}
+              accessibilityLabel={c.available ? name : `${name}, ${t('st.unavailable')}`}
+              accessibilityState={{ selected: on, disabled: !c.available }}
+              style={[styles.colorSwatch, { backgroundColor: c.hex }, on && styles.swatchOn, !c.available && styles.swatchOff]}
             />
           )
         })}
       </View>
       <T style={[mono(11.5, 1.4, { ls: 0.06, color: C.i70 }), { marginTop: 12 }]}>
-        {t('tool.chosen', { color: colorName(s.color, t) })}
+        {t('tool.chosen', { color: chosen ? swatchName(chosen, lang, t) : s.color })}
+        {chosen?.available ? '' : ` · ${t('st.unavailable')}`}
       </T>
     </View>
   )
@@ -270,10 +279,12 @@ function ColorTool() {
 function SizeTool() {
   const { s, setSize } = useStudio()
   const t = useT()
+  const { config } = useStudioProduct()
+  const fit = `fit.${s.size}` as StringKey
   return (
     <View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
-        {SIZES.map((z) => {
+        {config.sizes.map((z) => {
           const on = s.size === z
           return (
             <Tap
@@ -292,7 +303,9 @@ function SizeTool() {
       </View>
       <View style={styles.fitBox}>
         <T style={[labelType(), { marginBottom: 6 }]}>{t('tool.sizeTitle', { size: s.size })}</T>
-        <T style={body(11.5, 1.6, { color: C.i70 })}>{t(`fit.${s.size}` as StringKey)}</T>
+        <T style={body(11.5, 1.6, { color: C.i70 })}>
+          {!config.sizes.includes(s.size) ? t('st.sizeUnavailable') : t(fit) === fit ? '' : t(fit)}
+        </T>
         <T style={[body(10.5, 1.5, { color: C.i38 }), { marginTop: 8 }]}>
           {t('tool.sizeHint')}
         </T>
@@ -343,6 +356,7 @@ const styles = StyleSheet.create({
   },
   swatch40: { width: 40, height: 40, borderWidth: RULE, borderColor: C.ink },
   swatchOn: { borderColor: C.coral, borderWidth: 3.5 },
+  swatchOff: { opacity: 0.3, borderStyle: 'dashed' },
   artGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   artCard: {
     width: '47.5%',

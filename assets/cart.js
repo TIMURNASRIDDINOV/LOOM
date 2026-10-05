@@ -138,7 +138,7 @@
     });
     if (!res.ok) {
       var e = await res.json().catch(function () { return {}; });
-      throw Object.assign(new Error(e.error || 'add failed'), { status: res.status });
+      throw Object.assign(new Error(e.error || 'add failed'), { status: res.status, code: e.code });
     }
     sync(await res.json());
     return state;

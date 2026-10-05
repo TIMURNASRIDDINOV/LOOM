@@ -24,6 +24,7 @@ import { useAuth } from '../../src/state/auth'
 import { useCart } from '../../src/state/cart'
 import { useToast } from '../../src/state/toast'
 import { useT, type TFn } from '../../src/i18n'
+import type { StringKey } from '../../src/i18n/strings'
 
 type Placed = { id: number; paymentUrl: string | null; method: PayMethod } | null
 type PayMethod = keyof PaymentMethods
@@ -40,6 +41,13 @@ function payLabels(t: TFn): Record<PayMethod, { title: string; sub: string }> {
   }
 }
 const PAY_ORDER: PayMethod[] = ['cod', 'payme', 'click', 'uzum']
+
+// Server refusal codes for a bag item that can no longer be sold (backend/src/lib/variant.ts).
+const UNSOLD: Record<string, StringKey> = {
+  product_unavailable: 'st.productUnavailable',
+  size_unavailable: 'st.sizeUnavailable',
+  color_unavailable: 'st.colorUnavailable',
+}
 
 export default function Checkout() {
   const router = useRouter()
@@ -149,6 +157,9 @@ export default function Checkout() {
       if (err.code === 'phone_not_verified' || err.status === 403) {
         flash(t('co.errVerify'))
         router.push('/login')
+      } else if (err.code && err.code in UNSOLD) {
+        // A bag item's product, size or colour was switched off (LOOM-166).
+        flash(t(UNSOLD[err.code]))
       } else {
         flash(err.message)
       }

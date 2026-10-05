@@ -223,6 +223,11 @@
     'cfg.settingsPanel':{ uz: 'Sozlamalar paneli', ru: 'Панель настройки', en: 'Settings panel' },
     'cfg.colorWhite':   { uz: 'Oq',       ru: 'Белый',    en: 'White' },
     'cfg.colorBlack':   { uz: 'Qora',     ru: 'Чёрный',   en: 'Black' },
+    // LOOM-166: a product, size or colour switched off in admin (also the server's refusal codes)
+    'cfg.unavailable':        { uz: 'Mavjud emas', ru: 'Недоступно', en: 'Unavailable' },
+    'cfg.productUnavailable': { uz: 'Bu mahsulot hozir mavjud emas', ru: 'Этот товар сейчас недоступен', en: 'This product is unavailable' },
+    'cfg.sizeUnavailable':    { uz: 'Bu o‘lcham mavjud emas — boshqasini tanlang', ru: 'Этот размер недоступен — выберите другой', en: 'This size is unavailable — choose another' },
+    'cfg.colorUnavailable':   { uz: 'Bu rang mavjud emas — boshqasini tanlang', ru: 'Этот цвет недоступен — выберите другой', en: 'This colour is unavailable — choose another' },
     'cfg.toastAddedCart':  { uz: 'Savatga qo‘shildi', ru: 'Добавлено в корзину', en: 'Added to cart' },
     'cfg.preparing':       { uz: 'Maketlar tayyorlanmoqda…', ru: 'Готовим макеты…', en: 'Preparing proofs…' },
     'cfg.toastLoginCart':  { uz: 'Savatga qo‘shish uchun tizimga kiring', ru: 'Войдите, чтобы добавить в корзину', en: 'Sign in to add to cart' },

@@ -26,8 +26,10 @@ const PLATEN_CM = { w: 30, h: 40 }; // A3 DTG platen — matches admin/assets/or
 // The panel's full atlas width spans the garment's ~54 cm front width, so the
 // 30 cm platen is ~0.55 of it. Top margin is expressed against the platen width
 // (0.20 × 30 cm = 6 cm below the neckline) so both stay in proportion.
-const PLATEN_W_FRAC = 0.55;
-const PLATEN_TOP_FRAC = 0.20;
+// These are the defaults; a product's config.print_area replaces all three
+// (applyPrintArea, LOOM-166).
+let PLATEN_W_FRAC = 0.55;
+let PLATEN_TOP_FRAC = 0.20;
 
 // Pre-mesh fallback, and the unit basis for the UI's px/% sliders: a font-size of
 // 160 means 160px in a rect this tall, scaled proportionally in any real rect.
@@ -93,11 +95,27 @@ const SHIRT_COLORS = [
 ];
 
 /** The colour a fresh design starts on, and the one Reset returns to. */
-const DEFAULT_SHIRT_COLOR = SHIRT_COLORS[0].hex;
+let DEFAULT_SHIRT_COLOR = SHIRT_COLORS[0].hex;
 
 function shirtColorDef(hex) {
   const h = String(hex || "").toUpperCase();
   return SHIRT_COLORS.find((c) => c.hex.toUpperCase() === h) || null;
+}
+
+/** A colour's name in the visitor's language. Config colours carry their own. */
+function colorLabel(def) {
+  if (def.names) {
+    let lang = "ru";
+    try { if (window.LOOM_I18N) lang = window.LOOM_I18N.getLang(); } catch (e) {}
+    return def.names[lang] || def.names.ru || def.hex;
+  }
+  return def.i18n ? CT(def.i18n, def.name) : def.name;
+}
+
+/** True when the colour is on the product's list and switched on. */
+function colorAvailable(hex) {
+  const def = shirtColorDef(hex);
+  return !!def && def.available !== false;
 }
 
 // Font options (system + Google)
@@ -352,18 +370,23 @@ async function prepareCartEdit() {
     if (!res.ok) return null;
     const item = await res.json();
     window.__loomEditingCartItem = item.id;
-    // resolve slug so loadProductFromSlug pulls the right GLB + price
+    // Resolve the slug so loadProductFromSlug opens the SAME product (GLB,
+    // price, config). The API sends it with the item, even for a disabled
+    // product; an older API only has the active list, which is an object.
     if (item.product_id && !qs.get("slug")) {
       try {
-        const pr = await fetch(getApiBase() + "/api/products");
-        if (pr.ok) {
-          const products = await pr.json();
-          const p = (products || []).find((x) => x.id === item.product_id);
-          if (p && p.slug) {
-            const url = new URL(location.href);
-            url.searchParams.set("slug", p.slug);
-            history.replaceState(null, "", url.toString());
-          }
+        let slug = item.product_slug;
+        if (!slug) {
+          const pr = await fetch(getApiBase() + "/api/products");
+          const list = pr.ok ? await pr.json() : null;
+          const items = Array.isArray(list) ? list : (list && list.products) || [];
+          const p = items.find((x) => x.id === item.product_id);
+          slug = p && p.slug;
+        }
+        if (slug) {
+          const url = new URL(location.href);
+          url.searchParams.set("slug", slug);
+          history.replaceState(null, "", url.toString());
         }
       } catch (e) { /* default model is an acceptable fallback */ }
     }
@@ -1539,6 +1562,7 @@ async function loadProductFromSlug() {
       const def = await fetchDefaultProduct();
       if (def) {
         currentProduct = def;
+        applyProductConfig(def);
         setFabricPreset(fabricForProduct(def));
         if (def.glb_url) glbUrl = def.glb_url;
         applyProductToHeader(def);
@@ -1563,9 +1587,12 @@ async function loadProductFromSlug() {
           return;
         }
         currentProduct = product;
+        applyProductConfig(product);
         setFabricPreset(fabricForProduct(product));
         if (product.glb_url) glbUrl = product.glb_url;
         applyProductToHeader(product);
+      } else if (res.status === 404) {
+        showProductUnavailable(); // disabled or removed: never sold as the default garment
       }
     } catch (e) {
       console.warn("Product fetch failed, using default model:", e);
@@ -1577,6 +1604,106 @@ async function loadProductFromSlug() {
   // opening the preview early cannot race us into loading the wrong model and
   // then a second one on top of it.
   _pendingGlbUrl = glbUrl;
+}
+
+// ── Product config (LOOM-166) ─────────────────────────────────────
+// Swatches, sizes and the print area come from the product's `config`
+// (GET /api/products[/<slug>], LOOM-165). A null config (an API before
+// migration 0022) keeps the built-in lists. Names are data: text only.
+let productUnavailable = false;
+
+// Server refusal codes (backend/src/lib/variant.ts) and the same checks here.
+const UNSOLD = {
+  product_unavailable: ["cfg.productUnavailable", "Этот товар сейчас недоступен"],
+  size_unavailable: ["cfg.sizeUnavailable", "Этот размер недоступен — выберите другой"],
+  color_unavailable: ["cfg.colorUnavailable", "Этот цвет недоступен — выберите другой"],
+};
+function unsoldText(code) {
+  const k = UNSOLD[code];
+  return k ? CT(k[0], k[1]) : "";
+}
+
+/** Why the current pick cannot be bought, translated; "" when it can. */
+function unsoldReason() {
+  if (productUnavailable) return unsoldText("product_unavailable");
+  const cfg = currentProduct && currentProduct.config;
+  if (!cfg) return "";
+  if (Array.isArray(cfg.sizes) && !cfg.sizes.includes(selectedSize)) return unsoldText("size_unavailable");
+  if (!colorAvailable(designState.shirtColor)) return unsoldText("color_unavailable");
+  return "";
+}
+
+/** A disabled or unknown product: say so where its name goes. addToCart refuses. */
+function showProductUnavailable() {
+  productUnavailable = true;
+  ["panel-product-name", "sheet-product-name"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.setAttribute("data-i18n", "cfg.productUnavailable"); // i18n.apply re-translates it
+    el.textContent = unsoldText("product_unavailable");
+  });
+}
+
+function applyProductConfig(product) {
+  const cfg = product && product.config;
+  if (!cfg) return;
+  try { _applyProductConfig(cfg); }
+  catch (e) { console.warn("[LOOM] product config not applied:", e); } // never costs the product load
+}
+function _applyProductConfig(cfg) {
+  applyPrintArea(cfg.print_area);
+  if (Array.isArray(cfg.colors) && cfg.colors.length) {
+    SHIRT_COLORS.splice(0, SHIRT_COLORS.length, ...cfg.colors.map((c) => ({
+      hex: String(c.hex).toUpperCase(),
+      name: c.name_ru,
+      names: { uz: c.name_uz, ru: c.name_ru, en: c.name_en },
+      available: c.available !== false,
+    })));
+    const first = SHIRT_COLORS.find((c) => c.available);
+    if (first) DEFAULT_SHIRT_COLOR = first.hex;
+    if (!colorAvailable(designState.shirtColor)) designState.shirtColor = DEFAULT_SHIRT_COLOR;
+    buildColorSwatches();
+  }
+  if (Array.isArray(cfg.sizes) && cfg.sizes.length) buildSizeButtons(cfg.sizes);
+  paintShirtColor(designState.shirtColor); // redraws both faces on the new rect
+}
+
+// DEFAULT_PRINT_RECTS and FLAT_ART's print boxes were measured at these.
+const SEED_W_FRAC = 0.55, SEED_TOP_FRAC = 0.20;
+
+/** The product's platen on the seeded rects: same neckline and centre, its own width, drop and aspect. */
+function applyPrintArea(pa) {
+  const pc = pa && pa.platen_cm;
+  const wf = Number(pa && pa.width_frac), tf = Number(pa && pa.top_frac);
+  if (!pc || !(pc.w > 0 && pc.h > 0 && wf > 0 && wf <= 1 && tf >= 0 && tf <= 1)) return;
+  PLATEN_CM.w = Number(pc.w);
+  PLATEN_CM.h = Number(pc.h);
+  PLATEN_W_FRAC = wf;
+  PLATEN_TOP_FRAC = tf;
+  const k = wf / SEED_W_FRAC;
+  ["front", "back"].forEach((v) => {
+    const d = DEFAULT_PRINT_RECTS[v], w = d.w * k;
+    PRINT_RECTS[v] = { x: d.x + (d.w - w) / 2, y: d.y + tf * w - SEED_TOP_FRAC * d.w, w, h: w * PLATEN_CM.h / PLATEN_CM.w };
+    const art = FLAT_ART[v];
+    if (!art.seedPrint) art.seedPrint = { ...art.print };
+    const f = art.seedPrint, fw = f.w * k;
+    art.print = { x: f.x + (f.w - fw) / 2, y: f.y + (tf * fw - SEED_TOP_FRAC * f.w) * art.aspect, w: fw, h: f.h * k };
+  });
+}
+
+/** Size buttons in the product's order. A size it no longer has is unpicked. */
+function buildSizeButtons(sizes) {
+  const row = document.getElementById("size-selector");
+  if (!row) return;
+  if (selectedSize && !sizes.includes(selectedSize)) selectedSize = null;
+  row.textContent = "";
+  sizes.forEach((sz) => {
+    const b = document.createElement("button");
+    b.className = "size-btn" + (sz === selectedSize ? " active" : "");
+    b.dataset.size = sz;
+    b.textContent = sz;
+    row.appendChild(b);
+  });
 }
 
 /**
@@ -3041,6 +3168,7 @@ function bindLangChange() {
     // The garment's name is data with its own per-language columns, so it is
     // re-resolved here rather than by i18n.apply().
     try { if (currentProduct) applyProductToHeader(currentProduct); } catch (e) {}
+    try { buildColorSwatches(); } catch (e) {} // colour names in the new language
   });
 }
 
@@ -4696,6 +4824,8 @@ async function captureProofs() {
 async function addToCart(opts) {
   opts = opts || {}; // { openDrawer=true } — buyNow() passes false and navigates itself
   if (!sizeChosen()) return false;
+  const unsold = unsoldReason();
+  if (unsold) { showToast(unsold, "error"); return false; }
   // The login modal and the cart drawer live outside the stage and would be
   // invisible in full screen, so leave it first.
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
@@ -4740,7 +4870,10 @@ async function addToCart(opts) {
       });
     } catch (err) {
       if (err && err.status === 401) showToast(CT("cfg.toastLoginCart", "Войдите, чтобы добавить в корзину"), "error");
-      else showToast(err.message || CT("cfg.toastAddError", "Ошибка добавления"), "error");
+      else {
+        if (err && err.code === "product_unavailable") showProductUnavailable();
+        showToast(unsoldText(err && err.code) || err.message || CT("cfg.toastAddError", "Ошибка добавления"), "error");
+      }
       return false;
     }
     // Editing a bag item? The new row replaced it — drop the old one.
@@ -4785,17 +4918,27 @@ function bindCart() {
 function buildColorSwatches() {
   const container = document.getElementById("color-swatches");
   if (!container) return;
+  container.textContent = ""; // rebuilt for the product's config and on a language switch
 
-  SHIRT_COLORS.forEach(({ name, hex, i18n, light }) => {
+  SHIRT_COLORS.forEach((def) => {
+    const { hex, light } = def;
     const btn = document.createElement("button");
     btn.className =
       "swatch-btn" + (hex === designState.shirtColor ? " selected" : "");
-    btn.title = i18n ? CT(i18n, name) : name;
+    btn.title = colorLabel(def);
     btn.dataset.hex = hex;
     btn.style.background = hex;
     if (light) btn.style.border = "2px solid #D1D5DB";
 
-    btn.addEventListener("click", () => selectShirtColor(hex, btn));
+    if (def.available === false) {
+      // Switched off in admin: shown struck through, refused with a reason.
+      btn.classList.add("is-unavailable");
+      btn.setAttribute("aria-disabled", "true");
+      btn.title += " — " + CT("cfg.unavailable", "Недоступно");
+      btn.addEventListener("click", () => showToast(unsoldText("color_unavailable"), "error"));
+    } else {
+      btn.addEventListener("click", () => selectShirtColor(hex, btn));
+    }
     container.appendChild(btn);
   });
 }
@@ -4804,16 +4947,19 @@ function buildColorSwatches() {
 // Size selector
 // ----------------------------------------------------------------
 function bindSizeSelector() {
-  document.querySelectorAll(".size-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      trackStep("cfg_style");
-      selectedSize = btn.dataset.size;
-      document.querySelectorAll(".size-btn").forEach((b) => {
-        b.classList.toggle("active", b.dataset.size === selectedSize);
-      });
-      const row = document.getElementById("size-selector");
-      if (row) { row.classList.remove("need-size"); row.removeAttribute("aria-invalid"); }
+  // Delegated: buildSizeButtons() replaces the buttons with the product's sizes.
+  const row = document.getElementById("size-selector");
+  if (!row) return;
+  row.addEventListener("click", (e) => {
+    const btn = e.target.closest(".size-btn");
+    if (!btn) return;
+    trackStep("cfg_style");
+    selectedSize = btn.dataset.size;
+    document.querySelectorAll(".size-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.size === selectedSize);
     });
+    row.classList.remove("need-size");
+    row.removeAttribute("aria-invalid");
   });
 }
 
@@ -4978,6 +5124,11 @@ function bindColorControls() {
 
 function selectShirtColor(hex, clickedBtn) {
   trackStep("cfg_style");
+  paintShirtColor(hex);
+}
+
+/** Apply a garment colour everywhere it shows, without counting a funnel step. */
+function paintShirtColor(hex) {
   designState.shirtColor = hex;
 
   // Update swatch selection highlight
@@ -5409,7 +5560,7 @@ function enableSaveDesign() {
 // Map hex → display name for the order summary.
 function getColorName(hex) {
   const def = shirtColorDef(hex);
-  if (def) return def.i18n ? CT(def.i18n, def.name) : def.name;
+  if (def) return colorLabel(def);
   return COLOR_NAMES[hex] || hex; // custom picker colours keep their stored name
 }
 

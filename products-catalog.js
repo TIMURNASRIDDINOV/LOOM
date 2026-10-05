@@ -194,7 +194,12 @@
     sizeRow.className = 'quick-sizes'
     sizeRow.setAttribute('role', 'group')
     sizeRow.setAttribute('aria-label', T('cart.size', 'Размер'))
-    ;['XS', 'S', 'M', 'L', 'XL', 'XXL'].forEach(sz => {
+    // Sizes and the garment colour come from the product's config (LOOM-166).
+    const cfg = product.config
+    const sizes = cfg && Array.isArray(cfg.sizes) && cfg.sizes.length ? cfg.sizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+    const firstColor = cfg && Array.isArray(cfg.colors) && cfg.colors.find(c => c.available)
+    const plainColor = firstColor ? firstColor.hex : '#FFFFFF'
+    sizes.forEach(sz => {
       const b = document.createElement('button')
       b.className = 'quick-size-btn'
       b.type = 'button'
@@ -211,7 +216,7 @@
             designJson: JSON.stringify(
               isReady
                 ? { ready: true, size: sz }
-                : { plain: true, shirtColor: '#FFFFFF', size: sz },
+                : { plain: true, shirtColor: plainColor, size: sz },
             ),
             unitPrice: product.price,
             quantity: 1,
@@ -220,7 +225,8 @@
           sizeRow.classList.remove('open')
           bagBtn.setAttribute('aria-expanded', 'false')
         } catch (err) {
-          window.LOOM_CART.toast(err.message || T('cfg.toastAddError', 'Ошибка добавления'), 'error')
+          const unsold = { product_unavailable: 'cfg.productUnavailable', size_unavailable: 'cfg.sizeUnavailable', color_unavailable: 'cfg.colorUnavailable' }[err.code]
+          window.LOOM_CART.toast((unsold && T(unsold, err.message)) || err.message || T('cfg.toastAddError', 'Ошибка добавления'), 'error')
         } finally {
           b.disabled = false
         }

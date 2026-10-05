@@ -25,6 +25,13 @@
     return location.hostname === 'localhost' || location.hostname === '127.0.0.1'
       ? 'http://localhost:8787' : 'https://api.loomdesign.uz';
   }
+  // Server refusal codes for an item that can no longer be sold (backend/src/lib/variant.ts).
+  var UNSOLD = {
+    product_unavailable: ['cfg.productUnavailable', 'Этот товар сейчас недоступен'],
+    size_unavailable: ['cfg.sizeUnavailable', 'Этот размер недоступен — выберите другой'],
+    color_unavailable: ['cfg.colorUnavailable', 'Этот цвет недоступен — выберите другой'],
+  };
+
   function t(key, fallback) {
     try {
       var s = window.LOOM_I18N && window.LOOM_I18N.t(key);
@@ -359,6 +366,9 @@
           verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
         } else if (res.status === 401) {
           banner(t('co.sessionLost', 'Сессия истекла. Войдите заново, чтобы оформить заказ.'));
+        } else if (UNSOLD[data.code]) {
+          // A bag item's product, size or colour was switched off (LOOM-166).
+          banner(t(UNSOLD[data.code][0], UNSOLD[data.code][1]));
         } else {
           banner(data.error || t('co.errGeneric', 'Не удалось оформить заказ. Попробуйте ещё раз.'));
         }

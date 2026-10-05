@@ -7,6 +7,7 @@ import { validateUpload, generateLogoKey, serveObject } from '../lib/r2'
 import { requireAuth, authenticateUser, userTokenFrom } from '../middleware/requireAuth'
 import { clientIp, isRateLimited } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
+import { checkVariant } from '../lib/variant'
 import type { BaseEnv, UserEnv } from '../types'
 
 const pub = new Hono<BaseEnv>()
@@ -110,6 +111,8 @@ pub.post('/orders', async (c) => {
     if (!product) return c.json({ error: 'Product not found' }, 400)
     productId = product.id
   }
+  const unsold = await checkVariant(c.env.DB, productId, b.designJson)
+  if (unsold) return c.json(unsold, 409)
 
   const keyField = (v: unknown) => (typeof v === 'string' ? v : null)
   const keys = {

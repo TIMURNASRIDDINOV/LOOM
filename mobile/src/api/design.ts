@@ -55,14 +55,14 @@ function serializeFace(face: StudioState['front']): { printRect: typeof LEGACY_P
   return { printRect: { ...LEGACY_PRINT_AREA }, elements }
 }
 
-export function buildDesignJson(s: StudioState): string {
+export function buildDesignJson(s: StudioState, platenCm: { w: number; h: number } = PLATEN_CM): string {
   return JSON.stringify({
     v: 2,
     shirtColor: s.color,
     size: s.size,
     texSize: TEX_SIZE,
     refRect: { w: REF_RECT.w, h: REF_RECT.h },
-    platenCm: { w: PLATEN_CM.w, h: PLATEN_CM.h },
+    platenCm: { w: platenCm.w, h: platenCm.h },
     source: 'app',
     front: serializeFace(s.front),
     back: serializeFace(s.back),
