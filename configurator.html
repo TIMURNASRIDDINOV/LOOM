@@ -52,7 +52,7 @@
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=2"></script>
-    <script defer src="configurator.js?v=55"></script>
+    <script defer src="configurator.js?v=56"></script>
 
     <style>
       /* ============================================================
@@ -1028,8 +1028,9 @@
            painted only the header strip and the stage fell through to body.
            Invisible while the backdrop was near-white; obvious once it wasn't. */
         /* Single source of truth for the sheet's resting height — the stage
-           height and the Перед/Зад position are both derived from it. */
-        .studio { --peek: 54dvh; height: 100dvh; min-height: 0; overflow: hidden; display: block; }
+           height and the Перед/Зад position are both derived from it.
+           40%: on a phone the garment has to stay in view while choosing. */
+        .studio { --peek: 40dvh; height: 100dvh; min-height: 0; overflow: hidden; display: block; }
         #three-container {
           position: absolute; inset: 64px 0 auto 0;
           height: calc(100dvh - 64px - var(--peek)); min-height: 260px; width: auto;
@@ -1645,6 +1646,40 @@
         .step-title { margin-bottom: 0.15rem; }
         .step-head { margin-bottom: -0.2rem; }
         .dock-choices { gap: 0.5rem; margin-top: 0.2rem; }
+
+        /* The sheet rests at 40% of the screen (--peek) so the garment stays
+           in view; the handle expands it. Every row gives back what it can
+           without dropping a target under 44px. */
+        .sheet-handle { padding: 0.35rem 1.25rem 0.15rem; }
+        .sheet-grip { margin-bottom: 0.3rem; }
+        .sheet-price { padding: 0.08rem 0.4rem; }
+        .sheet-steps { padding-top: 0.35rem; padding-bottom: calc(0.35rem + var(--gut)); }
+        .sheet-steps::before, .sheet-steps::after { top: 0.35rem; bottom: calc(0.35rem + var(--gut)); }
+        .step-btn { min-height: 44px; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+        .design-dock { padding-top: 0.55rem; padding-bottom: 0.6rem; }
+        .panel-foot { padding-top: 0.5rem; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+        .studio-sheet .btn-primary-full { min-height: 44px; padding-top: 0.55rem; padding-bottom: 0.55rem; }
+
+        /* Step 1 tools: one row of icon buttons with a short label. The step
+           bar already names the step, so the question and each tool's
+           description stay for screen readers only; that room is what lets a
+           third tool (Lab) fit at 360x740 in uz. */
+        .dock-choices { flex-direction: row; }
+        .choice-tile {
+          position: relative; flex: 1 1 0; min-width: 0; min-height: 44px;
+          flex-direction: column; align-items: center; justify-content: center;
+          gap: 0.3rem; padding: 0.45rem 0.35rem; text-align: center;
+        }
+        .choice-ico { width: 30px; height: 30px; }
+        .choice-ico svg { width: 17px; height: 17px; }
+        .choice-body { flex: 0 0 auto; align-items: center; }
+        .choice-title { font-size: 0.8rem; line-height: 1.2; }
+        .choice-sub, .design-dock .step-head {
+          position: absolute; width: 1px; height: 1px; overflow: hidden;
+          clip-path: inset(50%); white-space: nowrap;
+        }
+        .dock-choices { margin-top: 0; }
+        .choice-go { display: none; }
       }
 
       /* Someone who asked for less motion should not get press-jumps */

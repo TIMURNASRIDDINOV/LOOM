@@ -3991,16 +3991,13 @@ function renderPositionGuide() { renderFlatEditor(); }
 // than pushing it, and the price + CTA never leave the base.
 
 const SHEET_STEPS = ["design", "color", "order"];
-// Three resting heights, one per step's actual need. Colour deliberately does
-// NOT go full height: the entire point of a configurator is watching the
-// garment change, and a sheet that covers the shirt while you pick its colour
-// is the same mistake as a full-screen wizard page.
+// Every step rests compact: the entire point of a configurator is watching the
+// garment change, so the sheet never covers more than 40% of the screen until
+// the customer taps or drags the handle to expand it.
 // Must match --peek in the phone stylesheet: the CSS derives the stage height
 // and the Перед/Зад position from it, and this drives the snap points.
-const SHEET_PEEK = 54;      // dvh — design: question + both answers fit, garment keeps the rest
-const SHEET_MID  = 62;      // dvh — colour/size: garment still visible above
-const SHEET_FULL = 86;      // dvh — order: a summary, nothing to watch
-const SHEET_H = { design: SHEET_PEEK, color: SHEET_MID, order: SHEET_FULL };
+const SHEET_PEEK = 40;      // dvh — every step's resting height, garment keeps the rest
+const SHEET_FULL = 86;      // dvh — expanded with the handle
 let currentStep = "design";
 let _sheetOpen = false;
 
@@ -4121,13 +4118,9 @@ function bindStepNext() {
   updateStepNext();
 }
 
-/** Rest the sheet at the height this step actually needs. */
+/** A new step starts with the sheet compact. */
 function snapSheetToStep() {
-  const sheet = document.getElementById("studio-sheet");
-  if (!sheet) return;
-  const h = SHEET_H[currentStep] || SHEET_PEEK;
-  _sheetOpen = h >= SHEET_FULL;
-  sheet.style.setProperty("--sheet-h", h + "dvh");
+  setSheetOpen(false);
 }
 
 /**
@@ -4150,8 +4143,7 @@ function setSheetOpen(open) {
   _sheetOpen = !!open;
   const sheet = document.getElementById("studio-sheet");
   if (!sheet) return;
-  const rest = SHEET_H[currentStep] || SHEET_PEEK;
-  sheet.style.setProperty("--sheet-h", (_sheetOpen ? SHEET_FULL : rest) + "dvh");
+  sheet.style.setProperty("--sheet-h", (_sheetOpen ? SHEET_FULL : SHEET_PEEK) + "dvh");
 }
 
 function bindSheet() {
