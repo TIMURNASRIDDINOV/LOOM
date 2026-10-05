@@ -6020,7 +6020,9 @@ function showToast(message, type = "success") {
     z-index:10001; opacity:0; transition:opacity .3s ease,transform .3s ease;
     pointer-events:none;
   `;
-  toast.innerHTML = `<span>${message}</span>`;
+  const text = document.createElement("span");
+  text.textContent = message;
+  toast.appendChild(text);
   document.body.appendChild(toast);
 
   requestAnimationFrame(() => {
