@@ -45,14 +45,14 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=4"></script>
     <script defer src="assets/layout.js?v=5"></script>
-    <script defer src="assets/i18n.js?v=29"></script>
+    <script defer src="assets/i18n.js?v=30"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=2"></script>
-    <script defer src="configurator.js?v=56"></script>
+    <script defer src="configurator.js?v=57"></script>
 
     <style>
       /* ============================================================
@@ -115,11 +115,11 @@
 
       /* ── Studio stage: soft, low-contrast warm backdrop ──────── */
       .studio {
-        position: relative; padding-top: 64px;
+        position: relative; padding-top: var(--nav-h);
         height: 100vh; height: 100dvh; min-height: 640px; overflow: hidden;
         background:
           /* the pool of light the key throws on the backdrop */
-          radial-gradient(78% 58% at 50% 34%, rgba(255, 255, 255, 0.55), transparent 70%),
+          radial-gradient(78% 58% at var(--stage-cx, 50%) 34%, rgba(255, 255, 255, 0.55), transparent 70%),
           /* the sweep itself: wall above, floor below */
           linear-gradient(180deg, var(--studio-0) 0%, var(--studio-1) 56%, var(--studio-2) 100%);
       }
@@ -127,12 +127,12 @@
          without it the corners pull the eye away from the garment. */
       .studio::before {
         content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-        background: radial-gradient(115% 85% at 50% 40%, transparent 46%, rgba(0,0,0,0.14) 100%);
+        background: radial-gradient(115% 85% at var(--stage-cx, 50%) 40%, transparent 46%, rgba(0,0,0,0.14) 100%);
       }
       /* touch-action:none — decal drags / pinches must reach the
          pointer-event editor, not become page scroll (which fires
          pointercancel mid-gesture on mobile) */
-      #three-container { position: absolute; inset: 64px 0 0 0; width: 100%; touch-action: none; }
+      #three-container { position: absolute; inset: var(--nav-h) 0 0 0; width: 100%; touch-action: none; }
       /* CSS always tracks the container; resize only updates the buffer */
       #three-container canvas { display: block; width: 100% !important; height: 100% !important; }
 
@@ -170,7 +170,7 @@
 
       /* Loading overlay */
       .loading-overlay {
-        position: absolute; inset: 64px 0 0 0; z-index: 40;
+        position: absolute; inset: var(--nav-h) 0 0 0; z-index: 40;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
         background: radial-gradient(140% 110% at 50% 32%, var(--studio-0) 0%, var(--studio-1) 70%);
         transition: opacity 0.5s ease;
@@ -559,12 +559,12 @@
         /* ── Desktop: a wide rail ─────────────────────────────────────
            The 272px version failed because it held 31 controls at ~10px type.
            The fix is room and hierarchy, not a different edge of the screen:
-           420px, real type sizes, thumb-sized targets, and the same three steps
+           a real width (--panel-w), real type sizes, thumb-sized targets, and the same three steps
            as the phone so only one group is ever on screen at once. */
         .studio-sheet {
           display: flex; flex-direction: column;
-          position: absolute; z-index: 50; top: 64px; left: 0; bottom: 0;
-          width: 420px;
+          position: absolute; z-index: 50; top: var(--nav-h); left: 0; bottom: 0;
+          width: var(--panel-w);
           background: var(--bg); border-right: 1px solid var(--hairline);
         }
 
@@ -575,14 +575,15 @@
            the full page (under the rail) while the 3D honoured the offset, so
            the garment jumped sideways when you switched 2D/3D. */
         .studio .flat-editor,
-        .studio #three-container { inset: 64px 0 0 420px; height: auto; width: auto; }
-        .studio .loading-overlay { inset: 64px 0 0 420px; height: auto; }
+        .studio #three-container { inset: var(--nav-h) 0 0 var(--stage-l); height: auto; width: auto; }
+        .studio .loading-overlay { inset: var(--nav-h) 0 0 var(--stage-l); height: auto; }
         .studio .flat-stagebox { padding: 46px 24px 76px; }
-        .chip-garment { top: 84px; right: 24px; left: auto; }
+        .chip-garment { top: var(--chip-top); right: 24px; left: auto; }
         .chip-reset   { left: auto; right: 24px; bottom: 24px; top: auto; }
-        .chip-save    { right: auto; left: calc(420px + 24px); bottom: 24px; top: auto; }
-        .surface-toggle { top: 84px; right: auto; left: calc(420px + 24px); transform: none; }
-        .view-toggle  { left: calc(420px + (100% - 420px) / 2); bottom: 24px; top: auto; }
+        .chip-save    { right: auto; left: calc(var(--stage-l) + 24px); bottom: 24px; top: auto; }
+        .surface-toggle { top: var(--chip-top); right: auto; left: calc(var(--stage-l) + 24px); transform: none; }
+        /* centred in the free area by margins, not a transform */
+        .view-toggle  { left: var(--stage-l); right: 0; width: max-content; margin: 0 auto; transform: none; bottom: 24px; top: auto; }
 
         /* Rail header — product and price, at a size you can read */
         .sheet-handle {
@@ -697,7 +698,7 @@
       /* ── Flat face editor — the primary editing surface ───────── */
       /* touch-action:none for the same reason #three-container needs it: a drag
          or pinch must reach the pointer handlers, not become a page scroll. */
-      .flat-editor { position: absolute; inset: 64px 0 0 0; z-index: 5; touch-action: none; }
+      .flat-editor { position: absolute; inset: var(--nav-h) 0 0 0; z-index: 5; touch-action: none; }
       .flat-stagebox {
         position: absolute; inset: 0;
         /* keeps the garment clear of the chips above and the view toggle below */
@@ -1032,10 +1033,10 @@
            40%: on a phone the garment has to stay in view while choosing. */
         .studio { --peek: 40dvh; height: 100dvh; min-height: 0; overflow: hidden; display: block; }
         #three-container {
-          position: absolute; inset: 64px 0 auto 0;
-          height: calc(100dvh - 64px - var(--peek)); min-height: 260px; width: auto;
+          position: absolute; inset: var(--nav-h) 0 auto 0;
+          height: calc(100dvh - var(--nav-h) - var(--peek)); min-height: 260px; width: auto;
         }
-        .loading-overlay { inset: 64px 0 auto 0; height: 56vh; height: 56dvh; }
+        .loading-overlay { inset: var(--nav-h) 0 auto 0; height: 56vh; height: 56dvh; }
         /* Utility chips go icon-only on phones. Their labels are the longest
            strings on the screen in Uzbek and collided head-on at 375px; they
            are also secondary actions, so the icon plus the accessible name is
@@ -1151,8 +1152,8 @@
 
         /* The flat editor owns everything above the sheet's resting height */
         .flat-editor {
-          position: absolute; inset: 64px 0 auto 0;
-          height: calc(100dvh - 64px - var(--peek)); min-height: 260px;
+          position: absolute; inset: var(--nav-h) 0 auto 0;
+          height: calc(100dvh - var(--nav-h) - var(--peek)); min-height: 260px;
         }
         /* bottom padding clears the Перед/Зад toggle so the hem never sits under it */
         .flat-stagebox { padding: 40px 12px 62px; }
@@ -1716,14 +1717,69 @@
       .dock-swatch { border-radius: 0; border: var(--rule); }
       .dock-swatch::-webkit-color-swatch { border-radius: 0; }
       .dock-swatch::-moz-color-swatch { border-radius: 0; }
+
+      /* ── Desktop: a floating panel, the stage to its right ──────────
+         The panel is a framed slab inset 16px from the stage edges rather
+         than a rail glued to the left wall. The stage (2D editor, 3D canvas,
+         loader) starts 16px right of it, so the garment and every chip sit
+         in the free area and nothing hides under the panel; no camera offset
+         is needed. All offsets come from three tokens on .studio. */
+      @media (min-width: 901px) {
+        .studio {
+          --nav-h: 64px;
+          --panel-w: clamp(300px, 26vw, 400px);
+          --panel-inset: 16px;
+          --stage-l: calc(2 * var(--panel-inset) + var(--panel-w));
+          /* centre of the free area; the key light and the vignette sit on it */
+          --stage-cx: calc(var(--stage-l) + (100% - var(--stage-l)) / 2);
+          /* top edge of the stage chips (garment, 2D/3D) */
+          --chip-top: calc(var(--nav-h) + 20px);
+        }
+        /* Head, step bar and foot stay put; only the step body scrolls. */
+        .studio-sheet {
+          top: calc(var(--nav-h) + var(--panel-inset)); left: var(--panel-inset); bottom: auto;
+          width: var(--panel-w);
+          max-height: calc(100dvh - var(--nav-h) - 2 * var(--panel-inset));
+          border: var(--rule);
+          box-shadow: var(--hard);
+          backdrop-filter: none; -webkit-backdrop-filter: none;
+        }
+        /* The price drops under the name when both do not fit on one line,
+           so the name gets the full panel width ("O‘z dizayningizni
+           yarating" needed three lines beside the price at 300-333px). */
+        .sheet-headline { flex-wrap: wrap; row-gap: 0.15rem; }
+        /* A long name gets two lines, then an ellipsis. */
+        .sheet-product {
+          white-space: normal; overflow-wrap: break-word;
+          display: -webkit-box; -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2; line-clamp: 2;
+        }
+        /* A 300px panel leaves each step ~80px: number over label, so a
+           word is never split ("Buyurtma" broke as "Buyur/tma" in a row). */
+        .step-btn { flex-direction: column; gap: 0.3rem; padding: 0.55rem 0.25rem; text-align: center; }
+        /* The panel, not the viewport, sets the room the CTA label has: at
+           300px "Keyingisi: buyurtma" wrapped. Never under 1.17rem (contrast
+           note on the base rule). */
+        .studio-sheet .btn-primary-full {
+          font-size: clamp(1.17rem, calc(var(--panel-w) / 18.75), 1.28rem);
+          padding-left: 1.1rem; padding-right: 1.1rem;
+        }
+      }
+      /* Narrow desktop: three bottom chips share less than ~600px, and the
+         Uzbek "Reset view" label ran into Front/Back. The two utility chips go
+         icon-only, as on phones; the accessible name and title stay. */
+      @media (min-width: 901px) and (max-width: 1100px) {
+        .chip-reset, .chip-save { padding: 0.5rem; }
+        .chip-reset span, .chip-save span { display: none; }
+      }
     </style>
   </head>
 
-  <body data-page="configurator" data-cart data-no-footer data-no-smooth>
+  <body data-page="configurator" data-cart data-no-footer data-no-smooth data-no-cursor>
     <!-- Header injected by assets/layout.js (data-cart adds the cart button) -->
 
     <!-- ===== Studio stage ===== -->
-    <main class="studio" aria-label="3D конфигуратор">
+    <main class="studio" data-i18n-attr="aria-label:cfg.eyebrow" aria-label="Конфигуратор">
       <!-- Loading overlay. Starts hidden: three.js and the garment are fetched
            when the user opens the 3D preview, not on page load, so there is
            nothing to wait for until then. -->
@@ -1742,7 +1798,7 @@
       <div id="three-container"></div>
 
       <!-- ===== Flat face editor — the primary editing surface ===== -->
-      <div id="flat-editor" class="flat-editor" aria-label="Редактор дизайна">
+      <div id="flat-editor" class="flat-editor" data-i18n-attr="aria-label:cfg.designEditor" aria-label="Редактор дизайна">
         <div class="flat-stagebox">
           <canvas id="flat-canvas" class="flat-canvas"></canvas>
           <button type="button" id="flat-empty" class="flat-empty" style="display:none">
@@ -1786,22 +1842,22 @@
       </div>
 
       <!-- Floating stage chips -->
-      <a href="catalog.html" class="stage-chip chip-garment" title="Сменить товар" data-i18n-attr="aria-label:cfg.changeGarment" aria-label="Сменить товар">
+      <a href="catalog.html" class="stage-chip chip-garment" title="Сменить товар" data-i18n-attr="aria-label:cfg.changeGarment;title:cfg.changeGarment" aria-label="Сменить товар">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
         <span data-i18n="cfg.changeGarment">Сменить товар</span>
       </a>
-      <button id="btn-reset-view" class="stage-chip chip-reset" title="Сбросить вид" data-i18n-attr="aria-label:cfg.resetView" aria-label="Сбросить вид">
+      <button id="btn-reset-view" class="stage-chip chip-reset" title="Сброс вида" data-i18n-attr="aria-label:cfg.resetView;title:cfg.resetView" aria-label="Сброс вида">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 10 9 10"/></svg>
         <span data-i18n="cfg.resetView">Сброс вида</span>
       </button>
-      <button id="btn-save-design" class="stage-chip chip-save" title="Сохранить дизайн как PNG" data-i18n-attr="aria-label:cfg.save" aria-label="Сохранить">
+      <button id="btn-save-design" class="stage-chip chip-save" title="Сохранить дизайн как PNG" data-i18n-attr="aria-label:cfg.save;title:cfg.savePng" aria-label="Сохранить">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span data-i18n="cfg.save">Сохранить</span>
       </button>
 
       <!-- Which surface the stage shows. One at a time, never both: the flat
            face is where you edit, the 3D is how it will look. -->
-      <div class="surface-toggle" role="tablist" aria-label="Вид">
+      <div class="surface-toggle" role="tablist" data-i18n-attr="aria-label:cfg.viewMode" aria-label="Вид">
         <button type="button" id="btn-surface-2d" class="surface-btn active" role="tab" aria-selected="true" data-surface="flat">2D</button>
         <button type="button" id="btn-surface-3d" class="surface-btn" role="tab" aria-selected="false" data-surface="three">3D</button>
       </div>
@@ -1835,7 +1891,7 @@
         </div>
 
         <!-- Step bar (phones only) -->
-        <nav class="sheet-steps" id="sheet-steps" role="tablist" aria-label="Шаги">
+        <nav class="sheet-steps" id="sheet-steps" role="tablist" data-i18n-attr="aria-label:cfg.steps" aria-label="Шаги">
           <button type="button" class="step-btn active" data-step="design" role="tab" aria-selected="true">
             <span class="step-num">1</span><span data-i18n="cfg.stepDesign">Дизайн</span>
           </button>
@@ -1850,7 +1906,7 @@
         <div class="step-progress" aria-hidden="true"><span class="step-progress-fill"></span></div>
 
       <!-- ===== Design dock (right) ===== -->
-      <aside class="design-dock" id="design-dock" aria-label="Панель дизайна">
+      <aside class="design-dock" id="design-dock" data-i18n-attr="aria-label:cfg.designPanel" aria-label="Панель дизайна">
 
         <!-- Says what this step is for, in words, before any control.
              The rail used to open on a row of buttons with no sentence
@@ -1956,7 +2012,7 @@
       </aside>
 
       <!-- ===== Floating control card ===== -->
-      <aside class="studio-panel" aria-label="Панель настройки">
+      <aside class="studio-panel" data-i18n-attr="aria-label:cfg.settingsPanel" aria-label="Панель настройки">
         <div class="panel-head">
           <p class="panel-product" id="panel-product-name" data-i18n="cfg.panelProduct">Создайте свой дизайн</p>
           <p class="panel-price"><span id="panel-price">150 000</span> <span data-i18n="cfg.currency">сум</span></p>

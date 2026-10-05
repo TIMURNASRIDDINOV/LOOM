@@ -4065,9 +4065,9 @@ const NEXT_STEP = { design: "color", color: "order" };
 function updateStepNext() {
   const label = document.getElementById("step-next-label");
   if (!label) return;
-  // The long label wraps to two lines on a 375px phone, and those 40px are the
-  // difference between seeing both choices in step 1 and seeing one.
-  const narrow = window.matchMedia("(max-width: 560px)").matches;
+  // The long label wraps to two lines in a narrow panel (a 375px phone sheet,
+  // the 300-400px desktop panel), so the panel's width picks the short one.
+  const narrow = (document.getElementById("studio-sheet")?.clientWidth || window.innerWidth) <= 560;
   const key = currentStep === "design"
     ? (narrow ? "cfg.nextColorShort" : "cfg.nextColor")
     : (narrow ? "cfg.nextOrderShort" : "cfg.nextOrder");
