@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { C, RULE, SIZES, fmt, noShadow, offset, type Size } from '../../src/theme/tokens'
 import { body, disp, kicker, label as labelType, mono } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
+import { EmptyState } from '../../src/components/EmptyState'
 import { ChevronLeft } from '../../src/components/icons'
 import { Button, T, Tap } from '../../src/components/ui'
 import { fetchProducts, productImage, useAsync } from '../../src/api/catalog'
@@ -42,10 +43,12 @@ export default function ProductScreen() {
     return (
       <View style={{ flex: 1 }}>
         <AppBar title={t('bar.catalog')} />
-        <View style={{ padding: 18, gap: 16 }}>
-          <T style={body(14, 1.6, { color: C.i55 })}>{t('product.notFound')}</T>
-          <Button title={t('product.toCatalog')} variant="ink" size={12.5} vPad={14} onPress={() => router.push('/catalog')} />
-        </View>
+        <EmptyState
+          eyebrow={t('empty.tagNotFound')}
+          title={t('product.notFound')}
+          body={t('product.notFoundBody')}
+          action={{ title: t('product.toCatalog'), onPress: () => router.push('/catalog') }}
+        />
       </View>
     )
   }

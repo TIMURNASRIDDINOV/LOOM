@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { C, RULE, offset } from '../src/theme/tokens'
 import { body, disp, mono, monoSemi } from '../src/theme/type'
 import { Hatch } from '../src/components/ArtPattern'
+import { GarmentFlat, PRINT_BOX } from '../src/components/GarmentFlat'
 import { Button, T, Tap, Wordmark } from '../src/components/ui'
 import { GARMENT_FLAT } from '../src/api/catalog'
 import { useT, type TFn } from '../src/i18n'
@@ -14,7 +15,9 @@ import type { StringKey } from '../src/i18n/strings'
 
 export const ONBOARD_KEY = 'loom_onboarded_v1'
 
-const HOODIE = require('../assets/products/hoodie_regular_white_002.jpg')
+// The 3D half of slide 2. Generated to the design system's own brief — paper
+// ground, ink screen print, the coral slash — rather than a stock model shot.
+const PRINTED = require('../assets/garment/tee_print_tashkent.jpg')
 
 const SLIDES: { title: StringKey; body: StringKey }[] = [
   { title: 'onb.1.title', body: 'onb.1.body' },
@@ -95,14 +98,15 @@ export default function Onboarding() {
 function ArtStudio({ t }: { t: TFn }) {
   return (
     <View style={styles.fill}>
-      <Image source={GARMENT_FLAT} style={styles.fill} resizeMode="contain" />
-      <View style={styles.printRect} />
-      <View style={styles.sampleText}>
-        <T style={{ fontFamily: 'InterTight_800ExtraBold', fontSize: 22, color: C.ink, letterSpacing: -0.5 }}>
-          TASHKENT
-        </T>
-        <View style={styles.sampleBar} />
-      </View>
+      <GarmentFlat>
+        {/* The sample layer lives inside the print boundary, like a real one. */}
+        <View style={styles.sampleText}>
+          <T style={{ fontFamily: 'InterTight_800ExtraBold', fontSize: 15, color: C.ink, letterSpacing: -0.4 }}>
+            TASHKENT
+          </T>
+          <View style={styles.sampleBar} />
+        </View>
+      </GarmentFlat>
       <View style={[styles.chip, { left: 14, bottom: 14 }]}>
         <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.ink })}>{t('onb.chipTools')}</T>
       </View>
@@ -115,13 +119,13 @@ function ArtPreview() {
   return (
     <View style={[styles.fill, { flexDirection: 'row', gap: 10, padding: 6 }]}>
       <View style={styles.half}>
-        <Image source={GARMENT_FLAT} style={styles.fill} resizeMode="contain" />
+        <GarmentFlat style={{ height: undefined, width: '100%' }} />
         <View style={[styles.chip, { left: 8, top: 8 }]}>
           <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.ink })}>2D</T>
         </View>
       </View>
       <View style={[styles.half, offset(3, C.coral)]}>
-        <Image source={HOODIE} style={styles.fill} resizeMode="cover" />
+        <Image source={PRINTED} style={styles.fill} resizeMode="cover" />
         <View style={[styles.chip, { left: 8, top: 8, backgroundColor: C.ink, borderColor: C.ink }]}>
           <T style={mono(8.5, 1, { ls: 0.16, upper: true, color: C.paper })}>3D</T>
         </View>
@@ -170,18 +174,15 @@ const styles = StyleSheet.create({
   bottom: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   dots: { flexDirection: 'row', gap: 6, flex: 1 },
 
-  printRect: {
+  sampleText: {
     position: 'absolute',
-    left: '27%',
-    top: '30%',
-    width: '46%',
-    aspectRatio: 3 / 4,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: C.i38,
+    left: PRINT_BOX.left,
+    top: '52%',
+    width: PRINT_BOX.width,
+    alignItems: 'center',
+    gap: 5,
   },
-  sampleText: { position: 'absolute', left: 0, right: 0, top: '44%', alignItems: 'center', gap: 6 },
-  sampleBar: { width: 54, height: 10, backgroundColor: C.coral, borderWidth: 1, borderColor: C.ink },
+  sampleBar: { width: 38, height: 8, backgroundColor: C.coral, borderWidth: 1, borderColor: C.ink },
   chip: {
     position: 'absolute',
     paddingHorizontal: 7,
@@ -190,7 +191,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.ink,
   },
-  half: { flex: 1, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white, overflow: 'hidden' },
+  half: {
+    flex: 1,
+    justifyContent: 'center',
+    borderWidth: RULE,
+    borderColor: C.ink,
+    backgroundColor: C.white,
+    overflow: 'hidden',
+  },
 
   road: { position: 'absolute', backgroundColor: 'rgba(19,19,17,.12)' },
   pin: {

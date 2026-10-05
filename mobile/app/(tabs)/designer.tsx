@@ -5,8 +5,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { C, RULE, fmt } from '../../src/theme/tokens'
 import { body, disp, kicker, mono, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
+import { EmptyState } from '../../src/components/EmptyState'
 import { ChevronLeft } from '../../src/components/icons'
-import { Button, T, Tap } from '../../src/components/ui'
+import { T, Tap } from '../../src/components/ui'
 import { fetchDesigner, useAsync } from '../../src/api/catalog'
 import type { Artwork } from '../../src/api/types'
 import { useT } from '../../src/i18n'
@@ -53,10 +54,16 @@ export default function DesignerScreen() {
         {loading ? (
           <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
         ) : error || !data ? (
-          <View style={{ gap: 16 }}>
-            <T style={body(14, 1.6, { color: C.i55 })}>{error?.message ?? t('dz.notFound')}</T>
-            <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={reload} />
-          </View>
+          /* Retry only helps when there is a handle to retry with: with none,
+             the request rejects locally and would reject again identically.
+             The way out of both is the market. */
+          <EmptyState
+            eyebrow={t('empty.tagNotFound')}
+            title={t('dz.notFound')}
+            body={t('dz.notFoundBody')}
+            action={{ title: t('dz.toMarket'), onPress: () => router.push('/market') }}
+            secondary={handle ? { title: t('common.retry'), onPress: reload } : undefined}
+          />
         ) : (
           <>
             <View style={styles.identity}>

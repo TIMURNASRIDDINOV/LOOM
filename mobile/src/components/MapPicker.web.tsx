@@ -15,7 +15,7 @@ export type { Pin }
 export function MapPicker({
   value,
   onChange,
-  height = 200,
+  height = 240,
 }: {
   value: Pin | null
   onChange: (pin: Pin) => void

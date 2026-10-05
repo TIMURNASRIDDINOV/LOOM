@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { C, RULE, fmt, noShadow, offset } from '../../src/theme/tokens'
 import { body, disp, kicker, label as labelType, mono, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
+import { EmptyState } from '../../src/components/EmptyState'
 import { Hatch } from '../../src/components/ArtPattern'
 import { ChevronLeft } from '../../src/components/icons'
 import { Button, Panel, T, Tap } from '../../src/components/ui'
@@ -44,16 +45,12 @@ function SignInGate() {
   return (
     <View style={{ flex: 1 }}>
       <AppBar title={t('bar.design')} />
-      <ScrollView contentContainerStyle={styles.page}>
-        <T style={kicker()}>{t('pub.kicker')}</T>
-        <T style={[disp(30, 0.98, { ls: -0.035 }), { marginTop: 10, marginBottom: 10 }]}>
-          {t('pub.gateTitle')}
-        </T>
-        <T style={[body(14, 1.6, { color: C.i55 }), { marginBottom: 24 }]}>
-          {t('pub.gateBody')}
-        </T>
-        <Button title={t('common.signIn')} variant="ink" size={12.5} vPad={16} onPress={() => router.push('/login')} />
-      </ScrollView>
+      <EmptyState
+        eyebrow={t('pub.kicker')}
+        title={t('pub.gateTitle')}
+        body={t('pub.gateBody')}
+        action={{ title: t('common.signIn'), onPress: () => router.push('/login') }}
+      />
     </View>
   )
 }
