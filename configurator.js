@@ -267,8 +267,9 @@ function elTextFitSizeIn(el, rect, ctx) {
   return w > maxW ? Math.max(1, size * (maxW / w)) : size;
 }
 
-// Selected shirt size
-let selectedSize = "L";
+// Selected shirt size. No default: an order must never carry a size the
+// customer did not pick (LOOM-179). sizeChosen() gates the way to step 3.
+let selectedSize = null;
 
 // True while a file pick started from "+ Логотип" (add a layer) rather than from
 // the upload area (replace the selected layer's artwork).
@@ -3953,6 +3954,7 @@ function _isSheetLayout() {
 
 function setStep(step) {
   if (SHEET_STEPS.indexOf(step) < 0) step = "design";
+  if (step === "order" && !sizeChosen()) return;
   currentStep = step;
   // The 2D zoom belongs to step 1. Repaint now, before the order summary
   // snapshots the flat canvas.
@@ -4070,8 +4072,8 @@ function snapSheetToStep() {
 }
 
 /**
- * Tick only what the user has genuinely done. Colour and size always hold a
- * valid value, so ticking them would claim credit for work nobody did — which
+ * Tick only what the user has genuinely done. Colour always holds a valid
+ * value, so ticking it would claim credit for work nobody did — which
  * is exactly the kind of small lie that makes a wizard feel untrustworthy.
  * Design is the only step that can be meaningfully incomplete.
  */
@@ -4693,6 +4695,7 @@ async function captureProofs() {
 }
 async function addToCart(opts) {
   opts = opts || {}; // { openDrawer=true } — buyNow() passes false and navigates itself
+  if (!sizeChosen()) return false;
   // The login modal and the cart drawer live outside the stage and would be
   // invisible in full screen, so leave it first.
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
@@ -4808,8 +4811,30 @@ function bindSizeSelector() {
       document.querySelectorAll(".size-btn").forEach((b) => {
         b.classList.toggle("active", b.dataset.size === selectedSize);
       });
+      const row = document.getElementById("size-selector");
+      if (row) { row.classList.remove("need-size"); row.removeAttribute("aria-invalid"); }
     });
   });
+}
+
+/**
+ * True when a size is picked. Otherwise it stays on (or returns to) step 2,
+ * highlights the size row and says why, so step 3 never opens without one.
+ */
+function sizeChosen() {
+  if (selectedSize) return true;
+  if (currentStep !== "color") setStep("color");
+  const row = document.getElementById("size-selector");
+  if (row) {
+    // Restart the pulse on every refused tap.
+    row.classList.remove("need-size");
+    void row.offsetWidth;
+    row.classList.add("need-size");
+    row.setAttribute("aria-invalid", "true");
+    row.scrollIntoView({ block: "nearest" });
+  }
+  showToast(CT("cfg.sizeRequired", "Сначала выберите размер"), "error");
+  return false;
 }
 
 // ----------------------------------------------------------------
@@ -5295,7 +5320,7 @@ function updateSummaryTab() {
 function resetDesign() {
   markUndo("reset");
   designState.shirtColor = DEFAULT_SHIRT_COLOR;
-  selectedSize = "L";
+  selectedSize = null;
 
   ["front", "back"].forEach((v) => {
     designState[v].elements = [];
@@ -5303,9 +5328,7 @@ function resetDesign() {
   });
 
   // Reset size buttons
-  document.querySelectorAll(".size-btn").forEach((b) => {
-    b.classList.toggle("active", b.dataset.size === "L");
-  });
+  document.querySelectorAll(".size-btn").forEach((b) => b.classList.remove("active"));
 
   Object.keys(uploadedFileData).forEach((k) => delete uploadedFileData[k]);
 
