@@ -3005,6 +3005,7 @@ function initUI() {
   bindStepNext();
   bindLab();
   bindMoreMenu();
+  bindFullscreen();
   bindCart();
   bindSizeGuide();
   bindLangChange();
@@ -4230,7 +4231,11 @@ function bindMoreMenu() {
     const open = !menu.classList.contains("open");
     menu.classList.toggle("open", open);
     btn.setAttribute("aria-expanded", String(open));
-    if (open) place();
+    if (open) {
+      // In full screen only the stage is drawn, so the menu goes inside it.
+      (document.fullscreenElement || document.body).appendChild(menu);
+      place();
+    }
   });
   window.addEventListener("resize", () => { if (menu && menu.classList.contains("open")) place(); });
   window.addEventListener("scroll", close, true);
@@ -4239,6 +4244,27 @@ function bindMoreMenu() {
     if (!wrap.contains(e.target) && !(menu && menu.contains(e.target))) close();
   });
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+}
+
+/**
+ * Desktop full-screen chip. The stage (.studio) goes full screen; the label
+ * stays constant and aria-pressed carries the state. Where the Fullscreen API
+ * is off (old Safari, an iframe without allowfullscreen) the chip is removed;
+ * at 900px and below CSS never shows it.
+ */
+function bindFullscreen() {
+  const slot = document.querySelector(".chip-fs-slot");
+  const btn = document.getElementById("btn-fullscreen");
+  const studio = document.querySelector(".studio");
+  if (!slot || !btn || !studio) return;
+  if (!document.fullscreenEnabled) { slot.remove(); return; }
+  btn.addEventListener("click", () => {
+    (document.fullscreenElement ? document.exitFullscreen() : studio.requestFullscreen()).catch(() => {});
+  });
+  // Esc, the chip and addToCart() all end up here.
+  document.addEventListener("fullscreenchange", () => {
+    btn.setAttribute("aria-pressed", String(document.fullscreenElement === studio));
+  });
 }
 
 // ── Flat ⇄ 3D ───────────────────────────────────────────────────
@@ -4367,7 +4393,7 @@ function showUndoToast(message) {
   btn.textContent = CT("cfg.undo", "Отменить");
   t.appendChild(label);
   t.appendChild(btn);
-  document.body.appendChild(t);
+  (document.fullscreenElement || document.body).appendChild(t);
 
   let done = false;
   const close = () => {
@@ -4667,6 +4693,9 @@ async function captureProofs() {
 }
 async function addToCart(opts) {
   opts = opts || {}; // { openDrawer=true } — buyNow() passes false and navigates itself
+  // The login modal and the cart drawer live outside the stage and would be
+  // invisible in full screen, so leave it first.
+  if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
   // Account-bound cart → require login first
   let user = null;
   try {
@@ -5981,7 +6010,8 @@ function showToast(message, type = "success") {
   const text = document.createElement("span");
   text.textContent = message;
   toast.appendChild(text);
-  document.body.appendChild(toast);
+  // In full screen only the stage is drawn, so the toast goes inside it.
+  (document.fullscreenElement || document.body).appendChild(toast);
 
   requestAnimationFrame(() => {
     toast.style.opacity = "1";

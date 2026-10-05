@@ -52,7 +52,7 @@
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=2"></script>
-    <script defer src="configurator.js?v=58"></script>
+    <script defer src="configurator.js?v=59"></script>
 
     <style>
       /* ============================================================
@@ -1750,6 +1750,8 @@
           --stage-cx: calc(var(--stage-l) + (100% - var(--stage-l)) / 2);
           /* top edge of the stage chips (garment, 2D/3D) */
           --chip-top: calc(var(--nav-h) + 20px);
+          /* full-screen chip side; the garment chip matches its height */
+          --chip-h: 40px;
         }
         /* Head, step bar and foot stay put; only the step body scrolls. */
         .studio-sheet {
@@ -1784,6 +1786,23 @@
         .chip-save[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
         .chip-save[aria-disabled="true"]:hover,
         .chip-save[aria-disabled="true"]:active { transform: none; box-shadow: var(--hard-sm); }
+
+        /* Full screen: an icon chip in the top-right corner; the garment chip
+           steps left of it. Same height as the garment chip, so the pair
+           reads as one row. In full screen the site nav is gone, so the
+           stage, panel and chips lose the nav offset (0px, not 0: a unitless
+           zero breaks every calc() that uses it). */
+        .studio:fullscreen { --nav-h: 0px; padding-top: 0; }
+        .chip-fs-slot { display: contents; }
+        .chip-fullscreen {
+          top: var(--chip-top); right: 24px;
+          width: var(--chip-h); height: var(--chip-h); padding: 0; justify-content: center;
+        }
+        .chip-fs-slot + .chip-garment { right: calc(24px + var(--chip-h) + 8px); min-height: var(--chip-h); }
+        .chip-fullscreen .fs-exit,
+        .chip-fullscreen[aria-pressed="true"] .fs-enter { display: none; }
+        .chip-fullscreen[aria-pressed="true"] .fs-exit { display: block; }
+        .chip-fullscreen[aria-pressed="true"] { background: var(--text); color: var(--paper); }
       }
       /* Narrow desktop: three bottom chips share less than ~600px, and the
          Uzbek "Reset view" label ran into Front/Back. The two utility chips go
@@ -1863,6 +1882,16 @@
       </div>
 
       <!-- Floating stage chips -->
+      <!-- Full screen, desktop only. The [hidden] slot keeps it off phones (no
+           page rule sets the slot's display there); the desktop skin shows it,
+           and configurator.js removes the slot where the Fullscreen API is off.
+           It sits before .chip-garment so the garment chip can step aside. -->
+      <div class="chip-fs-slot" hidden>
+        <button id="btn-fullscreen" type="button" class="stage-chip chip-fullscreen" aria-pressed="false" title="Во весь экран" data-i18n-attr="aria-label:cfg.fullscreenEnter;title:cfg.fullscreenEnter" aria-label="Во весь экран">
+          <svg class="fs-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6"/></svg>
+          <svg class="fs-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M9 3v6H3M21 9h-6V3M15 21v-6h6M3 15h6v6"/></svg>
+        </button>
+      </div>
       <a href="catalog.html" class="stage-chip chip-garment" title="Сменить товар" data-i18n-attr="aria-label:cfg.changeGarment;title:cfg.changeGarment" aria-label="Сменить товар">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
         <span data-i18n="cfg.changeGarment">Сменить товар</span>
