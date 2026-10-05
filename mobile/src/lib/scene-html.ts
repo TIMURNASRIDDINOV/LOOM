@@ -1,4 +1,5 @@
 import { LEGACY_PRINT_AREA, PLATEN_CM, REF_RECT, TEX_SIZE } from './print'
+import type { PrintArea } from '../api/types'
 
 // The 3D garment page that runs inside the WebView (and inside an <iframe> on
 // the web target). It is the web configurator's rendering pipeline, ported
@@ -54,17 +55,21 @@ export type SceneConfig = {
   view: string
   /** Idle turntable until the first touch — a demo nicety. */
   autoRotate: boolean
+  /** The product's print area (LOOM-166); the web's defaults when absent. */
+  printArea?: PrintArea
 }
 
 export function buildSceneHtml(cfg: SceneConfig): string {
+  const { printArea, ...scene } = cfg
+  const pa = printArea ?? { platen_cm: PLATEN_CM, width_frac: 0.55, top_frac: 0.2 }
   const CONFIG = JSON.stringify({
-    ...cfg,
+    ...scene,
     TEX_SIZE,
     REF_RECT,
-    PLATEN_CM,
+    PLATEN_CM: pa.platen_cm,
     LEGACY_PRINT_AREA,
-    PLATEN_W_FRAC: 0.55,
-    PLATEN_TOP_FRAC: 0.2,
+    PLATEN_W_FRAC: pa.width_frac,
+    PLATEN_TOP_FRAC: pa.top_frac,
     FABRIC_NORMAL_URL,
     FABRIC_ROUGH_URL,
     FABRIC_TILES: 12,

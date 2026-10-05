@@ -16,6 +16,7 @@ import {
   firstForeignKey,
 } from '../db/queries'
 import { serveObject } from '../lib/r2'
+import { checkVariant } from '../lib/variant'
 import { isRateLimited, TOO_MANY } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
@@ -67,11 +68,9 @@ router.post('/', async (c) => {
     return c.json({ error: 'unitPrice must be a non-negative number' }, 400)
   }
 
-  let productId: number | null = null
-  if (typeof b.productId === 'number') {
-    const p = await getProductById(c.env.DB, b.productId)
-    if (p) productId = p.id
-  }
+  const productId = typeof b.productId === 'number' ? b.productId : null
+  const unsold = await checkVariant(c.env.DB, productId, b.designJson)
+  if (unsold) return c.json(unsold, 409)
   const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
 
   // Proofs are captured while the design is live (here); copied to order_items at checkout.
@@ -108,7 +107,9 @@ router.get('/:id{[0-9]+}', async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   const item = await getCartItemById(c.env.DB, id)
   if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
-  return c.json(item)
+  // The slug lets edit-from-cart reopen the same product, even a disabled one.
+  const p = item.product_id ? await getProductById(c.env.DB, item.product_id) : null
+  return c.json({ ...item, product_slug: p?.slug ?? null })
 })
 
 // GET /api/cart/:id/file/:field — stream the caller's OWN cart-item asset
@@ -191,6 +192,10 @@ router.post('/checkout', async (c) => {
 
   const items = await getCartItems(c.env.DB, userId)
   if (!items.length) return c.json({ error: 'Cart is empty' }, 400)
+  for (const it of items) {
+    const unsold = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json)
+    if (unsold) return c.json({ ...unsold, itemId: it.id }, 409)
+  }
 
   const total = cartTotal(items)
   const customerName = (b.customerName as string).trim()

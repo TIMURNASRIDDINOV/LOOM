@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 
-import { C, RULE, SIZES, fmt, noShadow, offset, type Size } from '../../src/theme/tokens'
+import { C, RULE, fmt, noShadow, offset, type Size } from '../../src/theme/tokens'
+import { productConfig, swatchName } from '../../src/lib/product-config'
 import { body, disp, kicker, label as labelType, mono } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
 import { ChevronLeft } from '../../src/components/icons'
@@ -23,11 +24,15 @@ export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>()
   const cart = useCart()
   const { flash } = useToast()
-  const [size, setSize] = useState<Size>('L')
+  const [picked, setSize] = useState<Size | null>(null)
   const { t, lang } = useI18n()
 
   const { data: products, loading } = useAsync(fetchProducts, [])
   const product = products?.find((p) => String(p.id) === String(id))
+  // Sizes and colours from the product's config (LOOM-166).
+  const cfg = productConfig(product)
+  const size = picked ?? (cfg.sizes.includes('L') ? 'L' : cfg.sizes[0])
+  const sellColor = cfg.colors.find((c) => c.available)?.hex ?? '#FFFFFF'
 
   if (loading) {
     return (
@@ -43,20 +48,12 @@ export default function ProductScreen() {
       <View style={{ flex: 1 }}>
         <AppBar title={t('bar.catalog')} />
         <View style={{ padding: 18, gap: 16 }}>
-          <T style={body(14, 1.6, { color: C.i55 })}>{t('product.notFound')}</T>
+          <T style={body(14, 1.6, { color: C.i55 })}>{t('st.productUnavailable')}</T>
           <Button title={t('product.toCatalog')} variant="ink" size={12.5} vPad={14} onPress={() => router.push('/catalog')} />
         </View>
       </View>
     )
   }
-
-  const colors: string[] = (() => {
-    try {
-      return product.base_colors ? (JSON.parse(product.base_colors) as string[]) : []
-    } catch {
-      return []
-    }
-  })()
 
   return (
     <View style={{ flex: 1 }}>
@@ -84,21 +81,24 @@ export default function ProductScreen() {
           <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 8 }]}>{product.description_ru}</T>
         ) : null}
 
-        {colors.length ? (
-          <View style={{ marginTop: 16 }}>
-            <T style={[labelType(), { marginBottom: 8 }]}>{t('product.colors')}</T>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {colors.map((hex) => (
-                <View key={hex} style={[styles.colorDot, { backgroundColor: hex }]} />
-              ))}
-            </View>
+        <View style={{ marginTop: 16 }}>
+          <T style={[labelType(), { marginBottom: 8 }]}>{t('product.colors')}</T>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {cfg.colors.map((c) => (
+              <View
+                key={c.hex}
+                accessible
+                accessibilityLabel={c.available ? swatchName(c, lang, t) : `${swatchName(c, lang, t)}, ${t('st.unavailable')}`}
+                style={[styles.colorDot, { backgroundColor: c.hex }, !c.available && { opacity: 0.3 }]}
+              />
+            ))}
           </View>
-        ) : null}
+        </View>
 
         <View style={{ marginTop: 18 }}>
           <T style={[labelType(), { marginBottom: 8 }]}>{t('product.size')}</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
-            {SIZES.map((z) => {
+            {cfg.sizes.map((z) => {
               const on = size === z
               return (
                 <Tap
@@ -129,7 +129,7 @@ export default function ProductScreen() {
               name: productName(product, lang),
               image: product.thumbnail_url,
               unitPrice: product.price,
-              designJson: buildPlainDesignJson(size, colors[0] ?? '#FFFFFF'),
+              designJson: buildPlainDesignJson(size, sellColor),
               meta: `${t('catalog.readyDesign')} · ${size}`,
               logoKey: null,
             })

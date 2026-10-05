@@ -67,8 +67,9 @@ export const COLORS: { hex: string }[] = [
   { hex: '#4d6642' },
 ]
 
+// The built-in size list. A product's config (LOOM-166) may carry others.
 export const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'] as const
-export type Size = (typeof SIZES)[number]
+export type Size = string
 
 export type OrderStatusKey = 'new' | 'confirmed' | 'producing' | 'shipped' | 'delivered'
 

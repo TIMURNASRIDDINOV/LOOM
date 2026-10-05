@@ -7,20 +7,29 @@ import { C, RULE } from '../theme/tokens'
 import { mono } from '../theme/type'
 import { GARMENT_FLAT } from '../api/catalog'
 import { cachedSrc, toDisplayableSrc } from '../lib/files'
-import { IMAGE_FRAC_AT_100, PLATEN_CM, REF_RECT, toSceneDesign } from '../lib/print'
+import { IMAGE_FRAC_AT_100, REF_RECT, toSceneDesign } from '../lib/print'
+import { DEFAULT_PRINT_AREA } from '../lib/product-config'
+import type { PrintArea } from '../api/types'
 import { useStudio, type ArtLayer, type TextLayer } from '../state/studio'
 import { ArtPattern } from './ArtPattern'
 import { Model3D } from './Model3D'
 import { T, Tap } from './ui'
 import { useT } from '../i18n'
 
-// The flat stage. The print rect is 46% of the garment's width, starting 30%
-// down (from the prototype), and its aspect is the real platen — 30 × 40 cm —
-// so a layer's percent offset means the same centimetres here, on the 3D
-// garment and on the print master.
+// The flat stage. At the default print area the print rect is 46% of the
+// garment's width, starting 30% down (from the prototype), and its aspect is
+// the real platen, so a layer's percent offset means the same centimetres here,
+// on the 3D garment and on the print master. A product's print area (LOOM-166)
+// scales the width and drop from those seeds, as on the web.
 const PRINT_W = 0.46
 const PRINT_TOP = 0.3
-const PRINT_ASPECT = PLATEN_CM.h / PLATEN_CM.w
+
+function flatRect(W: number, pa: PrintArea) {
+  const w = W * PRINT_W * (pa.width_frac / DEFAULT_PRINT_AREA.width_frac)
+  const h = w * (pa.platen_cm.h / pa.platen_cm.w)
+  const y = W * (PRINT_TOP - DEFAULT_PRINT_AREA.top_frac * PRINT_W) + pa.top_frac * w
+  return { x: (W - w) / 2, y, w, h, cx: W / 2, cy: y + h / 2 }
+}
 
 const FONT_FAMILY: Record<string, string> = {
   'Inter Tight': 'InterTight_700Bold',
@@ -30,16 +39,19 @@ const FONT_FAMILY: Record<string, string> = {
 
 export function Stage({
   glbUrl,
+  printArea = DEFAULT_PRINT_AREA,
 }: {
   /** `glb_url` from the product API — drives the real 3D preview. */
   glbUrl?: string | null
+  /** The product's print area (config.print_area). */
+  printArea?: PrintArea
 }) {
   const st = useStudio()
   const t = useT()
   const { s, active, face, surface, artSelected, textSelected } = st
 
   if (surface === '3d') {
-    return <Stage3D glbUrl={glbUrl ?? null} />
+    return <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} />
   }
 
   return (
@@ -62,6 +74,7 @@ export function Stage({
         onMoveText={(dx, dy) => st.setText({ offset: { x: (active.text?.offset.x ?? 0) + dx, y: (active.text?.offset.y ?? 0) + dy } })}
         onEmptyTap={() => st.pickTool('image')}
         faceLabel={face === 'front' ? t('st.frontLower') : t('st.backLower')}
+        printArea={printArea}
       />
     </View>
   )
@@ -69,7 +82,7 @@ export function Stage({
 
 // ─── 3D ──────────────────────────────────────────────────────────────────────
 
-function Stage3D({ glbUrl }: { glbUrl: string | null }) {
+function Stage3D({ glbUrl, printArea }: { glbUrl: string | null; printArea: PrintArea }) {
   const { s, face } = useStudio()
   // Local uploads are inlined as data: URIs for the WebView; this counter
   // re-renders once a read completes so the scene picks the bitmap up.
@@ -93,7 +106,13 @@ function Stage3D({ glbUrl }: { glbUrl: string | null }) {
 
   return (
     <View style={styles.preview3d}>
-      <Model3D key={glbUrl ?? 'default'} glbUrl={glbUrl} design={design} view={face} />
+      <Model3D
+        key={`${glbUrl ?? 'default'}|${JSON.stringify(printArea)}`}
+        glbUrl={glbUrl}
+        printArea={printArea}
+        design={design}
+        view={face}
+      />
     </View>
   )
 }
@@ -112,6 +131,7 @@ function Flat({
   onMoveText,
   onEmptyTap,
   faceLabel,
+  printArea,
 }: {
   art: ArtLayer | null
   text: TextLayer | null
@@ -124,17 +144,14 @@ function Flat({
   onMoveText: (dxPct: number, dyPct: number) => void
   onEmptyTap: () => void
   faceLabel: string
+  printArea: PrintArea
 }) {
   const t = useT()
   const [W, setW] = useState(0)
   const onLayout = useCallback((e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width), [])
 
   // Print rect in points, from the measured garment box.
-  const rect = useMemo(() => {
-    const w = W * PRINT_W
-    const h = w * PRINT_ASPECT
-    return { x: (W - w) / 2, y: W * PRINT_TOP, w, h, cx: W / 2, cy: W * PRINT_TOP + h / 2 }
-  }, [W])
+  const rect = useMemo(() => flatRect(W, printArea), [W, printArea])
 
   const panArt = Gesture.Pan()
     .enabled(!!art && rect.w > 0)
@@ -173,7 +190,7 @@ function Flat({
           {/* Print boundary */}
           <View pointerEvents="none" style={[styles.printRect, { left: rect.x, top: rect.y, width: rect.w, height: rect.h }]}>
             <T style={[mono(7.5, 1, { ls: 0.16, upper: true, color: C.i38 }), styles.printLabel]}>
-              {t('st.print', { w: PLATEN_CM.w, h: PLATEN_CM.h, face: faceLabel })}
+              {t('st.print', { w: printArea.platen_cm.w, h: printArea.platen_cm.h, face: faceLabel })}
             </T>
           </View>
 

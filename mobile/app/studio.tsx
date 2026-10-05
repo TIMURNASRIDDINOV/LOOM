@@ -19,6 +19,7 @@ import { useStudio } from '../src/state/studio'
 import { useToast } from '../src/state/toast'
 import { goBack } from '../src/lib/nav'
 import { colorName, productName, useI18n } from '../src/i18n'
+import { colorOk, swatchName, useStudioProduct } from '../src/lib/product-config'
 
 export default function Studio() {
   const router = useRouter()
@@ -54,12 +55,28 @@ export default function Studio() {
     if (surface === '3d') track('cfg_preview_3d')
   }, [surface])
 
-  const product = products?.find((p) => p.id === s.productId)
+  // The product (or the default garment) and its sizes, colours and print area.
+  const { product, unavailable, config } = useStudioProduct()
 
   const addToCart = async () => {
     if (busyRef.current) return
     if (layerCount === 0 && !s.back.art && !s.back.text?.content) {
       flash(t('st.errEmpty'))
+      return
+    }
+    // The server refuses these too (LOOM-166); say it here, before any upload.
+    if (unavailable) {
+      flash(t('st.productUnavailable'))
+      return
+    }
+    if (!config.sizes.includes(s.size)) {
+      flash(t('st.sizeUnavailable'))
+      st.pickTool('size')
+      return
+    }
+    if (!colorOk(config, s.color)) {
+      flash(t('st.colorUnavailable'))
+      st.pickTool('color')
       return
     }
     busyRef.current = true
@@ -92,8 +109,9 @@ export default function Studio() {
         back: { ...s.back, art: s.back.art ? { ...s.back.art, uploadKey: keys.back } : null },
       }
 
+      const swatch = config.colors.find((c) => c.hex === s.color.toUpperCase())
       const meta = [
-        colorName(s.color, t),
+        swatch ? swatchName(swatch, lang, t) : colorName(s.color, t),
         s.size,
         active.art?.name,
         active.text?.content ? `«${active.text.content}»` : null,
@@ -102,11 +120,11 @@ export default function Studio() {
         .join(' · ')
 
       cart.add({
-        productId: s.productId,
+        productId: s.productId ?? product?.id ?? null,
         name: s.productName || t('st.defaultProduct'),
         image: product?.thumbnail_url ?? null,
         unitPrice: total,
-        designJson: buildDesignJson(snapshot),
+        designJson: buildDesignJson(snapshot, config.printArea.platen_cm),
         meta,
         logoKey: keys.front ?? keys.back ?? null,
       })
@@ -133,7 +151,7 @@ export default function Studio() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={mono(8.5, 1.3, { ls: 0.22, upper: true, color: C.coral })}>{t('st.kicker')}</T>
           <T style={disp(15, 1.15, { ls: -0.02 })} numberOfLines={1}>
-            {s.productName || t('st.defaultProduct')}
+            {unavailable ? t('st.productUnavailable') : s.productName || t('st.defaultProduct')}
           </T>
         </View>
         <Segmented
@@ -147,7 +165,7 @@ export default function Studio() {
       </View>
 
       <View style={styles.stageWrap}>
-        <Stage glbUrl={product?.glb_url ?? null} />
+        <Stage glbUrl={product?.glb_url ?? null} printArea={config.printArea} />
         <View style={styles.faceToggle}>
           <Segmented
             value={face}

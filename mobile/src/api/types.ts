@@ -16,6 +16,24 @@ export type Product = {
   product_type: ProductType
   active: number
   display_order: number
+  /** Configurator config (LOOM-165); null from an API before migration 0022. */
+  config?: ProductConfig | null
+}
+
+export type PrintArea = {
+  platen_cm: { w: number; h: number }
+  /** Platen width / front panel width. */
+  width_frac: number
+  /** Drop below the collar, as a fraction of the platen width. */
+  top_frac: number
+}
+
+export type ProductColor = { hex: string; name_uz: string; name_ru: string; name_en: string; available: boolean }
+
+export type ProductConfig = {
+  sizes: string[]
+  colors: ProductColor[]
+  print_area: PrintArea
 }
 
 export type OrderStatus = 'new' | 'confirmed' | 'producing' | 'shipped' | 'delivered' | 'cancelled'

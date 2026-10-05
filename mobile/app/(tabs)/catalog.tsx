@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 
-import { C, RULE, SIZES, fmt, noShadow, offset, type Size } from '../../src/theme/tokens'
+import { C, RULE, fmt, noShadow, offset, type Size } from '../../src/theme/tokens'
+import { productConfig } from '../../src/lib/product-config'
 import { body, disp, kicker, mono, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
 import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
@@ -19,7 +20,6 @@ type Tab = 'all' | 'custom' | 'ready'
 // card anatomy — image, ready chip, title, description, price — and the same
 // quick add-to-bag that reveals a size row inline instead of navigating away.
 // The web's 6-size row wraps to two lines at phone width.
-const QUICK_SIZES: Size[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 
 export default function Catalog() {
   const [tab, setTab] = useState<Tab>('all')
@@ -141,6 +141,8 @@ function ProductCard({ product: p }: { product: Product }) {
   const [sizesOpen, setSizesOpen] = useState(false)
 
   const isReady = p.product_type === 'ready'
+  // Sizes and the garment colour from the product's config (LOOM-166).
+  const cfg = productConfig(p)
 
   const addWithSize = (size: Size) => {
     cart.add({
@@ -149,7 +151,7 @@ function ProductCard({ product: p }: { product: Product }) {
       image: p.thumbnail_url,
       unitPrice: p.price,
       // A garment bought straight from the catalog carries no print.
-      designJson: buildPlainDesignJson(size),
+      designJson: buildPlainDesignJson(size, cfg.colors.find((c) => c.available)?.hex),
       meta: `${isReady ? t('catalog.readyDesign') : t('common.noPrint')} · ${size}`,
       logoKey: null,
     })
@@ -210,7 +212,7 @@ function ProductCard({ product: p }: { product: Product }) {
 
         {sizesOpen ? (
           <View style={styles.sizeRow}>
-            {QUICK_SIZES.map((z) => (
+            {cfg.sizes.map((z) => (
               <Tap key={z} haptic style={styles.sizeChip} onPress={() => addWithSize(z)}>
                 <T style={monoSemi(9.5, 1, { color: C.ink })}>{z}</T>
               </Tap>
