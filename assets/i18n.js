@@ -151,6 +151,8 @@
     'cfg.step2Title':   { uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour and size' },
     'cfg.step2Lead':    { uz: 'O‘lchamingizni tanlang, so‘ng mato rangini almashtirish uchun kvadratchani bosing.', ru: 'Выберите размер, затем нажмите на квадрат, чтобы сменить цвет ткани.', en: 'Pick your size, then tap a square to change the fabric colour.' },
     'cfg.sizeRequired': { uz: 'Avval o‘lchamni tanlang', ru: 'Сначала выберите размер', en: 'Choose a size first' },
+    'cfg.sizeChoice':   { uz: 'O‘lchamni tanlash', ru: 'Выбор размера', en: 'Choose a size' },
+    'cfg.colorChoice':  { uz: 'Rangni tanlash', ru: 'Выбор цвета', en: 'Choose a colour' },
     'cfg.step3Title':   { uz: 'Tekshiring va buyurtma bering', ru: 'Проверьте и закажите', en: 'Check it and order' },
     'cfg.step3Lead':    { uz: 'Hammasi joyidami? Pastdagi katta tugmani bosing — tikib, yetkazib beramiz.', ru: 'Всё верно? Нажмите большую кнопку внизу — мы сошьём и привезём.', en: 'All good? Press the big button below — we will make it and deliver.' },
     'cfg.addImageSub':  { uz: 'Rasm, logotip yoki chizma', ru: 'Фото, логотип или рисунок', en: 'A photo, a logo or a drawing' },

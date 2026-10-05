@@ -2119,7 +2119,7 @@
             <!-- Size comes first and has no default: an order must never carry
                  a size the customer did not see (LOOM-179). -->
             <p class="tab-section-label" data-i18n="cfg.size">Размер</p>
-            <div class="size-selector" id="size-selector" role="radiogroup" aria-required="true" aria-label="Выбор размера">
+            <div class="size-selector" id="size-selector" role="radiogroup" aria-required="true" data-i18n-attr="aria-label:cfg.sizeChoice" aria-label="Выбор размера">
               <button class="size-btn" data-size="XS">XS</button>
               <button class="size-btn" data-size="S">S</button>
               <button class="size-btn" data-size="M">M</button>
@@ -2170,7 +2170,7 @@
             </div>
             <div class="divider"></div>
             <p class="tab-section-label" data-i18n="cfg.shirtColor">Цвет футболки</p>
-            <div class="color-swatches" id="color-swatches" role="radiogroup" aria-label="Выбор цвета"></div>
+            <div class="color-swatches" id="color-swatches" role="radiogroup" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="Выбор цвета"></div>
             <input type="color" id="custom-color-picker" value="#FFFFFF" style="display:none" aria-hidden="true" />
             <input type="text" id="custom-color-hex" value="#FFFFFF" style="display:none" aria-hidden="true" />
           </div>
