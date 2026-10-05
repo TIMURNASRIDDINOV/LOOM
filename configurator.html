@@ -119,7 +119,7 @@
         height: 100vh; height: 100dvh; min-height: 640px; overflow: hidden;
         background:
           /* the pool of light the key throws on the backdrop */
-          radial-gradient(78% 58% at 50% 34%, rgba(255, 255, 255, 0.55), transparent 70%),
+          radial-gradient(78% 58% at var(--stage-cx, 50%) 34%, rgba(255, 255, 255, 0.55), transparent 70%),
           /* the sweep itself: wall above, floor below */
           linear-gradient(180deg, var(--studio-0) 0%, var(--studio-1) 56%, var(--studio-2) 100%);
       }
@@ -127,7 +127,7 @@
          without it the corners pull the eye away from the garment. */
       .studio::before {
         content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-        background: radial-gradient(115% 85% at 50% 40%, transparent 46%, rgba(0,0,0,0.14) 100%);
+        background: radial-gradient(115% 85% at var(--stage-cx, 50%) 40%, transparent 46%, rgba(0,0,0,0.14) 100%);
       }
       /* touch-action:none — decal drags / pinches must reach the
          pointer-event editor, not become page scroll (which fires
@@ -578,10 +578,10 @@
         .studio #three-container { inset: var(--nav-h) 0 0 var(--stage-l); height: auto; width: auto; }
         .studio .loading-overlay { inset: var(--nav-h) 0 0 var(--stage-l); height: auto; }
         .studio .flat-stagebox { padding: 46px 24px 76px; }
-        .chip-garment { top: calc(var(--nav-h) + 20px); right: 24px; left: auto; }
+        .chip-garment { top: var(--chip-top); right: 24px; left: auto; }
         .chip-reset   { left: auto; right: 24px; bottom: 24px; top: auto; }
         .chip-save    { right: auto; left: calc(var(--stage-l) + 24px); bottom: 24px; top: auto; }
-        .surface-toggle { top: calc(var(--nav-h) + 20px); right: auto; left: calc(var(--stage-l) + 24px); transform: none; }
+        .surface-toggle { top: var(--chip-top); right: auto; left: calc(var(--stage-l) + 24px); transform: none; }
         /* centred in the free area by margins, not a transform */
         .view-toggle  { left: var(--stage-l); right: 0; width: max-content; margin: 0 auto; transform: none; bottom: 24px; top: auto; }
 
@@ -1732,12 +1732,8 @@
           --stage-l: calc(2 * var(--panel-inset) + var(--panel-w));
           /* centre of the free area; the key light and the vignette sit on it */
           --stage-cx: calc(var(--stage-l) + (100% - var(--stage-l)) / 2);
-          background:
-            radial-gradient(78% 58% at var(--stage-cx) 34%, rgba(255, 255, 255, 0.55), transparent 70%),
-            linear-gradient(180deg, var(--studio-0) 0%, var(--studio-1) 56%, var(--studio-2) 100%);
-        }
-        .studio::before {
-          background: radial-gradient(115% 85% at var(--stage-cx) 40%, transparent 46%, rgba(0,0,0,0.14) 100%);
+          /* top edge of the stage chips (garment, 2D/3D) */
+          --chip-top: calc(var(--nav-h) + 20px);
         }
         /* Head, step bar and foot stay put; only the step body scrolls. */
         .studio-sheet {
@@ -1748,9 +1744,13 @@
           box-shadow: var(--hard);
           backdrop-filter: none; -webkit-backdrop-filter: none;
         }
+        /* The price drops under the name when both do not fit on one line,
+           so the name gets the full panel width ("O‘z dizayningizni
+           yarating" needed three lines beside the price at 300-333px). */
+        .sheet-headline { flex-wrap: wrap; row-gap: 0.15rem; }
         /* A long name gets two lines, then an ellipsis. */
         .sheet-product {
-          white-space: normal; overflow-wrap: anywhere;
+          white-space: normal; overflow-wrap: break-word;
           display: -webkit-box; -webkit-box-orient: vertical;
           -webkit-line-clamp: 2; line-clamp: 2;
         }
