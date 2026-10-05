@@ -507,6 +507,8 @@ const THREE_CHUNKS = [
 const _loadedChunks = new Set();
 let _threeReady = null;   // single in-flight promise for the script chain
 let _preview3D = null;    // single in-flight promise for the whole boot
+let _threeBooted = false;  // renderer, textures and render loop exist (once per page)
+let _preview3DReady = false; // the model is on screen; Save PNG is available
 let _pendingGlbUrl = null; // resolved by loadProductFromSlug, consumed on open
 let _productReady = null;  // loadProductFromSlug's promise; gates the model URL
 
@@ -549,24 +551,36 @@ function ensureThreeLoaded() {
  * failure so the retry button can start over.
  */
 function ensurePreview3D() {
-  if (_preview3D) return _preview3D;
-  showPreviewLoading();
+  if (_preview3D) {
+    // Back in 3D while the load is still running: setFlatMode hid the overlay.
+    if (!_preview3DReady) showPreviewLoading(false);
+    return _preview3D;
+  }
+  showPreviewLoading(true);
   _preview3D = ensureThreeLoaded()
     .then(() => {
-      initThreeJS();
-      initThreeTextures();
-      // Not awaited: the mesh should not wait on two small JPEGs. Materials
-      // pick the maps up when they arrive (loadFabricDetail → applyFabricDetail).
-      loadFabricDetail();
-      animate();
+      // A retry after a model failure reuses the renderer it already built.
+      if (!_threeBooted) {
+        initThreeJS();
+        initThreeTextures();
+        // Not awaited: the mesh should not wait on two small JPEGs. Materials
+        // pick the maps up when they arrive (loadFabricDetail → applyFabricDetail).
+        loadFabricDetail();
+        animate();
+        _threeBooted = true;
+      }
       // Wait for ?slug= to resolve so a custom product model isn't loaded on
       // top of the default one. Already settled in the common case; its own
       // failures are swallowed there and fall back to the bundled garment.
       return (_productReady || Promise.resolve()).catch(() => {});
     })
     .then(() => loadShirtModel(_pendingGlbUrl || DEFAULT_MODEL_URL))
-    // Model or placeholder: open on the side picked in 2D before the 3D existed.
-    .then(() => setCameraView(designState.activeView))
+    // Open on the side picked in 2D before the 3D existed.
+    .then(() => {
+      setCameraView(designState.activeView);
+      _preview3DReady = true;
+      enableSaveDesign();
+    })
     .catch((err) => {
       _preview3D = null;
       showPreviewError(err);
@@ -580,21 +594,40 @@ function ensurePreview3D() {
 // impossible; now it is a network away, and a spinner that never resolves is
 // worse than an error the user can act on.
 
-function showPreviewLoading() {
+// fresh: a new attempt, so the bar starts over as indeterminate.
+function showPreviewLoading(fresh) {
   const overlay = document.getElementById("loading-overlay");
   if (!overlay) return;
   overlay.classList.remove("is-error");
   overlay.style.display = "flex";
   overlay.style.opacity = "1";
+  if (fresh) setLoadProgress(null);
 }
 
+/** Bar and #loading-pct: null = indeterminate (size unknown), else 0-100. */
+function setLoadProgress(pct) {
+  const bar = document.getElementById("loading-bar");
+  const label = document.getElementById("loading-pct");
+  const known = pct != null;
+  if (bar) {
+    bar.classList.toggle("is-indeterminate", !known);
+    if (known) bar.setAttribute("aria-valuenow", String(pct));
+    else bar.removeAttribute("aria-valuenow");
+    if (bar.firstElementChild) bar.firstElementChild.style.transform = known ? "scaleX(" + pct / 100 + ")" : "";
+  }
+  if (label) label.textContent = known ? pct + "%" : "";
+}
+
+// Any failure (scripts or model) leaves the customer on the 2D editor with a
+// toast, never an error panel over it; the next 3D tap retries, because the
+// catch in ensurePreview3D() has cleared the promise.
 function showPreviewError(err) {
   console.error("[LOOM] 3D preview failed to load:", err);
   const overlay = document.getElementById("loading-overlay");
   if (!overlay) return;
-  overlay.style.display = "flex";
-  overlay.style.opacity = "1";
   overlay.classList.add("is-error");
+  setFlatMode(true); // hides the overlay
+  showToast(CT("cfg.load3dFailed", "Не удалось загрузить 3D-превью"), "error");
   const btn = document.getElementById("preview-retry");
   if (btn && !btn.dataset.bound) {
     btn.dataset.bound = "1";
@@ -1573,11 +1606,10 @@ function attachGeometryDecoder(loader) {
 function loadShirtModel(glbUrl) {
   const loader = attachGeometryDecoder(new THREE.GLTFLoader());
 
-  // Returns a promise so ensurePreview3D() can sequence on it. It RESOLVES on
-  // the error path too: a model that fails still falls back to the placeholder
-  // garment, exactly as before, and that is a finished state — not something
-  // the retry button should offer to redo.
-  return new Promise((resolve) => {
+  // Returns a promise so ensurePreview3D() can sequence on it. A model that
+  // fails REJECTS: no stand-in garment, the customer stays in 2D and the next
+  // 3D tap retries (ensurePreview3D's catch).
+  return new Promise((resolve, reject) => {
   loader.load(
     glbUrl || DEFAULT_MODEL_URL,
 
@@ -1696,100 +1728,13 @@ function loadShirtModel(glbUrl) {
 
     // onProgress
     function (xhr) {
-      if (xhr.total) {
-        const pct = Math.round((xhr.loaded / xhr.total) * 100);
-        const el = document.getElementById("loading-pct");
-        if (el) el.textContent = pct + "%";
-      }
+      if (xhr.total) setLoadProgress(Math.round((xhr.loaded / xhr.total) * 100));
     },
 
-    // onError — log error, show canvas message, fall back to placeholder geometry
-    function (err) {
-      console.error('[LOOM] 3D model failed to load:', err);
-      const loadingEl = document.getElementById('loading-overlay');
-      if (loadingEl) loadingEl.style.display = 'none';
-      createPlaceholderShirt();
-      hideLoadingOverlay();
-      resolve();
-    },
+    // onError: logged once by showPreviewError()
+    reject,
   );
   });
-}
-
-/**
- * Placeholder t-shirt built from Three.js primitives.
- * Drop a real .glb or .obj file into assets/models/ to replace this.
- */
-function createPlaceholderShirt() {
-  const group = new THREE.Group();
-
-  shirtMaterials = [];
-  frontPrintMaterials = [];
-  backPrintMaterials = [];
-  plainColorMaterials = [];
-
-  const mat = new THREE.MeshStandardMaterial({
-    map: frontTexture,
-    roughness: 0.78,
-    metalness: 0,
-    side: THREE.FrontSide,
-  });
-  shirtMaterials.push(mat);
-  frontPrintMaterials.push(mat);
-
-  // Body
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.6, 2.0, 0.18, 4, 8, 2),
-    mat,
-  );
-  group.add(body);
-
-  // Left sleeve
-  const lSleeve = new THREE.Mesh(
-    new THREE.BoxGeometry(0.75, 0.52, 0.16, 2, 2, 1),
-    mat.clone(),
-  );
-  lSleeve.material.map = plainTexture;
-  lSleeve.material.color.set(0xffffff);
-  shirtMaterials.push(lSleeve.material);
-  plainColorMaterials.push(lSleeve.material);
-  lSleeve.position.set(-1.1, 0.76, 0);
-  lSleeve.rotation.z = 0.35;
-  group.add(lSleeve);
-
-  // Right sleeve
-  const rSleeve = new THREE.Mesh(
-    new THREE.BoxGeometry(0.75, 0.52, 0.16, 2, 2, 1),
-    mat.clone(),
-  );
-  rSleeve.material.map = plainTexture;
-  rSleeve.material.color.set(0xffffff);
-  shirtMaterials.push(rSleeve.material);
-  plainColorMaterials.push(rSleeve.material);
-  rSleeve.position.set(1.1, 0.76, 0);
-  rSleeve.rotation.z = -0.35;
-  group.add(rSleeve);
-
-  // Collar
-  const collar = new THREE.Mesh(
-    new THREE.TorusGeometry(0.28, 0.07, 8, 24, Math.PI),
-    mat.clone(),
-  );
-  collar.material.map = plainTexture;
-  collar.material.color.set(0xffffff);
-  shirtMaterials.push(collar.material);
-  plainColorMaterials.push(collar.material);
-  collar.position.set(0, 1.08, 0);
-  group.add(collar);
-
-  group.scale.setScalar(0.72);
-  scene.add(group);
-  shirtObject = group;
-  fitStudioToObject(group);
-  applyActiveTexture();
-  console.info(
-    "Placeholder shirt rendered. Replace assets/models/oversized-tshirt.obj with a proper GLB for best results.",
-  );
 }
 
 function hideLoadingOverlay() {
@@ -4320,7 +4265,14 @@ function setFlatMode(on) {
     b.setAttribute("aria-selected", String(on2));
   });
 
-  if (flatMode) { renderFlatEditor(); return; }
+  if (flatMode) {
+    // The loader belongs to the 3D surface; a load still running continues
+    // behind the 2D editor and ensurePreview3D() shows it again on return.
+    const overlay = document.getElementById("loading-overlay");
+    if (overlay) overlay.style.display = "none";
+    renderFlatEditor();
+    return;
+  }
 
   // Every route into the 3D — the toggle, the tab buttons, the first-design
   // reward — lands here, so this is the single gate that boots it. Fire and
@@ -4670,7 +4622,7 @@ async function captureProofs() {
 
   // 3D mockups — _snapshotURL captures the CURRENT camera, so choreograph it per view.
   const mockData = { front: null, back: null };
-  if (renderer && camera && controls && scene) {
+  if (renderer && camera && controls && scene && shirtObject) {
     // Snapshot the user's ACTUAL live view — addToCart leaves them editing, so we
     // must restore the exact camera/orbit afterwards, not snap to a canned preset.
     const camPos = camera.position.clone();
@@ -5371,17 +5323,31 @@ function bindSaveDesign() {
   if (!btn) return;
 
   btn.addEventListener("click", () => {
-    if (!renderer) return;
+    // aria-disabled keeps the chip focusable, so the hint is said here too
+    // (touch has no title tooltip).
+    if (!_preview3DReady) {
+      showToast(CT("cfg.exportPngNeeds3d", "Откройте 3D-превью, чтобы сохранить PNG"), "warning");
+      return;
+    }
     // Render one extra frame to ensure latest state
     updateStudioRig();
     renderer.render(scene, camera);
     const url = _snapshotURL("image/png");
     const a = document.createElement("a");
     a.href = url;
-    a.download = "my-loom-design.png";
+    a.download = "loom-design.png";
     a.click();
-    showToast("Дизайн сохранён!", "success");
+    showToast(CT("cfg.savedToast", "Дизайн сохранён!"), "success");
   });
+}
+
+/** The 3D is on screen: Save becomes a plain button with its normal title. */
+function enableSaveDesign() {
+  const btn = document.getElementById("btn-save-design");
+  if (!btn) return;
+  btn.removeAttribute("aria-disabled");
+  btn.setAttribute("data-i18n-attr", "aria-label:cfg.save;title:cfg.savePng");
+  btn.title = CT("cfg.savePng", "Сохранить дизайн как PNG");
 }
 
 // ================================================================
