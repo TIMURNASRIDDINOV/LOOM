@@ -3162,6 +3162,22 @@ function bindSizeGuide() {
 // Refresh JS-rendered strings when the language changes
 function bindLangChange() {
   window.addEventListener("loom:langchange", () => {
+    // Untouched text is a localized sample on the garment, not customer copy.
+    // Refresh the sample for the new language while leaving its input empty.
+    let refreshedPlaceholder = false;
+    ["front", "back"].forEach((view) => {
+      elementsOf(view).forEach((el) => {
+        if (el.type !== "text" || !el.placeholder) return;
+        el.content = CT("cfg.newTextDefault", "Ваш текст");
+        refreshedPlaceholder = true;
+      });
+    });
+    if (refreshedPlaceholder) {
+      syncPanelFromState();
+      drawTexture("front");
+      drawTexture("back");
+      applyActiveTexture();
+    }
     // Summary tab (if visible) + order-modal summary use translated color/labels
     try { if (typeof updateSummaryTab === "function") updateSummaryTab(); } catch (e) {}
     try { if (typeof renderCart === "function") renderCart(); } catch (e) {}
@@ -3319,7 +3335,7 @@ function addTextElement() {
     content: CT("cfg.newTextDefault", "Ваш текст"),
     // The default shows on the shirt but not in the field, which stays empty
     // under its placeholder: the first keystroke replaces the default instead
-    // of mixing into it. Never serialised (see _serializeElement).
+    // of mixing into it. Placeholder text is omitted by _serializeView().
     placeholder: true,
     // Black-on-black is invisible; start new text with a colour that reads on
     // the current garment. The user can still pick anything afterwards.
@@ -4658,7 +4674,10 @@ function _serializeView(view) {
   const r = printRect(view);
   return {
     printRect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) },
-    elements: elementsOf(view).filter((e) => e.type === "text" ? !!e.content : !!e.img).map(_serializeElement),
+    // Placeholder copy is preview-only and must never be stored as artwork.
+    elements: elementsOf(view).filter((e) => e.type === "text"
+      ? !!e.content && !e.placeholder
+      : !!e.img).map(_serializeElement),
   };
 }
 
@@ -4730,7 +4749,7 @@ function _logoUploadIncomplete(view) {
 // A view can now carry several texts/logos, so these join them instead of
 // reaching for a single hard-coded slot.
 function _viewTexts(view) {
-  return elementsOf(view).filter((e) => e.type === "text" && e.content);
+  return elementsOf(view).filter((e) => e.type === "text" && e.content && !e.placeholder);
 }
 function _textSummary(view) {
   return _viewTexts(view).map((e) => e.content).join(" · ");
@@ -4769,7 +4788,10 @@ function _renderPrintCanvas(view) {
   // but with the FLAT mapping, not the warped one: the centreline warp corrects
   // the posed 3D scan, and a real shirt isn't posed. nx 0.5 must land on the
   // physical platen centre in the file a print shop receives.
-  elementsOf(view).forEach((el) => drawElementIn(ctx, el, r, false));
+  elementsOf(view).forEach((el) => {
+    if (el.type === "text" && el.placeholder) return;
+    drawElementIn(ctx, el, r, false);
+  });
   return c.toDataURL("image/png");
 }
 
@@ -4838,6 +4860,18 @@ async function addToCart(opts) {
   // The login modal and the cart drawer live outside the stage and would be
   // invisible in full screen, so leave it first.
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+  // Require real copy or removal before login, uploads, and the cart request.
+  for (const view of ["front", "back"]) {
+    const pending = elementsOf(view).find((el) => el.type === "text" && el.placeholder);
+    if (!pending) continue;
+    if (designState.activeView !== view) setActiveView(view);
+    designState[view].selId = pending.id;
+    syncPanelFromState();
+    redrawActive();
+    showToast(CT("cfg.untouchedTextCart", "Enter text or remove this text layer before adding the item to your bag."), "error");
+    document.getElementById("text-content-input")?.focus();
+    return false;
+  }
   // Account-bound cart → require login first
   let user = null;
   try {
@@ -5228,8 +5262,11 @@ function bindTextControls() {
   textIn.addEventListener("input", () => {
     const t = getTxt();
     if (!t) return;
-    t.content = textIn.value;
-    t.placeholder = false;
+    const enteredText = textIn.value;
+    t.placeholder = enteredText.trim().length === 0;
+    t.content = t.placeholder
+      ? CT("cfg.newTextDefault", "Ваш текст")
+      : enteredText;
     updateViewToggleMarkers();
     scheduleRedraw(); // coalesce — fast typing must not re-upload per keystroke
   });
