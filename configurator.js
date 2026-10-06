@@ -430,8 +430,7 @@ async function applyCartEditDesign(item) {
   if (d.shirtColor) selectShirtColor(d.shirtColor, null);
   if (d.size) {
     selectedSize = d.size;
-    document.querySelectorAll(".size-btn").forEach((b) =>
-      b.classList.toggle("active", b.dataset.size === d.size));
+    syncPickers();
   }
 
   for (const view of ["front", "back"]) {
@@ -1699,11 +1698,12 @@ function buildSizeButtons(sizes) {
   row.textContent = "";
   sizes.forEach((sz) => {
     const b = document.createElement("button");
-    b.className = "size-btn" + (sz === selectedSize ? " active" : "");
+    b.className = "size-btn";
     b.dataset.size = sz;
     b.textContent = sz;
     row.appendChild(b);
   });
+  syncPickers();
 }
 
 /**
@@ -3000,9 +3000,12 @@ function _updatePinch() {
 // Nudge/delete now target the flat editor, so the step is measured against the
 // flat print rect in CSS px — one arrow press moves one on-screen pixel.
 function _onEdKeyDown(e) {
-  if (!flatMode) return;
+  if (!flatMode || e.defaultPrevented) return;
   const ae = document.activeElement;
   if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  // Arrows and Backspace on a picker, menu or dialog belong to that control:
+  // they must never move or delete the artwork behind it.
+  if (ae && ae.closest && ae.closest('[role="radiogroup"], [role="menu"], [role="dialog"], dialog')) return;
   const el = _flatActiveEl();
   if (!el) return;
   const r = _flatRect || printRect();
@@ -3124,6 +3127,7 @@ function initUI() {
   bindOrderModal();
   bindMobileNav();
   bindSizeSelector();
+  bindPickerKeys();
   bindCenterButtons();
   bindLayerControls();
   bindFlatEditor();
@@ -3249,8 +3253,7 @@ async function loadLayout() {
   if (d.shirtColor) selectShirtColor(d.shirtColor, null);
   if (d.size) {
     selectedSize = d.size;
-    document.querySelectorAll(".size-btn").forEach((b) =>
-      b.classList.toggle("active", b.dataset.size === d.size));
+    syncPickers();
   }
 
   for (const view of ["front", "back"]) {
@@ -3414,7 +3417,9 @@ const FLAT_OUTLINE = {
 
 const FLAT_HANDLE_R = 7;        // drawn handle half-size (CSS px)
 const FLAT_ROTATE_OFFSET = 34;  // rotate handle distance above the box (CSS px)
-const FLAT_ACCENT = "rgba(10,132,255,0.95)";
+// Selection colour: the page's --select token, read on the first draw and
+// again on a theme switch (loom:themechange, bound in bindFlatEditor).
+let _flatSelect = "";
 
 let _flatCv = null, _flatCtx = null;
 let _flatBox = null;    // garment box in CSS px
@@ -3609,6 +3614,7 @@ function renderFlatEditor() {
     cv.width = W * dpr; cv.height = H * dpr;
   }
   const ctx = _flatCtx || (_flatCtx = cv.getContext("2d"));
+  if (!_flatSelect) _flatSelect = getComputedStyle(document.documentElement).getPropertyValue("--select").trim() || "#d6382d";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
@@ -3729,7 +3735,7 @@ function _flatDrawChrome(ctx, b) {
   const rotL = { x: topMid.x + nx * FLAT_ROTATE_OFFSET, y: topMid.y + ny * FLAT_ROTATE_OFFSET };
 
   ctx.save();
-  ctx.strokeStyle = FLAT_ACCENT;
+  ctx.strokeStyle = _flatSelect;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(c[0].x, c[0].y);
@@ -4015,6 +4021,7 @@ function _flatCloseAddSheet() {
 // ── Wiring ──────────────────────────────────────────────────────
 
 function bindFlatEditor() {
+  window.addEventListener("loom:themechange", () => { _flatSelect = ""; renderFlatEditor(); });
   const cv = document.getElementById("flat-canvas");
   if (!cv) return;
   _flatCv = cv;
@@ -4480,6 +4487,7 @@ function _snapDesign() {
     back: { elements: clone(designState.back.elements), selId: designState.back.selId },
     activeView: designState.activeView,
     shirtColor: designState.shirtColor,
+    size: selectedSize,
     files: Object.assign({}, uploadedFileData),
   };
 }
@@ -4497,9 +4505,10 @@ function performUndo() {
   designState.front.selId = s.front.selId;
   designState.back.elements = s.back.elements;
   designState.back.selId = s.back.selId;
-  designState.shirtColor = s.shirtColor;
+  selectedSize = s.size;
   Object.keys(uploadedFileData).forEach((k) => delete uploadedFileData[k]);
   Object.assign(uploadedFileData, s.files);
+  paintShirtColor(s.shirtColor); // both faces and the pickers, not only the active face
   if (designState.activeView !== s.activeView) setActiveView(s.activeView);
   syncPanelFromState();
   redrawActive();
@@ -4923,9 +4932,9 @@ function buildColorSwatches() {
   SHIRT_COLORS.forEach((def) => {
     const { hex, light } = def;
     const btn = document.createElement("button");
-    btn.className =
-      "swatch-btn" + (hex === designState.shirtColor ? " selected" : "");
+    btn.className = "swatch-btn";
     btn.title = colorLabel(def);
+    btn.setAttribute("aria-label", btn.title);
     btn.dataset.hex = hex;
     btn.style.background = hex;
     if (light) btn.style.border = "2px solid #D1D5DB";
@@ -4941,6 +4950,56 @@ function buildColorSwatches() {
     }
     container.appendChild(btn);
   });
+  syncPickers();
+}
+
+// ----------------------------------------------------------------
+// Picker radio state and keys (colour swatches, sizes)
+// ----------------------------------------------------------------
+/**
+ * The one place the pickers' checked state is written: the visual class,
+ * role and aria-checked, and a roving tabindex so Tab enters each group at the
+ * checked item (the first one while nothing is checked). Clicks, arrow keys,
+ * undo, Reset, saved layouts and cart edits all go through here.
+ */
+function syncPickers() {
+  const hex = String(designState.shirtColor || "").toUpperCase();
+  _syncRadios("color-swatches", ".swatch-btn", "selected", (b) => String(b.dataset.hex).toUpperCase() === hex);
+  _syncRadios("size-selector", ".size-btn", "active", (b) => b.dataset.size === selectedSize);
+}
+
+function _syncRadios(id, sel, cls, isOn) {
+  const items = document.querySelectorAll("#" + id + " " + sel);
+  let tab = items[0];
+  items.forEach((b) => {
+    const on = isOn(b);
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(on));
+    b.classList.toggle(cls, on);
+    b.tabIndex = -1;
+    if (on) tab = b;
+  });
+  if (tab) tab.tabIndex = 0;
+}
+
+/** Arrow keys move the choice, skipping switched-off items, like native radios. */
+function bindPickerKeys() {
+  [["color-swatches", ".swatch-btn"], ["size-selector", ".size-btn"]].forEach(([id, sel]) => {
+    const group = document.getElementById(id);
+    if (!group) return;
+    group.addEventListener("keydown", (e) => {
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (!step || e.altKey || e.ctrlKey || e.metaKey) return;
+      const items = [...group.querySelectorAll(sel)];
+      let i = items.indexOf(document.activeElement);
+      if (i < 0) return;
+      e.preventDefault(); // also tells _onEdKeyDown the key is taken
+      for (let n = 1; n < items.length; n++) {
+        i = (i + step + items.length) % items.length;
+        if (items[i].getAttribute("aria-disabled") !== "true") { items[i].focus(); items[i].click(); return; }
+      }
+    });
+  });
 }
 
 // ----------------------------------------------------------------
@@ -4955,9 +5014,7 @@ function bindSizeSelector() {
     if (!btn) return;
     trackStep("cfg_style");
     selectedSize = btn.dataset.size;
-    document.querySelectorAll(".size-btn").forEach((b) => {
-      b.classList.toggle("active", b.dataset.size === selectedSize);
-    });
+    syncPickers();
     row.classList.remove("need-size");
     row.removeAttribute("aria-invalid");
   });
@@ -5131,10 +5188,7 @@ function selectShirtColor(hex, clickedBtn) {
 function paintShirtColor(hex) {
   designState.shirtColor = hex;
 
-  // Update swatch selection highlight
-  document.querySelectorAll(".swatch-btn").forEach((b) => {
-    b.classList.toggle("selected", b.dataset.hex === hex);
-  });
+  syncPickers();
 
   // Keep the custom picker in sync
   const picker = document.getElementById("custom-color-picker");
@@ -5478,9 +5532,6 @@ function resetDesign() {
     designState[v].selId = null;
   });
 
-  // Reset size buttons
-  document.querySelectorAll(".size-btn").forEach((b) => b.classList.remove("active"));
-
   Object.keys(uploadedFileData).forEach((k) => delete uploadedFileData[k]);
 
   // Reset UI controls to defaults
@@ -5502,10 +5553,7 @@ function resetDesign() {
     b.setAttribute("aria-pressed", "false");
   });
 
-  // Reselect white swatch
-  document.querySelectorAll(".swatch-btn").forEach((b) => {
-    b.classList.toggle("selected", b.dataset.hex === DEFAULT_SHIRT_COLOR);
-  });
+  syncPickers(); // default colour checked, no size
 
   syncPanelFromState();
   drawTexture("front");
@@ -6169,7 +6217,7 @@ function showToast(message, type = "success") {
   toast.id = "loom-toast";
   const bg = type === "success" ? "var(--ok)" : type === "warning" ? "var(--warn)" : "var(--danger)";
   // --warn is dark amber in light mode and yellow in dark mode: --paper-3 reads on both.
-  const fg = type === "warning" ? "var(--paper-3)" : "var(--on-accent)";
+  const fg = type === "warning" ? "var(--paper-3)" : "var(--toast-ink)";
 
   toast.style.cssText = `
     position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:50%;
