@@ -5547,12 +5547,12 @@ function updateSummaryTab() {
   ["front", "back"].forEach((v) => {
     const label = v === "front" ? CT("cfg.viewFront", "Перед") : CT("cfg.viewBack", "Зад");
     elementsOf(v).forEach((el) => {
-      if (el.type === "text" && el.content) texts.push(`${label}: ${el.content}`);
+      if (el.type === "text" && el.content && !el.placeholder) texts.push(`${label}: ${el.content}`);
       if (el.type === "image" && el.img) logos.push(`${label}: ${el.name || "logo"}`);
     });
   });
   const fonts = [...new Set(
-    ["front", "back"].flatMap((v) => elementsOf(v).filter((e) => e.type === "text" && e.content).map((e) => e.font)),
+    ["front", "back"].flatMap((v) => elementsOf(v).filter((e) => e.type === "text" && e.content && !e.placeholder).map((e) => e.font)),
   )];
   setEl("sum-text", texts.join(" · ") || "—");
   setEl("sum-font", fonts.join(", ") || "—");
