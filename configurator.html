@@ -1848,6 +1848,84 @@
         .chip-reset, .chip-save { padding: 0.5rem; }
         .chip-reset span, .chip-save span { display: none; }
       }
+
+      /* ── Desktop: bar buttons and a compact Step 2 (LOOM-194) ───────
+         Step 1's tools, "More" and the foot CTAs are one kind of control: a
+         full-width bar, label left and icon right, whose label wraps instead
+         of clipping. Step 2 gives back what its heading and spacing took, so
+         sizes and colours both sit above the fold at 1280x720 and 901x700.
+         Phones keep the LOOM-188 layout: everything here is desktop-only. */
+      @media (min-width: 901px) {
+        .studio {
+          --bar-h: 40px;
+          /* Ink on the accent field: 5.6:1 in both themes (white was 3.3:1). */
+          --cta-ink: #131311;
+        }
+        .choice-tile,
+        .studio-sheet #btn-more,
+        .studio-sheet .btn-primary-full,
+        .studio-sheet .btn-secondary-full {
+          display: flex; align-items: center; justify-content: flex-start;
+          gap: 0.75rem; width: 100%; min-height: var(--bar-h);
+          text-align: left; white-space: normal;
+        }
+        /* Ink ring, not the accent one (2.95:1 on light paper). */
+        .choice-tile:focus-visible,
+        .studio-sheet #btn-more:focus-visible,
+        .studio-sheet .panel-foot button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+        .choice-tile { padding: 0.5rem 0.5rem 0.5rem 0.9rem; }
+        .choice-ico { order: 2; margin-left: auto; width: 32px; height: 32px; }
+        .choice-ico svg { width: 18px; height: 18px; }
+        .choice-soon { order: 1; align-self: center; }
+        .choice-go { display: none; }
+        /* Still the button's description through aria-describedby; aria-hidden
+           keeps it out of the name, so it is never read twice. */
+        .choice-sub { display: none; }
+
+        .studio-sheet .dock-more { flex: 1 1 100%; }
+        .studio-sheet #btn-more { padding: 0.55rem 0.9rem; line-height: 1.2; letter-spacing: 0.02em; }
+        .studio-sheet #btn-more svg,
+        .studio-sheet .panel-foot button > svg,
+        .studio-sheet .panel-foot .cta-ico { flex: 0 0 auto; margin-left: auto; }
+        .studio-sheet #btn-add-to-cart > svg { order: 1; }
+        .studio-sheet .panel-foot .cta-ico { display: inline-flex; }
+        .cta-ico svg { width: 17px; height: 17px; }
+        .studio-sheet .btn-primary-full { color: var(--cta-ink); padding-top: 0.7rem; padding-bottom: 0.7rem; }
+        .studio-sheet .btn-secondary-full { color: var(--text); padding-top: 0.6rem; padding-bottom: 0.6rem; }
+
+        /* Icons only grow under a real hover (below); the arrow nudge goes. */
+        .choice-ico svg,
+        .studio-sheet #btn-more svg,
+        .studio-sheet .panel-foot button svg { transition: transform 0.5s var(--ease); }
+        .studio-sheet .btn-next:hover svg { transform: none; }
+
+        /* Step 2: the step bar already names the step, so its heading stays
+           for screen readers only (as on phones); sizes become two rows of
+           four, the size guide a slim bar, and the swatches 40px. */
+        #tab-color { gap: 0.5rem; }
+        #tab-color .step-head {
+          position: absolute; width: 1px; height: 1px; overflow: hidden;
+          clip-path: inset(50%); white-space: nowrap;
+        }
+        #tab-color .divider { display: none; }
+        .studio-sheet[data-step="color"] .tab-scroll { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .studio-sheet #tab-color .tab-section-label { margin-bottom: 0; padding-bottom: 0.35rem; line-height: 1.2; }
+        .studio-sheet .size-selector { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.4rem; }
+        .studio-sheet .size-btn { min-width: 0; min-height: 36px; padding: 0 0.25rem; font-size: 1rem; }
+        .studio-sheet .size-guide { margin-top: 0; }
+        .studio-sheet .size-guide-toggle { padding: 0.4rem 0.7rem; font-size: 0.85rem; }
+        .studio-sheet .swatch-btn { width: 40px; height: 40px; }
+      }
+      @media (min-width: 901px) and (hover: hover) and (prefers-reduced-motion: no-preference) {
+        .choice-tile:hover .choice-ico svg,
+        .studio-sheet #btn-more:hover svg,
+        .studio-sheet .panel-foot button:hover svg { transform: scale(1.15); transition-duration: 0.3s; }
+      }
+      /* No hover: a tap leaves :hover stuck, so the Lab spark never pulses. */
+      @media (min-width: 901px) and (hover: none) {
+        .choice-tile .choice-ico .ci-spark { animation: none; }
+      }
     </style>
   </head>
 
@@ -1867,7 +1945,7 @@
         </div>
         <div class="loading-error">
           <p class="loading-text" data-i18n="cfg.load3dFailed">Не удалось загрузить 3D-превью</p>
-          <button type="button" id="preview-retry" class="btn-retry" data-i18n="cfg.retry">Повторить</button>
+          <button type="button" id="preview-retry" class="btn-retry"><span data-i18n="cfg.retry">Повторить</span></button>
         </div>
       </div>
 
@@ -1956,8 +2034,8 @@
 
       <!-- View toggle -->
       <div class="view-toggle">
-        <button id="btn-view-front" class="view-btn active" aria-pressed="true" data-i18n="cfg.viewFront">Перед</button>
-        <button id="btn-view-back" class="view-btn" aria-pressed="false" data-i18n="cfg.viewBack">Зад</button>
+        <button id="btn-view-front" class="view-btn active" aria-pressed="true"><span data-i18n="cfg.viewFront">Перед</span></button>
+        <button id="btn-view-back" class="view-btn" aria-pressed="false"><span data-i18n="cfg.viewBack">Зад</span></button>
       </div>
 
       <!-- ===== Controls =====
@@ -2011,26 +2089,26 @@
              Everything else in this panel only appears once one of them has
              been done. -->
         <div class="dock-choices">
-          <button id="btn-add-logo" class="choice-tile" type="button">
+          <button id="btn-add-logo" class="choice-tile" type="button" aria-describedby="btn-add-logo-sub">
             <span class="choice-ico" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5V4H4v16h9"/><path d="M4 16.2 8.6 11.6l3.6 3.6"/><circle cx="9" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><path class="ci-up" d="M18 21.4v-6.6"/><path class="ci-up" d="M15.5 17.3 18 14.8l2.5 2.5"/></svg>
             </span>
             <span class="choice-body">
               <span class="choice-title" data-i18n="cfg.addImage">Загрузить картинку</span>
-              <span class="choice-sub" data-i18n="cfg.addImageSub">Фото, логотип или рисунок</span>
+              <span class="choice-sub" id="btn-add-logo-sub" aria-hidden="true" data-i18n="cfg.addImageSub">Фото, логотип или рисунок</span>
             </span>
             <span class="choice-go" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg>
             </span>
           </button>
 
-          <button id="btn-add-text" class="choice-tile" type="button">
+          <button id="btn-add-text" class="choice-tile" type="button" aria-describedby="btn-add-text-sub">
             <span class="choice-ico" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 6.4V4.2h13v2.2"/><path d="M9.9 4.2v15"/><path d="M6.9 19.2h6"/><rect class="ci-caret" x="18.6" y="6.6" width="2.2" height="11" fill="currentColor" stroke="none"/></svg>
             </span>
             <span class="choice-body">
               <span class="choice-title" data-i18n="cfg.addTextOpt">Написать текст</span>
-              <span class="choice-sub" data-i18n="cfg.addTextSub">Имя, надпись или пожелание</span>
+              <span class="choice-sub" id="btn-add-text-sub" aria-hidden="true" data-i18n="cfg.addTextSub">Имя, надпись или пожелание</span>
             </span>
             <span class="choice-go" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg>
@@ -2040,13 +2118,13 @@
                exactly the moment someone wants a design and has none. Hidden
                until LOOM_FLAGS.lab is on: on a phone a locked tile cost Step 1
                the room its two real choices need. -->
-          <button id="btn-lab" class="choice-tile choice-tile--soon" type="button" aria-describedby="lab-soon-badge">
+          <button id="btn-lab" class="choice-tile choice-tile--soon" type="button" aria-describedby="btn-lab-sub lab-soon-badge">
             <span class="choice-ico" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12.2V20H4V4h7.4"/><path class="ci-spark" d="M17.6 2.2 19 5.9l3.7 1.4-3.7 1.4-1.4 3.7-1.4-3.7L10.5 7.3 14.2 5.9z" fill="currentColor" stroke="none"/><path class="ci-spark ci-spark--b" d="M12.6 12.8l.72 1.88 1.88.72-1.88.72-.72 1.88-.72-1.88-1.88-.72 1.88-.72z" fill="currentColor" stroke="none"/></svg>
             </span>
             <span class="choice-body">
               <span class="choice-title" data-i18n="lab.tileTitle">Придумать с LOOM Lab</span>
-              <span class="choice-sub" data-i18n="lab.tileSub">Опишите принт словами — Lab нарисует его</span>
+              <span class="choice-sub" id="btn-lab-sub" aria-hidden="true" data-i18n="lab.tileSub">Опишите принт словами — Lab нарисует его</span>
             </span>
             <span class="choice-soon" id="lab-soon-badge" data-i18n="lab.soon">Скоро</span>
           </button>
@@ -2093,9 +2171,9 @@
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
             </button>
             <div class="dock-more-menu" id="dock-more-menu" role="menu">
-              <button id="btn-save-layout" class="dock-more-item" type="button" role="menuitem" data-i18n="cfg.saveLayout">Сохранить макет</button>
-              <button id="btn-load-layout" class="dock-more-item" type="button" role="menuitem" data-i18n="cfg.loadLayout">Открыть макет</button>
-              <button id="btn-reset-design" class="dock-more-item danger" type="button" role="menuitem" data-i18n="cfg.resetLayout">Сброс</button>
+              <button id="btn-save-layout" class="dock-more-item" type="button" role="menuitem"><span data-i18n="cfg.saveLayout">Сохранить макет</span></button>
+              <button id="btn-load-layout" class="dock-more-item" type="button" role="menuitem"><span data-i18n="cfg.loadLayout">Открыть макет</span></button>
+              <button id="btn-reset-design" class="dock-more-item danger" type="button" role="menuitem"><span data-i18n="cfg.resetLayout">Сброс</span></button>
             </div>
           </div>
         </div>
@@ -2218,7 +2296,12 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             <span data-i18n="cfg.addToCart">В корзину</span>
           </button>
-          <button id="btn-place-order" class="btn-secondary-full" type="button" data-i18n="cfg.buyNow">Купить сейчас</button>
+          <!-- The icon slot is [hidden] so phones keep a text-only button; the
+               desktop bar style shows it (LOOM-194). -->
+          <button id="btn-place-order" class="btn-secondary-full" type="button">
+            <span data-i18n="cfg.buyNow">Купить сейчас</span>
+            <span class="cta-ico" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span>
+          </button>
         </div>
       </aside>
       </div><!-- /.studio-sheet -->
