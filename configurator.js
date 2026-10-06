@@ -3644,16 +3644,7 @@ function renderFlatEditor() {
   ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
   ctx.restore();
 
-  const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
-  const rect = {
-    x: box.x + pf.x * box.w, y: box.y + pf.y * box.h,
-    w: pf.w * box.w, h: pf.h * box.h,
-  };
-  // WYSIWYG contract: text sizes against rect.h, images against rect.w, and the
-  // bake does the same against the texture print rect — so this rect must keep
-  // that rect's aspect or the two surfaces quietly disagree about proportions.
-  const pr = printRect(face);
-  if (pr && pr.w && pr.h) rect.h = rect.w / (pr.w / pr.h);
+  const rect = _flatPrintRectIn(face, box);
   _flatRect = rect;
 
   // Print boundary — dashed, always visible, so the printable band is a fact
@@ -3681,6 +3672,55 @@ function renderFlatEditor() {
 
   _flatSyncEmptyState();
   updateViewToggleMarkers();
+}
+
+/** The print rect inside a drawn garment box, in the same px as the box. */
+function _flatPrintRectIn(face, box) {
+  const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
+  const rect = {
+    x: box.x + pf.x * box.w, y: box.y + pf.y * box.h,
+    w: pf.w * box.w, h: pf.h * box.h,
+  };
+  // WYSIWYG contract: text sizes against rect.h, images against rect.w, and the
+  // bake does the same against the texture print rect — so this rect must keep
+  // that rect's aspect or the two surfaces quietly disagree about proportions.
+  const pr = printRect(face);
+  if (pr && pr.w && pr.h) rect.h = rect.w / (pr.w / pr.h);
+  return rect;
+}
+
+/**
+ * A mockup of one face drawn from the flat editor's garment art and painter,
+ * for orders placed without the 3D preview. Same picture the customer edited,
+ * minus the print boundary and selection chrome. Returns a JPEG data URL.
+ */
+const FLAT_MOCKUP_PX = 900;
+async function _renderFlatMockup(face) {
+  const img = _flatArtImg(face);
+  if (img && !img.complete) {
+    await new Promise((resolve) => {
+      img.addEventListener("load", resolve, { once: true });
+      img.addEventListener("error", resolve, { once: true });
+      setTimeout(resolve, 4000); // no art in time: the outline stands in
+    });
+  }
+  const S = FLAT_MOCKUP_PX;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#F2F0EB"; // JPEG has no alpha; a white garment needs a ground
+  ctx.fillRect(0, 0, S, S);
+  const box = _flatGarmentBox(face, S, S);
+  ctx.save();
+  ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
+  ctx.shadowBlur = box.w * 0.09;
+  ctx.shadowOffsetX = box.w * 0.022;
+  ctx.shadowOffsetY = box.w * 0.030;
+  ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
+  ctx.restore();
+  const rect = _flatPrintRectIn(face, box);
+  elementsOf(face).forEach((el) => drawElementIn(ctx, el, rect, false));
+  return c.toDataURL("image/jpeg", 0.85);
 }
 
 function _flatDarkGarment() {
@@ -4812,16 +4852,21 @@ async function captureProofs() {
     renderer.render(scene, camera);
   }
 
+  // No 3D preview opened: the flat editor's garment stands in, so every order
+  // still carries a front and a back mockup.
+  if (!mockData.front) mockData.front = await _renderFlatMockup("front");
+  if (!mockData.back) mockData.back = await _renderFlatMockup("back");
+
   // Interactive 3D review model — the exact textured garment, baked, for the admin.
   const glbDataUrl = await captureGLB();
 
-  // Upload everything in parallel. Mockups upload only for active views (a blank
-  // side's plain-garment render isn't worth storing); prints already gated above.
+  // Upload everything in parallel. Both mockups always (a blank side still shows
+  // the garment); prints only for sides with a design, gated above.
   const [frontPrintKey, backPrintKey, frontMockupKey, backMockupKey, modelKey] = await Promise.all([
     printData.front ? _uploadDataUrl(printData.front, "front-print.png") : null,
     printData.back ? _uploadDataUrl(printData.back, "back-print.png") : null,
-    active.front && mockData.front ? _uploadDataUrl(mockData.front, "front-mockup.jpg") : null,
-    active.back && mockData.back ? _uploadDataUrl(mockData.back, "back-mockup.jpg") : null,
+    mockData.front ? _uploadDataUrl(mockData.front, "front-mockup.jpg") : null,
+    mockData.back ? _uploadDataUrl(mockData.back, "back-mockup.jpg") : null,
     glbDataUrl ? _uploadDataUrl(glbDataUrl, "model.glb") : null,
   ]);
 
