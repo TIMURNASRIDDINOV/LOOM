@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import Constants from 'expo-constants'
 import * as SecureStore from 'expo-secure-store'
 import { tStatic } from '../i18n'
@@ -109,9 +110,24 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
 
 /** Multipart upload to `POST /api/uploads` → `{ key }`. */
 export async function uploadFile(uri: string, name: string, type: string): Promise<string> {
-  const form = new FormData()
   // React Native's FormData takes this {uri,name,type} shape rather than a Blob.
-  form.append('file', { uri, name, type } as unknown as Blob)
+  return postUpload({ uri, name, type } as unknown as Blob)
+}
+
+/** Upload a rendered image (a `data:` URL, e.g. an order mockup) → `{ key }`. */
+export async function uploadDataUrl(dataUrl: string, name: string): Promise<string> {
+  if (Platform.OS === 'web') return postUpload(await (await fetch(dataUrl)).blob(), name)
+  // React Native cannot build a Blob from bytes, so the image goes via a cache file.
+  const FS = await import('expo-file-system/legacy')
+  const uri = `${FS.cacheDirectory}${Date.now()}-${name}`
+  await FS.writeAsStringAsync(uri, dataUrl.slice(dataUrl.indexOf(',') + 1), { encoding: 'base64' })
+  return uploadFile(uri, name, /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? 'image/jpeg')
+}
+
+async function postUpload(file: Blob, name?: string): Promise<string> {
+  const form = new FormData()
+  if (name) form.append('file', file, name)
+  else form.append('file', file)
 
   const token = await getToken()
   const res = await fetch(`${API_BASE}/api/uploads`, {

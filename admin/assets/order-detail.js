@@ -565,7 +565,7 @@ async function buildView(name, vm, mockUrl, printUrl, logoUrl) {
 
   if (mockUrl) {
     col.insertAdjacentHTML('beforeend',
-      `<figure class="ps-figure"><img class="ps-mockup" src="${mockUrl}" alt="Превью ${label}"><figcaption class="ps-figcap"><span>Превью (3D)</span></figcaption></figure>`)
+      `<figure class="ps-figure"><img class="ps-mockup" src="${mockUrl}" alt="Превью ${label}"><figcaption class="ps-figcap"><span>Превью</span></figcaption></figure>`)
   }
 
   const fig = document.createElement('figure'); fig.className = 'ps-figure'
@@ -678,7 +678,8 @@ function buildSpecTable(d) {
         rows.push(`<tr><td>${label} · логотип</td><td colspan="2">${escHtml(el.name || '—')}</td></tr>`)
         if (el.artworkId) {
           // A marketplace file: print from the designer's original (design_json.key), not a customer upload.
-          rows.push(`<tr><td></td><td>Дизайнер</td><td>${escHtml(el.author || '—')} · маркетплейс #${escHtml(String(el.artworkId))}</td></tr>`)
+          // The web writes artworkAuthor, the app writes author; old orders carry one or the other.
+          rows.push(`<tr><td></td><td>Дизайнер</td><td>${escHtml(el.artworkAuthor || el.author || '—')} · маркетплейс #${escHtml(String(el.artworkId))}</td></tr>`)
         }
         rows.push(`<tr><td></td><td>Масштаб</td><td>${escHtml(el.scalePct ?? '—')}%</td></tr>`)
         rows.push(`<tr><td></td><td>Позиция</td><td class="mono">${escHtml(posStr(el, vm.platenCm))}</td></tr>`)

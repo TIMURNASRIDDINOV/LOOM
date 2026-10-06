@@ -24,7 +24,7 @@ import { useT } from '../i18n'
 const PRINT_W = 0.46
 const PRINT_TOP = 0.3
 
-function flatRect(W: number, pa: PrintArea) {
+export function flatRect(W: number, pa: PrintArea) {
   const w = W * PRINT_W * (pa.width_frac / DEFAULT_PRINT_AREA.width_frac)
   const h = w * (pa.platen_cm.h / pa.platen_cm.w)
   const y = W * (PRINT_TOP - DEFAULT_PRINT_AREA.top_frac * PRINT_W) + pa.top_frac * w
