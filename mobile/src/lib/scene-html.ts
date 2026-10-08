@@ -41,7 +41,7 @@ const VENDOR = [
   'meshopt_decoder.js',
 ].map((f) => `${SITE_ORIGIN}/assets/vendor/${f}?v=1`)
 
-const FONTS_CSS =
+export const FONTS_CSS =
   'https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;700;800&family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600;700&display=swap'
 
 /** Tileable woven-cotton surface (CC0, assets/textures) — see configurator.js FABRIC_*. */
@@ -102,6 +102,38 @@ export function buildSceneHtml(cfg: SceneConfig): string {
     '</script></body></html>'
   )
 }
+
+// Identical to the web's drawElementIn() with a flat rect (the print master path).
+// Shared by the 3D scene and the mockup page (mockup-html.ts); both declare
+// `TEX`, `REF` and an `images` map (src → loaded image) in the enclosing scope.
+export const DRAW_ELEMENT_JS = String.raw`
+  function drawElement(g, el, rect) {
+    var cx = rect.x + el.nx * rect.w, cy = rect.y + el.ny * rect.h;
+    var rot = el.rotation || 0;
+    if (el.type === 'image') {
+      var img = el.src ? images[el.src] : null;
+      if (!img || img === 'loading' || img === 'error') return;
+      var natW = img.naturalWidth || img.width, natH = img.naturalHeight || img.height;
+      if (!natW || !natH) return;
+      var maxDim = (el.scalePct / 100) * (TEX * 0.30) * (rect.w / REF.w);
+      var f = maxDim / Math.max(natW, natH);
+      var dw = natW * f, dh = natH * f;
+      g.save(); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      g.translate(cx, cy); g.rotate(rot); g.drawImage(img, -dw / 2, -dh / 2, dw, dh); g.restore();
+      return;
+    }
+    if (!el.content) return;
+    var size = el.size * (rect.h / REF.h);
+    var weight = el.bold ? 'bold' : 'normal';
+    g.save();
+    g.font = 'normal ' + weight + ' ' + size + 'px "' + el.font + '"';
+    var w = g.measureText(el.content).width, maxW = rect.w * 0.98;
+    if (w > maxW) { size = Math.max(1, size * (maxW / w)); g.font = 'normal ' + weight + ' ' + size + 'px "' + el.font + '"'; }
+    g.fillStyle = el.color; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = 'rgba(0,0,0,0.12)'; g.shadowBlur = 6; g.shadowOffsetX = 1; g.shadowOffsetY = 2;
+    g.translate(cx, cy); g.rotate(rot); g.fillText(el.content, 0, 0); g.restore();
+  }
+`
 
 // Plain ES5-ish JS so it runs unmodified inside any WebView. Kept as one string
 // so the file above stays a template and this stays code.
@@ -199,34 +231,7 @@ const SCENE_JS = String.raw`
     tex.plain.needsUpdate = true;
   }
 
-  // Identical to the web's drawElementIn() with a flat rect (the print master path).
-  function drawElement(g, el, rect) {
-    var cx = rect.x + el.nx * rect.w, cy = rect.y + el.ny * rect.h;
-    var rot = el.rotation || 0;
-    if (el.type === 'image') {
-      var img = el.src ? images[el.src] : null;
-      if (!img || img === 'loading' || img === 'error') return;
-      var natW = img.naturalWidth || img.width, natH = img.naturalHeight || img.height;
-      if (!natW || !natH) return;
-      var maxDim = (el.scalePct / 100) * (TEX * 0.30) * (rect.w / REF.w);
-      var f = maxDim / Math.max(natW, natH);
-      var dw = natW * f, dh = natH * f;
-      g.save(); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-      g.translate(cx, cy); g.rotate(rot); g.drawImage(img, -dw / 2, -dh / 2, dw, dh); g.restore();
-      return;
-    }
-    if (!el.content) return;
-    var size = el.size * (rect.h / REF.h);
-    var weight = el.bold ? 'bold' : 'normal';
-    g.save();
-    g.font = 'normal ' + weight + ' ' + size + 'px "' + el.font + '"';
-    var w = g.measureText(el.content).width, maxW = rect.w * 0.98;
-    if (w > maxW) { size = Math.max(1, size * (maxW / w)); g.font = 'normal ' + weight + ' ' + size + 'px "' + el.font + '"'; }
-    g.fillStyle = el.color; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.shadowColor = 'rgba(0,0,0,0.12)'; g.shadowBlur = 6; g.shadowOffsetX = 1; g.shadowOffsetY = 2;
-    g.translate(cx, cy); g.rotate(rot); g.fillText(el.content, 0, 0); g.restore();
-  }
-
+  ${DRAW_ELEMENT_JS}
   function drawView(view) {
     var g = cv[view].getContext('2d');
     g.clearRect(0, 0, TEX, TEX);

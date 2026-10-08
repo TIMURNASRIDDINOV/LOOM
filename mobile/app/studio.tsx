@@ -6,13 +6,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { C, RULE, fmt, offset } from '../src/theme/tokens'
 import { disp, mono, monoSemi } from '../src/theme/type'
 import { LayerInspector } from '../src/components/LayerInspector'
-import { Stage } from '../src/components/Stage'
+import { Stage, flatRect } from '../src/components/Stage'
+import { MockupRenderer } from '../src/components/MockupRenderer'
 import { ToolSheet } from '../src/components/ToolSheet'
 import { Cart, ChevronLeft, ImageTool, SizeTool, TypeTool } from '../src/components/icons'
 import { Segmented, T, Tap, Toast } from '../src/components/ui'
 import { buildDesignJson, designMissingUploads } from '../src/api/design'
 import { fetchProducts, useAsync } from '../src/api/catalog'
 import { uploadFile } from '../src/api/client'
+import { cachedSrc, toDisplayableSrc } from '../src/lib/files'
+import { MOCKUP_PX, type MockupRendererHandle } from '../src/lib/mockup-html'
+import { toSceneDesign } from '../src/lib/print'
 import { track } from '../src/api/track'
 import { useCart } from '../src/state/cart'
 import { useStudio } from '../src/state/studio'
@@ -31,6 +35,7 @@ export default function Studio() {
   const st = useStudio()
   const { s, face, surface, tool, layerCount, total, active } = st
   const busyRef = useRef(false)
+  const mockupRef = useRef<MockupRendererHandle>(null)
   const { t, lang } = useI18n()
 
   const { data: products } = useAsync(fetchProducts, [])
@@ -109,6 +114,19 @@ export default function Studio() {
         back: { ...s.back, art: s.back.art ? { ...s.back.art, uploadKey: keys.back } : null },
       }
 
+      // Front and back mockups for the admin, drawn like the flat stage. The page
+      // can only draw local files once they are inlined as data: URIs.
+      await Promise.all(
+        [snapshot.front.art, snapshot.back.art].map((a) =>
+          a?.uri && !a.pattern ? toDisplayableSrc(a.uri, a.mime ?? 'image/png').catch(() => null) : null,
+        ),
+      )
+      const mockups = (await mockupRef.current?.render({
+        design: toSceneDesign(snapshot, cachedSrc),
+        rect: flatRect(MOCKUP_PX, config.printArea),
+        size: MOCKUP_PX,
+      })) ?? null
+
       const swatch = config.colors.find((c) => c.hex === s.color.toUpperCase())
       const meta = [
         swatch ? swatchName(swatch, lang, t) : colorName(s.color, t),
@@ -127,6 +145,7 @@ export default function Studio() {
         designJson: buildDesignJson(snapshot, config.printArea.platen_cm),
         meta,
         logoKey: keys.front ?? keys.back ?? null,
+        mockups,
       })
       track('cfg_cart')
       flash(t('st.added'))
@@ -185,6 +204,7 @@ export default function Studio() {
 
       <LayerInspector />
       <ToolSheet maxHeight={sheetMax} />
+      <MockupRenderer ref={mockupRef} />
 
       <View style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={styles.rail}>

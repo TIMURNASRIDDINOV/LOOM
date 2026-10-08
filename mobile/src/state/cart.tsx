@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { api } from '../api/client'
+import { api, uploadDataUrl } from '../api/client'
+import type { Mockups } from '../lib/mockup-html'
 
 // The backend cart (`/api/cart`) is account-bound and auth-only, but the design
 // lets you build a garment and reach the cart before signing in. So the app
@@ -19,6 +20,10 @@ export type CartItem = {
   designJson: string
   meta: string
   logoKey: string | null
+  /** Front and back mockups (JPEG data URLs) drawn at add-to-cart, uploaded at sync. */
+  mockups?: Mockups | null
+  /** R2 keys of those mockups once uploaded, so a retried checkout reuses them. */
+  mockupKeys?: Mockups | null
 }
 
 const KEY = 'loom_cart_v1'
@@ -78,7 +83,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const sync = useCallback(async () => {
     // Replace the server cart wholesale — the local one is authoritative.
     await api('/api/cart', { method: 'DELETE', auth: true })
+    const uploaded: Record<string, Mockups> = {}
     for (const it of items) {
+      // Uploads need the session, which only exists from checkout on. A failed
+      // one is not fatal: the order still goes through, the admin shows no mockup.
+      const up = async (side: 'front' | 'back') => {
+        const done = it.mockupKeys?.[side]
+        const data = it.mockups?.[side]
+        if (done || !data) return done ?? null
+        return uploadDataUrl(data, `${side}-mockup.jpg`).catch(() => null)
+      }
+      const [front, back] = await Promise.all([up('front'), up('back')])
+      uploaded[it.id] = { front, back }
       await api('/api/cart', {
         method: 'POST',
         auth: true,
@@ -88,9 +104,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           unitPrice: it.unitPrice,
           quantity: it.quantity,
           logoKey: it.logoKey ?? undefined,
+          frontMockupKey: front ?? undefined,
+          backMockupKey: back ?? undefined,
         },
       })
     }
+    setItems((prev) => prev.map((i) => (uploaded[i.id] ? { ...i, mockupKeys: uploaded[i.id] } : i)))
     return items.length
   }, [items])
 

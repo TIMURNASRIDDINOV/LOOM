@@ -682,10 +682,11 @@ function prefetchPreview3D() {
 }
 
 function bindPreview3DPrefetch() {
-  const btn = document.getElementById("btn-surface-3d");
-  if (!btn) return;
-  ["mouseenter", "touchstart", "focus"].forEach((evt) => {
-    btn.addEventListener(evt, prefetchPreview3D, { once: true, passive: true });
+  // The camera-mode tiles open the 3D too.
+  document.querySelectorAll("#btn-surface-3d, .cam-tile").forEach((btn) => {
+    ["mouseenter", "touchstart", "focus"].forEach((evt) => {
+      btn.addEventListener(evt, prefetchPreview3D, { once: true, passive: true });
+    });
   });
 }
 
@@ -751,6 +752,8 @@ function initThreeJS() {
   controls.maxPolarAngle = Math.PI / 1.8; // prevent orbiting under the shirt
   controls.target.set(0, 0, 0);
   controls.update();
+  // A drag or wheel zoom takes the camera back from Turntable (keeps the pose).
+  controls.addEventListener("start", stopCamMotion);
 
   // Responsive resize — window AND container layout changes
   window.addEventListener("resize", onWindowResize);
@@ -1898,7 +1901,9 @@ function fitCameraToObject(object) {
 
   if (!(size.x > 0 && size.y > 0 && size.z > 0)) return;
 
-  // Look slightly above center to keep focus on chest area.
+  // Aim at the garment's own centre, level with it, so it sits in the middle
+  // of the stage the way the 2D flat does. Aiming at the chest (above centre,
+  // camera higher still) pushed the garment down onto the Front/Back toggle.
   // Aim x/z at the TORSO, not the full bbox — the posed sleeves drag the
   // bbox centre sideways, which parks even a centred print off-axis.
   const torsoMeshes = frontBodyMeshes.concat(backBodyMeshes);
@@ -1908,36 +1913,66 @@ function fitCameraToObject(object) {
     torsoMeshes.forEach((m) => tb.expandByObject(m));
     aim = tb.getCenter(new THREE.Vector3());
   }
-  const chestTarget = new THREE.Vector3(
-    aim.x,
-    center.y + size.y * 0.16,
-    aim.z,
-  );
-  const verticalOffset = size.y * 0.08;
-
-  const fov = THREE.MathUtils.degToRad(camera.fov);
-  // Frame against the distance from the AIM POINT to the furthest edge, not the
-  // half-height: the camera looks above centre, so the hem is further from the
-  // axis than size.y/2 and was being cropped (~82px of it) off the bottom.
-  const camY = chestTarget.y + verticalOffset;
-  const halfV = Math.max(camY - box.min.y, box.max.y - camY);
-  const fitHeightDist = halfV / Math.tan(fov * 0.5);
-  const fitWidthDist = (size.x * 0.5) / Math.tan(fov * 0.5) / Math.max(camera.aspect, 0.01);
-
-  // 88% fill — leaves a small breathing margin around the garment.
-  const distance = Math.max(fitHeightDist, fitWidthDist) / 0.88;
+  const chestTarget = new THREE.Vector3(aim.x, center.y, aim.z);
 
   // Anchor the front/back views on the GARMENT'S facing axis, not world Z.
   // The scan is rotated ~25° in world space; a world-axis camera views it
   // obliquely, and from an oblique view no print placement can look centred.
   const facing = garmentFacingDir();
   _garmentFacing = facing.clone();
-  CAM_VIEWS.front.x = chestTarget.x + facing.x * distance;
-  CAM_VIEWS.front.y = chestTarget.y + verticalOffset;
-  CAM_VIEWS.front.z = chestTarget.z + facing.z * distance;
-  CAM_VIEWS.back.x = chestTarget.x - facing.x * distance;
-  CAM_VIEWS.back.y = chestTarget.y + verticalOffset;
-  CAM_VIEWS.back.z = chestTarget.z - facing.z * distance;
+
+  // Same margin above and below as the 2D stage box leaves under the flat:
+  // its bottom padding is what keeps the hem clear of the Front/Back toggle.
+  // 88% fill across — a small breathing margin at the sides.
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const stageH = renderer ? renderer.getSize(new THREE.Vector2()).y : 0;
+  const stageBox = document.querySelector(".flat-stagebox");
+  const clearPx = stageBox ? parseFloat(getComputedStyle(stageBox).paddingBottom) || 0 : 0;
+  const fillV = stageH > 0 ? Math.min(0.88, Math.max(0.5, 1 - (2 * clearPx) / stageH)) : 0.88;
+  const tanV = Math.tan(fov * 0.5) * fillV;
+  const tanH = Math.tan(fov * 0.5) * Math.max(camera.aspect, 0.01) * 0.88;
+  // Fit the real surface from each side, not the bounding box: the garment
+  // is deeper on one side, so one shared distance made the Back look bigger
+  // than the Front, and the box's corners made both look smaller than needed.
+  // The GLB is quantized (normalized ints) and this three.js (r128) does not
+  // scale those back on read.
+  const NORM = { Int8Array: 127, Uint8Array: 255, Int16Array: 32767, Uint16Array: 65535 };
+  const eachVertex = (fn) => object.traverse((m) => {
+    const pos = m.isMesh && m.geometry && m.geometry.attributes.position;
+    if (!pos) return;
+    const q = pos.normalized ? 1 / (NORM[pos.array.constructor.name] || 1) : 1;
+    const p = new THREE.Vector3();
+    // Every third vertex: the scan is dense (~245k), the extremes move under
+    // 0.2px, and a phone does not stall on it during the load.
+    for (let i = 0; i < pos.count; i += 3) {
+      fn(p.fromBufferAttribute(pos, i).multiplyScalar(q).applyMatrix4(m.matrixWorld).sub(chestTarget));
+    }
+  });
+  const right = new THREE.Vector3(facing.z, 0, -facing.x);
+  let distF = 0, distB = 0;
+  eachVertex((p) => {
+    const reach = Math.max(Math.abs(p.y) / tanV, Math.abs(p.dot(right)) / tanH);
+    const depth = p.dot(facing);
+    if (reach + depth > distF) distF = reach + depth;
+    if (reach - depth > distB) distB = reach - depth;
+  });
+  const distance = Math.max(distF, distB);
+  // Perspective draws the near hem further below centre than the far collar
+  // sits above it; lower the aim by half the difference so it is centred.
+  let up = 0, down = 0;
+  eachVertex((p) => {
+    const t = p.y / (distF - p.dot(facing));
+    if (t > up) up = t;
+    if (-t > down) down = -t;
+  });
+  chestTarget.y -= ((down - up) / 2) * distF;
+
+  CAM_VIEWS.front.x = chestTarget.x + facing.x * distF;
+  CAM_VIEWS.front.y = chestTarget.y;
+  CAM_VIEWS.front.z = chestTarget.z + facing.z * distF;
+  CAM_VIEWS.back.x = chestTarget.x - facing.x * distB;
+  CAM_VIEWS.back.y = chestTarget.y;
+  CAM_VIEWS.back.z = chestTarget.z - facing.z * distB;
 
   camera.near = Math.max(0.01, distance / 120);
   camera.far = Math.max(50, distance * 20 + size.length());
@@ -1969,6 +2004,8 @@ function fitCameraToObject(object) {
 
 function animate() {
   requestAnimationFrame(animate);
+
+  if (_turn) _stepTurn(performance.now());
 
   // Smooth camera lerp for front/back transitions
   if (camAnim.active) {
@@ -2062,15 +2099,9 @@ function bindResetViewButton() {
   btn.addEventListener("click", () => {
     if (!INITIAL_VIEW.position || !INITIAL_VIEW.target) return;
 
-    designState.activeView = "front";
-    const btnFront = document.getElementById("btn-view-front");
-    const btnBack = document.getElementById("btn-view-back");
-    if (btnFront && btnBack) {
-      btnFront.classList.add("active");
-      btnFront.setAttribute("aria-pressed", "true");
-      btnBack.classList.remove("active");
-      btnBack.setAttribute("aria-pressed", "false");
-    }
+    // The single side switch (LOOM-186): buttons, texture AND the panel move
+    // to the front. It also stops Turntable; the camera glides below.
+    setActiveView("front", true);
 
     camAnim.targetX = INITIAL_VIEW.position.x;
     camAnim.targetY = INITIAL_VIEW.position.y;
@@ -2079,10 +2110,91 @@ function bindResetViewButton() {
     camAnim.targetLookY = INITIAL_VIEW.target.y;
     camAnim.targetLookZ = INITIAL_VIEW.target.z;
     camAnim.active = true;
-
-    applyActiveTexture();
-    refreshDesignCanvas();
   });
+}
+
+// ── Camera modes: Free, Turntable, Turntable + zoom ─────────────
+// Turntable sets the azimuth from the clock, so one turn takes TURN_MS at any
+// frame rate. The zoom tile dollies toward the existing minimum distance and
+// back between 30% and 70% of each turn; the orbit limits never change.
+const TURN_MS = 8000;
+let camMode = "free";
+let _turn = null; // running motion: { t0, theta0, r0, zoom, s }
+const CAM_MODE_KEYS = {
+  free: ["cfg.camFree", "Свободно"],
+  turntable: ["cfg.camTurntable", "Вращение"],
+  zoom: ["cfg.camTurntableZoom", "Вращение + зум"],
+};
+
+function setCamMode(mode) {
+  if (!CAM_MODE_KEYS[mode] || mode === camMode) return;
+  camMode = mode;
+  _turn = null; // Free keeps the pose: the camera simply stops where it is
+  _syncCamTiles();
+  if (mode === "free") return;
+  // Picked in 2D: the same path as the 3D chip. A failed load lands in
+  // setFlatMode(true), which selects Free again; the toast is already up.
+  if (flatMode) document.getElementById("btn-surface-3d").click();
+  if (_preview3D) _preview3D.then(() => { if (camMode === mode && !_turn) _startTurn(); }, () => {});
+}
+
+/** Drag, Front/Back, Reset view and 2D end any motion and select Free. */
+function stopCamMotion() {
+  if (camMode !== "free") setCamMode("free");
+}
+
+function _startTurn() {
+  if (flatMode || !camera || !controls) return;
+  camAnim.active = false;
+  const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  _turn = { t0: performance.now(), theta0: s.theta, r0: s.radius, zoom: camMode === "zoom", s };
+}
+
+function _stepTurn(now) {
+  const T = _turn;
+  const p = (now - T.t0) / TURN_MS;
+  T.s.setFromVector3(camera.position.clone().sub(controls.target)); // keeps the tilt
+  T.s.theta = T.theta0 + 2 * Math.PI * p;
+  T.s.radius = T.r0;
+  if (T.zoom) {
+    const f = p % 1;
+    if (f > 0.3 && f < 0.7) {
+      // 0.1% above the limit, so float error never puts it under the limit
+      const near = Math.min(T.r0, controls.minDistance * 1.001);
+      T.s.radius = T.r0 + (near - T.r0) * (1 - Math.cos(2 * Math.PI * (f - 0.3) / 0.4)) / 2;
+    }
+  }
+  camera.position.setFromSpherical(T.s).add(controls.target);
+}
+
+function _syncCamTiles() {
+  _syncRadios("cam-tiles", ".cam-tile", "active", (b) => b.dataset.cam === camMode);
+  const v = document.getElementById("cam-acc-value");
+  if (v) {
+    const [key, fb] = CAM_MODE_KEYS[camMode];
+    v.setAttribute("data-i18n", key);
+    v.textContent = CT(key, fb);
+  }
+}
+
+function setCamAccOpen(open) {
+  const head = document.getElementById("cam-acc-head");
+  const body = document.getElementById("cam-acc-body");
+  if (!head || !body) return;
+  head.setAttribute("aria-expanded", String(open));
+  body.inert = !open;
+}
+
+function bindCamModes() {
+  const head = document.getElementById("cam-acc-head");
+  const tiles = document.getElementById("cam-tiles");
+  if (!head || !tiles) return;
+  head.addEventListener("click", () => setCamAccOpen(head.getAttribute("aria-expanded") !== "true"));
+  tiles.addEventListener("click", (e) => {
+    const b = e.target.closest(".cam-tile");
+    if (b) setCamMode(b.dataset.cam);
+  });
+  _syncCamTiles();
 }
 
 // ================================================================
@@ -3132,6 +3244,7 @@ function initUI() {
   bindLayerControls();
   bindFlatEditor();
   bindSurfaceToggle();
+  bindCamModes();
   bindSheet();
   bindKeyboardLayout();
   bindStepNext();
@@ -3660,16 +3773,7 @@ function renderFlatEditor() {
   ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
   ctx.restore();
 
-  const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
-  const rect = {
-    x: box.x + pf.x * box.w, y: box.y + pf.y * box.h,
-    w: pf.w * box.w, h: pf.h * box.h,
-  };
-  // WYSIWYG contract: text sizes against rect.h, images against rect.w, and the
-  // bake does the same against the texture print rect — so this rect must keep
-  // that rect's aspect or the two surfaces quietly disagree about proportions.
-  const pr = printRect(face);
-  if (pr && pr.w && pr.h) rect.h = rect.w / (pr.w / pr.h);
+  const rect = _flatPrintRectIn(face, box);
   _flatRect = rect;
 
   // Print boundary — dashed, always visible, so the printable band is a fact
@@ -3697,6 +3801,55 @@ function renderFlatEditor() {
 
   _flatSyncEmptyState();
   updateViewToggleMarkers();
+}
+
+/** The print rect inside a drawn garment box, in the same px as the box. */
+function _flatPrintRectIn(face, box) {
+  const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
+  const rect = {
+    x: box.x + pf.x * box.w, y: box.y + pf.y * box.h,
+    w: pf.w * box.w, h: pf.h * box.h,
+  };
+  // WYSIWYG contract: text sizes against rect.h, images against rect.w, and the
+  // bake does the same against the texture print rect — so this rect must keep
+  // that rect's aspect or the two surfaces quietly disagree about proportions.
+  const pr = printRect(face);
+  if (pr && pr.w && pr.h) rect.h = rect.w / (pr.w / pr.h);
+  return rect;
+}
+
+/**
+ * A mockup of one face drawn from the flat editor's garment art and painter,
+ * for orders placed without the 3D preview. Same picture the customer edited,
+ * minus the print boundary and selection chrome. Returns a JPEG data URL.
+ */
+const FLAT_MOCKUP_PX = 900;
+async function _renderFlatMockup(face) {
+  const img = _flatArtImg(face);
+  if (img && !img.complete) {
+    await new Promise((resolve) => {
+      img.addEventListener("load", resolve, { once: true });
+      img.addEventListener("error", resolve, { once: true });
+      setTimeout(resolve, 4000); // no art in time: the outline stands in
+    });
+  }
+  const S = FLAT_MOCKUP_PX;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#F2F0EB"; // JPEG has no alpha; a white garment needs a ground
+  ctx.fillRect(0, 0, S, S);
+  const box = _flatGarmentBox(face, S, S);
+  ctx.save();
+  ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
+  ctx.shadowBlur = box.w * 0.09;
+  ctx.shadowOffsetX = box.w * 0.022;
+  ctx.shadowOffsetY = box.w * 0.030;
+  ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
+  ctx.restore();
+  const rect = _flatPrintRectIn(face, box);
+  elementsOf(face).forEach((el) => drawElementIn(ctx, el, rect, false));
+  return c.toDataURL("image/jpeg", 0.85);
 }
 
 function _flatDarkGarment() {
@@ -4106,6 +4259,7 @@ function _isSheetLayout() {
 function setStep(step) {
   if (SHEET_STEPS.indexOf(step) < 0) step = "design";
   if (step === "order" && !sizeChosen()) return;
+  if (step !== currentStep) setCamAccOpen(false); // collapsed on step entry
   currentStep = step;
   // The 2D zoom belongs to step 1. Repaint now, before the order summary
   // snapshots the flat canvas.
@@ -4445,6 +4599,7 @@ function setFlatMode(on) {
   });
 
   if (flatMode) {
+    stopCamMotion();
     // The loader belongs to the 3D surface; a load still running continues
     // behind the 2D editor and ensurePreview3D() shows it again on return.
     const overlay = document.getElementById("loading-overlay");
@@ -4807,43 +4962,30 @@ async function captureProofs() {
     back: active.back ? _renderPrintCanvas("back") : null,
   };
 
-  // 3D mockups — _snapshotURL captures the CURRENT camera, so choreograph it per view.
+  // 3D mockups — one still frame per side; the customer's camera comes back.
   const mockData = { front: null, back: null };
   if (renderer && camera && controls && scene && shirtObject) {
-    // Snapshot the user's ACTUAL live view — addToCart leaves them editing, so we
-    // must restore the exact camera/orbit afterwards, not snap to a canned preset.
-    const camPos = camera.position.clone();
-    const camTgt = controls.target.clone();
-    drawTexture("front");
-    drawTexture("back");
     applyActiveTexture();
     ["front", "back"].forEach((v) => {
-      camera.position.set(CAM_VIEWS[v].x, CAM_VIEWS[v].y, CAM_VIEWS[v].z);
-      // Pin the look-at too — CAM_VIEWS anchors assume the fitted target, and a
-      // user-panned orbit target would tilt both mockups off-axis.
-      if (INITIAL_VIEW.target) controls.target.copy(INITIAL_VIEW.target);
-      controls.update();
-      updateStudioRig();
-      renderer.render(scene, camera);
-      mockData[v] = _snapshotURL("image/jpeg", 0.85);
+      mockData[v] = _snapshotURL("image/jpeg", 0.85, v);
     });
-    camera.position.copy(camPos);
-    controls.target.copy(camTgt);
-    controls.update();
-    updateStudioRig();
-    renderer.render(scene, camera);
   }
+
+  // No 3D preview opened: the flat editor's garment stands in, so every order
+  // still carries a front and a back mockup.
+  if (!mockData.front) mockData.front = await _renderFlatMockup("front");
+  if (!mockData.back) mockData.back = await _renderFlatMockup("back");
 
   // Interactive 3D review model — the exact textured garment, baked, for the admin.
   const glbDataUrl = await captureGLB();
 
-  // Upload everything in parallel. Mockups upload only for active views (a blank
-  // side's plain-garment render isn't worth storing); prints already gated above.
+  // Upload everything in parallel. Both mockups always (a blank side still shows
+  // the garment); prints only for sides with a design, gated above.
   const [frontPrintKey, backPrintKey, frontMockupKey, backMockupKey, modelKey] = await Promise.all([
     printData.front ? _uploadDataUrl(printData.front, "front-print.png") : null,
     printData.back ? _uploadDataUrl(printData.back, "back-print.png") : null,
-    active.front && mockData.front ? _uploadDataUrl(mockData.front, "front-mockup.jpg") : null,
-    active.back && mockData.back ? _uploadDataUrl(mockData.back, "back-mockup.jpg") : null,
+    mockData.front ? _uploadDataUrl(mockData.front, "front-mockup.jpg") : null,
+    mockData.back ? _uploadDataUrl(mockData.back, "back-mockup.jpg") : null,
     glbDataUrl ? _uploadDataUrl(glbDataUrl, "model.glb") : null,
   ]);
 
@@ -5018,7 +5160,7 @@ function _syncRadios(id, sel, cls, isOn) {
 
 /** Arrow keys move the choice, skipping switched-off items, like native radios. */
 function bindPickerKeys() {
-  [["color-swatches", ".swatch-btn"], ["size-selector", ".size-btn"]].forEach(([id, sel]) => {
+  [["color-swatches", ".swatch-btn"], ["size-selector", ".size-btn"], ["cam-tiles", ".cam-tile"]].forEach(([id, sel]) => {
     const group = document.getElementById(id);
     if (!group) return;
     group.addEventListener("keydown", (e) => {
@@ -5149,7 +5291,8 @@ function bindViewToggle() {
 }
 
 /** Single entry point for changing face — used by the toggle AND the guide. */
-function setActiveView(view) {
+function setActiveView(view, keepCamera) {
+  stopCamMotion(); // Front/Back (even the side already shown) ends Turntable
   if (designState.activeView === view) return;
   designState.activeView = view;
 
@@ -5160,8 +5303,8 @@ function setActiveView(view) {
     btn.setAttribute("aria-pressed", String(v === view));
   });
 
-  // Animate camera to selected view
-  setCameraView(view);
+  // Animate camera to selected view (Reset view glides there itself)
+  if (!keepCamera) setCameraView(view);
 
   // Swap texture so the material shows the correct design face
   applyActiveTexture();
@@ -5493,23 +5636,39 @@ function bindSummaryTab() {
 }
 
 /**
- * Capture renderer.domElement WITHOUT the on-shirt selection handles, then
- * restore the live (handled) view. Used for every snapshot/export so editing
- * handles never bake into the saved PNG / order preview.
+ * The still camera: every image of the 3D (saved PNG, cart mockups, Step 3
+ * snapshot) is one frame rendered from the fitted Front or Back pose, with
+ * both sides' current design and no selection handles, whatever angle or zoom
+ * the customer left the 3D at — and even while the 2D editor is up, when the
+ * render loop is idle. The customer's camera is put back exactly; the orbit
+ * controls are not touched, so a drag still in its damping carries on.
  */
-function _snapshotURL(type, quality) {
-  const prev = _showHandles;
+function _withStillCamera(view, read) {
+  const pose = CAM_VIEWS[view === "back" ? "back" : "front"];
+  const prevHandles = _showHandles;
+  const pos = camera.position.clone();
+  const quat = camera.quaternion.clone();
   _showHandles = false;
   try {
     drawTexture("front");
     drawTexture("back");
-    if (renderer && scene && camera) { updateStudioRig(); renderer.render(scene, camera); }
-    return renderer.domElement.toDataURL(type, quality);
+    camera.position.set(pose.x, pose.y, pose.z);
+    camera.lookAt(INITIAL_VIEW.target || controls.target);
+    updateStudioRig();
+    renderer.render(scene, camera);
+    return read(renderer.domElement);
   } finally {
-    _showHandles = prev;
+    _showHandles = prevHandles;
+    camera.position.copy(pos);
+    camera.quaternion.copy(quat);
     redrawActive();
-    if (renderer && scene && camera) { updateStudioRig(); renderer.render(scene, camera); }
+    updateStudioRig();
+    renderer.render(scene, camera);
   }
+}
+
+function _snapshotURL(type, quality, view) {
+  return _withStillCamera(view || designState.activeView, (c) => c.toDataURL(type, quality));
 }
 
 function updateSummaryTab() {
@@ -5519,10 +5678,8 @@ function updateSummaryTab() {
   // where the product should be. The flat editor is always drawn, so it is
   // the fallback.
   const snap = document.getElementById("summary-snapshot");
-  const src = (renderer && shirtObject)
-    ? renderer.domElement
-    : document.getElementById("flat-canvas");
-  if (snap && src && src.width && src.height) {
+  const drawSnap = (src) => {
+    if (!snap || !src || !src.width || !src.height) return;
     const ctx = snap.getContext("2d");
     ctx.clearRect(0, 0, snap.width, snap.height);
     const side = Math.min(src.width, src.height);
@@ -5531,6 +5688,13 @@ function updateSummaryTab() {
       (src.width - side) / 2, (src.height - side) / 2, side, side,
       0, 0, snap.width, snap.height,
     );
+  };
+  // A fresh still frame, not the 3D canvas as last drawn: with the 2D editor
+  // up the render loop is idle, so that canvas predates the latest edits.
+  if (snap && renderer && camera && controls && scene && shirtObject) {
+    _withStillCamera(designState.activeView, drawSnap);
+  } else {
+    drawSnap(document.getElementById("flat-canvas"));
   }
 
   // Update text summary
@@ -5617,9 +5781,6 @@ function bindSaveDesign() {
       showToast(CT("cfg.exportPngNeeds3d", "Откройте 3D-превью, чтобы сохранить PNG"), "warning");
       return;
     }
-    // Render one extra frame to ensure latest state
-    updateStudioRig();
-    renderer.render(scene, camera);
     const url = _snapshotURL("image/png");
     const a = document.createElement("a");
     a.href = url;
