@@ -682,10 +682,11 @@ function prefetchPreview3D() {
 }
 
 function bindPreview3DPrefetch() {
-  const btn = document.getElementById("btn-surface-3d");
-  if (!btn) return;
-  ["mouseenter", "touchstart", "focus"].forEach((evt) => {
-    btn.addEventListener(evt, prefetchPreview3D, { once: true, passive: true });
+  // The camera-mode tiles open the 3D too.
+  document.querySelectorAll("#btn-surface-3d, .cam-tile").forEach((btn) => {
+    ["mouseenter", "touchstart", "focus"].forEach((evt) => {
+      btn.addEventListener(evt, prefetchPreview3D, { once: true, passive: true });
+    });
   });
 }
 
@@ -751,6 +752,8 @@ function initThreeJS() {
   controls.maxPolarAngle = Math.PI / 1.8; // prevent orbiting under the shirt
   controls.target.set(0, 0, 0);
   controls.update();
+  // A drag or wheel zoom takes the camera back from Turntable (keeps the pose).
+  controls.addEventListener("start", stopCamMotion);
 
   // Responsive resize — window AND container layout changes
   window.addEventListener("resize", onWindowResize);
@@ -2002,6 +2005,8 @@ function fitCameraToObject(object) {
 function animate() {
   requestAnimationFrame(animate);
 
+  if (_turn) _stepTurn(performance.now());
+
   // Smooth camera lerp for front/back transitions
   if (camAnim.active) {
     const speed = 0.09;
@@ -2094,15 +2099,9 @@ function bindResetViewButton() {
   btn.addEventListener("click", () => {
     if (!INITIAL_VIEW.position || !INITIAL_VIEW.target) return;
 
-    designState.activeView = "front";
-    const btnFront = document.getElementById("btn-view-front");
-    const btnBack = document.getElementById("btn-view-back");
-    if (btnFront && btnBack) {
-      btnFront.classList.add("active");
-      btnFront.setAttribute("aria-pressed", "true");
-      btnBack.classList.remove("active");
-      btnBack.setAttribute("aria-pressed", "false");
-    }
+    // The single side switch (LOOM-186): buttons, texture AND the panel move
+    // to the front. It also stops Turntable; the camera glides below.
+    setActiveView("front", true);
 
     camAnim.targetX = INITIAL_VIEW.position.x;
     camAnim.targetY = INITIAL_VIEW.position.y;
@@ -2111,10 +2110,91 @@ function bindResetViewButton() {
     camAnim.targetLookY = INITIAL_VIEW.target.y;
     camAnim.targetLookZ = INITIAL_VIEW.target.z;
     camAnim.active = true;
-
-    applyActiveTexture();
-    refreshDesignCanvas();
   });
+}
+
+// ── Camera modes: Free, Turntable, Turntable + zoom ─────────────
+// Turntable sets the azimuth from the clock, so one turn takes TURN_MS at any
+// frame rate. The zoom tile dollies toward the existing minimum distance and
+// back between 30% and 70% of each turn; the orbit limits never change.
+const TURN_MS = 8000;
+let camMode = "free";
+let _turn = null; // running motion: { t0, theta0, r0, zoom, s }
+const CAM_MODE_KEYS = {
+  free: ["cfg.camFree", "Свободно"],
+  turntable: ["cfg.camTurntable", "Вращение"],
+  zoom: ["cfg.camTurntableZoom", "Вращение + зум"],
+};
+
+function setCamMode(mode) {
+  if (!CAM_MODE_KEYS[mode] || mode === camMode) return;
+  camMode = mode;
+  _turn = null; // Free keeps the pose: the camera simply stops where it is
+  _syncCamTiles();
+  if (mode === "free") return;
+  // Picked in 2D: the same path as the 3D chip. A failed load lands in
+  // setFlatMode(true), which selects Free again; the toast is already up.
+  if (flatMode) document.getElementById("btn-surface-3d").click();
+  if (_preview3D) _preview3D.then(() => { if (camMode === mode && !_turn) _startTurn(); }, () => {});
+}
+
+/** Drag, Front/Back, Reset view and 2D end any motion and select Free. */
+function stopCamMotion() {
+  if (camMode !== "free") setCamMode("free");
+}
+
+function _startTurn() {
+  if (flatMode || !camera || !controls) return;
+  camAnim.active = false;
+  const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  _turn = { t0: performance.now(), theta0: s.theta, r0: s.radius, zoom: camMode === "zoom", s };
+}
+
+function _stepTurn(now) {
+  const T = _turn;
+  const p = (now - T.t0) / TURN_MS;
+  T.s.setFromVector3(camera.position.clone().sub(controls.target)); // keeps the tilt
+  T.s.theta = T.theta0 + 2 * Math.PI * p;
+  T.s.radius = T.r0;
+  if (T.zoom) {
+    const f = p % 1;
+    if (f > 0.3 && f < 0.7) {
+      // 0.1% above the limit, so float error never puts it under the limit
+      const near = Math.min(T.r0, controls.minDistance * 1.001);
+      T.s.radius = T.r0 + (near - T.r0) * (1 - Math.cos(2 * Math.PI * (f - 0.3) / 0.4)) / 2;
+    }
+  }
+  camera.position.setFromSpherical(T.s).add(controls.target);
+}
+
+function _syncCamTiles() {
+  _syncRadios("cam-tiles", ".cam-tile", "active", (b) => b.dataset.cam === camMode);
+  const v = document.getElementById("cam-acc-value");
+  if (v) {
+    const [key, fb] = CAM_MODE_KEYS[camMode];
+    v.setAttribute("data-i18n", key);
+    v.textContent = CT(key, fb);
+  }
+}
+
+function setCamAccOpen(open) {
+  const head = document.getElementById("cam-acc-head");
+  const body = document.getElementById("cam-acc-body");
+  if (!head || !body) return;
+  head.setAttribute("aria-expanded", String(open));
+  body.inert = !open;
+}
+
+function bindCamModes() {
+  const head = document.getElementById("cam-acc-head");
+  const tiles = document.getElementById("cam-tiles");
+  if (!head || !tiles) return;
+  head.addEventListener("click", () => setCamAccOpen(head.getAttribute("aria-expanded") !== "true"));
+  tiles.addEventListener("click", (e) => {
+    const b = e.target.closest(".cam-tile");
+    if (b) setCamMode(b.dataset.cam);
+  });
+  _syncCamTiles();
 }
 
 // ================================================================
@@ -3164,6 +3244,7 @@ function initUI() {
   bindLayerControls();
   bindFlatEditor();
   bindSurfaceToggle();
+  bindCamModes();
   bindSheet();
   bindKeyboardLayout();
   bindStepNext();
@@ -4162,6 +4243,7 @@ function _isSheetLayout() {
 function setStep(step) {
   if (SHEET_STEPS.indexOf(step) < 0) step = "design";
   if (step === "order" && !sizeChosen()) return;
+  if (step !== currentStep) setCamAccOpen(false); // collapsed on step entry
   currentStep = step;
   // The 2D zoom belongs to step 1. Repaint now, before the order summary
   // snapshots the flat canvas.
@@ -4501,6 +4583,7 @@ function setFlatMode(on) {
   });
 
   if (flatMode) {
+    stopCamMotion();
     // The loader belongs to the 3D surface; a load still running continues
     // behind the 2D editor and ensurePreview3D() shows it again on return.
     const overlay = document.getElementById("loading-overlay");
@@ -5043,7 +5126,7 @@ function _syncRadios(id, sel, cls, isOn) {
 
 /** Arrow keys move the choice, skipping switched-off items, like native radios. */
 function bindPickerKeys() {
-  [["color-swatches", ".swatch-btn"], ["size-selector", ".size-btn"]].forEach(([id, sel]) => {
+  [["color-swatches", ".swatch-btn"], ["size-selector", ".size-btn"], ["cam-tiles", ".cam-tile"]].forEach(([id, sel]) => {
     const group = document.getElementById(id);
     if (!group) return;
     group.addEventListener("keydown", (e) => {
@@ -5174,7 +5257,8 @@ function bindViewToggle() {
 }
 
 /** Single entry point for changing face — used by the toggle AND the guide. */
-function setActiveView(view) {
+function setActiveView(view, keepCamera) {
+  stopCamMotion(); // Front/Back (even the side already shown) ends Turntable
   if (designState.activeView === view) return;
   designState.activeView = view;
 
@@ -5185,8 +5269,8 @@ function setActiveView(view) {
     btn.setAttribute("aria-pressed", String(v === view));
   });
 
-  // Animate camera to selected view
-  setCameraView(view);
+  // Animate camera to selected view (Reset view glides there itself)
+  if (!keepCamera) setCameraView(view);
 
   // Swap texture so the material shows the correct design face
   applyActiveTexture();

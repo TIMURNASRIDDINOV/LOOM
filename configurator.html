@@ -52,7 +52,7 @@
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=3"></script>
-    <script defer src="configurator.js?v=64"></script>
+    <script defer src="configurator.js?v=65"></script>
 
     <style>
       /* ============================================================
@@ -1945,6 +1945,49 @@
       @media (min-width: 901px) and (hover: none) {
         .choice-tile .choice-ico .ci-spark { animation: none; }
       }
+
+      /* ── Preview accordion: 3D camera modes (LOOM-197) ───────────────
+         Desktop only; on phones the slot keeps its [hidden]. The body opens
+         by animating its grid row from 0fr to 1fr; the inner box carries
+         6px of room so focus rings and hard shadows are not cut off. */
+      @media (min-width: 901px) {
+        .cam-acc { display: block; padding-right: var(--gut); padding-bottom: var(--gut); }
+        .cam-acc-head {
+          display: flex; align-items: center; gap: 0.45rem; width: 100%; min-height: 56px;
+          padding: 0.5rem 0.9rem; text-align: left; cursor: pointer;
+          border: var(--rule); border-radius: 0; background: var(--paper-3); color: var(--text);
+          font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; line-height: 1.2;
+          box-shadow: var(--hard-sm);
+        }
+        .cam-acc-head:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+        .cam-acc-caret { flex: 0 0 auto; margin-left: auto; transition: transform 0.5s var(--ease); }
+        .cam-acc-head[aria-expanded="true"] .cam-acc-caret { transform: rotate(180deg); }
+        .cam-acc-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.5s var(--ease); }
+        .cam-acc-head[aria-expanded="true"] + .cam-acc-body { grid-template-rows: 1fr; }
+        .cam-acc-inner { min-height: 0; overflow: hidden; margin: 0 -6px; }
+        .cam-tiles { display: flex; gap: 10px; padding: 10px 6px 6px; }
+        .cam-tile {
+          flex: 1 1 0; min-width: 60px;
+          display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+          padding: 0.4rem 0.25rem 0.5rem; cursor: pointer;
+          border: var(--rule); border-radius: 0; background: var(--paper-3); color: var(--text);
+          font-family: var(--font-display); font-weight: 600; font-size: 0.8rem; line-height: 1.2;
+          text-align: center; overflow-wrap: break-word;
+          box-shadow: var(--hard-sm);
+        }
+        .cam-tile svg { flex: 0 0 auto; width: 60px; height: 60px; }
+        .cam-tile[aria-checked="true"] { background: var(--text); color: var(--paper); box-shadow: var(--hard-accent); }
+        .cam-tile:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+      }
+      @media (min-width: 901px) and (hover: hover) and (prefers-reduced-motion: no-preference) {
+        .cam-acc-head, .cam-tile { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+        .cam-acc-head:hover, .cam-tile:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
+        .cam-tile[aria-checked="true"]:hover { box-shadow: var(--hard-accent); }
+      }
+      /* Reduced motion: the accordion opens at once. */
+      @media (min-width: 901px) and (prefers-reduced-motion: reduce) {
+        .cam-acc-body, .cam-acc-caret { transition: none; }
+      }
     </style>
   </head>
 
@@ -2180,6 +2223,35 @@
         <!-- The mini position guide is gone: the flat editor IS the schematic
              now, at full size, and Перед/Зад above the stage switches faces. -->
         <p class="dock-hint" data-i18n="cfg.flatHint">Тяните дизайн — двигать · углы — размер · кружок — поворот</p>
+
+        <!-- 3D camera modes, desktop only: the [hidden] slot keeps it off
+             phones (LOOM-188 owns phone Step 1) and the desktop skin shows
+             it. The body is inert while closed; configurator.js owns the
+             header value and the radio state. -->
+        <div class="cam-acc" id="cam-acc" hidden>
+          <button type="button" class="cam-acc-head" id="cam-acc-head" aria-expanded="false" aria-controls="cam-acc-body">
+            <span><span data-i18n="cfg.previewCaption">Предпросмотр</span> <span aria-hidden="true">·</span> <span id="cam-acc-value" data-i18n="cfg.camFree">Свободно</span></span>
+            <svg class="cam-acc-caret" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="cam-acc-body" id="cam-acc-body" inert>
+            <div class="cam-acc-inner">
+              <div class="cam-tiles" id="cam-tiles" role="radiogroup" data-i18n-attr="aria-label:cfg.previewCaption" aria-label="Предпросмотр">
+                <button type="button" class="cam-tile" data-cam="free" role="radio" aria-checked="true">
+                  <svg viewBox="0 0 60 60" width="60" height="60" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M21 15l6-3h6l6 3 6 7-5 4-3-2v15H23V24l-3 2-5-4z"/><path d="M17 48h26M21 44l-4 4 4 4M39 44l4 4-4 4"/></svg>
+                  <span data-i18n="cfg.camFree">Свободно</span>
+                </button>
+                <button type="button" class="cam-tile" data-cam="turntable" role="radio" aria-checked="false">
+                  <svg viewBox="0 0 60 60" width="60" height="60" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M21 13l6-3h6l6 3 6 7-5 4-3-2v14H23V22l-3 2-5-4z"/><path d="M47 42c0 4-8 7-17 7s-17-3-17-7c0-2 2-4 6-5M41 37c4 1 6 3 6 5"/><path d="M15 33l4 4-5 3"/></svg>
+                  <span data-i18n="cfg.camTurntable">Вращение</span>
+                </button>
+                <button type="button" class="cam-tile" data-cam="zoom" role="radio" aria-checked="false">
+                  <svg viewBox="0 0 60 60" width="60" height="60" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M17 15l5-3h5l5 3 5 6-4 3-3-2v12H19V21l-3 2-4-3z"/><path d="M47 42c0 4-8 7-17 7s-17-3-17-7c0-2 2-4 6-5M41 37c4 1 6 3 6 5"/><path d="M15 33l4 4-5 3"/><circle cx="45" cy="15" r="6"/><path d="M49.5 19.5L54 24M45 12v6M42 15h6"/></svg>
+                  <span data-i18n="cfg.camTurntableZoom">Вращение + зум</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Housekeeping. Save/open/reset are real features but they are not
              the job at hand, so they sit at the bottom behind one word. -->
