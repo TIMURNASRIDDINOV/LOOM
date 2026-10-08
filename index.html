@@ -169,8 +169,11 @@
       /* full-width stacked CTAs — taller tap area, clear hierarchy */
       .hero__btns { flex-direction: column; align-items: stretch; gap: 0.7rem; }
       .hero__btns .btn { width: 100%; padding: 1.05rem 1.5rem; }
-      /* the 6:5 video becomes a proper editorial block, not a 450px box */
+      /* the video becomes a full-width editorial block, not a 450px box */
       .hero__media { max-width: none; }
+      /* phones keep the taller 4:5 tile; cover trims the 6:5 clip's sides,
+         so sleeves can clip in the widest turns (phones only) */
+      .hero__video { aspect-ratio: 4 / 5; }
       .hero__grid { gap: 2.5rem; }
     }
 
