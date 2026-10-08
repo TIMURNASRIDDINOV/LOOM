@@ -45,14 +45,14 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=4"></script>
     <script defer src="assets/layout.js?v=5"></script>
-    <script defer src="assets/i18n.js?v=33"></script>
+    <script defer src="assets/i18n.js?v=34"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=3"></script>
-    <script defer src="configurator.js?v=67"></script>
+    <script defer src="configurator.js?v=68"></script>
 
     <style>
       /* ============================================================
@@ -1613,6 +1613,16 @@
       }
       .stage-chip:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
       .stage-chip:active { transform: translate(2px, 2px); box-shadow: none; }
+      /* Save before the 3D has loaded: dimmed and still, no hover or press
+         lift. Every width: a phone tap is where the hint toast is needed. */
+      .chip-save[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+      .chip-save[aria-disabled="true"]:hover,
+      .chip-save[aria-disabled="true"]:active { transform: none; box-shadow: var(--hard-sm); }
+      /* Screen-reader-only line for the 3D load (#preview-status). */
+      .sr-live {
+        position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+        overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+      }
       .view-btn, .surface-btn {
         border-radius: 0; font-family: var(--font-display); font-weight: 700;
         transition: background 0.16s ease, color 0.16s ease;
@@ -1838,10 +1848,6 @@
           font-size: clamp(1.17rem, calc(var(--panel-w) / 18.75), 1.28rem);
           padding-left: 1.1rem; padding-right: 1.1rem;
         }
-        /* Save before the 3D has loaded: dimmed and still, no hover lift. */
-        .chip-save[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
-        .chip-save[aria-disabled="true"]:hover,
-        .chip-save[aria-disabled="true"]:active { transform: none; box-shadow: var(--hard-sm); }
 
         /* Full screen: an icon chip in the top-right corner; the garment chip
            steps left of it. Same height as the garment chip, so the pair
@@ -2045,6 +2051,9 @@
           <button type="button" id="preview-retry" class="btn-retry"><span data-i18n="cfg.retry">Повторить</span></button>
         </div>
       </div>
+      <!-- Said once when the 3D load starts and once when it ends; the bar's
+           percent is never spoken. Outside the overlay: display:none mutes it. -->
+      <p id="preview-status" class="sr-live" aria-live="polite" aria-atomic="true"></p>
 
       <!-- Three.js mounts canvas here (preview only — editing is on the flat face) -->
       <div id="three-container"></div>
