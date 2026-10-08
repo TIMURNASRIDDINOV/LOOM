@@ -108,7 +108,7 @@
     .hero__grid {
       width: 100%;
       display: grid;
-      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: clamp(2rem, 5vw, 4rem);
       align-items: end;
       padding-bottom: clamp(2rem, 5vw, 3.5rem);
@@ -130,7 +130,7 @@
     .hero__video {
       background: var(--media-bg);
       border: 1px solid var(--line);
-      aspect-ratio: 4 / 5;
+      aspect-ratio: 6 / 5;
       overflow: hidden;
     }
     .hero__video video { width: 100%; height: 100%; object-fit: cover; }
@@ -162,14 +162,14 @@
 
     @media (max-width: 860px) {
       .hero__grid { grid-template-columns: 1fr; align-items: start; }
-      .hero__media { max-width: 300px; }
+      .hero__media { max-width: 450px; }   /* 6:5, 375px tall like the old 300x375 */
       .hero__meta-inner span:nth-child(2) { display: none; }
     }
     @media (max-width: 620px) {
       /* full-width stacked CTAs — taller tap area, clear hierarchy */
       .hero__btns { flex-direction: column; align-items: stretch; gap: 0.7rem; }
       .hero__btns .btn { width: 100%; padding: 1.05rem 1.5rem; }
-      /* the 4:5 video becomes a proper editorial block, not a 300px box */
+      /* the 6:5 video becomes a proper editorial block, not a 450px box */
       .hero__media { max-width: none; }
       .hero__grid { gap: 2.5rem; }
     }
@@ -472,12 +472,13 @@
           <!-- 3D render of the white LOOM hoodie: the camera orbits it, moves
                in close past the side to the back print, then pulls back. The
                loop opens on the front view, so the poster shows the whole
-               hoodie. Pre-cropped to the 4:5
-               the tile shows (object-fit would discard the rest anyway), 640x800.
-               Poster is the clip's first frame and paints before playback, so
-               the tile never flashes --media-bg. New media gets a new file name:
-               /images/* is cached for 30 days. -->
-          <video src="images/hero-hoodie-3d.mp4" poster="images/hero-hoodie-3d.jpg"
+               hoodie. Pre-cropped to the 6:5 the tile shows (object-fit would
+               discard the rest anyway), 960x800: wide enough that the sleeves
+               stay in frame in every shot except the close-ups, which the
+               source itself crops. Poster is the clip's first frame and paints
+               before playback, so the tile never flashes --media-bg. New media
+               gets a new file name: /images/* is cached for 30 days. -->
+          <video src="images/hero-hoodie-3d-6x5.mp4" poster="images/hero-hoodie-3d-6x5.jpg"
                  autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video>
         </div>
         <figcaption class="hero__media-caption">
