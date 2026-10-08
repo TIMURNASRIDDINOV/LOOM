@@ -223,7 +223,7 @@ function selectElement(id, opts) {
 
 /** Does this view have anything on it? */
 function _viewHasContent(view) {
-  return elementsOf(view).some((e) => e.type === "text" ? !!e.content : !!e.img);
+  return elementsOf(view).some((e) => e.type === "text" ? !!e.content && !e.placeholder : !!e.img);
 }
 
 // ── Normalised ⇄ texture-space conversion ────────────────────────
@@ -4864,12 +4864,12 @@ async function addToCart(opts) {
   for (const view of ["front", "back"]) {
     const pending = elementsOf(view).find((el) => el.type === "text" && el.placeholder);
     if (!pending) continue;
-    if (designState.activeView !== view) setActiveView(view);
+    setStep("design"); if (_isSheetLayout()) setSheetOpen(true); if (designState.activeView !== view) setActiveView(view);
     designState[view].selId = pending.id;
     syncPanelFromState();
     redrawActive();
     showToast(CT("cfg.untouchedTextCart", "Enter text or remove this text layer before adding the item to your bag."), "error");
-    document.getElementById("text-content-input")?.focus();
+    const input = document.getElementById("text-content-input"); if (input) requestAnimationFrame(() => { if (_isSheetLayout()) input.scrollIntoView({ block: "nearest" }); if (input.getClientRects().length) input.focus({ preventScroll: true }); });
     return false;
   }
   // Account-bound cart → require login first
