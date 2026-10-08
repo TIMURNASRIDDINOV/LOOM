@@ -17,6 +17,15 @@
   const LANG_LABELS = { uz: "O‘zbekcha", ru: 'Русский', en: 'English' };
   const LANG_SHORT  = { uz: 'UZ', ru: 'RU', en: 'EN' };
 
+  // LOOM-199: links in the CC BY 4.0 credit of the bundled tee model
+  // (assets/models/t_shirt*.glb). Names and URLs come from its asset.extras.
+  function creditLink(href, text) {
+    return '<a href="' + href + '" target="_blank" rel="noopener">' + text + '</a>';
+  }
+  const CR_TITLE  = creditLink('https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba', 'T Shirt');
+  const CR_AUTHOR = creditLink('https://sketchfab.com/funlab117', 'funlab117');
+  const CR_LICENSE = creditLink('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0');
+
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
     // ===== Navigation (shared) =====
@@ -217,6 +226,12 @@
     'cfg.camTurntableZoom': { uz: 'Aylanish + masshtab', ru: 'Вращение + зум', en: 'Turntable + zoom' },
     'cfg.fullscreenEnter': { uz: 'To‘liq ekran', ru: 'Во весь экран', en: 'Full screen' },
     'cfg.viewMode':     { uz: 'Ko‘rinish', ru: 'Вид', en: 'View' },
+    // LOOM-199: shown on the stage while the 3D shows the CC BY tee (data-i18n-html)
+    'cfg.modelCredit': {
+      uz: '“' + CR_TITLE + '” 3D modeli, muallifi ' + CR_AUTHOR + ', ' + CR_LICENSE + ' litsenziyasi asosida. LOOM tomonidan o‘zgartirilgan (veb uchun siqilgan).',
+      ru: '3D-модель «' + CR_TITLE + '», автор ' + CR_AUTHOR + ', лицензия ' + CR_LICENSE + '. Изменена LOOM (сжата для веба).',
+      en: '3D model “' + CR_TITLE + '” by ' + CR_AUTHOR + ', licensed under ' + CR_LICENSE + '. Modified by LOOM (compressed for the web).'
+    },
     'cfg.steps':        { uz: 'Qadamlar', ru: 'Шаги', en: 'Steps' },
     'cfg.designEditor': { uz: 'Dizayn muharriri', ru: 'Редактор дизайна', en: 'Design editor' },
     'cfg.designPanel':  { uz: 'Dizayn paneli', ru: 'Панель дизайна', en: 'Design panel' },

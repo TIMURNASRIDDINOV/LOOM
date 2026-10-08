@@ -45,14 +45,14 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=4"></script>
     <script defer src="assets/layout.js?v=5"></script>
-    <script defer src="assets/i18n.js?v=32"></script>
+    <script defer src="assets/i18n.js?v=33"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=3"></script>
-    <script defer src="configurator.js?v=66"></script>
+    <script defer src="configurator.js?v=67"></script>
 
     <style>
       /* ============================================================
@@ -1988,6 +1988,41 @@
       @media (min-width: 901px) and (prefers-reduced-motion: reduce) {
         .cam-acc-body, .cam-acc-caret { transition: none; }
       }
+
+      /* ── Model credit (LOOM-199) ────────────────────────────────────
+         The CC BY 4.0 line for the bundled tee. Small and quiet, on the
+         glass plate the chips used before the skin, so it stays readable over
+         any garment colour: ink on it is 14:1 or more over a black shirt in
+         light, and about 9:1 over a white shirt in dark. Anchored by its
+         bottom edge above the chips below it, so a longer language wraps
+         upwards, never into them. */
+      .model-credit {
+        position: absolute; z-index: 30; margin: 0;
+        padding: 0.3rem 0.5rem;
+        background: var(--panel-glass); color: var(--text);
+        font-family: var(--font-body); font-size: 0.6875rem; line-height: 1.35;
+        overflow-wrap: break-word;
+      }
+      .model-credit[hidden] { display: none; }
+      .model-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+      .model-credit a:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+      /* Desktop: right corner of the stage, above Reset view. */
+      @media (min-width: 901px) {
+        .model-credit {
+          right: 24px; bottom: calc(24px + var(--chip-h) + 14px);
+          max-width: min(340px, calc(100% - var(--stage-l) - 48px));
+          text-align: right;
+        }
+      }
+      /* Phones: centred just above Front/Back, which sits 56px above the
+         sheet's resting edge (see .view-toggle). */
+      @media (max-width: 900px) {
+        .model-credit {
+          left: 50%; transform: translateX(-50%); bottom: calc(var(--peek) + 64px);
+          width: max-content; max-width: calc(100% - 48px); text-align: center;
+        }
+        .kb-open .model-credit { display: none; }
+      }
     </style>
   </head>
 
@@ -2099,6 +2134,12 @@
         <button id="btn-view-front" class="view-btn active" aria-pressed="true"><span data-i18n="cfg.viewFront">Перед</span></button>
         <button id="btn-view-back" class="view-btn" aria-pressed="false"><span data-i18n="cfg.viewBack">Зад</span></button>
       </div>
+
+      <!-- LOOM-199: CC BY 4.0 credit of the bundled tee model. configurator.js
+           unhides it only while the 3D surface shows that model. It lives in
+           the page, not the canvas, so saved PNGs and order mockups never
+           contain it. -->
+      <p id="model-credit" class="model-credit" data-i18n-html="cfg.modelCredit" hidden>3D-модель «<a href="https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba" target="_blank" rel="noopener">T Shirt</a>», автор <a href="https://sketchfab.com/funlab117" target="_blank" rel="noopener">funlab117</a>, лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Изменена LOOM (сжата для веба).</p>
 
       <!-- ===== Controls =====
            On desktop this wrapper is display:contents, so the dock and the
