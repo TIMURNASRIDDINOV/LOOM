@@ -533,6 +533,9 @@ let _preview3D = null;    // single in-flight promise for the whole boot
 let _threeBooted = false;  // renderer, textures and render loop exist (once per page)
 let _preview3DReady = false; // the model is on screen; Save PNG is available
 let _pendingGlbUrl = null; // resolved by loadProductFromSlug, consumed on open
+// LOOM-199: the loaded GLB is the CC BY 4.0 tee (its asset.extras name the
+// Sketchfab source), so #model-credit must show while the 3D is on screen.
+let _modelCredited = false;
 let _productReady = null;  // loadProductFromSlug's promise; gates the model URL
 
 function _loadChunk(src) {
@@ -1747,6 +1750,9 @@ function loadShirtModel(glbUrl) {
     // onLoad
     function (gltf) {
       const object = gltf.scene;
+      const extras = (gltf.asset && gltf.asset.extras) || {};
+      _modelCredited = String(extras.source || "").indexOf("c1a3e5eb9b5445f4b7d4be82f1127eba") !== -1;
+      syncModelCredit();
 
       // Reset material collections before assigning materials for this model.
       shirtMaterials = [];
@@ -4634,6 +4640,7 @@ function setFlatMode(on) {
   const three = document.getElementById("three-container");
   if (flat) flat.style.display = flatMode ? "block" : "none";
   if (three) three.style.display = flatMode ? "none" : "block";
+  syncModelCredit();
 
   document.querySelectorAll(".surface-btn").forEach((b) => {
     const on2 = (b.dataset.surface === "flat") === flatMode;
@@ -4659,6 +4666,12 @@ function setFlatMode(on) {
     if (!flatMode && typeof onWindowResize === "function") onWindowResize();
   }).catch(() => {});
   if (renderer && typeof onWindowResize === "function") onWindowResize();
+}
+
+/** LOOM-199: the CC BY credit shows with the 3D, and only for the model it credits. */
+function syncModelCredit() {
+  const el = document.getElementById("model-credit");
+  if (el) el.hidden = flatMode || !_modelCredited;
 }
 
 function toggleFlatMode() {
