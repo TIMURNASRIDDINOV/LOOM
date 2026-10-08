@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="assets/nav.css?v=12" />
     <link rel="stylesheet" href="assets/auth.css?v=13" />
     <link rel="stylesheet" href="assets/login-modal.css?v=6" />
-    <script src="assets/boot.js?v=8"></script>
+    <script src="assets/boot.js?v=9"></script>
 
     <!-- three.js, its four example scripts and the meshopt decoder are NOT
          here any more. They are injected in order by ensureThreeLoaded() in
@@ -1750,6 +1750,9 @@
         }
         .studio-sheet .size-btn + .size-btn { margin-left: -2px; }
         .studio-sheet .size-btn.active { position: relative; z-index: 1; }
+        /* LOOM-205: the -2px overlap let the next cell (or the raised
+           active one) paint over the focus ring; lift the focused cell. */
+        .studio-sheet .size-btn:focus-visible { position: relative; z-index: 2; }
       }
 
       /* No size yet and the customer pressed on: point at the row. */
