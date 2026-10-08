@@ -1852,6 +1852,10 @@ function loadShirtModel(glbUrl) {
       // 2D editor's texture↔screen map uses final world positions.
       buildMeshTris();
 
+      // The pivot comes only now: every measurement above has read the
+      // garment's final world positions, which the entrance never changes.
+      startEntrance(object);
+
       // Hide loading overlay
       hideLoadingOverlay();
       resolve();
@@ -1866,6 +1870,58 @@ function loadShirtModel(glbUrl) {
     reject,
   );
   });
+}
+
+// ── Entrance ─────────────────────────────────────────────────────
+// The fitted garment sits in a pivot at the aim point. Once per load the pivot
+// grows from 0.001 (not 0: a zero scale is a singular matrix) to 1 with a half
+// turn. At the end the pivot is the identity, so the garment is exactly where
+// the fit put it. Reduced motion skips straight to the end.
+const ENTRANCE_MS = 1800;
+const _reducedMotion = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+let _pivot = null;       // the garment's parent; exported in the order GLB
+let _entrance = null;    // { t0, res } while the entrance runs
+let _entranceEnd = Promise.resolve(); // settles when the entrance is over
+
+function startEntrance(object) {
+  const at = INITIAL_VIEW.target;
+  if (!at || _pivot) return;
+  try {
+    const pivot = new THREE.Group();
+    pivot.position.copy(at);
+    object.position.sub(at);
+    pivot.add(object);
+    scene.add(pivot);
+    _pivot = pivot;
+    if (_reducedMotion && _reducedMotion.matches) return;
+    pivot.scale.setScalar(0.001);
+    pivot.rotation.y = Math.PI;
+    _entranceEnd = new Promise((res) => { _entrance = { t0: 0, res }; });
+  } catch (e) {
+    // Never the load-error path: the garment simply shows at full size.
+    _entrance = null;
+    if (_pivot) { _pivot.scale.setScalar(1); _pivot.rotation.y = 0; }
+  }
+}
+
+function _stepEntrance(now) {
+  // The clock starts on the first frame, so a slow first render can't eat it.
+  if (!_entrance.t0) _entrance.t0 = now;
+  const p = (now - _entrance.t0) / ENTRANCE_MS;
+  if (p >= 1) { finishEntrance(); return; }
+  const k = 1 - Math.pow(1 - p, 3); // ease-out
+  _pivot.scale.setScalar(0.001 + 0.999 * k);
+  _pivot.rotation.y = Math.PI * (1 - k);
+}
+
+/** Jump the entrance to its end. Snapshots and the GLB export call it first. */
+function finishEntrance() {
+  const e = _entrance;
+  if (!e) return;
+  _entrance = null;
+  _pivot.scale.setScalar(1);
+  _pivot.rotation.y = 0;
+  e.res();
 }
 
 function hideLoadingOverlay() {
@@ -2006,6 +2062,7 @@ function animate() {
   requestAnimationFrame(animate);
 
   if (_turn) _stepTurn(performance.now());
+  if (_entrance) _stepEntrance(performance.now());
 
   // Smooth camera lerp for front/back transitions
   if (camAnim.active) {
@@ -2138,8 +2195,10 @@ function setCamMode(mode) {
   if (_preview3D) _preview3D.then(() => { if (camMode === mode && !_turn) _startTurn(); }, () => {});
 }
 
-/** Drag, Front/Back, Reset view and 2D end any motion and select Free. */
+/** Drag, Front/Back, Reset view and 2D end any motion (and the first-design
+ *  reward) and select Free. */
 function stopCamMotion() {
+  cancelReward();
   if (camMode !== "free") setCamMode("free");
 }
 
@@ -4620,13 +4679,32 @@ function bindSurfaceToggle() {
 
 // First design placed → show it on the shirt, once. The payoff is the reason
 // people came; they should not have to discover the 3D toggle to get it.
+// The dwell starts once the model is in and its entrance has played: a fixed
+// 2.2s from the flip ran out while a slow load was still showing the loader.
+const REWARD_DWELL_MS = 2200;
 let _flatRewardShown = false;
+let _reward = null; // { timer } from the flip until the flip back
 function maybeShowFirstDesignReward() {
   if (_flatRewardShown || !_viewHasContent(designState.activeView)) return;
   _flatRewardShown = true;
+  if (!flatMode) return; // already in 3D by choice: nothing to flip
   setFlatMode(false);
-  setTimeout(() => { if (!flatMode) setFlatMode(true); }, 2200);
+  const r = (_reward = {});
+  _preview3D.then(() => _entranceEnd).then(() => {
+    if (_reward !== r) return;
+    r.timer = setTimeout(() => { _reward = null; if (!flatMode) setFlatMode(true); }, REWARD_DWELL_MS);
+  }, cancelReward);
 }
+
+/** The customer took over: the reward leaves the stage as it is. */
+function cancelReward() {
+  if (_reward) clearTimeout(_reward.timer);
+  _reward = null;
+}
+// A tile tap or a 2D/3D pick cancels it; a drag does through stopCamMotion.
+document.addEventListener("click", (e) => {
+  if (_reward && e.target.closest && e.target.closest(".cam-tile, .choice-tile, .surface-btn")) cancelReward();
+}, true);
 
 // ── Undo (single level) ─────────────────────────────────────────
 // Covers the realistic beginner mistake: something was deleted or everything
@@ -5607,6 +5685,7 @@ function bindSummaryTab() {
  * controls are not touched, so a drag still in its damping carries on.
  */
 function _withStillCamera(view, read) {
+  finishEntrance(); // full scale, facing front. Turntable cannot move mid-call.
   const pose = CAM_VIEWS[view === "back" ? "back" : "front"];
   const prevHandles = _showHandles;
   const pos = camera.position.clone();
@@ -6182,21 +6261,23 @@ function validateLocation() {
 
 // Export the textured garment as a binary glTF (.glb) data URL — the EXACT model
 // the customer designed (baked textures), for the admin's interactive 3D review +
-// download. Exports just shirtObject (no lights/camera). Best-effort: resolves null
-// on any failure so it never blocks an order.
+// download. Exports the garment's pivot (no lights/camera): the garment alone
+// would lose the pivot's offset. Best-effort: resolves null on any failure so it
+// never blocks an order.
 async function captureGLB() {
   return new Promise((resolve) => {
     if (!shirtObject || typeof THREE.GLTFExporter === "undefined") { resolve(null); return; }
     let done = false;
     const finish = (v) => { if (!done) { done = true; resolve(v); } };
     try {
+      finishEntrance();
       drawTexture("front");
       drawTexture("back");
       const exporter = new THREE.GLTFExporter();
       // Safety net — never hang the order flow if serialization stalls.
       setTimeout(() => finish(null), 20000);
       exporter.parse(
-        shirtObject,
+        _pivot || shirtObject,
         (glb) => {
           try {
             const bytes = new Uint8Array(glb);
