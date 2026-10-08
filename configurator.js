@@ -583,6 +583,7 @@ function ensurePreview3D() {
     return _preview3D;
   }
   showPreviewLoading(true);
+  announcePreview("cfg.loadingLabel", "Загрузка 3D-превью");
   _preview3D = ensureThreeLoaded()
     .then(() => {
       // A retry after a model failure reuses the renderer it already built.
@@ -606,9 +607,11 @@ function ensurePreview3D() {
       setCameraView(designState.activeView);
       _preview3DReady = true;
       enableSaveDesign();
+      announcePreview("cfg.loaded3d", "3D-превью готово");
     })
     .catch((err) => {
       _preview3D = null;
+      announcePreview("cfg.load3dFailed", "Не удалось загрузить 3D-превью");
       showPreviewError(err);
       throw err;
     });
@@ -628,6 +631,13 @@ function showPreviewLoading(fresh) {
   overlay.style.display = "flex";
   overlay.style.opacity = "1";
   if (fresh) setLoadProgress(null);
+}
+
+/** #preview-status (aria-live polite): the load's start and end only. The
+ *  bar's per-percent aria-valuenow is never spoken unless it has focus. */
+function announcePreview(key, fallback) {
+  const el = document.getElementById("preview-status");
+  if (el) el.textContent = CT(key, fallback);
 }
 
 /** Bar and #loading-pct: null = indeterminate (size unknown), else 0-100. */
