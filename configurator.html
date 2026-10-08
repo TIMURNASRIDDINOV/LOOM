@@ -1732,6 +1732,30 @@
         .dock-choices { margin-top: 0; }
         .choice-go { display: none; }
 
+        /* LOOM-201: at 40% the Step 1 dock is 83-123px tall, so "More" sat
+           under the tools and was clipped. It rides in the foot, left of the
+           CTA: the dock is static, so the fixed sheet is its containing block
+           and the dock's scroll box no longer clips it. Hidden with the dock
+           on steps 2 and 3 and while typing. */
+        .studio-sheet { --more-w: 5rem; }
+        .studio-sheet .dock-actions {
+          position: absolute; z-index: 41; padding: 0;
+          left: calc(1.25rem + var(--gut));
+          bottom: calc(0.5rem + env(safe-area-inset-bottom));
+        }
+        .studio-sheet #btn-more {
+          width: var(--more-w); min-height: 44px; justify-content: center;
+          padding: 0 0.4rem; letter-spacing: 0.02em;
+        }
+        .studio-sheet[data-step="design"] #btn-step-next {
+          width: auto; margin-left: calc(var(--more-w) + 0.5rem);
+        }
+        .dock-more-item { min-height: 44px; }
+        /* A transform or fade on the dock itself would make it the More row's
+           containing block again (stepIn's end frame is an identity matrix),
+           so on phones the step entrance plays on its other children. */
+        .studio-sheet .design-dock.step-in { animation: none; }
+
         /* Step 2: every size above the fold at 360x740 (LOOM-179). As in
            step 1, the step bar names the step, so the title and lead stay
            for screen readers; the sizes are one segmented row of 44px cells
@@ -1753,6 +1777,15 @@
         /* LOOM-205: the -2px overlap let the next cell (or the raised
            active one) paint over the focus ring; lift the focused cell. */
         .studio-sheet .size-btn:focus-visible { position: relative; z-index: 2; }
+      }
+      /* LOOM-201: below 720px tall the Step 1 dock cannot hold three tools
+         whose labels wrap to three lines; the decorative icons give the room
+         back so every label stays in view. */
+      @media (max-width: 900px) and (max-height: 720px) {
+        .studio-sheet.lab-live .choice-ico { display: none; }
+      }
+      @media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+        .studio-sheet .design-dock.step-in > :not(.dock-actions) { animation: stepIn 0.34s var(--ease) both; }
       }
 
       /* No size yet and the customer pressed on: point at the row. */
