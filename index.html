@@ -469,10 +469,13 @@
 
       <figure class="hero__media" data-reveal data-delay="0.35">
         <div class="hero__video">
-          <!-- 360° turntable, pre-cropped to the 4:5 the tile shows (object-fit
-               would discard the rest anyway). Poster paints before the first
-               video frame, so the tile never flashes --media-bg. -->
-          <video src="images/hero-tshirt-360.mp4" poster="images/hero-tshirt-360.jpg"
+          <!-- 3D render of the white LOOM hoodie: the camera orbits it and
+               zooms in on the front and back prints. Pre-cropped to the 4:5
+               the tile shows (object-fit would discard the rest anyway), 640x800.
+               Poster is the clip's first frame and paints before playback, so
+               the tile never flashes --media-bg. New media gets a new file name:
+               /images/* is cached for 30 days. -->
+          <video src="images/hero-hoodie-3d.mp4" poster="images/hero-hoodie-3d.jpg"
                  autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video>
         </div>
         <figcaption class="hero__media-caption">
