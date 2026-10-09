@@ -69,8 +69,8 @@ router.post('/', async (c) => {
   }
 
   const productId = typeof b.productId === 'number' ? b.productId : null
-  const unsold = await checkVariant(c.env.DB, productId, b.designJson)
-  if (unsold) return c.json(unsold, 409)
+  const variant = await checkVariant(c.env.DB, productId, b.designJson)
+  if ('code' in variant) return c.json(variant, 409)
   const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
 
   // Proofs are captured while the design is live (here); copied to order_items at checkout.
@@ -92,7 +92,7 @@ router.post('/', async (c) => {
   await addCartItem(c.env.DB, {
     user_id: c.get('userId'),
     product_id: productId,
-    design_json: b.designJson,
+    design_json: variant.designJson,
     unit_price: b.unitPrice,
     quantity,
     ...keys,
@@ -193,8 +193,9 @@ router.post('/checkout', async (c) => {
   const items = await getCartItems(c.env.DB, userId)
   if (!items.length) return c.json({ error: 'Cart is empty' }, 400)
   for (const it of items) {
-    const unsold = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json)
-    if (unsold) return c.json({ ...unsold, itemId: it.id }, 409)
+    const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json)
+    if ('code' in variant) return c.json({ ...variant, itemId: it.id }, 409)
+    it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)
   }
 
   const total = cartTotal(items)

@@ -111,8 +111,8 @@ pub.post('/orders', async (c) => {
     if (!product) return c.json({ error: 'Product not found' }, 400)
     productId = product.id
   }
-  const unsold = await checkVariant(c.env.DB, productId, b.designJson)
-  if (unsold) return c.json(unsold, 409)
+  const variant = await checkVariant(c.env.DB, productId, b.designJson)
+  if ('code' in variant) return c.json(variant, 409)
 
   const keyField = (v: unknown) => (typeof v === 'string' ? v : null)
   const keys = {
@@ -136,7 +136,7 @@ pub.post('/orders', async (c) => {
     address: typeof b.address === 'string' ? b.address.trim() : null,
     coordinates: typeof b.coordinates === 'string' ? b.coordinates.trim() : null,
     comment: typeof b.comment === 'string' ? b.comment.trim() : null,
-    design_json: b.designJson as string,
+    design_json: variant.designJson,
     total_price: b.totalPrice as number,
     ...keys,
   })
@@ -153,7 +153,7 @@ pub.post('/orders', async (c) => {
         coordinates: typeof b.coordinates === 'string' ? b.coordinates : null,
         comment: typeof b.comment === 'string' ? b.comment : null,
         totalPrice: b.totalPrice as number,
-        designJson: b.designJson as string,
+        designJson: variant.designJson,
         productName: product?.name_ru ?? null,
       }),
     )

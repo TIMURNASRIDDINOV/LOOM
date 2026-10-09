@@ -27,7 +27,7 @@ ALTER TABLE products ADD COLUMN sizes_json TEXT
   DEFAULT '["XS","S","M","L","XL","XXL","XXXL"]';
 
 ALTER TABLE products ADD COLUMN colors_json TEXT
-  DEFAULT '[{"hex":"#FFFFFF","name_uz":"Oq","name_ru":"Белый","name_en":"White","available":true},{"hex":"#1F2937","name_uz":"Qora","name_ru":"Чёрный","name_en":"Black","available":true}]';
+  DEFAULT '[{"hex":"#FFFFFF","name_uz":"Oq","name_ru":"Белый","name_en":"White","available":true},{"hex":"#000000","name_uz":"Qora","name_ru":"Чёрный","name_en":"Black","available":true}]';
 
 ALTER TABLE products ADD COLUMN print_area_json TEXT
   DEFAULT '{"platen_cm":{"w":30,"h":40},"width_frac":0.55,"top_frac":0.2}';

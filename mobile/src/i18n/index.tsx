@@ -88,7 +88,8 @@ export function useT(): TFn {
 
 const COLOR_KEYS: Record<string, StringKey> = {
   '#FFFFFF': 'color.white',
-  '#1F2937': 'color.black', // the web's and the product config's black
+  '#000000': 'color.black', // the product config's black (LOOM-220)
+  '#1F2937': 'color.black', // the old black, still on earlier designs
   '#1C1C1C': 'color.black',
   '#E2D9CC': 'color.sand',
   '#9BA3AF': 'color.grey',
