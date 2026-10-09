@@ -1500,6 +1500,7 @@ function applyProductToHeader(product) {
   refreshPriceLabels();
   const name = productName(product);
   if (!name) return;
+  document.title = "LOOM — " + name; // the static <title> is product-neutral (LOOM-216)
   // Drop the i18n key: this string is data, not a translation table entry, so
   // i18n.apply() must not overwrite it. Re-applied by hand on a language
   // switch instead — see bindLangChange().

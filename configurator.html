@@ -9,8 +9,8 @@
     <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f4f2ed" />
-    <title>LOOM — 3D Конфигуратор футболок</title>
-    <meta name="description" content="3D-конфигуратор LOOM: соберите свою футболку и посмотрите её в 3D перед заказом." />
+    <title>LOOM — 3D-конфигуратор одежды</title>
+    <meta name="description" content="3D-конфигуратор LOOM: создайте свою одежду и посмотрите её в 3D перед заказом." />
 
     <!-- SEO -->
     <link rel="canonical" href="https://loomdesign.uz/configurator" />
@@ -18,7 +18,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="LOOM" />
     <meta property="og:title" content="LOOM — 3D-конфигуратор" />
-    <meta property="og:description" content="Соберите свою футболку в 3D-конфигураторе LOOM и закажите с доставкой по Узбекистану." />
+    <meta property="og:description" content="Создайте свою одежду в 3D-конфигураторе LOOM и закажите с доставкой по Узбекистану." />
     <meta property="og:url" content="https://loomdesign.uz/configurator" />
     <meta property="og:image" content="https://loomdesign.uz/images/og-image.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -45,14 +45,14 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=4"></script>
     <script defer src="assets/layout.js?v=5"></script>
-    <script defer src="assets/i18n.js?v=35"></script>
+    <script defer src="assets/i18n.js?v=36"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=4"></script>
-    <script defer src="configurator.js?v=74"></script>
+    <script defer src="configurator.js?v=75"></script>
 
     <style>
       /* ============================================================
@@ -2127,7 +2127,7 @@
         <div class="flat-add-card lab-card">
           <span class="choice-soon lab-card__badge" data-i18n="lab.soon">Скоро</span>
           <p class="flat-add-title" id="lab-sheet-title" data-i18n="lab.sheetTitle">LOOM Lab</p>
-          <p class="lab-card__lead" data-i18n="lab.sheetLead">Опишите принт обычной фразой — Lab нарисует его, уберёт фон и положит на футболку в печатном разрешении.</p>
+          <p class="lab-card__lead" data-i18n="lab.sheetLead">Опишите принт обычной фразой — Lab нарисует его, уберёт фон и положит на одежду в печатном разрешении.</p>
           <ul class="lab-card__list">
             <li data-i18n="lab.f1">Принт из текстового описания</li>
             <li data-i18n="lab.f2">Автоматическое удаление фона</li>
@@ -2230,7 +2230,7 @@
         <header class="step-head">
           <p class="step-kicker"><span data-i18n="cfg.stepCount1">Шаг 1 из 3</span></p>
           <h2 class="step-title" data-i18n="cfg.step1Title">Что напечатать?</h2>
-          <p class="step-lead" data-i18n="cfg.step1Lead">Загрузите картинку или напишите текст — вы сразу увидите её на футболке.</p>
+          <p class="step-lead" data-i18n="cfg.step1Lead">Загрузите картинку или напишите текст — вы сразу увидите её на одежде.</p>
         </header>
 
         <!-- The two things you can actually do, at the size of the decision.
@@ -2423,13 +2423,13 @@
                 <p class="size-guide-sub" data-i18n="sg.measure">Как снять мерки</p>
                 <ul class="size-guide-notes">
                   <li data-i18n="sg.measureChest">Грудь: измерьте по самой широкой части груди под подмышками.</li>
-                  <li data-i18n="sg.measureLength">Длина: от шва плеча до нижнего края футболки.</li>
+                  <li data-i18n="sg.measureLength">Длина: от шва плеча до нижнего края изделия.</li>
                   <li data-i18n="sg.tip">Совет: если вы между размерами, берите больший для свободной посадки.</li>
                 </ul>
               </div>
             </div>
             <div class="divider"></div>
-            <p class="tab-section-label" data-i18n="cfg.shirtColor">Цвет футболки</p>
+            <p class="tab-section-label" data-i18n="cfg.shirtColor">Цвет</p>
             <div class="color-swatches" id="color-swatches" role="radiogroup" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="Выбор цвета"></div>
             <input type="color" id="custom-color-picker" value="#FFFFFF" style="display:none" aria-hidden="true" />
             <input type="text" id="custom-color-hex" value="#FFFFFF" style="display:none" aria-hidden="true" />
