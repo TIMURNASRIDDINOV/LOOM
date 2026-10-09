@@ -91,7 +91,7 @@ let _garmentFacing = null;
 // that need an outline on a light background to be visible as a swatch.
 const SHIRT_COLORS = [
   { hex: "#FFFFFF", name: "Белый",  i18n: "cfg.colorWhite", light: true },
-  { hex: "#1F2937", name: "Чёрный", i18n: "cfg.colorBlack" },
+  { hex: "#000000", name: "Чёрный", i18n: "cfg.colorBlack" },
 ];
 
 /** The colour a fresh design starts on, and the one Reset returns to. */

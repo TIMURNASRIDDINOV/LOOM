@@ -246,7 +246,7 @@
   }
 
   /* ── design summary line (colour · size · text · logo) ──────── */
-  var COLOR_NAMES = { '#FFFFFF': { ru: 'Белый', uz: 'Oq', en: 'White' }, '#1F2937': { ru: 'Тёмный', uz: 'To‘q', en: 'Dark' } };
+  var COLOR_NAMES = { '#FFFFFF': { ru: 'Белый', uz: 'Oq', en: 'White' }, '#000000': { ru: 'Чёрный', uz: 'Qora', en: 'Black' }, '#1F2937': { ru: 'Тёмный', uz: 'To‘q', en: 'Dark' } };
   function colorName(hex) {
     if (!hex) return '';
     var lang = (window.LOOM_I18N && window.LOOM_I18N.getLang()) || 'ru';
