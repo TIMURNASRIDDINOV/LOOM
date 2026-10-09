@@ -69,9 +69,22 @@
       animTimer = setTimeout(function () { d.classList.remove('theme-anim'); }, 420);
     }
     apply(theme);
+    notify(theme);
+  }
+
+  function notify(theme) {
     try {
       window.dispatchEvent(new CustomEvent('loom:themechange', { detail: { theme: theme } }));
     } catch (e) { /* CustomEvent unsupported — theme still applied */ }
+  }
+
+  /* apply + loom:themechange, no localStorage write (LOOM-205: listeners such
+     as the 2D editor's --select colour were left stale in Telegram). */
+  function applyOnly(theme) {
+    if (theme !== 'light' && theme !== 'dark') return;
+    var changed = d.getAttribute('data-theme') !== theme;
+    apply(theme);
+    if (changed) notify(theme);
   }
 
   /* stamp before first paint, transitions suppressed for two frames */
@@ -110,7 +123,7 @@
      only while they are open (the Telegram Mini App follows the Telegram
      client). Persisting there would clobber the visitor's own dots choice for
      normal browsing, and pin them out of following system changes. */
-  window.__loomTheme = { KEY: KEY, effective: effective, set: set, applyOnly: apply };
+  window.__loomTheme = { KEY: KEY, effective: effective, set: set, applyOnly: applyOnly };
 })();
 
 (function () {

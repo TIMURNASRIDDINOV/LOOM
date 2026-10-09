@@ -220,6 +220,7 @@
     'cfg.savedToast':   { uz: 'Dizayn saqlandi!', ru: 'Дизайн сохранён!', en: 'Design saved!' },
     'cfg.exportPngNeeds3d': { uz: 'PNG saqlash uchun 3D ko‘rinishni oching', ru: 'Откройте 3D-превью, чтобы сохранить PNG', en: 'Open the 3D preview to save a PNG' },
     'cfg.loadingLabel': { uz: '3D ko‘rinish yuklanmoqda', ru: 'Загрузка 3D-превью', en: 'Loading 3D preview' },
+    'cfg.loaded3d':     { uz: '3D ko‘rinish tayyor', ru: '3D-превью готово', en: '3D preview ready' },
     'cfg.preview':      { uz: 'Ko‘rib chiqish', ru: 'Предпросмотр', en: 'Preview' },
     'cfg.camFree':      { uz: 'Erkin', ru: 'Свободно', en: 'Free' },
     'cfg.camTurntable': { uz: 'Aylanish', ru: 'Вращение', en: 'Turntable' },

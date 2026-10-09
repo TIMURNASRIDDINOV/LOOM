@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="assets/nav.css?v=12" />
     <link rel="stylesheet" href="assets/auth.css?v=13" />
     <link rel="stylesheet" href="assets/login-modal.css?v=6" />
-    <script src="assets/boot.js?v=8"></script>
+    <script src="assets/boot.js?v=9"></script>
 
     <!-- three.js, its four example scripts and the meshopt decoder are NOT
          here any more. They are injected in order by ensureThreeLoaded() in
@@ -45,14 +45,14 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=4"></script>
     <script defer src="assets/layout.js?v=5"></script>
-    <script defer src="assets/i18n.js?v=34"></script>
+    <script defer src="assets/i18n.js?v=35"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=3"></script>
-    <script defer src="configurator.js?v=68"></script>
+    <script defer src="configurator.js?v=70"></script>
 
     <style>
       /* ============================================================
@@ -1613,6 +1613,16 @@
       }
       .stage-chip:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
       .stage-chip:active { transform: translate(2px, 2px); box-shadow: none; }
+      /* Save before the 3D has loaded: dimmed and still, no hover or press
+         lift. Every width: a phone tap is where the hint toast is needed. */
+      .chip-save[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+      .chip-save[aria-disabled="true"]:hover,
+      .chip-save[aria-disabled="true"]:active { transform: none; box-shadow: var(--hard-sm); }
+      /* Screen-reader-only line for the 3D load (#preview-status). */
+      .sr-live {
+        position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+        overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+      }
       .view-btn, .surface-btn {
         border-radius: 0; font-family: var(--font-display); font-weight: 700;
         transition: background 0.16s ease, color 0.16s ease;
@@ -1722,6 +1732,30 @@
         .dock-choices { margin-top: 0; }
         .choice-go { display: none; }
 
+        /* LOOM-201: at 40% the Step 1 dock is 83-123px tall, so "More" sat
+           under the tools and was clipped. It rides in the foot, left of the
+           CTA: the dock is static, so the fixed sheet is its containing block
+           and the dock's scroll box no longer clips it. Hidden with the dock
+           on steps 2 and 3 and while typing. */
+        .studio-sheet { --more-w: 5rem; }
+        .studio-sheet .dock-actions {
+          position: absolute; z-index: 41; padding: 0;
+          left: calc(1.25rem + var(--gut));
+          bottom: calc(0.5rem + env(safe-area-inset-bottom));
+        }
+        .studio-sheet #btn-more {
+          width: var(--more-w); min-height: 44px; justify-content: center;
+          padding: 0 0.4rem; letter-spacing: 0.02em;
+        }
+        .studio-sheet[data-step="design"] #btn-step-next {
+          width: auto; margin-left: calc(var(--more-w) + 0.5rem);
+        }
+        .dock-more-item { min-height: 44px; }
+        /* A transform or fade on the dock itself would make it the More row's
+           containing block again (stepIn's end frame is an identity matrix),
+           so on phones the step entrance plays on its other children. */
+        .studio-sheet .design-dock.step-in { animation: none; }
+
         /* Step 2: every size above the fold at 360x740 (LOOM-179). As in
            step 1, the step bar names the step, so the title and lead stay
            for screen readers; the sizes are one segmented row of 44px cells
@@ -1740,6 +1774,18 @@
         }
         .studio-sheet .size-btn + .size-btn { margin-left: -2px; }
         .studio-sheet .size-btn.active { position: relative; z-index: 1; }
+        /* LOOM-205: the -2px overlap let the next cell (or the raised
+           active one) paint over the focus ring; lift the focused cell. */
+        .studio-sheet .size-btn:focus-visible { position: relative; z-index: 2; }
+      }
+      /* LOOM-201: below 720px tall the Step 1 dock cannot hold three tools
+         whose labels wrap to three lines; the decorative icons give the room
+         back so every label stays in view. */
+      @media (max-width: 900px) and (max-height: 720px) {
+        .studio-sheet.lab-live .choice-ico { display: none; }
+      }
+      @media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+        .studio-sheet .design-dock.step-in > :not(.dock-actions) { animation: stepIn 0.34s var(--ease) both; }
       }
 
       /* No size yet and the customer pressed on: point at the row. */
@@ -1838,10 +1884,6 @@
           font-size: clamp(1.17rem, calc(var(--panel-w) / 18.75), 1.28rem);
           padding-left: 1.1rem; padding-right: 1.1rem;
         }
-        /* Save before the 3D has loaded: dimmed and still, no hover lift. */
-        .chip-save[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
-        .chip-save[aria-disabled="true"]:hover,
-        .chip-save[aria-disabled="true"]:active { transform: none; box-shadow: var(--hard-sm); }
 
         /* Full screen: an icon chip in the top-right corner; the garment chip
            steps left of it. Same height as the garment chip, so the pair
@@ -2045,6 +2087,9 @@
           <button type="button" id="preview-retry" class="btn-retry"><span data-i18n="cfg.retry">Повторить</span></button>
         </div>
       </div>
+      <!-- Said once when the 3D load starts and once when it ends; the bar's
+           percent is never spoken. Outside the overlay: display:none mutes it. -->
+      <p id="preview-status" class="sr-live" aria-live="polite" aria-atomic="true"></p>
 
       <!-- Three.js mounts canvas here (preview only — editing is on the flat face) -->
       <div id="three-container"></div>
@@ -2440,115 +2485,6 @@
     </main>
 
     <!-- ===== Cart drawer ===== -->
-    <!-- ===== Order Modal ===== -->
-    <div id="orderModal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal-backdrop" id="modalBackdrop"></div>
-      <div class="modal-card">
-        <button class="modal-close" id="modalClose" aria-label="Закрыть">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-        <h2 id="modalTitle" class="modal-title" data-i18n="order.title">Оформление заказа</h2>
-        <div class="order-summary">
-          <h3 class="summary-title">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8.6v6.8l-9 5-9-5V8.6l9-5z"/><path d="M3.3 8.2 12 13.1l8.7-4.9"/><path d="M12 13.1V20.4"/></svg>
-            <span data-i18n="order.yourOrder">Ваш заказ</span>
-          </h3>
-          <div class="summary-content">
-            <div class="summary-preview"><canvas id="summaryCanvas" width="150" height="150"></canvas></div>
-            <div class="summary-details">
-              <div class="summary-row"><span class="summary-label" data-i18n="order.color">Цвет:</span><span class="summary-value" id="summaryColor">Белый</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="order.size">Размер:</span><span class="summary-value" id="summarySize">L</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="order.scale">Масштаб:</span><span class="summary-value" id="summaryScale">100%</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="order.text">Текст:</span><span class="summary-value" id="summaryText">Не указан</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="order.font">Шрифт:</span><span class="summary-value" id="summaryFont">Arial</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="order.logo">Логотип:</span><span class="summary-value" id="summaryImage">Не загружено</span></div>
-              <div class="summary-row summary-price"><span class="summary-label" data-i18n="order.price">Цена:</span><span class="summary-value" id="summaryPrice">150 000 сум</span></div>
-            </div>
-          </div>
-        </div>
-        <div id="auth-order-badge" style="display:none;background:var(--ok-tint);border:1px solid var(--ok-border);border-radius:2px;padding:0.6rem 0.9rem;margin-bottom:1rem;font-size:0.82rem;color:var(--ok);" data-i18n="order.bound">
-          ✓ Заказ будет привязан к вашему аккаунту
-        </div>
-        <form id="orderForm" class="order-form">
-          <div class="form-row">
-            <div class="form-field">
-              <label for="nameInput" class="form-label"><span data-i18n="order.name">Имя</span> <span class="required">*</span></label>
-              <input type="text" id="nameInput" class="form-input" name="given-name" autocomplete="given-name" placeholder="Введите ваше имя" data-i18n-attr="placeholder:order.namePh" required minlength="2" maxlength="50" aria-required="true" />
-              <span class="field-error" id="nameError"></span>
-              <span class="field-success" style="display:none">✓</span>
-            </div>
-            <div class="form-field">
-              <label for="surnameInput" class="form-label" data-i18n="order.surname">Фамилия</label>
-              <input type="text" id="surnameInput" class="form-input" name="family-name" autocomplete="family-name" placeholder="Необязательно" data-i18n-attr="placeholder:order.optional" maxlength="50" />
-            </div>
-          </div>
-          <div class="form-field">
-            <label for="phoneInput" class="form-label"><span data-i18n="order.phone">Телефон</span> <span class="required">*</span></label>
-            <input type="tel" id="phoneInput" class="form-input" name="tel" autocomplete="tel" placeholder="+998 90 123-45-67" required aria-required="true" />
-            <span class="field-error" id="phoneError"></span>
-            <span class="field-success" style="display:none">✓</span>
-          </div>
-          <div class="form-field">
-            <label for="commentInput" class="form-label" data-i18n="order.comment">Комментарий к заказу</label>
-            <textarea id="commentInput" class="form-input" rows="2" placeholder="Укажите размер, дополнительные пожелания…" data-i18n-attr="placeholder:order.commentPh" maxlength="500"></textarea>
-            <span style="font-size:12px;color:var(--muted);margin-top:4px;display:block" data-i18n="order.commentHint">Необязательно, до 500 символов</span>
-          </div>
-          <div class="form-field">
-            <label class="form-label"><span data-i18n="order.address">Адрес доставки</span> <span class="required">*</span></label>
-
-            <!-- Saved address (shown when the user has a default address in settings) -->
-            <div id="savedLocationCard" style="display:none">
-              <div class="saved-loc-preview">
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" style="opacity:0.7;flex-shrink:0"><path d="M8 1a5 5 0 0 1 5 5c0 3.5-5 9-5 9S3 9.5 3 6a5 5 0 0 1 5-5z"/><circle cx="8" cy="6" r="1.5"/></svg>
-                <span id="savedLocationText"></span>
-              </div>
-              <div class="location-toggle" style="margin-bottom:0.75rem">
-                <button type="button" class="toggle-btn active" id="useSavedLocation" data-i18n="order.useSaved">Использовать сохранённый</button>
-                <button type="button" class="toggle-btn" id="enterNewLocation" data-i18n="order.enterNew">Ввести новый</button>
-              </div>
-            </div>
-
-            <div id="newLocationWrap">
-            <div class="location-toggle">
-              <button type="button" class="toggle-btn" id="toggleMap" data-type="map">
-                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21.5s7-6.4 7-11.5a7 7 0 1 0-14 0c0 5.1 7 11.5 7 11.5z"/><circle cx="12" cy="10" r="2.6"/></svg>
-                <span data-i18n="order.onMap">На карте</span>
-              </button>
-              <button type="button" class="toggle-btn active" id="toggleAddress" data-type="address">
-                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h8"/><path d="M16.3 3.7a1.9 1.9 0 0 1 2.7 2.7L7.5 17.9 4 19l1.1-3.5z"/></svg>
-                <span data-i18n="order.addressTab">Адрес</span>
-              </button>
-            </div>
-            <div id="mapContainer" class="map-container" style="display:none">
-              <div id="map" style="height:240px;border-radius:12px;position:relative">
-                <svg class="map-center-marker" width="30" height="40" viewBox="0 0 30 40" fill="none"><path d="M15 0C6.716 0 0 6.716 0 15c0 8.284 15 25 15 25s15-16.716 15-25C30 6.716 23.284 0 15 0z" fill="#0a84ff"/><circle cx="15" cy="15" r="6" fill="white"/></svg>
-              </div>
-              <p class="map-coords" id="mapCoords">Координаты: 41.2995, 69.2401</p>
-            </div>
-            <div id="addressContainer" class="address-container">
-              <textarea id="addressInput" class="form-input" rows="2" name="street-address" autocomplete="street-address" placeholder="Ташкент, улица Амира Темура, дом 10" data-i18n-attr="placeholder:order.addressPh"></textarea>
-            </div>
-            </div><!-- /newLocationWrap -->
-            <span class="field-error" id="locationError"></span>
-          </div>
-          <button type="submit" class="btn-submit" id="submitBtn">
-            <span id="submitText" data-i18n="order.submit">Оформить заказ</span>
-            <span id="submitLoader" style="display:none">
-              <svg class="spinner" width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
-              <span data-i18n="order.sending">Отправка…</span>
-            </span>
-          </button>
-        </form>
-      </div>
-    </div>
-
-    <!-- Success toast (legacy) -->
-    <div id="successNotification" class="success-toast" style="display:none">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-      <span data-i18n="order.success">Заказ успешно оформлен!</span>
-    </div>
-
-    <!-- Yandex Maps loads lazily from configurator.js when the map is first opened -->
     <!-- Scripts are deferred from <head> — see the block there. -->
   </body>
 </html>
