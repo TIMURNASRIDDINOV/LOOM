@@ -248,6 +248,7 @@
     'cfg.preparing':       { uz: 'Maketlar tayyorlanmoqda…', ru: 'Готовим макеты…', en: 'Preparing proofs…' },
     'cfg.toastLoginCart':  { uz: 'Savatga qo‘shish uchun tizimga kiring', ru: 'Войдите, чтобы добавить в корзину', en: 'Sign in to add to cart' },
     'cfg.toastAddError':   { uz: 'Qo‘shishda xatolik', ru: 'Ошибка добавления', en: 'Could not add item' },
+    'cfg.untouchedTextCart': { uz: 'Savatga qo‘shishdan oldin matn kiriting yoki bu matn qatlamini o‘chiring.', ru: 'Введите текст или удалите этот текстовый слой, чтобы добавить товар в корзину.', en: 'Enter text or remove this text layer before adding the item to your bag.' },
     'cfg.toastCartUpdated':{ uz: 'Savat yangilandi', ru: 'Корзина обновлена', en: 'Cart updated' },
     'cfg.editingFromCart': { uz: 'Savatdagi mahsulot tahrirlanmoqda — qo‘shilganda saqlanadi', ru: 'Редактируем товар из корзины — сохранится при добавлении', en: 'Editing a bag item — re-add to save changes' },
     'cfg.uploadErrType':   { uz: 'Iltimos, rasm faylini yuklang (PNG, JPG, WebP, HEIC, SVG)', ru: 'Пожалуйста, загрузите файл изображения (PNG, JPG, WebP, HEIC, SVG)', en: 'Please upload an image file (PNG, JPG, WebP, HEIC, SVG)' },

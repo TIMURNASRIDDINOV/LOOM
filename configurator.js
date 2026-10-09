@@ -221,9 +221,14 @@ function selectElement(id, opts) {
   if (!opts || opts.redraw !== false) redrawActive();
 }
 
-/** Does this view have anything on it? */
+/** Does this view have anything on it? Untouched sample text counts: it is on screen. */
 function _viewHasContent(view) {
   return elementsOf(view).some((e) => e.type === "text" ? !!e.content : !!e.img);
+}
+
+/** Does this view have printable artwork? Untouched sample text is preview-only. */
+function _viewHasPrint(view) {
+  return elementsOf(view).some((e) => e.type === "text" ? !!e.content && !e.placeholder : !!e.img);
 }
 
 // ── Normalised ⇄ texture-space conversion ────────────────────────
@@ -3395,6 +3400,22 @@ function bindSizeGuide() {
 // Refresh JS-rendered strings when the language changes
 function bindLangChange() {
   window.addEventListener("loom:langchange", () => {
+    // Untouched text is a localized sample on the garment, not customer copy.
+    // Refresh the sample for the new language while leaving its input empty.
+    let refreshedPlaceholder = false;
+    ["front", "back"].forEach((view) => {
+      elementsOf(view).forEach((el) => {
+        if (el.type !== "text" || !el.placeholder) return;
+        el.content = CT("cfg.newTextDefault", "Ваш текст");
+        refreshedPlaceholder = true;
+      });
+    });
+    if (refreshedPlaceholder) {
+      syncPanelFromState();
+      drawTexture("front");
+      drawTexture("back");
+      applyActiveTexture();
+    }
     // Summary tab (if visible) uses translated color/labels
     try { if (typeof updateSummaryTab === "function") updateSummaryTab(); } catch (e) {}
     try { if (typeof renderCart === "function") renderCart(); } catch (e) {}
@@ -3552,7 +3573,7 @@ function addTextElement() {
     content: CT("cfg.newTextDefault", "Ваш текст"),
     // The default shows on the shirt but not in the field, which stays empty
     // under its placeholder: the first keystroke replaces the default instead
-    // of mixing into it. Never serialised (see _serializeElement).
+    // of mixing into it. Placeholder text is omitted by _serializeView().
     placeholder: true,
     // Black-on-black is invisible; start new text with a colour that reads on
     // the current garment. The user can still pick anything afterwards.
@@ -4959,7 +4980,10 @@ function _serializeView(view) {
   const r = printRect(view);
   return {
     printRect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) },
-    elements: elementsOf(view).filter((e) => e.type === "text" ? !!e.content : !!e.img).map(_serializeElement),
+    // Placeholder copy is preview-only and must never be stored as artwork.
+    elements: elementsOf(view).filter((e) => e.type === "text"
+      ? !!e.content && !e.placeholder
+      : !!e.img).map(_serializeElement),
   };
 }
 
@@ -5031,7 +5055,7 @@ function _logoUploadIncomplete(view) {
 // A view can now carry several texts/logos, so these join them instead of
 // reaching for a single hard-coded slot.
 function _viewTexts(view) {
-  return elementsOf(view).filter((e) => e.type === "text" && e.content);
+  return elementsOf(view).filter((e) => e.type === "text" && e.content && !e.placeholder);
 }
 function _textSummary(view) {
   return _viewTexts(view).map((e) => e.content).join(" · ");
@@ -5057,7 +5081,7 @@ function _scaleSummary(view) {
 // Returns a PNG data URL, or null if the view is empty.
 const PRINT_SCALE = 3; // 928×1120 → 2784×3360 px (~235 dpi at 30×40 cm)
 function _renderPrintCanvas(view) {
-  if (!_viewHasContent(view)) return null;
+  if (!_viewHasPrint(view)) return null;
   const r = printRect(view);
   const c = document.createElement("canvas");
   c.width = Math.round(r.w * PRINT_SCALE);
@@ -5070,7 +5094,10 @@ function _renderPrintCanvas(view) {
   // but with the FLAT mapping, not the warped one: the centreline warp corrects
   // the posed 3D scan, and a real shirt isn't posed. nx 0.5 must land on the
   // physical platen centre in the file a print shop receives.
-  elementsOf(view).forEach((el) => drawElementIn(ctx, el, r, false));
+  elementsOf(view).forEach((el) => {
+    if (el.type === "text" && el.placeholder) return;
+    drawElementIn(ctx, el, r, false);
+  });
   return c.toDataURL("image/png");
 }
 
@@ -5078,7 +5105,7 @@ function _renderPrintCanvas(view) {
 // 3D garment mockups (JPEG). Uploads them and returns R2 keys + the mockup data
 // URLs (so the Telegram worker payload can reuse them without re-rendering).
 async function captureProofs() {
-  const active = { front: _viewHasContent("front"), back: _viewHasContent("back") };
+  const active = { front: _viewHasPrint("front"), back: _viewHasPrint("back") };
 
   // Flat print masters (artwork-only, transparent, hi-res) for non-empty views.
   const printData = {
@@ -5126,6 +5153,27 @@ async function addToCart(opts) {
   // The login modal and the cart drawer live outside the stage and would be
   // invisible in full screen, so leave it first.
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+  // Require real copy or removal before login, uploads, and the cart request.
+  for (const view of ["front", "back"]) {
+    const pending = elementsOf(view).find((el) => el.type === "text" && el.placeholder);
+    if (!pending) continue;
+    setStep("design");
+    if (_isSheetLayout()) setSheetOpen(true);
+    if (designState.activeView !== view) setActiveView(view);
+    designState[view].selId = pending.id;
+    syncPanelFromState();
+    redrawActive();
+    showToast(CT("cfg.untouchedTextCart", "Введите текст или удалите этот текстовый слой, чтобы добавить товар в корзину."), "error");
+    const input = document.getElementById("text-content-input");
+    if (input) {
+      requestAnimationFrame(() => {
+        // Every layout: on desktop the field can sit under the panel footer.
+        input.scrollIntoView({ block: "nearest" });
+        if (input.getClientRects().length) input.focus({ preventScroll: true });
+      });
+    }
+    return false;
+  }
   // Account-bound cart → require login first
   let user = null;
   try {
@@ -5517,8 +5565,11 @@ function bindTextControls() {
   textIn.addEventListener("input", () => {
     const t = getTxt();
     if (!t) return;
-    t.content = textIn.value;
-    t.placeholder = false;
+    const enteredText = textIn.value;
+    t.placeholder = enteredText.trim().length === 0;
+    t.content = t.placeholder
+      ? CT("cfg.newTextDefault", "Ваш текст")
+      : enteredText;
     updateViewToggleMarkers();
     scheduleRedraw(); // coalesce — fast typing must not re-upload per keystroke
   });
@@ -5822,12 +5873,12 @@ function updateSummaryTab() {
   ["front", "back"].forEach((v) => {
     const label = v === "front" ? CT("cfg.viewFront", "Перед") : CT("cfg.viewBack", "Зад");
     elementsOf(v).forEach((el) => {
-      if (el.type === "text" && el.content) texts.push(`${label}: ${el.content}`);
+      if (el.type === "text" && el.content && !el.placeholder) texts.push(`${label}: ${el.content}`);
       if (el.type === "image" && el.img) logos.push(`${label}: ${el.name || "logo"}`);
     });
   });
   const fonts = [...new Set(
-    ["front", "back"].flatMap((v) => elementsOf(v).filter((e) => e.type === "text" && e.content).map((e) => e.font)),
+    ["front", "back"].flatMap((v) => elementsOf(v).filter((e) => e.type === "text" && e.content && !e.placeholder).map((e) => e.font)),
   )];
   setEl("sum-text", texts.join(" · ") || "—");
   setEl("sum-font", fonts.join(", ") || "—");
