@@ -119,9 +119,8 @@
     'cfg.tabColor':     { uz: 'Rang',   ru: 'Цвет',   en: 'Color' },
     'cfg.tabDesign':    { uz: 'Dizayn', ru: 'Дизайн', en: 'Design' },
     'cfg.tabSummary':   { uz: 'Yakun',  ru: 'Итог',   en: 'Summary' },
-    'cfg.shirtColor':   { uz: 'Futbolka rangi', ru: 'Цвет футболки', en: 'Shirt color' },
+    'cfg.shirtColor':   { uz: 'Rang', ru: 'Цвет', en: 'Color' },
     'cfg.size':         { uz: 'O‘lcham', ru: 'Размер', en: 'Size' },
-    'cfg.dragHint':     { uz: 'Dizaynni suring — ko‘chirish · burchaklar — o‘lcham · doira — burish · bo‘sh joy — futbolkani aylantirish', ru: 'Тяните дизайн — двигать · углы — размер · кружок — поворот · пустое поле — вращать футболку', en: 'Drag the design to move · corners resize · circle rotates · empty area spins the shirt' },
     'cfg.layerText':    { uz: 'Matn',     ru: 'Текст',    en: 'Text' },
     'cfg.layerLogo':    { uz: 'Logotip',  ru: 'Логотип',  en: 'Logo' },
     'cfg.addText':      { uz: 'Matn',     ru: 'Текст',    en: 'Text' },
@@ -156,7 +155,7 @@
     'cfg.stepCount2':   { uz: '2-qadam / 3', ru: 'Шаг 2 из 3', en: 'Step 2 of 3' },
     'cfg.stepCount3':   { uz: '3-qadam / 3', ru: 'Шаг 3 из 3', en: 'Step 3 of 3' },
     'cfg.step1Title':   { uz: 'Nima bosamiz?', ru: 'Что напечатать?', en: 'What shall we print?' },
-    'cfg.step1Lead':    { uz: 'Rasm yuklang yoki matn yozing — futbolkada darhol ko‘rinadi.', ru: 'Загрузите картинку или напишите текст — вы сразу увидите её на футболке.', en: 'Upload a picture or write some text — you will see it on the shirt straight away.' },
+    'cfg.step1Lead':    { uz: 'Rasm yuklang yoki matn yozing — kiyimda darhol ko‘rinadi.', ru: 'Загрузите картинку или напишите текст — вы сразу увидите её на одежде.', en: 'Upload a picture or write some text — you will see it on the garment straight away.' },
     'cfg.step2Title':   { uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour and size' },
     'cfg.step2Lead':    { uz: 'O‘lchamingizni tanlang, so‘ng mato rangini almashtirish uchun kvadratchani bosing.', ru: 'Выберите размер, затем нажмите на квадрат, чтобы сменить цвет ткани.', en: 'Pick your size, then tap a square to change the fabric colour.' },
     'cfg.sizeRequired': { uz: 'Avval o‘lchamni tanlang', ru: 'Сначала выберите размер', en: 'Choose a size first' },
@@ -182,7 +181,6 @@
     'cfg.layoutNone':   { uz: 'Saqlangan maket yo‘q', ru: 'Сохранённых макетов нет', en: 'No saved layout' },
     'cfg.layoutTooBig': { uz: 'Maket saqlash uchun juda katta', ru: 'Макет слишком большой для сохранения', en: 'Layout too large to save' },
     'cfg.layoutSaveError': { uz: 'Maketni saqlab bo‘lmadi', ru: 'Не удалось сохранить макет', en: 'Could not save layout' },
-    'cfg.textLabel':    { uz: 'Futbolkadagi matn', ru: 'Текст на футболке', en: 'Text on shirt' },
     'cfg.textPlaceholder': { uz: 'Matn kiriting…', ru: 'Введите текст…', en: 'Enter text…' },
     'cfg.font':         { uz: 'Shrift',   ru: 'Шрифт',    en: 'Font' },
     'cfg.sizeSlider':   { uz: 'O‘lcham',  ru: 'Размер',   en: 'Size' },
@@ -332,7 +330,7 @@
     'sg.intl':       { uz: 'Xalqaro standartlar', ru: 'Международные стандарты', en: 'International standards' },
     'sg.measure':    { uz: 'Qanday o‘lchanadi', ru: 'Как снять мерки', en: 'How to measure' },
     'sg.measureChest':  { uz: 'Ko‘krak: qo‘ltiq ostidan ko‘krakning eng keng joyidan o‘lchang.', ru: 'Грудь: измерьте по самой широкой части груди под подмышками.', en: 'Chest: measure around the fullest part of the chest, under the arms.' },
-    'sg.measureLength': { uz: 'Uzunlik: yelka choqidan futbolkaning past chetigacha.', ru: 'Длина: от шва плеча до нижнего края футболки.', en: 'Length: from the shoulder seam to the bottom hem.' },
+    'sg.measureLength': { uz: 'Uzunlik: yelka choqidan kiyimning past chetigacha.', ru: 'Длина: от шва плеча до нижнего края изделия.', en: 'Length: from the shoulder seam to the bottom hem.' },
     'sg.tip':        { uz: 'Maslahat: ikki o‘lcham orasida bo‘lsangiz, erkinroq fason uchun kattaroq o‘lchamni tanlang.', ru: 'Совет: если вы между размерами, берите больший для свободной посадки.', en: 'Tip: between two sizes? Pick the larger one for a relaxed fit.' },
 
     // ===== Order modal =====
@@ -521,7 +519,7 @@
     'lab.tileTitle':  { uz: 'LOOM Lab bilan o‘ylab topish', ru: 'Придумать с LOOM Lab', en: 'Invent it with LOOM Lab' },
     'lab.tileSub':    { uz: 'Bosmani so‘z bilan tasvirlang — Lab chizib beradi', ru: 'Опишите принт словами — Lab нарисует его', en: 'Describe the print — Lab will draw it' },
     'lab.sheetTitle': { uz: 'LOOM Lab', ru: 'LOOM Lab', en: 'LOOM Lab' },
-    'lab.sheetLead':  { uz: 'Bosmani oddiy ibora bilan tasvirlang — Lab uni chizadi, fonni oladi va futbolkaga bosma o‘lchamida joylaydi.', ru: 'Опишите принт обычной фразой — Lab нарисует его, уберёт фон и положит на футболку в печатном разрешении.', en: 'Describe the print in a plain sentence — Lab draws it, removes the background and puts it on the shirt at print resolution.' },
+    'lab.sheetLead':  { uz: 'Bosmani oddiy ibora bilan tasvirlang — Lab uni chizadi, fonni oladi va kiyimga bosma o‘lchamida joylaydi.', ru: 'Опишите принт обычной фразой — Lab нарисует его, уберёт фон и положит на одежду в печатном разрешении.', en: 'Describe the print in a plain sentence — Lab draws it, removes the background and puts it on the garment at print resolution.' },
     'cfg.close':      { uz: 'Yopish', ru: 'Закрыть', en: 'Close' },
 
     // ===== 404 =====
