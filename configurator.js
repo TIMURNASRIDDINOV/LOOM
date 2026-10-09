@@ -353,7 +353,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   // Resolve the product from ?slug=. This only records which GLB to use —
   // the model itself is fetched when the preview is opened (SECTION 4B).
-  _productReady = loadProductFromSlug();
+  _productReady = loadProductFromSlug().finally(() => { _flatArtHold = false; renderFlatEditor(); });
   await _productReady;
 
   if (editItem) applyCartEditDesign(editItem);
@@ -1663,6 +1663,7 @@ function applyProductConfig(product) {
 }
 function _applyProductConfig(cfg) {
   applyPrintArea(cfg.print_area);
+  applyFlatArt(cfg.flat_art);
   if (Array.isArray(cfg.colors) && cfg.colors.length) {
     SHIRT_COLORS.splice(0, SHIRT_COLORS.length, ...cfg.colors.map((c) => ({
       hex: String(c.hex).toUpperCase(),
@@ -1700,6 +1701,22 @@ function applyPrintArea(pa) {
     const f = art.seedPrint, fw = f.w * k;
     art.print = { x: f.x + (f.w - fw) / 2, y: f.y + (tf * fw - SEED_TOP_FRAC * f.w) * art.aspect, w: fw, h: f.h * k };
   });
+}
+
+/**
+ * The product's flat-editor art (config.flat_art). The built-in T-shirt art is
+ * the fallback. Product art keeps FLAT_ART's framing: a square image with the
+ * print box at FLAT_ART[face].print, so print coordinates never depend on it.
+ */
+function applyFlatArt(fa) {
+  ["front", "back"].forEach((v) => {
+    const f = fa && fa[v], art = FLAT_ART[v];
+    if (!f || !f.src || f.src === art.src) return;
+    art.src = f.src;
+    art.srcSmall = f.src_small || f.src;
+    delete art.deriveBack; // real back art, not the T-shirt front turned around
+  });
+  _flatTint.key = null; // the cached garment layer may hold the old art
 }
 
 /** Size buttons in the product's order. A size it no longer has is unpicked. */
@@ -3605,6 +3622,8 @@ const EDIT_ON_3D = false;
 // `back` has no art yet — the source PNG only ships a front view — so the back
 // face falls back to the schematic outline below. Drop a back PNG in here and
 // it starts using it; nothing else needs to change.
+// This is the T-shirt art; a product's config.flat_art replaces src and
+// srcSmall per face (applyFlatArt).
 const FLAT_ART = {
   front: {
     src: "configuratorprodutcs/tshirt_flat_white_1200.png",
@@ -3676,10 +3695,15 @@ const _flatImgCache = {};
 
 // ── Garment art ─────────────────────────────────────────────────
 
-/** The loaded art for a face, or null if there is none / it failed. */
+// A ?slug (or a bag item) product brings its own art (applyFlatArt). Until it
+// has loaded, the built-in T-shirt art is not fetched, so it never flashes on
+// another garment's page. Released once loadProductFromSlug settles.
+let _flatArtHold = /[?&](slug|item)=/.test(location.search);
+
+/** The loaded art for a face, or null if there is none / it failed / it is held. */
 function _flatArtImg(face) {
   const def = FLAT_ART[face];
-  if (!def) return null;
+  if (!def || _flatArtHold) return null;
   // The editor is never wider than ~600 CSS px, so the 1200 asset covers retina
   // and the 600 covers everything else. The 4713px original is never shipped.
   const hi = (window.devicePixelRatio || 1) > 1.5;
@@ -3698,7 +3722,10 @@ function _flatArtImg(face) {
 /** The garment's drawn box: aspect-correct, centred, contained in the canvas. */
 function _flatGarmentBox(face, W, H) {
   const img = _flatArtImg(face);
-  const usingArt = !!(img && img.complete && img.naturalWidth);
+  // Art still coming: lay out for the art but draw no garment, rather than the
+  // T-shirt outline, which is only for art that failed.
+  const pending = _flatArtHold || !!(img && !img.complete);
+  const usingArt = pending || !!(img && img.naturalWidth);
   const aspect = usingArt ? FLAT_ART[face].aspect : FLAT_OUTLINE.aspect;
   let w = W, h = W / aspect;
   if (h > H) { h = H; w = H * aspect; }
@@ -3708,7 +3735,7 @@ function _flatGarmentBox(face, W, H) {
     // switching to a face without art doesn't make the garment jump in size.
     w *= 0.74; h *= 0.74;
   }
-  return { x: (W - w) / 2, y: (H - h) / 2, w, h, usingArt };
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h, usingArt, pending };
 }
 
 /**
@@ -3869,15 +3896,17 @@ function renderFlatEditor() {
   // it reads as a gap in the page rather than as a product. Not when zoomed:
   // the garment fills the view, and blurring a box that size is slow on a
   // mid-range phone.
-  ctx.save();
-  if (!zoomEl) {
-    ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
-    ctx.shadowBlur = Math.max(18, box.w * 0.09);
-    ctx.shadowOffsetX = Math.max(6, box.w * 0.022);
-    ctx.shadowOffsetY = Math.max(8, box.w * 0.030);
+  if (!box.pending) {
+    ctx.save();
+    if (!zoomEl) {
+      ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
+      ctx.shadowBlur = Math.max(18, box.w * 0.09);
+      ctx.shadowOffsetX = Math.max(6, box.w * 0.022);
+      ctx.shadowOffsetY = Math.max(8, box.w * 0.030);
+    }
+    ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
+    ctx.restore();
   }
-  ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
-  ctx.restore();
 
   const rect = _flatPrintRectIn(face, box);
   _flatRect = rect;
@@ -3936,7 +3965,7 @@ async function _renderFlatMockup(face) {
     await new Promise((resolve) => {
       img.addEventListener("load", resolve, { once: true });
       img.addEventListener("error", resolve, { once: true });
-      setTimeout(resolve, 4000); // no art in time: the outline stands in
+      setTimeout(resolve, 4000); // no art in time: the design alone, as in the editor
     });
   }
   const S = FLAT_MOCKUP_PX;
@@ -3946,13 +3975,15 @@ async function _renderFlatMockup(face) {
   ctx.fillStyle = "#F2F0EB"; // JPEG has no alpha; a white garment needs a ground
   ctx.fillRect(0, 0, S, S);
   const box = _flatGarmentBox(face, S, S);
-  ctx.save();
-  ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
-  ctx.shadowBlur = box.w * 0.09;
-  ctx.shadowOffsetX = box.w * 0.022;
-  ctx.shadowOffsetY = box.w * 0.030;
-  ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
-  ctx.restore();
+  if (!box.pending) {
+    ctx.save();
+    ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
+    ctx.shadowBlur = box.w * 0.09;
+    ctx.shadowOffsetX = box.w * 0.022;
+    ctx.shadowOffsetY = box.w * 0.030;
+    ctx.drawImage(_flatGarmentLayer(face, box, designState.shirtColor), box.x, box.y, box.w, box.h);
+    ctx.restore();
+  }
   const rect = _flatPrintRectIn(face, box);
   elementsOf(face).forEach((el) => drawElementIn(ctx, el, rect, false));
   return c.toDataURL("image/jpeg", 0.85);
