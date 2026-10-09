@@ -221,8 +221,13 @@ function selectElement(id, opts) {
   if (!opts || opts.redraw !== false) redrawActive();
 }
 
-/** Does this view have anything on it? */
+/** Does this view have anything on it? Untouched sample text counts: it is on screen. */
 function _viewHasContent(view) {
+  return elementsOf(view).some((e) => e.type === "text" ? !!e.content : !!e.img);
+}
+
+/** Does this view have printable artwork? Untouched sample text is preview-only. */
+function _viewHasPrint(view) {
   return elementsOf(view).some((e) => e.type === "text" ? !!e.content && !e.placeholder : !!e.img);
 }
 
@@ -5030,7 +5035,7 @@ function _scaleSummary(view) {
 // Returns a PNG data URL, or null if the view is empty.
 const PRINT_SCALE = 3; // 928×1120 → 2784×3360 px (~235 dpi at 30×40 cm)
 function _renderPrintCanvas(view) {
-  if (!_viewHasContent(view)) return null;
+  if (!_viewHasPrint(view)) return null;
   const r = printRect(view);
   const c = document.createElement("canvas");
   c.width = Math.round(r.w * PRINT_SCALE);
@@ -5054,7 +5059,7 @@ function _renderPrintCanvas(view) {
 // 3D garment mockups (JPEG). Uploads them and returns R2 keys + the mockup data
 // URLs (so the Telegram worker payload can reuse them without re-rendering).
 async function captureProofs() {
-  const active = { front: _viewHasContent("front"), back: _viewHasContent("back") };
+  const active = { front: _viewHasPrint("front"), back: _viewHasPrint("back") };
 
   // Flat print masters (artwork-only, transparent, hi-res) for non-empty views.
   const printData = {
@@ -5106,12 +5111,21 @@ async function addToCart(opts) {
   for (const view of ["front", "back"]) {
     const pending = elementsOf(view).find((el) => el.type === "text" && el.placeholder);
     if (!pending) continue;
-    setStep("design"); if (_isSheetLayout()) setSheetOpen(true); if (designState.activeView !== view) setActiveView(view);
+    setStep("design");
+    if (_isSheetLayout()) setSheetOpen(true);
+    if (designState.activeView !== view) setActiveView(view);
     designState[view].selId = pending.id;
     syncPanelFromState();
     redrawActive();
-    showToast(CT("cfg.untouchedTextCart", "Enter text or remove this text layer before adding the item to your bag."), "error");
-    const input = document.getElementById("text-content-input"); if (input) requestAnimationFrame(() => { if (_isSheetLayout()) input.scrollIntoView({ block: "nearest" }); if (input.getClientRects().length) input.focus({ preventScroll: true }); });
+    showToast(CT("cfg.untouchedTextCart", "Введите текст или удалите этот текстовый слой, чтобы добавить товар в корзину."), "error");
+    const input = document.getElementById("text-content-input");
+    if (input) {
+      requestAnimationFrame(() => {
+        // Every layout: on desktop the field can sit under the panel footer.
+        input.scrollIntoView({ block: "nearest" });
+        if (input.getClientRects().length) input.focus({ preventScroll: true });
+      });
+    }
     return false;
   }
   // Account-bound cart → require login first
