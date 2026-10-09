@@ -1963,6 +1963,10 @@ function hideLoadingOverlay() {
   setTimeout(() => (overlay.style.display = "none"), 500);
 }
 
+// The GLB is quantized (normalized ints) and this three.js (r128) does not
+// scale those back on read: divide by the type's max to get the real value.
+const QUANT_NORM = { Int8Array: 127, Uint8Array: 255, Int16Array: 32767, Uint16Array: 65535 };
+
 /**
  * LOOM-209: the free strip of the 3D stage between the 2D/3D pill and the
  * Front/Back toggle, in stage px, when both sit over the stage's centre column
@@ -2055,13 +2059,10 @@ function fitCameraToObject(object) {
   // Fit the real surface from each side, not the bounding box: the garment
   // is deeper on one side, so one shared distance made the Back look bigger
   // than the Front, and the box's corners made both look smaller than needed.
-  // The GLB is quantized (normalized ints) and this three.js (r128) does not
-  // scale those back on read.
-  const NORM = { Int8Array: 127, Uint8Array: 255, Int16Array: 32767, Uint16Array: 65535 };
   const eachVertex = (fn) => object.traverse((m) => {
     const pos = m.isMesh && m.geometry && m.geometry.attributes.position;
     if (!pos) return;
-    const q = pos.normalized ? 1 / (NORM[pos.array.constructor.name] || 1) : 1;
+    const q = pos.normalized ? 1 / (QUANT_NORM[pos.array.constructor.name] || 1) : 1;
     const p = new THREE.Vector3();
     // Every third vertex: the scan is dense (~245k), the extremes move under
     // 0.2px, and a phone does not stall on it during the load.
@@ -5128,7 +5129,11 @@ async function captureProofs() {
   if (!mockData.back) mockData.back = await _renderFlatMockup("back");
 
   // Interactive 3D review model — the exact textured garment, baked, for the admin.
-  const glbDataUrl = await captureGLB();
+  // Snapshotted now with the mockups, but NOT uploaded here: it is ~6 MB. Only
+  // its key is reserved; addToCart hands the bytes to LOOM_CART.uploadModel,
+  // which uploads them in the background, across pages (G5 budget).
+  const has3D = !!shirtObject && typeof THREE.GLTFExporter !== "undefined";
+  const glb = has3D ? captureGLB() : null;
 
   // Upload everything in parallel. Both mockups always (a blank side still shows
   // the garment); prints only for sides with a design, gated above.
@@ -5137,13 +5142,25 @@ async function captureProofs() {
     printData.back ? _uploadDataUrl(printData.back, "back-print.png") : null,
     mockData.front ? _uploadDataUrl(mockData.front, "front-mockup.jpg") : null,
     mockData.back ? _uploadDataUrl(mockData.back, "back-mockup.jpg") : null,
-    glbDataUrl ? _uploadDataUrl(glbDataUrl, "model.glb") : null,
+    has3D ? _reserveModelKey() : null,
   ]);
 
   return {
-    frontPrintKey, backPrintKey, frontMockupKey, backMockupKey, modelKey,
+    frontPrintKey, backPrintKey, frontMockupKey, backMockupKey, modelKey, glb,
     frontMockupData: mockData.front, backMockupData: mockData.back,
   };
+}
+
+// The key the 3D model will be stored under (POST /api/uploads/model); the
+// bytes follow with PUT. Best-effort, like every proof.
+async function _reserveModelKey() {
+  try {
+    const r = await fetch(getApiBase() + "/api/uploads/model", {
+      method: "POST", headers: _authHeaders(false), credentials: "include",
+    });
+    if (r.ok) return (await r.json()).key || null;
+  } catch (e) { /* non-fatal */ }
+  return null;
 }
 async function addToCart(opts) {
   opts = opts || {}; // { openDrawer=true } — buyNow() passes false and navigates itself
@@ -5194,6 +5211,7 @@ async function addToCart(opts) {
       '<span>' + _esc(CT("cfg.preparing", "Готовим макеты…")) + '</span>';
   }
   if (orderBtn) orderBtn.disabled = true;
+  const t0 = performance.now();
   try {
     // Capture proofs NOW — the design is only live here; it's gone by checkout.
     const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
@@ -5221,6 +5239,10 @@ async function addToCart(opts) {
       }
       return false;
     }
+    // The item already carries the model's key; the bytes upload in the
+    // background and resume on the next page if this one is left (cart.js).
+    // `saved` settles once the .glb is built and kept on the device.
+    const saved = proofs.modelKey ? window.LOOM_CART.uploadModel(proofs.modelKey, proofs.glb) : null;
     // Editing a bag item? The new row replaced it — drop the old one.
     if (window.__loomEditingCartItem) {
       await window.LOOM_CART.remove(window.__loomEditingCartItem);
@@ -5235,6 +5257,12 @@ async function addToCart(opts) {
       showToast(CT("cfg.toastAddedCart", "Добавлено в корзину"));
     }
     if (opts.openDrawer !== false) window.LOOM_CART.open();
+    // buyNow leaves the page next: wait until the .glb is kept on the device
+    // (not uploaded), for at most what is left of 8 s (G5 is 10 s on a
+    // mid-range phone; 2 s stay for the checkout load).
+    else if (saved) {
+      await Promise.race([saved, new Promise((r) => setTimeout(r, Math.max(0, 8000 - (performance.now() - t0))))]);
+    }
     return true;
   } catch (e) {
     showToast("Ошибка сети", "error");
@@ -5990,23 +6018,62 @@ async function captureGLB() {
       // Safety net — never hang the order flow if serialization stalls.
       setTimeout(() => finish(null), 20000);
       exporter.parse(
-        _pivot || shirtObject,
-        (glb) => {
-          try {
-            const bytes = new Uint8Array(glb);
-            // Chunked base64 (avoids call-stack limits + slow per-char concat on MBs).
-            let binary = "";
-            const CH = 0x8000;
-            for (let i = 0; i < bytes.length; i += CH) {
-              binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
-            }
-            finish("data:model/gltf-binary;base64," + btoa(binary));
-          } catch (e) { finish(null); }
-        },
+        _float32Copy(_pivot || shirtObject),
+        (glb) => finish(new Blob([glb], { type: "model/gltf-binary" })),
         { binary: true, embedImages: true },
       );
     } catch (e) { finish(null); }
   });
+}
+
+// The bundled GLTFExporter writes only Float32/Uint32/Uint16/Uint8 arrays and
+// the quantized shirt is Int16/Int8, so captureGLB exports a clone whose
+// geometry is plain Float32 (de-normalized). Its textures are RGB copies, which
+// the exporter writes as JPEG, not PNG (about 2.4 MB less to upload; every map
+// is opaque). The live meshes, geometry, materials and textures are never touched.
+function _float32Copy(root) {
+  const copy = root.clone();
+  const made = new Map(); // live geometry/material/texture -> its copy (shared ones stay shared)
+  const GET = ["getX", "getY", "getZ", "getW"];
+  const rgb = (t) => {
+    if (!made.has(t)) {
+      const c = t.clone();
+      if (!(t.image && t.image.data)) c.format = THREE.RGBFormat; // raw data stays as is
+      made.set(t, c);
+    }
+    return made.get(t);
+  };
+  const jpegMaps = (mat) => {
+    if (!made.has(mat)) {
+      const c = mat.clone();
+      for (const k in c) if (c[k] && c[k].isTexture) c[k] = rgb(c[k]);
+      made.set(mat, c);
+    }
+    return made.get(mat);
+  };
+  copy.traverse((m) => {
+    if (!m.isMesh || !m.geometry) return;
+    if (m.material) m.material = Array.isArray(m.material) ? m.material.map(jpegMaps) : jpegMaps(m.material);
+    const src = m.geometry;
+    if (!made.has(src)) {
+      const geo = new THREE.BufferGeometry();
+      if (src.index) geo.setIndex(src.index);
+      for (const name in src.attributes) {
+        const a = src.attributes[name];
+        const q = a.normalized ? 1 / (QUANT_NORM[a.array.constructor.name] || 1) : 1;
+        const n = a.itemSize, out = new Float32Array(a.count * n);
+        for (let i = 0; i < a.count; i++) {
+          for (let k = 0; k < n; k++) out[i * n + k] = a[GET[k]](i) * q;
+        }
+        geo.setAttribute(name, new THREE.BufferAttribute(out, n));
+      }
+      if (geo.attributes.normal) geo.normalizeNormals();
+      src.groups.forEach((g) => geo.addGroup(g.start, g.count, g.materialIndex));
+      made.set(src, geo);
+    }
+    m.geometry = made.get(src);
+  });
+  return copy;
 }
 
 // ================================================================
