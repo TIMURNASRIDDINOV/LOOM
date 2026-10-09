@@ -948,6 +948,7 @@ function updateStudioRig() {
 
 let _lastResizeW = 0;
 let _lastResizeH = 0;
+let _refitOnShow = false; // the last fit ran while the 3D was hidden
 
 function onWindowResize() {
   const container = document.getElementById("three-container");
@@ -957,13 +958,23 @@ function onWindowResize() {
   if (w === 0 || h === 0) return;
   // iOS fires resize every time the URL bar collapses mid-scroll —
   // bail early so the camera never snaps while the user is browsing
-  if (w === _lastResizeW && h === _lastResizeH) return;
+  if (w === _lastResizeW && h === _lastResizeH && !_refitOnShow) return;
   _lastResizeW = w;
   _lastResizeH = h;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(w, h, false);
+
+  // LOOM-209: the model loaded behind the 2D editor, so its fit used the
+  // hidden canvas. Fit once more on the real stage, exactly as a load in 3D
+  // would (the customer has not orbited yet: there was nothing to see).
+  if (_refitOnShow && shirtObject) {
+    finishEntrance();
+    scene.updateMatrixWorld(true); // the pivot's full scale, before measuring
+    fitCameraToObject(shirtObject);
+    setCameraView(designState.activeView);
+  }
 
   // Redraw the live overlay for the new size. The camera itself is
   // NOT re-fit here: fitCameraToObject() hard-resets the user's orbit
@@ -1948,6 +1959,30 @@ function hideLoadingOverlay() {
 }
 
 /**
+ * LOOM-209: the free strip of the 3D stage between the 2D/3D pill and the
+ * Front/Back toggle, in stage px, when both sit over the stage's centre column
+ * (the phone layout; on desktop the pill is in the corner). null otherwise,
+ * including while the 3D is hidden.
+ */
+function chipBand() {
+  const box = document.getElementById("three-container");
+  const pill = document.querySelector(".surface-toggle");
+  const tog = document.querySelector(".view-toggle");
+  if (!box || !pill || !tog || !box.clientHeight) return null;
+  const c = box.getBoundingClientRect();
+  const p = pill.getBoundingClientRect();
+  const t = tog.getBoundingClientRect();
+  const cx = c.left + c.width / 2;
+  const over = (r) => r.height > 0 && r.left < cx && r.right > cx;
+  if (!over(p) || !over(t)) return null;
+  const GAP = 12; // 8px clear is the floor; the rest absorbs perspective and sampling
+  const top = p.bottom - c.top + GAP;
+  const bottom = t.top - c.top - GAP;
+  if (bottom <= top) return null;
+  return { W: c.width, H: c.height, h: bottom - top, dy: (top + bottom - c.height) / 2 };
+}
+
+/**
  * Auto-fit model into view so it fills roughly 75% of the viewport.
  * Also computes front/back camera anchors and reasonable zoom limits.
  */
@@ -2000,7 +2035,16 @@ function fitCameraToObject(object) {
   const stageH = renderer ? renderer.getSize(new THREE.Vector2()).y : 0;
   const stageBox = document.querySelector(".flat-stagebox");
   const clearPx = stageBox ? parseFloat(getComputedStyle(stageBox).paddingBottom) || 0 : 0;
-  const fillV = stageH > 0 ? Math.min(0.88, Math.max(0.5, 1 - (2 * clearPx) / stageH)) : 0.88;
+  let fillV = stageH > 0 ? Math.min(0.88, Math.max(0.5, 1 - (2 * clearPx) / stageH)) : 0.88;
+  // LOOM-209: where the 2D/3D pill sits over the garment (phone and tablet),
+  // fill only the strip between it and the Front/Back toggle; a lens shift
+  // below centres the garment in that strip.
+  const band = chipBand();
+  if (band) fillV = Math.min(0.88, band.h / band.H);
+  // Hidden behind the 2D editor: no real stage size and no chips to measure.
+  // onWindowResize() fits again once the 3D is shown.
+  const box3d = document.getElementById("three-container");
+  _refitOnShow = !!box3d && !box3d.clientHeight;
   const tanV = Math.tan(fov * 0.5) * fillV;
   const tanH = Math.tan(fov * 0.5) * Math.max(camera.aspect, 0.01) * 0.88;
   // Fit the real surface from each side, not the bounding box: the garment
@@ -2048,7 +2092,9 @@ function fitCameraToObject(object) {
 
   camera.near = Math.max(0.01, distance / 120);
   camera.far = Math.max(50, distance * 20 + size.length());
-  camera.updateProjectionMatrix();
+  // A lens shift, not an aim offset: the orbit still turns about the garment.
+  if (band) camera.setViewOffset(band.W, band.H, 0, -band.dy, band.W, band.H);
+  else camera.clearViewOffset();
 
   camera.position.set(CAM_VIEWS.front.x, CAM_VIEWS.front.y, CAM_VIEWS.front.z);
   controls.target.copy(chestTarget);
@@ -5691,10 +5737,11 @@ function handleImageFile(file, meta) {
 // ================================================================
 
 function bindSummaryTab() {
-  const btnReset = document.getElementById("btn-reset-design");
   const btnOrder = document.getElementById("btn-place-order");
 
-  if (btnReset) btnReset.addEventListener("click", resetDesign);
+  // #btn-reset-design is bound once, with the other controls. The second
+  // addEventListener here was a no-op (same listener, so the DOM dropped it)
+  // and only made Reset look double-bound.
   if (btnOrder) btnOrder.addEventListener("click", buyNow);
 }
 
