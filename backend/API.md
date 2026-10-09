@@ -28,6 +28,8 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 |--------|------|-------------|
 | POST | `/api/uploads` | Upload PNG/JPEG/GLB to R2. Signed-in users only (Bearer or cookie); rate-limited 30/min per IP and per user. Returns `{ key }`. |
 | GET | `/api/uploads/:key` | The uploader's own file (Bearer or cookie) |
+| POST | `/api/uploads/model` | Reserve the key of a 3D review model (`logos/<uuid>.glb`) so a cart item can carry it before the bytes arrive. Signed-in; counts toward the uploads rate limit. Returns `{ key }`. |
+| PUT | `/api/uploads/:key` | Fill a reserved `.glb` key with the raw GLB bytes, once. Uploader only; 404 if not theirs, 409 if already stored, 400 if not a GLB. |
 
 ### Files
 

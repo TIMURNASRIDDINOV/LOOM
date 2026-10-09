@@ -12,7 +12,7 @@
    the checkout handoff (checkout.html).
 
    Public API: window.LOOM_CART = { load, sync, add, remove, setQty,
-   open, close, state, updateBadge }
+   uploadModel, open, close, state, updateBadge }
 ================================================================ */
 'use strict';
 (function () {
@@ -104,7 +104,9 @@
     document.getElementById('cartCheckoutBtn').addEventListener('click', function () {
       if (!state.items.length) { toast(t('cfg.cartEmpty', 'Корзина пуста'), 'error'); return; }
       close();
-      location.href = 'checkout.html';
+      // A 3D model still being built would be lost with the page: wait for it (≤ 5 s).
+      Promise.race([saving, new Promise(function (r) { setTimeout(r, 5000); })])
+        .then(function () { location.href = 'checkout.html'; });
     });
   }
 
@@ -168,6 +170,61 @@
         if (res.ok) sync(await res.json());
       } catch (e) { /* next load reconciles */ }
     }, 350);
+  }
+
+  /* ── 3D review model: background upload that outlives the page ──
+     (LOOM-206) The bag item already carries the model's reserved key. The
+     .glb (~6 MB, ~30 s on a slow mobile uplink) waits in IndexedDB until its
+     PUT lands, and every page with the bag (checkout too) resumes an upload
+     that leaving a page cut off. */
+  var saving = Promise.resolve();
+  var putting = {};
+  function models(mode, fn) {
+    return new Promise(function (resolve) {
+      try {
+        var open = indexedDB.open('loom-models', 1);
+        open.onupgradeneeded = function () { open.result.createObjectStore('glb', { keyPath: 'key' }); };
+        open.onerror = function () { resolve(null); };
+        open.onsuccess = function () {
+          var db = open.result, req;
+          try { req = fn(db.transaction('glb', mode).objectStore('glb')); } catch (e) { db.close(); resolve(null); return; }
+          req.onsuccess = function () { db.close(); resolve(req.result); };
+          req.onerror = function () { db.close(); resolve(null); };
+        };
+      } catch (e) { resolve(null); }
+    });
+  }
+  function putModel(key, blob) {
+    if (putting[key]) return;
+    putting[key] = true;
+    fetch(api() + '/api/uploads/' + key, {
+      method: 'PUT', headers: Object.assign(authHeaders(false), { 'Content-Type': 'model/gltf-binary' }),
+      credentials: 'include', body: blob,
+    }).then(function (res) {
+      // Stored, or never will be (not ours, already there, invalid): forget it.
+      // 401, 429 and 5xx stay for the next page.
+      if (res.ok || [400, 404, 409].indexOf(res.status) >= 0) {
+        return models('readwrite', function (s) { return s.delete(key); });
+      }
+    }).catch(function () { /* page left or offline: resumed on the next page */ })
+      .then(function () { delete putting[key]; });
+  }
+  // Resolves once the .glb is built and kept on the device; the upload runs on.
+  function uploadModel(key, glb) {
+    saving = Promise.resolve(glb).then(function (blob) {
+      if (!key || !blob) return;
+      return models('readwrite', function (s) { return s.put({ key: key, blob: blob, at: Date.now() }); })
+        .then(function () { putModel(key, blob); });
+    });
+    return saving;
+  }
+  function resumeModels() {
+    models('readonly', function (s) { return s.getAll(); }).then(function (rows) {
+      (rows || []).forEach(function (r) {
+        if (Date.now() - r.at > 7 * 864e5) models('readwrite', function (s) { return s.delete(r.key); });
+        else putModel(r.key, r.blob);
+      });
+    });
   }
 
   /* ── thumbnails: authenticated blob → objectURL ─────────────── */
@@ -343,12 +400,13 @@
        auth gate, and loading here too would both duplicate the request and
        race a not-yet-logged-in 401 into the state. */
     if (document.body.getAttribute('data-page') !== 'checkout') load();
+    resumeModels();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
   window.LOOM_CART = {
-    load: load, sync: sync, add: add, remove: remove, setQty: setQty,
+    load: load, sync: sync, add: add, remove: remove, setQty: setQty, uploadModel: uploadModel,
     open: open, close: close, updateBadge: updateBadge, toast: toast,
     thumbInto: thumbInto, summarize: summarize,
     get state() { return state; },

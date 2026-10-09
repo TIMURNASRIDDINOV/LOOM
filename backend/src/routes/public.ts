@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import {
   getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId,
   getUserNotifications, recordUpload, isOwnUpload, firstForeignKey,
@@ -168,15 +168,16 @@ pub.post('/orders', async (c) => {
 
 const uploads = new Hono<UserEnv>()
 
+// An order uploads up to 7 assets (2 prints + 2 mockups + 2 logos + model), so allow 30/min.
+// A model key reservation counts as an upload.
+const uploadsLimited = async (c: Context<UserEnv>, userId: number) =>
+  (await isRateLimited(c.env.RATE_LIMIT, `uploads:${clientIp(c)}`, 30, 60)) ||
+  (await isRateLimited(c.env.RATE_LIMIT, `uploads:user:${userId}`, 30, 60))
+const TOO_MANY_UPLOADS = 'Too many uploads. Please wait a minute before trying again.'
+
 uploads.post('/', requireAuth, async (c) => {
   const userId = c.get('userId')
-  // An order uploads up to 7 assets (2 prints + 2 mockups + 2 logos + model), so allow 30/min.
-  if (
-    (await isRateLimited(c.env.RATE_LIMIT, `uploads:${clientIp(c)}`, 30, 60)) ||
-    (await isRateLimited(c.env.RATE_LIMIT, `uploads:user:${userId}`, 30, 60))
-  ) {
-    return c.json({ error: 'Too many uploads. Please wait a minute before trying again.' }, 429)
-  }
+  if (await uploadsLimited(c, userId)) return c.json({ error: TOO_MANY_UPLOADS }, 429)
 
   let formData: FormData
   try {
@@ -204,6 +205,36 @@ uploads.post('/', requireAuth, async (c) => {
   })
   await recordUpload(c.env.DB, key, userId)
 
+  return c.json({ key }, 201)
+})
+
+// ─── POST /api/uploads/model  (signed-in users) ──────────────────────────────
+// Reserves the key of the 3D review model (LOOM-206). The bag item and the
+// order carry the key at once; the ~6 MB .glb follows with PUT in the
+// background, so add-to-cart never waits on a slow uplink.
+
+uploads.post('/model', requireAuth, async (c) => {
+  const userId = c.get('userId')
+  if (await uploadsLimited(c, userId)) return c.json({ error: TOO_MANY_UPLOADS }, 429)
+  const key = generateLogoKey('glb')
+  await recordUpload(c.env.DB, key, userId)
+  return c.json({ key }, 201)
+})
+
+// ─── PUT /api/uploads/:key  (the uploader only) ──────────────────────────────
+// Fills a reserved model key with its .glb bytes, once. A stored object is
+// never replaced.
+
+uploads.put('/:key{.+}', requireAuth, async (c) => {
+  const key = c.req.param('key')
+  if (!key.endsWith('.glb') || !(await isOwnUpload(c.env.DB, key, c.get('userId')))) {
+    return c.json({ error: 'Not found' }, 404)
+  }
+  if (await c.env.LOOM_UPLOADS.head(key)) return c.json({ error: 'Already uploaded' }, 409)
+  const bytes = new Uint8Array(await c.req.arrayBuffer())
+  const validation = validateUpload(bytes, new Set(['model/gltf-binary']))
+  if (!validation.ok) return c.json({ error: validation.error }, 400)
+  await c.env.LOOM_UPLOADS.put(key, bytes, { httpMetadata: { contentType: validation.type.mime } })
   return c.json({ key }, 201)
 })
 
