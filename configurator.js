@@ -1030,6 +1030,45 @@ const FABRIC_PRESETS = {
 };
 let fabricPreset = FABRIC_PRESETS.jersey;
 
+// Black cloth (LOOM-219). A #000000 map has no diffuse term at all, so only
+// specular, sheen and the environment show, and the fleece reads as plastic.
+// Real black cotton still reflects a few percent, so near-black renders on a
+// lifted albedo (#141414) and sheds most of its sheen, specular and
+// reflections. 3D only: the swatch, the flat editor, the order and the cart
+// keep the real hex. The amount is 0 from `luma` (sRGB, 0-1) up, so every
+// other colour gets exactly the texture and material it had before.
+const DARK_FABRIC = { luma: 0.12, lift: 20, sheen: 0.7, spec: 0.5, env: 0.5 };
+let _darkFabric = 0;          // 0-1: how close to black the garment is
+const _sheenTint = [1, 1, 1]; // the garment's hue, so dark sheen is not grey
+
+/** The 3D albedo for a garment colour. Also sets _darkFabric and _sheenTint. */
+function darkFabricFill(hex) {
+  _darkFabric = 0;
+  _sheenTint[0] = _sheenTint[1] = _sheenTint[2] = 1;
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const t = Math.min(1, (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 / DARK_FABRIC.luma);
+  const k = 1 - t * t * (3 - 2 * t); // smoothstep: 1 at black, 0 from the threshold up
+  if (k <= 0) return hex;
+  _darkFabric = k;
+  const lifted = rgb.map((v) => v + k * (Math.max(v, DARK_FABRIC.lift) - v));
+  const top = Math.max(lifted[0], lifted[1], lifted[2]);
+  lifted.forEach((v, i) => { _sheenTint[i] = 1 + k * (v / top - 1); });
+  return "rgb(" + lifted.map(Math.round).join(",") + ")";
+}
+
+/** Sheen, specular and reflections for the current garment colour. Allocation-free. */
+function applyFabricTone(mat) {
+  const k = _darkFabric;
+  mat.envMapIntensity = FABRIC_ENV_INTENSITY * (1 - DARK_FABRIC.env * k);
+  if ("reflectivity" in mat) mat.reflectivity = 0.5 * (1 - DARK_FABRIC.spec * k); // 0.5: three's default
+  const s = fabricPreset.sheen * (1 - DARK_FABRIC.sheen * k);
+  if (mat.sheen && mat.sheen.isColor) mat.sheen.setRGB(s * _sheenTint[0], s * _sheenTint[1], s * _sheenTint[2]);
+  else if (typeof mat.sheen === "number" && mat.sheen > 0) mat.sheen = s;
+}
+
 /** Which cloth a garment is cut from, guessed from its slug / name. */
 function fabricForProduct(product) {
   // Match on every name the product has, not just the Russian one: the
@@ -1112,15 +1151,17 @@ function applyFabricDetail(mat) {
   // turns away from the camera. The API changed shape across three versions —
   // r128 (vendored here) takes a Color and treats null as off, later builds
   // take a float plus a separate sheenColor. Feed whichever this build wants;
-  // the placeholder garment is a Standard material and has neither.
+  // the placeholder garment is a Standard material and has neither. The
+  // amount follows the garment colour: see applyFabricTone.
   if ("sheen" in mat) {
-    if (mat.sheen === null || (mat.sheen && mat.sheen.isColor)) {
-      mat.sheen = new THREE.Color(f.sheen, f.sheen, f.sheen);
-    } else {
+    if (mat.sheen === null) {
+      mat.sheen = new THREE.Color();
+    } else if (!mat.sheen.isColor) {
       mat.sheen = f.sheen;
       if ("sheenRoughness" in mat) mat.sheenRoughness = f.sheenRough;
     }
   }
+  applyFabricTone(mat);
   mat.needsUpdate = true;
 }
 
@@ -1167,13 +1208,15 @@ function drawPlainTexture() {
   const ctx = plainTexCanvas.getContext("2d");
 
   ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
-  ctx.fillStyle = designState.shirtColor;
+  // The 3D albedo, lifted for black (LOOM-219). This canvas only feeds the
+  // garment textures; the flat editor tints its own art from shirtColor.
+  ctx.fillStyle = darkFabricFill(designState.shirtColor);
   ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
 
-  // Null until the 3D preview is opened — the flat editor reads the canvas
-  // directly and needs no GPU upload.
+  // Null until the 3D preview is opened.
   if (plainTexture) plainTexture.needsUpdate = true;
   updateLiningColor();
+  shirtMaterials.forEach(applyFabricTone);
 }
 
 /**
@@ -1849,6 +1892,7 @@ function loadShirtModel(glbUrl) {
         } else {
           applyFabricDetail(mat);
         }
+        applyFabricTone(mat); // also before the fabric maps arrive, and for authored maps
 
         child.material = mat;
         shirtMaterials.push(mat);
