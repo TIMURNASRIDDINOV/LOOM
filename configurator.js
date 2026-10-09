@@ -794,7 +794,6 @@ const STUDIO_EXPOSURE = 0.95;
 
 let studioRig = null;
 let keyLight = null;
-let shadowWall = null;
 
 /**
  * Build the environment map from an explicit softbox layout, so the
@@ -918,25 +917,6 @@ function fitStudioToObject(object) {
     child.castShadow = true;
     child.receiveShadow = true;
   });
-
-  // A soft cast shadow on the backdrop behind the garment. At this camera
-  // height a floor shadow is edge-on and invisible; the wall is what a
-  // photographer actually sees behind a hanging garment. It rides the rig, so
-  // it is always the far side from the viewer.
-  if (!shadowWall) {
-    shadowWall = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1),
-      new THREE.ShadowMaterial({ opacity: 0.28, transparent: true, depthWrite: false }),
-    );
-    shadowWall.receiveShadow = true;
-    shadowWall.renderOrder = -1;
-    studioRig.add(shadowWall);
-  }
-  // Wide enough that its own edge never crosses the frame, and close enough
-  // behind the garment that the cast shadow stays shirt-shaped instead of
-  // smearing into a blob.
-  shadowWall.scale.set(radius * 11, radius * 11, 1);
-  shadowWall.position.set(0, 0, -radius * 0.85);
 }
 
 /**
