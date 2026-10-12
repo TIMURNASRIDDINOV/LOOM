@@ -5193,19 +5193,34 @@ function _scaleSummary(view) {
 }
 
 // Render the PRINT master for a view: ONLY the artwork (logo + text), cropped to
-// the print area, on a TRANSPARENT background, shadow-free, at PRINT_SCALE× the
-// texture resolution. This is the file a print shop reproduces. Uses the exact
-// same geometry as drawTexture() so the placement matches the preview pixel-for-pixel.
+// the print area, on a TRANSPARENT background, shadow-free, at PRINT_DPI over the
+// product's physical platen (PLATEN_CM). This is the file a print shop reproduces.
+// Uses the exact same geometry as drawTexture() so the placement matches the
+// preview pixel-for-pixel; only the resolution differs.
 // Returns a PNG data URL, or null if the view is empty.
-const PRINT_SCALE = 3; // 928×1120 → 2784×3360 px (~235 dpi at 30×40 cm)
+const PRINT_DPI = 235;     // 30×40 cm → 2776×3701 px, whatever the model's UV rect spans
+const PRINT_MAX_PX = 12e6; // iOS Safari refuses canvases over ~16.7M px; keep a margin
+/** Texture px → print px. The rect always spans PLATEN_CM.w, so the dpi is fixed. */
+function _printScale(r) {
+  let s = (PLATEN_CM.w / 2.54) * PRINT_DPI / r.w;
+  const px = r.w * r.h * s * s;
+  if (px > PRINT_MAX_PX) {
+    s *= Math.sqrt(PRINT_MAX_PX / px);
+    const dpi = Math.round(r.w * s / (PLATEN_CM.w / 2.54));
+    console.warn(`[LOOM] print file capped to ${PRINT_MAX_PX} px: ${dpi} dpi on ${PLATEN_CM.w}×${PLATEN_CM.h} cm` +
+      (dpi < MIN_PRINT_DPI ? ` (below MIN_PRINT_DPI ${MIN_PRINT_DPI})` : ""));
+  }
+  return s;
+}
 function _renderPrintCanvas(view) {
   if (!_viewHasPrint(view)) return null;
   const r = printRect(view);
+  const s = _printScale(r);
   const c = document.createElement("canvas");
-  c.width = Math.round(r.w * PRINT_SCALE);
-  c.height = Math.round(r.h * PRINT_SCALE);
+  c.width = Math.round(r.w * s);
+  c.height = Math.round(r.h * s);
   const ctx = c.getContext("2d");
-  ctx.scale(PRINT_SCALE, PRINT_SCALE);
+  ctx.scale(s, s);
   ctx.translate(-r.x, -r.y); // texture coords → print-area-local
 
   // Same painter as the on-garment preview, minus the screen-only drop shadow —
