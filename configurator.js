@@ -688,14 +688,13 @@ let _prefetched = false;
 function prefetchPreview3D() {
   if (_prefetched) return;
   _prefetched = true;
-  // rel=prefetch is explicitly the lowest-priority hint, so an in-flight
-  // critical request keeps the bandwidth.
+  // A low-priority fetch that only fills the HTTP cache; the real loads (the
+  // <script> tag, GLTFLoader's XHR) then read from it. Not <link rel=prefetch>:
+  // it sends Sec-Purpose: prefetch, which Cloudflare refuses on Worker routes
+  // (503, "cf-speculation-refused", no CORS headers), so a product model on
+  // api.loomdesign.uz was never warmed. Safari ignores rel=prefetch anyway.
   [_pendingGlbUrl || DEFAULT_MODEL_URL, THREE_CHUNKS[0]].forEach((href) => {
-    const l = document.createElement("link");
-    l.rel = "prefetch";
-    l.href = href;
-    if (/^https?:/.test(href)) l.crossOrigin = "anonymous";
-    document.head.appendChild(l);
+    fetch(href, { priority: "low" }).then((r) => r.blob()).catch(() => {});
   });
 }
 
