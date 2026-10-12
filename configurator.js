@@ -777,6 +777,11 @@ function initThreeJS() {
   controls.update();
   // A drag or wheel zoom takes the camera back from Turntable (keeps the pose).
   controls.addEventListener("start", stopCamMotion);
+  // Wheel and pinch zoom are applied inside OrbitControls' own handlers, so
+  // the update() in animate() never sees them move: redraw on every change.
+  controls.addEventListener("change", () => { _lastSceneKey = ""; });
+  // A restored WebGL context starts blank and nothing in _sceneKey() changes.
+  renderer.domElement.addEventListener("webglcontextrestored", () => { _lastSceneKey = ""; });
 
   // Responsive resize — window AND container layout changes
   window.addEventListener("resize", onWindowResize);
@@ -1342,6 +1347,7 @@ function drawTexture(view) {
 /** Redraw whichever view is currently active. */
 function redrawActive() {
   clearTimeout(_bakeTimer); // this IS the bake a pending scheduleRedraw() owed
+  _bakeTimer = 0;
   drawTexture(designState.activeView);
   // Keep the 2D editor overlay (selection box + handles) in sync with state.
   if (typeof drawEditor === "function" && editMode) drawEditor();
@@ -1372,6 +1378,11 @@ function scheduleRedraw() {
     clearTimeout(_bakeTimer);
     _bakeTimer = setTimeout(redrawActive, 150);
   });
+}
+
+/** Run a pending deferred bake now, while the face it belongs to is still active. */
+function flushBake() {
+  if (_bakeTimer) redrawActive();
 }
 
 function updatePlainColorMaterials() {
@@ -1923,10 +1934,11 @@ function loadShirtModel(glbUrl) {
         }
       });
 
-      // No Body_Front / Body_Back node means the design has nowhere to go: the
-      // garment renders blank. That is an asset problem (see assets/models/README.md).
-      if (!frontPrintMaterials.length && !backPrintMaterials.length) {
-        console.error("[LOOM] model has no Body_Front / Body_Back nodes; the design cannot be shown in 3D:", glbUrl);
+      // No Body_Front / Body_Back node means that side's design has nowhere to
+      // go: it renders blank. That is an asset problem (see assets/models/README.md).
+      if (!frontPrintMaterials.length || !backPrintMaterials.length) {
+        console.error("[LOOM] model is missing a print panel (front: " + frontPrintMaterials.length +
+          ", back: " + backPrintMaterials.length + "); designs on that side cannot be shown in 3D:", glbUrl);
       }
 
       scene.add(object);
@@ -2280,6 +2292,10 @@ function animate() {
       _lastSceneKey = key;
       renderer.render(scene, camera);
     }
+  } else {
+    // The entrance, a camera glide or orbit damping can finish while the 2D
+    // editor is up: draw the first frame back in 3D whatever the key says.
+    _lastSceneKey = "";
   }
   // Keep the 2D handles glued to the design as the shirt orbits — but only redraw
   // when the camera actually moved (state changes redraw via redrawActive).
@@ -4835,6 +4851,8 @@ function setFlatMode(on) {
     return;
   }
 
+  flushBake(); // the 3D must not show the texture from before the last 2D gesture
+
   // Every route into the 3D — the toggle, the tab buttons, the first-design
   // reward — lands here, so this is the single gate that boots it. Fire and
   // forget: ensurePreview3D() owns the loading and error states, and a
@@ -5582,6 +5600,7 @@ function bindViewToggle() {
 function setActiveView(view, keepCamera) {
   stopCamMotion(); // Front/Back (even the side already shown) ends Turntable
   if (designState.activeView === view) return;
+  flushBake(); // a deferred bake belongs to the face being left, not the new one
   designState.activeView = view;
 
   [["btn-view-front", "front"], ["btn-view-back", "back"]].forEach(([id, v]) => {
@@ -5938,8 +5957,13 @@ function _withStillCamera(view, read) {
   const prevHandles = _showHandles;
   const pos = camera.position.clone();
   const quat = camera.quaternion.clone();
+  // Stills keep the desktop ratio: the 1.5 touch cap is for interactive
+  // frames, not the cart mockups and PNG an order ships with.
+  const liveRatio = renderer.getPixelRatio();
+  const stillRatio = Math.min(window.devicePixelRatio || 1, 2);
   _showHandles = false;
   try {
+    if (stillRatio !== liveRatio) renderer.setPixelRatio(stillRatio);
     drawTexture("front");
     drawTexture("back");
     camera.position.set(pose.x, pose.y, pose.z);
@@ -5948,6 +5972,7 @@ function _withStillCamera(view, read) {
     renderer.render(scene, camera);
     return read(renderer.domElement);
   } finally {
+    if (stillRatio !== liveRatio) renderer.setPixelRatio(liveRatio);
     _showHandles = prevHandles;
     camera.position.copy(pos);
     camera.quaternion.copy(quat);
