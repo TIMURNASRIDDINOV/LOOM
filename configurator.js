@@ -5212,10 +5212,25 @@ function _printScale(r) {
   }
   return s;
 }
+// POST /api/uploads refuses files over 15 MiB (backend/src/routes/public.ts).
+const PRINT_MAX_BYTES = 14.5 * 1024 * 1024;
+/** Print PNG that fits the upload cap: a dense photo near full size re-renders at a lower dpi, never under MIN_PRINT_DPI. */
 function _renderPrintCanvas(view) {
   if (!_viewHasPrint(view)) return null;
   const r = printRect(view);
-  const s = _printScale(r);
+  const minS = (PLATEN_CM.w / 2.54) * MIN_PRINT_DPI / r.w;
+  let s = _printScale(r);
+  for (;;) {
+    const url = _paintPrint(view, r, s);
+    const bytes = (url.length - url.indexOf(",") - 1) * 0.75;
+    if (bytes <= PRINT_MAX_BYTES || s <= minS) return url;
+    // PNG bytes track pixel count; 5% margin.
+    s = Math.max(minS, s * Math.sqrt(PRINT_MAX_BYTES / bytes) * 0.95);
+    console.warn(`[LOOM] print PNG ${(bytes / 1048576).toFixed(1)} MB is over the upload cap: ` +
+      `re-rendering at ${Math.round(r.w * s / (PLATEN_CM.w / 2.54))} dpi`);
+  }
+}
+function _paintPrint(view, r, s) {
   const c = document.createElement("canvas");
   c.width = Math.round(r.w * s);
   c.height = Math.round(r.h * s);
@@ -5231,7 +5246,9 @@ function _renderPrintCanvas(view) {
     if (el.type === "text" && el.placeholder) return;
     drawElementIn(ctx, el, r, false);
   });
-  return c.toDataURL("image/png");
+  const url = c.toDataURL("image/png");
+  c.width = c.height = 0; // iOS frees canvas memory only when it shrinks
+  return url;
 }
 
 // Capture production proofs for the current design: shadow-free flat print PNGs +
@@ -5348,6 +5365,11 @@ async function addToCart(opts) {
     // Capture proofs NOW — the design is only live here; it's gone by checkout.
     const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
     const proofs = await captureProofs();
+    // A side with artwork but no print master would reach the print shop empty.
+    if ((_viewHasPrint("front") && !proofs.frontPrintKey) || (_viewHasPrint("back") && !proofs.backPrintKey)) {
+      showToast(CT("cfg.toastAddError", "Ошибка добавления"), "error");
+      return false;
+    }
     const designJson = _buildDesignJson();
     try {
       await window.LOOM_CART.add({
