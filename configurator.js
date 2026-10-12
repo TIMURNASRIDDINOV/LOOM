@@ -712,6 +712,13 @@ function bindPreview3DPrefetch() {
 // SECTION 5 — THREE.JS SETUP
 // ================================================================
 
+// DPR capped at 2 on desktop — 3x screens quadruple the fill cost for no
+// visible gain on fabric. 1.5 on touch devices: a phone GPU pays MSAA, PCF
+// shadows and three 2048px maps per pixel, and 1.5 draws 44% fewer of them.
+function glPixelRatio() {
+  return Math.min(window.devicePixelRatio || 1, _coarsePointer() ? 1.5 : 2);
+}
+
 function initThreeJS() {
   const container = document.getElementById("three-container");
 
@@ -732,9 +739,7 @@ function initThreeJS() {
     preserveDrawingBuffer: true,
     alpha: true,
   });
-  // DPR capped at 2 — 3x phone screens quadruple the fill cost for
-  // no visible gain on fabric
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(glPixelRatio());
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
@@ -948,7 +953,7 @@ function onWindowResize() {
   _lastResizeH = h;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(glPixelRatio());
   renderer.setSize(w, h, false);
 
   // LOOM-209: the model loaded behind the 2D editor, so its fit used the
@@ -1336,6 +1341,7 @@ function drawTexture(view) {
 
 /** Redraw whichever view is currently active. */
 function redrawActive() {
+  clearTimeout(_bakeTimer); // this IS the bake a pending scheduleRedraw() owed
   drawTexture(designState.activeView);
   // Keep the 2D editor overlay (selection box + handles) in sync with state.
   if (typeof drawEditor === "function" && editMode) drawEditor();
@@ -1350,12 +1356,21 @@ function redrawActive() {
  * texture + regenerates mipmaps — one redraw per frame is enough.
  */
 let _redrawQueued = false;
+let _bakeTimer = 0;
 function scheduleRedraw() {
   if (_redrawQueued) return;
   _redrawQueued = true;
   requestAnimationFrame(() => {
     _redrawQueued = false;
-    redrawActive();
+    if (!flatMode) { redrawActive(); return; }
+    // The flat editor is the only surface on screen; baking the hidden 3D
+    // texture (three 2048px fills, ~5x the flat paint) on every drag frame is
+    // what made 2D editing stutter on phones. Paint the flat editor now and
+    // bake once the gesture or typing pauses. Snapshots bake both faces
+    // themselves (_withStillCamera), so they never read a stale texture.
+    renderFlatEditor();
+    clearTimeout(_bakeTimer);
+    _bakeTimer = setTimeout(redrawActive, 150);
   });
 }
 
@@ -2168,9 +2183,25 @@ function fitCameraToObject(object) {
 // SECTION 8 — ANIMATION LOOP
 // ================================================================
 
+// Render on demand. An idle garment drawn 60-120 times a second (shadow pass +
+// ~220k-triangle main pass, MSAA) pegs a phone GPU and starves touch handling.
+// A frame is drawn only when the camera moves, an animation runs, or something
+// the picture depends on changed: texture/material versions (every
+// needsUpdate bumps them), canvas size, or the scene graph.
+let _lastSceneKey = "";
+function _sceneKey() {
+  let k = renderer.domElement.width + "x" + renderer.domElement.height + "|" + scene.children.length;
+  [frontTexture, backTexture, plainTexture, fabricNormalTexture].forEach((t) => { k += "|" + (t ? t.version : 0); });
+  shirtMaterials.forEach((m) => { k += "|" + m.version + ":" + (m.map ? m.map.version : 0); });
+  return k;
+}
+
 function animate() {
   requestAnimationFrame(animate);
 
+  // Read before stepping: the last step of an animation clears its flag and
+  // still needs its frame drawn.
+  const animating = !!(_turn || _entrance || camAnim.active);
   if (_turn) _stepTurn(performance.now());
   if (_entrance) _stepEntrance(performance.now());
 
@@ -2230,13 +2261,20 @@ function animate() {
     }
   }
 
-  controls.update();
+  // true while the orbit (or its damping) is still moving the camera
+  const moved = controls.update();
   updateStudioRig();
   // While the flat editor is up the 3D canvas is display:none, so drawing it
   // every frame burns battery on a phone for pixels nobody can see. In split
   // mode it IS on screen, so it draws. Snapshots and exports call
   // renderer.render() explicitly, so they are unaffected either way.
-  if (!flatMode) renderer.render(scene, camera);
+  if (!flatMode) {
+    const key = _sceneKey();
+    if (moved || animating || key !== _lastSceneKey) {
+      _lastSceneKey = key;
+      renderer.render(scene, camera);
+    }
+  }
   // Keep the 2D handles glued to the design as the shirt orbits — but only redraw
   // when the camera actually moved (state changes redraw via redrawActive).
   if (editMode && typeof drawEditor === "function") {
