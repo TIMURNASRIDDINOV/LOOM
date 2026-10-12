@@ -1923,6 +1923,12 @@ function loadShirtModel(glbUrl) {
         }
       });
 
+      // No Body_Front / Body_Back node means the design has nowhere to go: the
+      // garment renders blank. That is an asset problem (see assets/models/README.md).
+      if (!frontPrintMaterials.length && !backPrintMaterials.length) {
+        console.error("[LOOM] model has no Body_Front / Body_Back nodes; the design cannot be shown in 3D:", glbUrl);
+      }
+
       scene.add(object);
       shirtObject = object;
       addLining(object);
