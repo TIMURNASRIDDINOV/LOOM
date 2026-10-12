@@ -688,14 +688,13 @@ let _prefetched = false;
 function prefetchPreview3D() {
   if (_prefetched) return;
   _prefetched = true;
-  // rel=prefetch is explicitly the lowest-priority hint, so an in-flight
-  // critical request keeps the bandwidth.
+  // A low-priority fetch that only fills the HTTP cache; the real loads (the
+  // <script> tag, GLTFLoader's XHR) then read from it. Not <link rel=prefetch>:
+  // it sends Sec-Purpose: prefetch, which Cloudflare refuses on Worker routes
+  // (503, "cf-speculation-refused", no CORS headers), so a product model on
+  // api.loomdesign.uz was never warmed. Safari ignores rel=prefetch anyway.
   [_pendingGlbUrl || DEFAULT_MODEL_URL, THREE_CHUNKS[0]].forEach((href) => {
-    const l = document.createElement("link");
-    l.rel = "prefetch";
-    l.href = href;
-    if (/^https?:/.test(href)) l.crossOrigin = "anonymous";
-    document.head.appendChild(l);
+    fetch(href, { priority: "low" }).then((r) => r.blob()).catch(() => {});
   });
 }
 
@@ -711,6 +710,13 @@ function bindPreview3DPrefetch() {
 // ================================================================
 // SECTION 5 — THREE.JS SETUP
 // ================================================================
+
+// DPR capped at 2 on desktop — 3x screens quadruple the fill cost for no
+// visible gain on fabric. 1.5 on touch devices: a phone GPU pays MSAA, PCF
+// shadows and three 2048px maps per pixel, and 1.5 draws 44% fewer of them.
+function glPixelRatio() {
+  return Math.min(window.devicePixelRatio || 1, _coarsePointer() ? 1.5 : 2);
+}
 
 function initThreeJS() {
   const container = document.getElementById("three-container");
@@ -732,9 +738,7 @@ function initThreeJS() {
     preserveDrawingBuffer: true,
     alpha: true,
   });
-  // DPR capped at 2 — 3x phone screens quadruple the fill cost for
-  // no visible gain on fabric
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(glPixelRatio());
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
@@ -772,6 +776,11 @@ function initThreeJS() {
   controls.update();
   // A drag or wheel zoom takes the camera back from Turntable (keeps the pose).
   controls.addEventListener("start", stopCamMotion);
+  // Wheel and pinch zoom are applied inside OrbitControls' own handlers, so
+  // the update() in animate() never sees them move: redraw on every change.
+  controls.addEventListener("change", () => { _lastSceneKey = ""; });
+  // A restored WebGL context starts blank and nothing in _sceneKey() changes.
+  renderer.domElement.addEventListener("webglcontextrestored", () => { _lastSceneKey = ""; });
 
   // Responsive resize — window AND container layout changes
   window.addEventListener("resize", onWindowResize);
@@ -948,7 +957,7 @@ function onWindowResize() {
   _lastResizeH = h;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(glPixelRatio());
   renderer.setSize(w, h, false);
 
   // LOOM-209: the model loaded behind the 2D editor, so its fit used the
@@ -1336,6 +1345,8 @@ function drawTexture(view) {
 
 /** Redraw whichever view is currently active. */
 function redrawActive() {
+  clearTimeout(_bakeTimer); // this IS the bake a pending scheduleRedraw() owed
+  _bakeTimer = 0;
   drawTexture(designState.activeView);
   // Keep the 2D editor overlay (selection box + handles) in sync with state.
   if (typeof drawEditor === "function" && editMode) drawEditor();
@@ -1350,13 +1361,27 @@ function redrawActive() {
  * texture + regenerates mipmaps — one redraw per frame is enough.
  */
 let _redrawQueued = false;
+let _bakeTimer = 0;
 function scheduleRedraw() {
   if (_redrawQueued) return;
   _redrawQueued = true;
   requestAnimationFrame(() => {
     _redrawQueued = false;
-    redrawActive();
+    if (!flatMode) { redrawActive(); return; }
+    // The flat editor is the only surface on screen; baking the hidden 3D
+    // texture (three 2048px fills, ~5x the flat paint) on every drag frame is
+    // what made 2D editing stutter on phones. Paint the flat editor now and
+    // bake once the gesture or typing pauses. Snapshots bake both faces
+    // themselves (_withStillCamera), so they never read a stale texture.
+    renderFlatEditor();
+    clearTimeout(_bakeTimer);
+    _bakeTimer = setTimeout(redrawActive, 150);
   });
+}
+
+/** Run a pending deferred bake now, while the face it belongs to is still active. */
+function flushBake() {
+  if (_bakeTimer) redrawActive();
 }
 
 function updatePlainColorMaterials() {
@@ -1908,6 +1933,13 @@ function loadShirtModel(glbUrl) {
         }
       });
 
+      // No Body_Front / Body_Back node means that side's design has nowhere to
+      // go: it renders blank. That is an asset problem (see assets/models/README.md).
+      if (!frontPrintMaterials.length || !backPrintMaterials.length) {
+        console.error("[LOOM] model is missing a print panel (front: " + frontPrintMaterials.length +
+          ", back: " + backPrintMaterials.length + "); designs on that side cannot be shown in 3D:", glbUrl);
+      }
+
       scene.add(object);
       shirtObject = object;
       addLining(object);
@@ -2168,9 +2200,25 @@ function fitCameraToObject(object) {
 // SECTION 8 — ANIMATION LOOP
 // ================================================================
 
+// Render on demand. An idle garment drawn 60-120 times a second (shadow pass +
+// ~220k-triangle main pass, MSAA) pegs a phone GPU and starves touch handling.
+// A frame is drawn only when the camera moves, an animation runs, or something
+// the picture depends on changed: texture/material versions (every
+// needsUpdate bumps them), canvas size, or the scene graph.
+let _lastSceneKey = "";
+function _sceneKey() {
+  let k = renderer.domElement.width + "x" + renderer.domElement.height + "|" + scene.children.length;
+  [frontTexture, backTexture, plainTexture, fabricNormalTexture].forEach((t) => { k += "|" + (t ? t.version : 0); });
+  shirtMaterials.forEach((m) => { k += "|" + m.version + ":" + (m.map ? m.map.version : 0); });
+  return k;
+}
+
 function animate() {
   requestAnimationFrame(animate);
 
+  // Read before stepping: the last step of an animation clears its flag and
+  // still needs its frame drawn.
+  const animating = !!(_turn || _entrance || camAnim.active);
   if (_turn) _stepTurn(performance.now());
   if (_entrance) _stepEntrance(performance.now());
 
@@ -2230,13 +2278,24 @@ function animate() {
     }
   }
 
-  controls.update();
+  // true while the orbit (or its damping) is still moving the camera
+  const moved = controls.update();
   updateStudioRig();
   // While the flat editor is up the 3D canvas is display:none, so drawing it
   // every frame burns battery on a phone for pixels nobody can see. In split
   // mode it IS on screen, so it draws. Snapshots and exports call
   // renderer.render() explicitly, so they are unaffected either way.
-  if (!flatMode) renderer.render(scene, camera);
+  if (!flatMode) {
+    const key = _sceneKey();
+    if (moved || animating || key !== _lastSceneKey) {
+      _lastSceneKey = key;
+      renderer.render(scene, camera);
+    }
+  } else {
+    // The entrance, a camera glide or orbit damping can finish while the 2D
+    // editor is up: draw the first frame back in 3D whatever the key says.
+    _lastSceneKey = "";
+  }
   // Keep the 2D handles glued to the design as the shirt orbits — but only redraw
   // when the camera actually moved (state changes redraw via redrawActive).
   if (editMode && typeof drawEditor === "function") {
@@ -4791,6 +4850,8 @@ function setFlatMode(on) {
     return;
   }
 
+  flushBake(); // the 3D must not show the texture from before the last 2D gesture
+
   // Every route into the 3D — the toggle, the tab buttons, the first-design
   // reward — lands here, so this is the single gate that boots it. Fire and
   // forget: ensurePreview3D() owns the loading and error states, and a
@@ -5538,6 +5599,7 @@ function bindViewToggle() {
 function setActiveView(view, keepCamera) {
   stopCamMotion(); // Front/Back (even the side already shown) ends Turntable
   if (designState.activeView === view) return;
+  flushBake(); // a deferred bake belongs to the face being left, not the new one
   designState.activeView = view;
 
   [["btn-view-front", "front"], ["btn-view-back", "back"]].forEach(([id, v]) => {
@@ -5894,8 +5956,13 @@ function _withStillCamera(view, read) {
   const prevHandles = _showHandles;
   const pos = camera.position.clone();
   const quat = camera.quaternion.clone();
+  // Stills keep the desktop ratio: the 1.5 touch cap is for interactive
+  // frames, not the cart mockups and PNG an order ships with.
+  const liveRatio = renderer.getPixelRatio();
+  const stillRatio = Math.min(window.devicePixelRatio || 1, 2);
   _showHandles = false;
   try {
+    if (stillRatio !== liveRatio) renderer.setPixelRatio(stillRatio);
     drawTexture("front");
     drawTexture("back");
     camera.position.set(pose.x, pose.y, pose.z);
@@ -5904,6 +5971,7 @@ function _withStillCamera(view, read) {
     renderer.render(scene, camera);
     return read(renderer.domElement);
   } finally {
+    if (stillRatio !== liveRatio) renderer.setPixelRatio(liveRatio);
     _showHandles = prevHandles;
     camera.position.copy(pos);
     camera.quaternion.copy(quat);
