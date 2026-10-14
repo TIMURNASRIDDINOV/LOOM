@@ -268,8 +268,12 @@ npm run set-webhook                 # register the Telegram webhook
 **Backend → Cloudflare Workers**
 1. Create D1, R2, and KV resources (dashboard or Wrangler) and set their IDs in `wrangler.toml`.
 2. Set all secrets with `wrangler secret put`.
-3. `npm run deploy`
-4. `npm run set-webhook` to register the Telegram webhook.
+3. Record the current Worker version (`npx wrangler deployments list`) — you need it to roll back.
+4. `npm run deploy` — runs `npm run typecheck` (`tsc --noEmit`) first and stops on a type error.
+5. `node scripts/health-check.mjs https://api.loomdesign.uz` — anonymous smoke check.
+6. `npm run set-webhook` to register the Telegram webhook.
+
+Rollback (bad deploy, failed health check): see [scripts/rollback.md](backend/scripts/rollback.md).
 
 **Frontend → Cloudflare Pages**
 Static files deploy on push — no build step. Live at [loomdesign.uz](https://loomdesign.uz); the admin panel is served from `/admin/`.
