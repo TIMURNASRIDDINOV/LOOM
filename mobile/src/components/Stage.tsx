@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
+import { ActivityIndicator, Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
 
@@ -40,18 +40,21 @@ const FONT_FAMILY: Record<string, string> = {
 export function Stage({
   glbUrl,
   printArea = DEFAULT_PRINT_AREA,
+  loading = false,
 }: {
   /** `glb_url` from the product API — drives the real 3D preview. */
   glbUrl?: string | null
   /** The product's print area (config.print_area). */
   printArea?: PrintArea
+  /** True while the catalog is fetching the product model. */
+  loading?: boolean
 }) {
   const st = useStudio()
   const t = useT()
   const { s, active, face, surface, artSelected, textSelected } = st
 
   if (surface === '3d') {
-    return <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} />
+    return <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} loading={loading} />
   }
 
   return (
@@ -82,8 +85,17 @@ export function Stage({
 
 // ─── 3D ──────────────────────────────────────────────────────────────────────
 
-function Stage3D({ glbUrl, printArea }: { glbUrl: string | null; printArea: PrintArea }) {
+function Stage3D({
+  glbUrl,
+  printArea,
+  loading = false,
+}: {
+  glbUrl: string | null
+  printArea: PrintArea
+  loading?: boolean
+}) {
   const { s, face } = useStudio()
+  const t = useT()
   // Local uploads are inlined as data: URIs for the WebView; this counter
   // re-renders once a read completes so the scene picks the bitmap up.
   const [, bump] = useState(0)
@@ -103,6 +115,17 @@ function Stage3D({ glbUrl, printArea }: { glbUrl: string | null; printArea: Prin
   }, [uris.map((a) => a.uri).join('|')])
 
   const design = useMemo(() => toSceneDesign(s, cachedSrc), [s])
+
+  if (loading && !glbUrl) {
+    return (
+      <View style={[styles.preview3d, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator color={C.coral} />
+        <T style={[mono(9.5, 1.4, { ls: 0.16, upper: true, color: C.i38 }), { marginTop: 10 }]}>
+          {t('st.loading3d')}
+        </T>
+      </View>
+    )
+  }
 
   return (
     <View style={styles.preview3d}>

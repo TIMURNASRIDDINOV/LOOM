@@ -23,7 +23,7 @@ import { useStudio } from '../src/state/studio'
 import { useToast } from '../src/state/toast'
 import { goBack } from '../src/lib/nav'
 import { colorName, productName, useI18n } from '../src/i18n'
-import { colorOk, swatchName, useStudioProduct } from '../src/lib/product-config'
+import { colorOk, defaultProduct, swatchName, useStudioProduct } from '../src/lib/product-config'
 
 export default function Studio() {
   const router = useRouter()
@@ -44,13 +44,26 @@ export default function Studio() {
     track('cfg_open')
   }, [])
 
-  // Deep-linked from the catalog: adopt that product's name and price.
+  // Deep-linked from the catalog or opened without a product: adopt that product's name and price.
   useEffect(() => {
-    if (!productId || !products) return
-    const p = products.find((x) => String(x.id) === String(productId))
-    if (p) st.loadProduct({ id: p.id, name: productName(p, lang), price: p.price })
+    if (!products) return
+    if (productId) {
+      const p = products.find((x) => String(x.id) === String(productId))
+      if (p) st.loadProduct({ id: p.id, name: productName(p, lang), price: p.price })
+    } else if (s.productId == null) {
+      const def = defaultProduct(products)
+      if (def) st.loadProduct({ id: def.id, name: productName(def, lang), price: def.price })
+    } else {
+      const cur = products.find((x) => x.id === s.productId)
+      if (cur) {
+        const localized = productName(cur, lang)
+        if (s.productName !== localized) {
+          st.loadProduct({ id: cur.id, name: localized, price: cur.price })
+        }
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId, products])
+  }, [productId, products, s.productId, lang])
 
   // First layer placed → funnel event, same as the web configurator.
   useEffect(() => {
@@ -61,7 +74,7 @@ export default function Studio() {
   }, [surface])
 
   // The product (or the default garment) and its sizes, colours and print area.
-  const { product, unavailable, config } = useStudioProduct()
+  const { product, loading, unavailable, config } = useStudioProduct()
 
   const addToCart = async () => {
     if (busyRef.current) return
@@ -139,7 +152,7 @@ export default function Studio() {
 
       cart.add({
         productId: s.productId ?? product?.id ?? null,
-        name: s.productName || t('st.defaultProduct'),
+        name: s.productName || (product ? productName(product, lang) : t('st.defaultProduct')),
         image: product?.thumbnail_url ?? null,
         unitPrice: total,
         designJson: buildDesignJson(snapshot, config.printArea.platen_cm),
@@ -170,7 +183,9 @@ export default function Studio() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={mono(8.5, 1.3, { ls: 0.22, upper: true, color: C.coral })}>{t('st.kicker')}</T>
           <T style={disp(15, 1.15, { ls: -0.02 })} numberOfLines={1}>
-            {unavailable ? t('st.productUnavailable') : s.productName || t('st.defaultProduct')}
+            {unavailable
+              ? t('st.productUnavailable')
+              : s.productName || (product ? productName(product, lang) : t('st.defaultProduct'))}
           </T>
         </View>
         <Segmented
@@ -184,7 +199,7 @@ export default function Studio() {
       </View>
 
       <View style={styles.stageWrap}>
-        <Stage glbUrl={product?.glb_url ?? null} printArea={config.printArea} />
+        <Stage glbUrl={product?.glb_url ?? null} printArea={config.printArea} loading={loading && !product} />
         <View style={styles.faceToggle}>
           <Segmented
             value={face}

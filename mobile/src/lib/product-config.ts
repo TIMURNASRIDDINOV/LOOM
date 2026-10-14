@@ -40,20 +40,30 @@ export function colorOk(cfg: Config, hex: string): boolean {
 }
 
 /**
+ * The default garment for the studio when no product was picked:
+ * the first custom product, matching the web configurator's fetchDefaultProduct().
+ */
+export function defaultProduct(products?: Product[] | null): Product | undefined {
+  if (!products || !products.length) return undefined
+  return products.find((p) => (p.product_type ?? 'custom') !== 'ready') ?? products[0]
+}
+
+/**
  * The studio's garment: its product, or the default garment (the first custom
  * product, as on the web and the server) when none was picked. `unavailable`
  * is a picked product that is no longer in the active catalogue.
  */
 export function useStudioProduct() {
   const { s } = useStudio()
-  const { data: products } = useAsync(fetchProducts, [])
+  const { data: products, loading } = useAsync(fetchProducts, [])
   const product = !products
     ? undefined
     : s.productId != null
       ? products.find((p) => p.id === s.productId)
-      : products.find((p) => (p.product_type ?? 'custom') !== 'ready')
+      : defaultProduct(products)
   return {
     product,
+    loading,
     unavailable: !!products && s.productId != null && !product,
     config: productConfig(product),
   }
