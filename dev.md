@@ -237,6 +237,24 @@ python3 -m http.server 8000         # → http://localhost:8000
 ```
 Switch environments by editing `API_BASE` in `assets/config.js`.
 
+### CI — the release gates
+
+Every PR to `main` runs `.github/workflows/ci.yml`. It is exactly three gates
+and nothing else — no secrets, no deploys:
+
+```bash
+cd backend && npx tsc --noEmit            # 1. the Worker typechecks
+node tools/check-asset-versions.mjs       # 2. no asset ?v= drift
+node tools/check-site-js.mjs              # 3. every site JS file parses
+```
+
+Run the same three locally before pushing. `check-asset-versions.mjs` compares
+the branch against its base commit (`origin/main` by default, `--base <ref>` to
+choose another): an asset that changed under `assets/`, `admin/assets/` or the
+root `?v=`-qualified bundles without its `?v=` being bumped fails, and so does
+one asset referenced with two different `?v=` values. `check-site-js.mjs` runs
+`node --check` over every JS file the site serves.
+
 ---
 
 ## Environment Variables
