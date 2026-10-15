@@ -146,9 +146,11 @@ function checkPrintArea(v: unknown): Checked {
   return { value: { platen_cm: { w, h }, width_frac: v.width_frac, top_frac: v.top_frac } }
 }
 
+// Optional print {x, y, w} per face: where the print box sits on that face's art,
+// as fractions of the image (LOOM-227). Its height follows the platen aspect.
 function checkFlatArt(v: unknown): Checked {
-  if (!isObj(v)) return { error: 'flat_art must be {front:{src,src_small}, back:{src,src_small}}' }
-  const out: Record<string, { src: string; src_small: string }> = {}
+  if (!isObj(v)) return { error: 'flat_art must be {front:{src,src_small,print?}, back:{src,src_small,print?}}' }
+  const out: Record<string, { src: string; src_small: string; print?: { x: number; y: number; w: number } }> = {}
   for (const face of ['front', 'back']) {
     const f = v[face]
     if (!isObj(f)) return { error: `flat_art.${face} is required` }
@@ -159,6 +161,12 @@ function checkFlatArt(v: unknown): Checked {
       }
     }
     out[face] = { src: f.src as string, src_small: f.src_small as string }
+    if (f.print === undefined) continue
+    const p = f.print
+    if (!isObj(p) || !isFrac(p.x) || !isFrac(p.y) || !isFrac(p.w) || p.w === 0 || p.x + p.w > 1) {
+      return { error: `flat_art.${face}.print must be {x, y, w}: numbers in [0, 1], w > 0, x + w ≤ 1` }
+    }
+    out[face].print = { x: p.x, y: p.y, w: p.w }
   }
   return { value: out }
 }
