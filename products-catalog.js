@@ -173,8 +173,12 @@
     if (!isReady) {
       const btn = document.createElement('button')
       btn.className = 'customize-btn btn-primary'
-      btn.textContent = T('catalog.customize', 'Настроить дизайн')
-      btn.setAttribute('aria-label', `${T('catalog.customize', 'Настроить дизайн')} ${esc(PN(product))}`)
+      // A blank garment (LOOM-226) is sold with colour and size only
+      const label = product.product_type === 'blank'
+        ? T('cfg.step2Title', 'Цвет и размер')
+        : T('catalog.customize', 'Настроить дизайн')
+      btn.textContent = label
+      btn.setAttribute('aria-label', `${label} ${esc(PN(product))}`)
       btn.addEventListener('click', () => {
         window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
       })

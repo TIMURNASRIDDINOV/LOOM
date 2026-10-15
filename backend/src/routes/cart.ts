@@ -69,9 +69,6 @@ router.post('/', async (c) => {
   }
 
   const productId = typeof b.productId === 'number' ? b.productId : null
-  const variant = await checkVariant(c.env.DB, productId, b.designJson)
-  if ('code' in variant) return c.json(variant, 409)
-  const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
 
   // Proofs are captured while the design is live (here); copied to order_items at checkout.
   const keyField = (v: unknown) => (typeof v === 'string' ? v : null)
@@ -84,6 +81,10 @@ router.post('/', async (c) => {
     back_logo_key: keyField(b.backLogoKey),
     model_key: keyField(b.modelKey),
   }
+  const variant = await checkVariant(c.env.DB, productId, b.designJson, keys)
+  if ('code' in variant) return c.json(variant, 409)
+  const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
+
   // Only files this user uploaded, or approved marketplace artwork.
   if (await firstForeignKey(c.env.DB, c.get('userId'), Object.values(keys))) {
     return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
@@ -193,7 +194,7 @@ router.post('/checkout', async (c) => {
   const items = await getCartItems(c.env.DB, userId)
   if (!items.length) return c.json({ error: 'Cart is empty' }, 400)
   for (const it of items) {
-    const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json)
+    const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json, it)
     if ('code' in variant) return c.json({ ...variant, itemId: it.id }, 409)
     it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)
   }

@@ -153,6 +153,8 @@ function CT(key, fallback) {
 
 // Product loaded from API (null = using local fallback)
 let currentProduct = null;
+// LOOM-226: a 'blank' product is sold with colour and size only — no print tools.
+let _blankOnly = false;
 
 // Color name lookup for UI display
 const COLOR_NAMES = {};
@@ -356,6 +358,18 @@ document.addEventListener("DOMContentLoaded", async function () {
   _productReady = loadProductFromSlug().finally(() => { _flatArtHold = false; renderFlatEditor(); });
   await _productReady;
 
+  _blankOnly = !!currentProduct && currentProduct.product_type === "blank";
+  if (_blankOnly) {
+    document.body.classList.add("blank-only");
+    // Text or a file added while the product was loading is not sold here.
+    for (const view of ["front", "back"]) { designState[view].elements = []; designState[view].selId = null; }
+    for (const id in uploadedFileData) delete uploadedFileData[id];
+    redrawActive();
+    updateViewToggleMarkers(); // the CTA and the side markers
+    setStep("color");
+    setFlatMode(false);
+  }
+
   if (editItem) applyCartEditDesign(editItem);
   // A design chosen in the marketplace lands last, so it sits on top of a
   // restored cart design rather than being overwritten by it.
@@ -440,7 +454,7 @@ async function applyCartEditDesign(item) {
 
   for (const view of ["front", "back"]) {
     const srcL = d[view];
-    if (!srcL) continue;
+    if (!srcL || _blankOnly) continue; // a blank product keeps colour and size only
     const dst = designState[view];
     // v2 stores an element array in normalised coords; anything older is one text
     // + one image in raw texture px against LEGACY_PRINT_AREA.
@@ -1712,7 +1726,7 @@ async function fetchDefaultProduct() {
   if (!res.ok) return null;
   const list = await res.json();
   const items = Array.isArray(list) ? list : (list && list.products) || [];
-  return items.find((p) => (p.product_type || "custom") !== "ready") || null;
+  return items.find((p) => (p.product_type || "custom") === "custom") || null;
 }
 
 /**
@@ -1823,6 +1837,7 @@ const UNSOLD = {
   product_unavailable: ["cfg.productUnavailable", "Этот товар сейчас недоступен"],
   size_unavailable: ["cfg.sizeUnavailable", "Этот размер недоступен — выберите другой"],
   color_unavailable: ["cfg.colorUnavailable", "Этот цвет недоступен — выберите другой"],
+  print_unavailable: ["cfg.blankNote", "Этот товар продаётся без принта"],
 };
 function unsoldText(code) {
   const k = UNSOLD[code];
@@ -3727,6 +3742,7 @@ function saveLayout() {
 }
 
 async function loadLayout() {
+  if (_blankOnly) return;
   let payload = null;
   try { payload = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null"); }
   catch (e) { /* corrupt entry — treated as none */ }
@@ -3800,6 +3816,7 @@ function _stackTopNy(view) {
 }
 
 function addTextElement() {
+  if (_blankOnly) return;
   const st = designState[designState.activeView];
   const proto = newTextElement({
     content: CT("cfg.newTextDefault", "Ваш текст"),
@@ -4599,7 +4616,7 @@ function _flatSyncEmptyState() {
   // Not while a layer (an emptied text) is selected in step 1: it is being
   // edited, and the prompt would cover it.
   const editing = currentStep === "design" && !!selectedElement(designState.activeView);
-  const empty = !editing && !_viewHasContent(designState.activeView);
+  const empty = !_blankOnly && !editing && !_viewHasContent(designState.activeView);
   btn.style.display = empty ? "flex" : "none";
   if (!empty) return;
   // This is the beginner's first action, so it has to be readable ON the
@@ -4710,6 +4727,7 @@ function _isSheetLayout() {
 
 function setStep(step) {
   if (SHEET_STEPS.indexOf(step) < 0) step = "design";
+  if (_blankOnly && step === "design") step = "color";
   if (step === "order" && !sizeChosen()) return;
   if (step !== currentStep) setCamAccOpen(false); // collapsed on step entry
   currentStep = step;
@@ -5575,14 +5593,19 @@ async function addToCart(opts) {
   const t0 = performance.now();
   try {
     // Capture proofs NOW — the design is only live here; it's gone by checkout.
-    const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
-    const proofs = await captureProofs();
+    // A blank product is the plain garment, as the catalogue adds it: no files.
+    const [logoKey, backLogoKey] = _blankOnly
+      ? [null, null]
+      : await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    const proofs = _blankOnly ? {} : await captureProofs();
     // A side with artwork but no print master would reach the print shop empty.
     if ((_viewHasPrint("front") && !proofs.frontPrintKey) || (_viewHasPrint("back") && !proofs.backPrintKey)) {
       showToast(CT("cfg.toastAddError", "Ошибка добавления"), "error");
       return false;
     }
-    const designJson = _buildDesignJson();
+    const designJson = _blankOnly
+      ? JSON.stringify({ plain: true, shirtColor: designState.shirtColor, size: selectedSize })
+      : _buildDesignJson();
     try {
       await window.LOOM_CART.add({
         productId: currentProduct ? currentProduct.id : null,
@@ -6056,6 +6079,7 @@ function checkPrintDpi(el) {
 }
 
 function handleImageFile(file, meta) {
+  if (_blankOnly) return;
   // Phones often hand over HEIC with an empty or generic type, so the
   // extension counts too.
   const heic = /^image\/hei[cf]$/.test(file.type) || /\.hei[cf]$/i.test(file.name || "");
@@ -6107,6 +6131,7 @@ function handleImageFile(file, meta) {
       const finalType = finalData.slice(5, finalData.indexOf(";"));
 
       const apply = () => {
+      if (_blankOnly) return; // picked while the product was loading
       const st = designState[designState.activeView];
       const sel = selectedElement();
       // "+ Логотип" adds a layer; the upload area swaps the selected layer's art.

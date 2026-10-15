@@ -45,14 +45,14 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=4"></script>
     <script defer src="assets/layout.js?v=5"></script>
-    <script defer src="assets/i18n.js?v=37"></script>
+    <script defer src="assets/i18n.js?v=38"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=5"></script>
-    <script defer src="configurator.js?v=83"></script>
+    <script defer src="configurator.js?v=84"></script>
 
     <style>
       /* ============================================================
@@ -1375,6 +1375,15 @@
       }
       .studio-sheet[data-step="color"] .sheet-steps::after { transform: translateX(100%); }
       .studio-sheet[data-step="order"] .sheet-steps::after { transform: translateX(200%); }
+      /* LOOM-226: a blank garment is sold with colour and size only, so it
+         has two steps (no Design), no print chrome and a note saying so. */
+      .blank-only .step-btn[data-step="design"], .blank-only .step-num, .blank-only .step-kicker,
+      .blank-only .surface-toggle, .blank-only .print-row { display: none; }
+      .blank-note { display: none; }
+      .blank-only .blank-note { display: block; }
+      .blank-only .sheet-steps::after { width: calc((100% - 3rem - var(--gut)) / 2); }
+      .blank-only .studio-sheet[data-step="color"] .sheet-steps::after { transform: none; }
+      .blank-only .studio-sheet[data-step="order"] .sheet-steps::after { transform: translateX(100%); }
       .step-btn {
         position: relative; z-index: 2;
         min-width: 0;                     /* three languages, one row */
@@ -1692,6 +1701,7 @@
           left: 1.25rem; top: 0.55rem; bottom: calc(0.6rem + var(--gut));
           width: calc((100% - 2.5rem - var(--gut)) / 3);
         }
+        .blank-only .sheet-steps::after { width: calc((100% - 2.5rem - var(--gut)) / 2); }
         .panel-foot {
           padding: 0.8rem calc(1.25rem + var(--gut)) calc(0.8rem + env(safe-area-inset-bottom));
           gap: 0.5rem;
@@ -2389,6 +2399,8 @@
               <h2 class="step-title" data-i18n="cfg.step2Title">Цвет и размер</h2>
               <p class="step-lead" data-i18n="cfg.step2Lead">Выберите размер, затем нажмите на квадрат, чтобы сменить цвет ткани.</p>
             </header>
+            <!-- Outside the header, which only screen readers see on step 2. -->
+            <p class="step-lead blank-note" data-i18n="cfg.blankNote">Этот товар продаётся без принта</p>
             <!-- Size comes first and has no default: an order must never carry
                  a size the customer did not see (LOOM-179). -->
             <p class="tab-section-label" data-i18n="cfg.size">Размер</p>
@@ -2462,9 +2474,9 @@
             <div class="summary-info">
               <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumColor">Цвет</span><span class="summary-val" id="sum-color">Белый</span></div>
               <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumSize">Размер</span><span class="summary-val" id="sum-size">L</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumText">Текст</span><span class="summary-val" id="sum-text">—</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumFont">Шрифт</span><span class="summary-val" id="sum-font">Arial</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumLogo">Логотип</span><span class="summary-val" id="sum-image">Не загружено</span></div>
+              <div class="summary-row print-row"><span class="summary-label" data-i18n="cfg.sumText">Текст</span><span class="summary-val" id="sum-text">—</span></div>
+              <div class="summary-row print-row"><span class="summary-label" data-i18n="cfg.sumFont">Шрифт</span><span class="summary-val" id="sum-font">Arial</span></div>
+              <div class="summary-row print-row"><span class="summary-label" data-i18n="cfg.sumLogo">Логотип</span><span class="summary-val" id="sum-image">Не загружено</span></div>
             </div>
           </div>
         </div>

@@ -263,8 +263,8 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
   const active = formData.get('active') === '0' ? 0 : 1
 
   const product_type = ((formData.get('product_type') as string | null)?.trim() || 'custom')
-  if (product_type !== 'custom' && product_type !== 'ready') {
-    return c.json({ ok: false, error: { code: 'INVALID', message: "product_type must be 'custom' or 'ready'", field: 'product_type' } }, 400)
+  if (product_type !== 'custom' && product_type !== 'ready' && product_type !== 'blank') {
+    return c.json({ ok: false, error: { code: 'INVALID', message: "product_type must be 'custom', 'ready' or 'blank'", field: 'product_type' } }, 400)
   }
 
   const colorsResult = parseColors(formData.get('base_colors'))
@@ -387,7 +387,9 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
 
   const typeRaw = (formData.get('product_type') as string | null)?.trim()
   if (typeRaw != null) {
-    if (typeRaw !== 'custom' && typeRaw !== 'ready') return c.json({ error: "product_type must be 'custom' or 'ready'" }, 400)
+    if (typeRaw !== 'custom' && typeRaw !== 'ready' && typeRaw !== 'blank') {
+      return c.json({ error: "product_type must be 'custom', 'ready' or 'blank'" }, 400)
+    }
     updates.product_type = typeRaw
   }
 
