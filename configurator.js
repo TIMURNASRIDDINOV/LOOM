@@ -742,12 +742,14 @@ function initThreeJS() {
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
-  // ACES, not Linear. Linear clips: the old rig had to be held at exposure 0.5
-  // to stop a white chest blowing out, and everything else went grey with it.
-  // ACES rolls the highlights off instead, so the garment can be lit properly
-  // and still keep detail in the brightest folds.
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = STUDIO_EXPOSURE;
+  // Neutral, not Linear or ACES. Linear clips a white chest; ACES rolls the
+  // highlights off but caps #FFFFFF at a grey ~225 (LOOM-225). Neutral leaves
+  // everything below the highlights as authored and only compresses the top,
+  // so white cloth reads white and a hex reads as itself. ACES (at its old
+  // exposure) stays as the fallback if the three build lacks the stub.
+  const neutral = useNeutralToneMapping();
+  renderer.toneMapping = neutral ? THREE.CustomToneMapping : THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = neutral ? STUDIO_EXPOSURE : 0.95;
   // Soft shadows. The single thing that stops a garment reading as a flat
   // cut-out is the sleeve dropping a shadow onto the body.
   renderer.shadowMap.enabled = true;
@@ -799,7 +801,35 @@ function initThreeJS() {
 // key stays front-left of *the viewer* no matter how far the shirt is orbited.
 // A fixed rig lights the front beautifully and the back not at all, and the
 // back is half of what a customer came to look at.
-const STUDIO_EXPOSURE = 0.95;
+const STUDIO_EXPOSURE = 1.2;
+
+// Khronos PBR Neutral tone mapping (three r162+ ships it as NeutralToneMapping;
+// the vendored r128 does not), written into r128's empty CustomToneMapping stub.
+const TONE_STUB = "vec3 CustomToneMapping( vec3 color ) { return color; }";
+const NEUTRAL_TONE_MAPPING = `vec3 CustomToneMapping( vec3 color ) {
+	const float StartCompression = 0.8 - 0.04;
+	const float Desaturation = 0.15;
+	color *= toneMappingExposure;
+	float x = min( color.r, min( color.g, color.b ) );
+	float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+	color -= offset;
+	float peak = max( color.r, max( color.g, color.b ) );
+	if ( peak < StartCompression ) return color;
+	float d = 1. - StartCompression;
+	float newPeak = 1. - d * d / ( peak + d - StartCompression );
+	color *= newPeak / peak;
+	float g = 1. - 1. / ( Desaturation * ( peak - newPeak ) + 1. );
+	return mix( color, vec3( newPeak ), g );
+}`;
+
+/** Patch the stub before any material compiles. False: no stub, use ACES. */
+function useNeutralToneMapping() {
+  const chunk = THREE.ShaderChunk.tonemapping_pars_fragment || "";
+  if (chunk.includes(NEUTRAL_TONE_MAPPING)) return true;
+  if (!chunk.includes(TONE_STUB)) return false;
+  THREE.ShaderChunk.tonemapping_pars_fragment = chunk.replace(TONE_STUB, NEUTRAL_TONE_MAPPING);
+  return true;
+}
 
 let studioRig = null;
 let keyLight = null;
@@ -850,7 +880,8 @@ function setupLighting() {
   // shadow off pure black and nothing more: every unit of light that arrives
   // from everywhere is a unit that flattens the shape the key just carved.
   scene.add(new THREE.AmbientLight(0xffffff, 0.05));
-  const hemi = new THREE.HemisphereLight(0xf7f3ea, 0x33302b, 0.14);
+  // Neutral sky: under Neutral tone mapping a warm one tints white cloth cream.
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x33302b, 0.14);
   hemi.position.set(0, 1, 0);
   scene.add(hemi);
 
@@ -865,7 +896,7 @@ function setupLighting() {
   // that falloff IS the modelling. Measured: with the directional key 67% of
   // garment pixels sat in the top 16 levels; with this one, 86% spread across
   // the three bands below it and nothing clips.
-  keyLight = new THREE.SpotLight(0xfff4e8, 3.0, 1, 0.75, 1.0, 2.0);
+  keyLight = new THREE.SpotLight(0xffffff, 3.0, 1, 0.75, 1.0, 2.0); // white, not warm: no cream cast
   keyLight.position.set(-0.62, 0.72, 0.66);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
@@ -1033,7 +1064,7 @@ const FABRIC_ENV_INTENSITY = 0.28; // the studio environment was washing white c
 const FABRIC_PRESETS = {
   jersey: { tiles: 12, normalScale: 0.9, sheen: 0.32, sheenRough: 0.75, rough: 1.0 },
   heavy:  { tiles: 9,  normalScale: 1.15, sheen: 0.26, sheenRough: 0.85, rough: 1.05 },
-  fleece: { tiles: 7,  normalScale: 1.5, sheen: 0.5, sheenRough: 0.95, rough: 1.1 },
+  fleece: { tiles: 12, normalScale: 0.6, sheen: 0.5, sheenRough: 0.95, rough: 1.1 }, // smooth face, no waffle grid
   pique:  { tiles: 14, normalScale: 1.05, sheen: 0.22, sheenRough: 0.6, rough: 0.95 },
   twill:  { tiles: 16, normalScale: 0.75, sheen: 0.14, sheenRough: 0.5, rough: 0.9 },
 };
