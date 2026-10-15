@@ -38,18 +38,19 @@ const REF_RECT = { w: LEGACY_PRINT_AREA.w, h: LEGACY_PRINT_AREA.h };
 
 // Resolved per view once the model's mesh is available (see resolvePrintRects).
 //
-// Seeded with the values resolvePrintRects() measures off the bundled garment,
-// rather than with LEGACY_PRINT_AREA. The 3D model is no longer loaded on page
-// load, so the measurement now happens only when the user opens the preview —
-// but the FLAT editor derives its print-band aspect from these (renderFlatEditor:
-// `rect.h = rect.w / (pr.w / pr.h)`), and it is on screen from the first frame.
-// Seeding with LEGACY's 0.8286 would show a 10.5% too-tall band until the
-// preview was opened. These numbers are what the mesh resolves to, so the flat
-// editor is correct immediately and re-resolving later is a no-op.
+// Seeded with the values resolvePrintRects() measures off the bundled garment
+// (DEFAULT_MODEL_URL), rather than with LEGACY_PRINT_AREA. The 3D model is only
+// loaded when the user opens the preview, but the FLAT editor derives its
+// print-band aspect from these (_flatPrintRectIn: `rect.h = rect.w / (pr.w / pr.h)`),
+// and it is on screen from the first frame. Seeding with LEGACY's 0.8286 would
+// show a 10.5% too-tall band until the preview was opened.
 //
-// Every product except hoodie-regular renders on this mesh. Re-measure with
-// `JSON.stringify(PRINT_RECTS)` in the console after the model loads if the
-// bundled garment is ever replaced.
+// Every product now brings its own model, so these are only the seed:
+// applyPrintArea sets the product's platen on them, and the product's own mesh
+// re-measures them when the preview opens. The bundled garment is the fallback
+// when a product has no model or the catalogue call fails. Re-measure with
+// `JSON.stringify(PRINT_RECTS)` in the console after the bundled garment loads
+// if it is ever replaced.
 const DEFAULT_PRINT_RECTS = {
   front: { x: 621.4077537536621, y: 449.80019195556645, w: 769.0009597778321, h: 1025.3346130371094 },
   back:  { x: 669.6164901733398, y: 322.6587879943848,  w: 768.8689483642579, h: 1025.1585978190105 },
@@ -1890,10 +1891,13 @@ function _applyProductConfig(cfg) {
   paintShirtColor(designState.shirtColor); // redraws both faces on the new rect
 }
 
-// DEFAULT_PRINT_RECTS and FLAT_ART's print boxes were measured at these.
+// DEFAULT_PRINT_RECTS was measured at these.
 const SEED_W_FRAC = 0.55, SEED_TOP_FRAC = 0.20;
 
-/** The product's platen on the seeded rects: same neckline and centre, its own width, drop and aspect. */
+/**
+ * The product's platen on the seeded rects: same neckline and centre, its own width, drop and aspect.
+ * 3D texture rects only: the 2D box is the flat art's own (applyFlatArt), so width_frac never moves it.
+ */
 function applyPrintArea(pa) {
   const pc = pa && pa.platen_cm;
   const wf = Number(pa && pa.width_frac), tf = Number(pa && pa.top_frac);
@@ -1906,21 +1910,20 @@ function applyPrintArea(pa) {
   ["front", "back"].forEach((v) => {
     const d = DEFAULT_PRINT_RECTS[v], w = d.w * k;
     PRINT_RECTS[v] = { x: d.x + (d.w - w) / 2, y: d.y + tf * w - SEED_TOP_FRAC * d.w, w, h: w * PLATEN_CM.h / PLATEN_CM.w };
-    const art = FLAT_ART[v];
-    if (!art.seedPrint) art.seedPrint = { ...art.print };
-    const f = art.seedPrint, fw = f.w * k;
-    art.print = { x: f.x + (f.w - fw) / 2, y: f.y + (tf * fw - SEED_TOP_FRAC * f.w) * art.aspect, w: fw, h: f.h * k };
   });
 }
 
 /**
  * The product's flat-editor art (config.flat_art). The built-in T-shirt art is
- * the fallback. Product art keeps FLAT_ART's framing: a square image with the
- * print box at FLAT_ART[face].print, so print coordinates never depend on it.
+ * the fallback. Product art keeps FLAT_ART's framing (a square image), and its
+ * optional print {x, y, w} places the print box on it as fractions of the image;
+ * without one the face keeps the T-shirt's box. The height follows the print
+ * rect's aspect, as _flatPrintRectIn draws it. Runs after applyPrintArea.
  */
 function applyFlatArt(fa) {
   ["front", "back"].forEach((v) => {
-    const f = fa && fa[v], art = FLAT_ART[v];
+    const f = fa && fa[v], art = FLAT_ART[v], p = f && f.print, pr = PRINT_RECTS[v];
+    if (p) art.print = { x: p.x, y: p.y, w: p.w, h: p.w * art.aspect * pr.h / pr.w };
     if (!f || !f.src || f.src === art.src) return;
     art.src = f.src;
     art.srcSmall = f.src_small || f.src;
@@ -3874,7 +3877,7 @@ const EDIT_ON_3D = false;
 // face falls back to the schematic outline below. Drop a back PNG in here and
 // it starts using it; nothing else needs to change.
 // This is the T-shirt art; a product's config.flat_art replaces src and
-// srcSmall per face (applyFlatArt).
+// srcSmall per face, and print when it carries one (applyFlatArt).
 const FLAT_ART = {
   front: {
     src: "configuratorprodutcs/tshirt_flat_white_1200.png",

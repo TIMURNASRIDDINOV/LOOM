@@ -22,7 +22,7 @@ function buildFileUrl(requestUrl: string, key: string): string {
  *   { sizes: string[],
  *     colors: {hex, name_uz, name_ru, name_en, available}[],
  *     print_area: {platen_cm: {w, h}, width_frac, top_frac},
- *     flat_art: {front: {src, src_small}, back: {src, src_small}} }
+ *     flat_art: {front: {src, src_small, print?: {x, y, w}}, back: {same}} }
  * null when the row has no config (DB before 0022) or a column is not valid
  * JSON; clients then keep their built-in defaults.
  */
