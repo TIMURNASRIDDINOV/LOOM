@@ -4216,9 +4216,11 @@ function renderFlatEditor() {
   const cm = active && _flatBoxes[active] ? _flatCmText(_flatBoxes[active], rect) : "";
   const cmOut = document.getElementById("dock-sel-cm");
   if (cmOut) cmOut.textContent = cm;
-  if (cm) {
+  // Step 3 copies this canvas when the 3D preview has not been opened. Keep
+  // the selection in state, but leave its editing chrome out of that picture.
+  if (cm && currentStep !== "order") {
     _flatDrawChrome(ctx, _flatBoxes[active]);
-    // Step 1 only: step 3 snapshots this canvas for the order summary.
+    // The size badge belongs to the editing step only.
     if (currentStep === "design") _flatDrawCm(ctx, _flatBoxes[active], cm, W, H);
   }
   if (_flatGesture && (_flatGesture.snapX || _flatGesture.snapY)) _flatDrawSnap(ctx, rect);
