@@ -1467,6 +1467,101 @@ function updateLiningColor() {
 }
 
 /**
+ * FrontSide + the lining assume every piece of the model faces outwards. A
+ * piece modelled inside out shows its lining instead: the polo's collar came
+ * out as dark interior (grey on white, a grey sheen on black), and so did the
+ * whole of the cap and the sweatpants. So look at the garment from all round
+ * once, before the lining is added, and turn over each connected piece that
+ * is seen more from behind than in front. 8 id renders at 256², once per
+ * model (20-40 ms on a laptop).
+ */
+function orientGarmentParts(root) {
+  const VIEWS = 8, RES = 256;
+  const parts = []; // per mesh: [mesh, partId per vertex]
+  let count = 1;    // 0 is the background
+  root.traverse((m) => {
+    if (!m.isMesh || !m.geometry.index) return;
+    const idx = m.geometry.index.array;
+    const up = new Int32Array(m.geometry.attributes.position.count).map((_, i) => i);
+    const find = (i) => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
+    for (let t = 0; t < idx.length; t += 3) {
+      up[find(idx[t + 1])] = find(idx[t]);
+      up[find(idx[t + 2])] = find(idx[t]);
+    }
+    const ids = new Map();
+    const partId = new Float32Array(up.length).map((_, i) => {
+      const r = find(i);
+      if (!ids.has(r)) ids.set(r, count++);
+      return ids.get(r);
+    });
+    parts.push([m, partId]);
+  });
+  if (!parts.length || count > 65535) return;
+
+  // Id pass: part id in red/green, facing in blue.
+  const idMat = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    vertexShader: "attribute float partId; varying float vId;" +
+      "void main() { vId = partId; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: "varying float vId; void main() { float id = floor(vId + 0.5);" +
+      "gl_FragColor = vec4(mod(id, 256.0) / 255.0, floor(id / 256.0) / 255.0, gl_FrontFacing ? 1.0 : 0.0, 1.0); }",
+  });
+  const saved = parts.map(([m, partId]) => {
+    m.geometry.setAttribute("partId", new THREE.BufferAttribute(partId, 1));
+    const mat = m.material;
+    m.material = idMat;
+    return mat;
+  });
+  const stage = new THREE.Scene();
+  stage.background = new THREE.Color(0);
+  stage.add(root);
+  stage.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const center = box.getCenter(new THREE.Vector3());
+  const r = box.getSize(new THREE.Vector3()).length() / 2;
+  const cam = new THREE.PerspectiveCamera(45, 1, r * 0.5, r * 6);
+  const rt = new THREE.WebGLRenderTarget(RES, RES);
+  const px = new Uint8Array(RES * RES * 4);
+  const front = new Uint32Array(count), back = new Uint32Array(count);
+  for (let v = 0; v < VIEWS; v++) {
+    const a = (v / VIEWS) * Math.PI * 2;
+    cam.position.set(Math.sin(a), 0.35, Math.cos(a)).normalize().multiplyScalar(r * 2.8).add(center);
+    cam.lookAt(center);
+    renderer.setRenderTarget(rt);
+    renderer.render(stage, cam);
+    renderer.readRenderTargetPixels(rt, 0, 0, RES, RES, px);
+    for (let i = 0; i < px.length; i += 4) {
+      const id = px[i] + px[i + 1] * 256;
+      if (id) (px[i + 2] ? front : back)[id]++;
+    }
+  }
+  renderer.setRenderTarget(null);
+  rt.dispose();
+  idMat.dispose();
+  stage.remove(root);
+
+  parts.forEach(([m, partId], k) => {
+    const geo = m.geometry, idx = geo.index.array, nrm = geo.attributes.normal;
+    geo.deleteAttribute("partId");
+    m.material = saved[k];
+    const flip = (i) => back[partId[i]] > front[partId[i]];
+    let flipped = false;
+    for (let t = 0; t < idx.length; t += 3) {
+      if (!flip(idx[t])) continue;
+      const b = idx[t + 1]; idx[t + 1] = idx[t + 2]; idx[t + 2] = b;
+      flipped = true;
+    }
+    if (!flipped) return;
+    geo.index.needsUpdate = true;
+    if (!nrm) return;
+    for (let i = 0; i < nrm.count; i++) {
+      if (flip(i)) nrm.setXYZ(i, -nrm.getX(i), -nrm.getY(i), -nrm.getZ(i));
+    }
+    nrm.needsUpdate = true;
+  });
+}
+
+/**
  * Apply the front or back texture to all shirt mesh materials.
  * Called every time the active view switches.
  */
@@ -1971,6 +2066,7 @@ function loadShirtModel(glbUrl) {
           ", back: " + backPrintMaterials.length + "); designs on that side cannot be shown in 3D:", glbUrl);
       }
 
+      orientGarmentParts(object); // before addLining(), and while not yet in the scene
       scene.add(object);
       shirtObject = object;
       addLining(object);
