@@ -268,10 +268,11 @@ npm run set-webhook                 # register the Telegram webhook
 **Backend → Cloudflare Workers**
 1. Create D1, R2, and KV resources (dashboard or Wrangler) and set their IDs in `wrangler.toml`.
 2. Set all secrets with `wrangler secret put`.
-3. Record the current Worker version (`npx wrangler deployments list`) — you need it to roll back.
-4. `npm run deploy` — runs `npm run typecheck` (`tsc --noEmit`) first and stops on a type error.
-5. `node scripts/health-check.mjs https://api.loomdesign.uz` — anonymous smoke check.
-6. `npm run set-webhook` to register the Telegram webhook.
+3. Record the current Worker version (`npx wrangler deployments list` — it prints oldest first, so the version in service is the **last** row) — you need it to roll back.
+4. `npm run migrate:prod` — apply pending D1 migrations **before** the Worker deploy. Migrations are additive, so the old Worker keeps working against the new schema; a deploy that skips them can fail on a missing table or column.
+5. `npm run deploy` — runs `npm run typecheck` (`tsc --noEmit`) first and stops on a type error. Never use a bare `npx wrangler deploy`: the `predeploy` gate lives on the npm script.
+6. `node scripts/health-check.mjs https://api.loomdesign.uz` — anonymous smoke check. Behind an egress proxy, prefix it with `NODE_USE_ENV_PROXY=1`.
+7. `npm run set-webhook` to register the Telegram webhook.
 
 Rollback (bad deploy, failed health check): see [scripts/rollback.md](backend/scripts/rollback.md).
 
