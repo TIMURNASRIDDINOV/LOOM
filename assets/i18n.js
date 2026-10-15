@@ -244,6 +244,8 @@
     'cfg.productUnavailable': { uz: 'Bu mahsulot hozir mavjud emas', ru: 'Этот товар сейчас недоступен', en: 'This product is unavailable' },
     'cfg.sizeUnavailable':    { uz: 'Bu o‘lcham mavjud emas — boshqasini tanlang', ru: 'Этот размер недоступен — выберите другой', en: 'This size is unavailable — choose another' },
     'cfg.colorUnavailable':   { uz: 'Bu rang mavjud emas — boshqasini tanlang', ru: 'Этот цвет недоступен — выберите другой', en: 'This colour is unavailable — choose another' },
+    // LOOM-226: a garment sold with colour and size only (also the server's print_unavailable)
+    'cfg.blankNote':          { uz: 'Bu mahsulot bosmasiz sotiladi', ru: 'Этот товар продаётся без принта', en: 'This item is sold without a print' },
     'cfg.toastAddedCart':  { uz: 'Savatga qo‘shildi', ru: 'Добавлено в корзину', en: 'Added to cart' },
     'cfg.preparing':       { uz: 'Maketlar tayyorlanmoqda…', ru: 'Готовим макеты…', en: 'Preparing proofs…' },
     'cfg.toastLoginCart':  { uz: 'Savatga qo‘shish uchun tizimga kiring', ru: 'Войдите, чтобы добавить в корзину', en: 'Sign in to add to cart' },

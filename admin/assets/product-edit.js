@@ -235,7 +235,7 @@ async function loadProduct(id) {
   fillConfig(p)
   document.getElementById('f-order').value = p.display_order ?? 0
   document.getElementById('f-active').checked = !!p.active
-  document.getElementById('f-type').value = p.product_type === 'ready' ? 'ready' : 'custom'
+  document.getElementById('f-type').value = ['ready', 'blank'].includes(p.product_type) ? p.product_type : 'custom'
   syncGlbNote()
 
   if (p.base_colors) {

@@ -30,6 +30,7 @@
     product_unavailable: ['cfg.productUnavailable', 'Этот товар сейчас недоступен'],
     size_unavailable: ['cfg.sizeUnavailable', 'Этот размер недоступен — выберите другой'],
     color_unavailable: ['cfg.colorUnavailable', 'Этот цвет недоступен — выберите другой'],
+    print_unavailable: ['cfg.blankNote', 'Этот товар продаётся без принта'],
   };
 
   function t(key, fallback) {
