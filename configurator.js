@@ -2178,7 +2178,9 @@ function fitCameraToObject(object) {
 
   camera.position.set(CAM_VIEWS.front.x, CAM_VIEWS.front.y, CAM_VIEWS.front.z);
   controls.target.copy(chestTarget);
-  controls.minDistance = distance * 0.7;
+  // Close enough for the print rect to be as wide as in the zoomed 2D view
+  // (~2.8x the framing at 1280x860; 0.7 stopped at 1.43x).
+  controls.minDistance = distance * 0.3;
   controls.maxDistance = distance * 1.8;
   controls.update();
 
@@ -2387,8 +2389,9 @@ function _stepTurn(now) {
   if (T.zoom) {
     const f = p % 1;
     if (f > 0.3 && f < 0.7) {
-      // 0.1% above the limit, so float error never puts it under the limit
-      const near = Math.min(T.r0, controls.minDistance * 1.001);
+      // The turntable keeps its old dolly depth (0.7 of the framing distance);
+      // only the customer's own dolly goes closer.
+      const near = Math.min(T.r0, INITIAL_VIEW.position.distanceTo(INITIAL_VIEW.target) * 0.7);
       T.s.radius = T.r0 + (near - T.r0) * (1 - Math.cos(2 * Math.PI * (f - 0.3) / 0.4)) / 2;
     }
   }
@@ -3787,12 +3790,12 @@ let _flatBoxes = {};    // element id → drawn box, this face, this render
 let _flatGesture = null;
 let _flatPinch = null;
 const _flatPointers = new Map();
-// Fitting the whole garment leaves the print rect ~46 px wide on a phone: text
-// is unreadable and the handles overlap. While a layer is selected in step 1
-// the garment is scaled up around the rect instead (_flatZoomBox).
-const FLAT_ZOOM_MIN_W = 240; // CSS px
-let _flatZoomId = null;      // element the zoomed view last centred on; null = not zoomed
-let _flatZoomV = 0.5;        // rect y (0 top … 1 bottom) at the canvas's vertical centre
+// The default view is the whole garment, so the 2D shows the design at the
+// size the 3D does. The zoom button (#btn-flat-zoom, step 1 only) scales the
+// garment up around the print rect instead (_flatZoomBox). Selecting a layer
+// never changes the view: an auto-zoom made every design look ~2.8x bigger in
+// 2D than on the 3D garment, and jumped under the finger mid-drag.
+let _flatZoomOn = false;
 // Keyed by SRC, not by face: front and back share one file (the back is derived
 // from it), so this keeps it to a single fetch and a single decode.
 const _flatImgCache = {};
@@ -3831,6 +3834,13 @@ function _flatGarmentBox(face, W, H) {
   const pending = _flatArtHold || !!(img && !img.complete);
   const usingArt = pending || !!(img && img.naturalWidth);
   const aspect = usingArt ? FLAT_ART[face].aspect : FLAT_OUTLINE.aspect;
+  // Phones: the art's transparent margin left the print rect ~62 px wide, so
+  // the garment's own outline (the art's alpha bbox) fills the canvas instead.
+  const bb = usingArt && !pending && _isSheetLayout() ? _flatArtBBox(img) : null;
+  if (bb) {
+    const w = Math.min(W / bb.w, (H * aspect) / bb.h), h = w / aspect;
+    return { x: W / 2 - (bb.x + bb.w / 2) * w, y: H / 2 - (bb.y + bb.h / 2) * h, w, h, usingArt, pending };
+  }
   let w = W, h = W / aspect;
   if (h > H) { h = H; w = H * aspect; }
   if (!usingArt) {
@@ -3842,35 +3852,42 @@ function _flatGarmentBox(face, W, H) {
   return { x: (W - w) / 2, y: (H - h) / 2, w, h, usingArt, pending };
 }
 
+/** The art's opaque area as fractions of the image, or null (not loaded, or unreadable). */
+function _flatArtBBox(img) {
+  if (!img || !img.naturalWidth) return null;
+  if ("_bb" in img) return img._bb;
+  img._bb = null;
+  try {
+    const n = 128, cv = document.createElement("canvas");
+    cv.width = cv.height = n;
+    const c = cv.getContext("2d");
+    c.drawImage(img, 0, 0, n, n);
+    const a = c.getImageData(0, 0, n, n).data;
+    let x0 = n, y0 = n, x1 = -1, y1 = -1;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      if (a[(y * n + x) * 4 + 3] > 8) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    }
+    if (x1 >= x0) img._bb = { x: x0 / n, y: y0 / n, w: (x1 + 1 - x0) / n, h: (y1 + 1 - y0) / n };
+  } catch (_) { /* cross-origin art without CORS: keep the plain fit */ }
+  return img._bb;
+}
+
 /**
- * Scale and shift the garment box so the print rect is big enough to edit:
- * as large as fits with room for the label and handles, and at least
- * FLAT_ZOOM_MIN_W wide where the canvas allows. On a phone that rect is taller
- * than the canvas, so the view shows the band around the selected element.
+ * Scale and shift the garment box so the whole print rect fills the canvas,
+ * with room for the label and the handles around it.
  */
-function _flatZoomBox(face, box, el, W, H) {
+function _flatZoomBox(face, box, W, H) {
   const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
   const pr = printRect(face);
   // Same aspect renderFlatEditor forces on the rect.
   const aspect = pr && pr.w && pr.h ? pr.w / pr.h : (pf.w * box.w) / (pf.h * box.h);
-  // Corner handles at the sides; the label and the rotate handle above.
-  const mx = 24, mTop = FLAT_ROTATE_OFFSET + 14, mBot = 24;
-  const rw = Math.min(W - 2 * mx, Math.max(FLAT_ZOOM_MIN_W, (H - mTop - mBot) * aspect));
-  const rh = rw / aspect;
-  let ry;
-  if (rh + mTop + mBot <= H) {
-    ry = (H - rh + mTop - mBot) / 2;
-  } else {
-    // Centre on a newly selected element; afterwards follow it only once its
-    // centre has left the view. Never mid-gesture: move deltas are measured
-    // against the rect, so shifting it would make the element run away.
-    if (el.id !== _flatZoomId) _flatZoomV = el.ny;
-    else if (!_flatGesture && !_flatPinch && Math.abs(el.ny - _flatZoomV) * rh > H / 2) _flatZoomV = el.ny;
-    // Never past the rect's top (label, rotate handle) or bottom edge.
-    ry = Math.min(mTop, Math.max(H - mBot - rh, H / 2 - _flatZoomV * rh));
-  }
-  _flatZoomV = (H / 2 - ry) / rh;
-  _flatZoomId = el.id;
+  // Corner handles at the sides; the label and the rotate handle above, clear
+  // of the 2D/3D pill, which floats over the canvas top on phones.
+  const pill = document.querySelector(".surface-toggle");
+  const over = pill && _flatCv ? Math.max(0, pill.getBoundingClientRect().bottom - _flatCv.getBoundingClientRect().top) : 0;
+  const mx = 24, mTop = over + FLAT_ROTATE_OFFSET + 14, mBot = 24;
+  const rw = Math.min(W - 2 * mx, (H - mTop - mBot) * aspect);
+  const ry = (H - rw / aspect + mTop - mBot) / 2;
   const s = rw / (pf.w * box.w);
   box.w *= s; box.h *= s;
   box.x = (W - rw) / 2 - pf.x * box.w;
@@ -3988,11 +4005,11 @@ function renderFlatEditor() {
   _flatArtImg(face); // kicks off the load on first use; repaints on arrival
 
   const box = _flatGarmentBox(face, W, H);
-  // Zoom only while a layer is being edited: steps 2 and 3 show the whole
-  // shirt, because picking a colour needs it.
-  const zoomEl = currentStep === "design" ? selectedElement(face) : null;
-  if (zoomEl) _flatZoomBox(face, box, zoomEl, W, H);
-  else _flatZoomId = null;
+  // Only the zoom button zooms, and only in step 1: steps 2 and 3 show the
+  // whole shirt, because picking a colour needs it.
+  const zoomed = _flatZoomOn && currentStep === "design";
+  if (zoomed) _flatZoomBox(face, box, W, H);
+  _flatSyncZoomBtn();
   _flatBox = box;
 
   // Ground the garment the same way the 3D does. Without a shadow a white
@@ -4002,7 +4019,7 @@ function renderFlatEditor() {
   // mid-range phone.
   if (!box.pending) {
     ctx.save();
-    if (!zoomEl) {
+    if (!zoomed) {
       ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
       ctx.shadowBlur = Math.max(18, box.w * 0.09);
       ctx.shadowOffsetX = Math.max(6, box.w * 0.022);
@@ -4024,18 +4041,30 @@ function renderFlatEditor() {
   ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
   ctx.restore();
 
-  // Elements, bottom-of-list first — same call the garment bake uses.
+  // Elements, bottom-of-list first — same call the garment bake uses. Clipped
+  // to the print rect, as the print file is: what is outside is not printed.
   _flatBoxes = {};
-  const sel = designState[face].selId;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
+  ctx.clip();
   elementsOf(face).forEach((el) => {
     const b = drawElementIn(ctx, el, rect, false);
     if (b) _flatBoxes[el.id] = b;
   });
+  ctx.restore();
 
   _flatDrawLabel(ctx, rect);
   _flatUI = null;
   const active = _flatActiveId();
-  if (active && _flatBoxes[active]) _flatDrawChrome(ctx, _flatBoxes[active]);
+  const cm = active && _flatBoxes[active] ? _flatCmText(_flatBoxes[active], rect) : "";
+  const cmOut = document.getElementById("dock-sel-cm");
+  if (cmOut) cmOut.textContent = cm;
+  if (cm) {
+    _flatDrawChrome(ctx, _flatBoxes[active]);
+    // Step 1 only: step 3 snapshots this canvas for the order summary.
+    if (currentStep === "design") _flatDrawCm(ctx, _flatBoxes[active], cm, W, H);
+  }
   if (_flatGesture && (_flatGesture.snapX || _flatGesture.snapY)) _flatDrawSnap(ctx, rect);
 
   _flatSyncEmptyState();
@@ -4107,8 +4136,51 @@ function _flatDrawLabel(ctx, rect) {
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
   ctx.fillStyle = _flatDarkGarment() ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.38)";
-  ctx.fillText(CT("cfg.printArea", "область печати"), rect.x + rect.w / 2, rect.y - 5);
+  const size = `${PLATEN_CM.w} × ${PLATEN_CM.h} ${CT("cfg.cm", "см")}`;
+  ctx.fillText(CT("cfg.printArea", "область печати") + " · " + size, rect.x + rect.w / 2, rect.y - 5);
   ctx.restore();
+}
+
+/**
+ * The printed size of a drawn element, "W × H cm": its share of the rect times
+ * the platen. The part outside the rect is not printed, so it is cut off.
+ * ponytail: clips the unrotated box only; a rotated element shows its full size.
+ */
+function _flatCmText(b, rect) {
+  let w = b.w, h = b.h;
+  if (!b.rot) {
+    w = Math.min(b.cx + b.w / 2, rect.x + rect.w) - Math.max(b.cx - b.w / 2, rect.x);
+    h = Math.min(b.cy + b.h / 2, rect.y + rect.h) - Math.max(b.cy - b.h / 2, rect.y);
+  }
+  const cm = (v, px, platen) => Math.max(0, Math.round((v / px) * platen));
+  return `${cm(w, rect.w, PLATEN_CM.w)} × ${cm(h, rect.h, PLATEN_CM.h)} ${CT("cfg.cm", "см")}`;
+}
+
+/** The size tag under the selection box, kept inside the canvas. */
+function _flatDrawCm(ctx, b, text, W, H) {
+  const c = _flatCorners(b);
+  const y = Math.max(...c.map((p) => p.y)) + FLAT_HANDLE_R + 6;
+  ctx.save();
+  ctx.font = '600 11px system-ui, -apple-system, sans-serif';
+  const tw = ctx.measureText(text).width + 12, th = 18;
+  const x = Math.min(W - tw - 2, Math.max(2, b.cx - tw / 2));
+  const ty = Math.min(H - th - 2, y);
+  ctx.fillStyle = _flatSelect;
+  ctx.fillRect(x, ty, tw, th);
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x + tw / 2, ty + th / 2 + 0.5);
+  ctx.restore();
+}
+
+/** The zoom button: step 1 of the 2D only; pressed while zoomed. */
+function _flatSyncZoomBtn() {
+  const b = document.getElementById("btn-flat-zoom");
+  if (!b) return;
+  b.hidden = !flatMode || currentStep !== "design";
+  b.classList.toggle("active", _flatZoomOn);
+  b.setAttribute("aria-pressed", String(_flatZoomOn));
 }
 
 /** The element the handles belong to, or null. */
@@ -4246,7 +4318,7 @@ function _flatOnPointerDown(e) {
   }
   if (!hit && !_flatActiveId()) {
     // Empty garment → drop the selection, the way every canvas editor does.
-    // Any selection, drawn or not: an emptied text layer still holds the zoom.
+    // Any selection, drawn or not: an emptied text layer is still selected.
     if (selectedElement()) { selectElement(null); renderFlatEditor(); }
     return;
   }
@@ -4388,9 +4460,10 @@ function _flatUpdatePinch() {
 function _flatSyncEmptyState() {
   const btn = document.getElementById("flat-empty");
   if (!btn || !_flatRect) return;
-  // Not while zoomed: a layer (an emptied text) is being edited, and the
-  // prompt would cover the whole view.
-  const empty = !_flatZoomId && !_viewHasContent(designState.activeView);
+  // Not while a layer (an emptied text) is selected in step 1: it is being
+  // edited, and the prompt would cover it.
+  const editing = currentStep === "design" && !!selectedElement(designState.activeView);
+  const empty = !editing && !_viewHasContent(designState.activeView);
   btn.style.display = empty ? "flex" : "none";
   if (!empty) return;
   // This is the beginner's first action, so it has to be readable ON the
@@ -4438,6 +4511,8 @@ function bindFlatEditor() {
   _flatCtx = cv.getContext("2d");
 
   cv.addEventListener("pointerdown", _flatOnPointerDown);
+  const zb = document.getElementById("btn-flat-zoom");
+  if (zb) zb.addEventListener("click", () => { _flatZoomOn = !_flatZoomOn; renderFlatEditor(); });
   window.addEventListener("pointermove", _flatOnPointerMove);
   window.addEventListener("pointerup", _flatOnPointerUp);
   window.addEventListener("pointercancel", _flatOnPointerUp);
@@ -4833,6 +4908,7 @@ function setFlatMode(on) {
   if (flat) flat.style.display = flatMode ? "block" : "none";
   if (three) three.style.display = flatMode ? "none" : "block";
   syncModelCredit();
+  _flatSyncZoomBtn();
 
   document.querySelectorAll(".surface-btn").forEach((b) => {
     const on2 = (b.dataset.surface === "flat") === flatMode;

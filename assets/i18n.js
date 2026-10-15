@@ -141,6 +141,8 @@
     /* Flat face editor (the primary editing surface) */
     'cfg.flatHint':     { uz: 'Dizaynni suring — ko‘chirish · burchaklar — o‘lcham · doira — burish', ru: 'Тяните дизайн — двигать · углы — размер · кружок — поворот', en: 'Drag the design to move · corners resize · circle rotates' },
     'cfg.printArea':    { uz: 'chop etish maydoni', ru: 'область печати', en: 'print area' },
+    'cfg.cm':           { uz: 'sm', ru: 'см', en: 'cm' },
+    'cfg.zoomPrint':    { uz: 'Chop etish maydonini yaqinlashtirish', ru: 'Приблизить область печати', en: 'Zoom to the print area' },
     'cfg.emptyAdd':     { uz: 'Dizayn qo‘shish', ru: 'Добавить дизайн', en: 'Add a design' },
     'cfg.addWhat':      { uz: 'Nima qo‘shamiz?', ru: 'Что добавим?', en: 'What shall we add?' },
     'cfg.addImage':     { uz: 'Rasm yuklash', ru: 'Загрузить картинку', en: 'Upload an image' },
