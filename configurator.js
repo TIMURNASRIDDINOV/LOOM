@@ -6233,6 +6233,8 @@ function _withStillCamera(view, read) {
   const prevHandles = _showHandles;
   const pos = camera.position.clone();
   const quat = camera.quaternion.clone();
+  const aspect = camera.aspect;
+  const viewOffset = camera.view && camera.view.enabled ? { ...camera.view } : null;
   // Stills keep the desktop ratio: the 1.5 touch cap is for interactive
   // frames, not the cart mockups and PNG an order ships with.
   const liveRatio = renderer.getPixelRatio();
@@ -6240,6 +6242,9 @@ function _withStillCamera(view, read) {
   _showHandles = false;
   try {
     if (stillRatio !== liveRatio) renderer.setPixelRatio(stillRatio);
+    // The phone stage uses a lens shift to fit between its controls. Saved
+    // images use the centred projection, then the live offset is restored.
+    camera.clearViewOffset();
     drawTexture("front");
     drawTexture("back");
     camera.position.set(pose.x, pose.y, pose.z);
@@ -6252,6 +6257,15 @@ function _withStillCamera(view, read) {
     _showHandles = prevHandles;
     camera.position.copy(pos);
     camera.quaternion.copy(quat);
+    if (viewOffset) {
+      camera.setViewOffset(
+        viewOffset.fullWidth, viewOffset.fullHeight,
+        viewOffset.offsetX, viewOffset.offsetY,
+        viewOffset.width, viewOffset.height,
+      );
+    }
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
     redrawActive();
     updateStudioRig();
     renderer.render(scene, camera);
