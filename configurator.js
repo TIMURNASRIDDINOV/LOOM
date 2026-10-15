@@ -3826,8 +3826,11 @@ function _flatArtImg(face) {
   return _flatImgCache[src];
 }
 
-/** The garment's drawn box: aspect-correct, centred, contained in the canvas. */
-function _flatGarmentBox(face, W, H) {
+/**
+ * The garment's drawn box: aspect-correct, centred, contained in the canvas.
+ * tight: the phone editor's art-outline fit; the order mockup keeps the plain fit.
+ */
+function _flatGarmentBox(face, W, H, tight) {
   const img = _flatArtImg(face);
   // Art still coming: lay out for the art but draw no garment, rather than the
   // T-shirt outline, which is only for art that failed.
@@ -3835,11 +3838,13 @@ function _flatGarmentBox(face, W, H) {
   const usingArt = pending || !!(img && img.naturalWidth);
   const aspect = usingArt ? FLAT_ART[face].aspect : FLAT_OUTLINE.aspect;
   // Phones: the art's transparent margin left the print rect ~62 px wide, so
-  // the garment's own outline (the art's alpha bbox) fills the canvas instead.
-  const bb = usingArt && !pending && _isSheetLayout() ? _flatArtBBox(img) : null;
+  // the garment's own outline (the art's alpha bbox) fills the canvas instead,
+  // below the 2D/3D pill so the pill never covers the collar.
+  const bb = tight && usingArt && !pending && _isSheetLayout() ? _flatArtBBox(img) : null;
   if (bb) {
-    const w = Math.min(W / bb.w, (H * aspect) / bb.h), h = w / aspect;
-    return { x: W / 2 - (bb.x + bb.w / 2) * w, y: H / 2 - (bb.y + bb.h / 2) * h, w, h, usingArt, pending };
+    const top = _flatPillOver() + 6, Hf = H - top;
+    const w = Math.min(W / bb.w, (Hf * aspect) / bb.h), h = w / aspect;
+    return { x: W / 2 - (bb.x + bb.w / 2) * w, y: top + Hf / 2 - (bb.y + bb.h / 2) * h, w, h, usingArt, pending };
   }
   let w = W, h = W / aspect;
   if (h > H) { h = H; w = H * aspect; }
@@ -3850,6 +3855,12 @@ function _flatGarmentBox(face, W, H) {
     w *= 0.74; h *= 0.74;
   }
   return { x: (W - w) / 2, y: (H - h) / 2, w, h, usingArt, pending };
+}
+
+/** How far the 2D/3D pill, floating over the canvas top on phones, reaches into the canvas (CSS px). */
+function _flatPillOver() {
+  const pill = document.querySelector(".surface-toggle");
+  return pill && _flatCv ? Math.max(0, pill.getBoundingClientRect().bottom - _flatCv.getBoundingClientRect().top) : 0;
 }
 
 /** The art's opaque area as fractions of the image, or null (not loaded, or unreadable). */
@@ -3883,9 +3894,7 @@ function _flatZoomBox(face, box, W, H) {
   const aspect = pr && pr.w && pr.h ? pr.w / pr.h : (pf.w * box.w) / (pf.h * box.h);
   // Corner handles at the sides; the label and the rotate handle above, clear
   // of the 2D/3D pill, which floats over the canvas top on phones.
-  const pill = document.querySelector(".surface-toggle");
-  const over = pill && _flatCv ? Math.max(0, pill.getBoundingClientRect().bottom - _flatCv.getBoundingClientRect().top) : 0;
-  const mx = 24, mTop = over + FLAT_ROTATE_OFFSET + 14, mBot = 24;
+  const mx = 24, mTop = _flatPillOver() + FLAT_ROTATE_OFFSET + 14, mBot = 24;
   const rw = Math.min(W - 2 * mx, (H - mTop - mBot) * aspect);
   const ry = (H - rw / aspect + mTop - mBot) / 2;
   const s = rw / (pf.w * box.w);
@@ -4004,7 +4013,7 @@ function renderFlatEditor() {
   const face = designState.activeView;
   _flatArtImg(face); // kicks off the load on first use; repaints on arrival
 
-  const box = _flatGarmentBox(face, W, H);
+  const box = _flatGarmentBox(face, W, H, true);
   // Only the zoom button zooms, and only in step 1: steps 2 and 3 show the
   // whole shirt, because picking a colour needs it.
   const zoomed = _flatZoomOn && currentStep === "design";
