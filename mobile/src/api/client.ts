@@ -96,6 +96,7 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
     // other route uses `{ error: string }`. Handle both shapes.
     const err = d?.error
     const message =
+      d?.code === 'print_unavailable' ? tStatic('st.blankNote') :
       typeof err === 'string'
         ? err
         : typeof (err as { message?: string })?.message === 'string'

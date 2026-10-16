@@ -27,7 +27,8 @@ export default function Catalog() {
   const { data, loading, error, reload } = useAsync(fetchProducts, [])
 
   const products = data ?? []
-  const custom = products.filter((p) => p.product_type !== 'ready')
+  const custom = products.filter((p) => (p.product_type ?? 'custom') === 'custom')
+  const blank = products.filter((p) => p.product_type === 'blank')
   const ready = products.filter((p) => p.product_type === 'ready')
 
   return (
@@ -65,6 +66,7 @@ export default function Catalog() {
             {tab !== 'ready' ? (
               <Section title={t('catalog.customSection')} note={t('catalog.customNote')} items={custom} />
             ) : null}
+            {tab === 'all' && blank.length > 0 ? <Section title={t('common.noPrint')} note={t('st.blankNote')} items={blank} /> : null}
             {tab !== 'custom' ? (
               <View style={{ marginTop: tab === 'all' ? 26 : 0 }}>
                 <Section title={t('catalog.readySection')} note={t('catalog.readyNote')} items={ready} />
@@ -190,7 +192,7 @@ function ProductCard({ product: p }: { product: Product }) {
             style={styles.customBtn}
             onPress={() => router.push(`/studio?productId=${p.id}`)}
           >
-            <T style={monoSemi(9, 1, { ls: 0.1, upper: true, color: C.paper })}>{t('catalog.customize')}</T>
+            <T style={monoSemi(9, 1, { ls: 0.1, upper: true, color: C.paper })}>{t(p.product_type === 'blank' ? 'st.colorSize' : 'catalog.customize')}</T>
           </Tap>
         ) : null}
 

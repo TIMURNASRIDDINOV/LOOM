@@ -51,7 +51,7 @@ export function useStudioProduct() {
     ? undefined
     : s.productId != null
       ? products.find((p) => p.id === s.productId)
-      : products.find((p) => (p.product_type ?? 'custom') !== 'ready')
+      : products.find((p) => (p.product_type ?? 'custom') === 'custom')
   return {
     product,
     unavailable: !!products && s.productId != null && !product,

@@ -47,6 +47,7 @@ const UNSOLD: Record<string, StringKey> = {
   product_unavailable: 'st.productUnavailable',
   size_unavailable: 'st.sizeUnavailable',
   color_unavailable: 'st.colorUnavailable',
+  print_unavailable: 'st.blankNote',
 }
 
 export default function Checkout() {
