@@ -100,3 +100,6 @@ app.onError((err, c) => {
 })
 
 export default app
+
+// CI self-test on a throwaway branch: the typecheck gate must turn this PR red.
+export const __ciRedProbe: number = "not a number"
