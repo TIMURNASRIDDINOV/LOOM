@@ -3085,11 +3085,12 @@ function texToWorldMesh(view, tx, ty) {
   return null;
 }
 
-const _projV = (typeof THREE !== "undefined") ? new THREE.Vector3() : null;
+let _projV = null; // three.js is loaded only when the preview opens
 // texture px → screen (page) px, exact via the active face's mesh triangles.
 function texToScreenMesh(tx, ty) {
   const m = _meshTris[designState.activeView];
-  if (!m || !m.all.length || !camera || !renderer) return null;
+  if (!m || !m.all.length || !camera || !renderer || typeof THREE === "undefined") return null;
+  if (!_projV) _projV = new THREE.Vector3();
   const u = tx / TEX_SIZE, v = ty / TEX_SIZE; // textures use flipY=false → v = ty/TEX
   const BN = m.bn;
   const bi = Math.max(0, Math.min(BN - 1, (u * BN) | 0));
