@@ -121,7 +121,8 @@ export default function Checkout() {
     setBusy(true)
     try {
       // The server cart is what checkout reads, so push the local one first.
-      await cart.sync()
+      const quote = await cart.sync()
+      if (quote.priceChanged) { flash(t('co.priceChanged')); return }
       const res = await api<{ id: number; paymentUrl: string | null; paymentMethod: PayMethod }>('/api/cart/checkout', {
         method: 'POST',
         auth: true,
@@ -154,7 +155,10 @@ export default function Checkout() {
       if (res.paymentUrl) WebBrowser.openBrowserAsync(res.paymentUrl).catch(() => {})
     } catch (e) {
       const err = e as ApiError
-      if (err.code === 'phone_not_verified' || err.status === 403) {
+      if (err.code === 'price_changed') {
+        await cart.sync().catch(() => {})
+        flash(t('co.priceChanged'))
+      } else if (err.code === 'phone_not_verified' || err.status === 403) {
         flash(t('co.errVerify'))
         router.push('/login')
       } else if (err.code && err.code in UNSOLD) {

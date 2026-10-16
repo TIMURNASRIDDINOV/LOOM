@@ -17,6 +17,7 @@ import {
 } from '../db/queries'
 import { serveObject } from '../lib/r2'
 import { checkVariant } from '../lib/variant'
+import { artworkIdsIn, cartSnapshot, priceDesign } from '../lib/pricing'
 import { isRateLimited, TOO_MANY } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
@@ -27,33 +28,9 @@ import type { UserEnv } from '../types'
 const router = new Hono<UserEnv>()
 router.use('*', requireAuth)
 
-function cartTotal(items: { unit_price: number; quantity: number }[]): number {
-  return items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
-}
-
-/** Distinct marketplace artwork ids referenced by a design_json v2 document. */
-function artworkIdsIn(designJson: string): number[] {
-  let d: Record<string, unknown>
-  try {
-    d = JSON.parse(designJson) as Record<string, unknown>
-  } catch {
-    return []
-  }
-  const ids = new Set<number>()
-  for (const view of ['front', 'back']) {
-    const v = d[view] as { elements?: { artworkId?: unknown }[] } | undefined
-    for (const el of v?.elements ?? []) {
-      const id = typeof el.artworkId === 'number' ? el.artworkId : parseInt(String(el.artworkId ?? ''), 10)
-      if (Number.isInteger(id) && id > 0) ids.add(id)
-    }
-  }
-  return [...ids]
-}
-
 // GET /api/cart — current user's cart
 router.get('/', async (c) => {
-  const items = await getCartItems(c.env.DB, c.get('userId'))
-  return c.json({ items, total: cartTotal(items) })
+  return c.json(await cartSnapshot(c.env.DB, c.get('userId')))
 })
 
 // POST /api/cart — add a design to the cart
@@ -63,9 +40,6 @@ router.post('/', async (c) => {
 
   if (typeof b.designJson !== 'string' || !b.designJson.trim()) {
     return c.json({ error: 'designJson is required' }, 400)
-  }
-  if (typeof b.unitPrice !== 'number' || b.unitPrice < 0) {
-    return c.json({ error: 'unitPrice must be a non-negative number' }, 400)
   }
 
   const productId = typeof b.productId === 'number' ? b.productId : null
@@ -83,6 +57,8 @@ router.post('/', async (c) => {
   }
   const variant = await checkVariant(c.env.DB, productId, b.designJson, keys)
   if ('code' in variant) return c.json(variant, 409)
+  const price = await priceDesign(c.env.DB, productId, variant.designJson)
+  if (!price?.available) return c.json({ error: 'This product is unavailable', code: 'product_unavailable' }, 409)
   const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
 
   // Only files this user uploaded, or approved marketplace artwork.
@@ -90,17 +66,16 @@ router.post('/', async (c) => {
     return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
   }
 
-  await addCartItem(c.env.DB, {
+  const addedItemId = await addCartItem(c.env.DB, {
     user_id: c.get('userId'),
-    product_id: productId,
+    product_id: price.productId,
     design_json: variant.designJson,
-    unit_price: b.unitPrice,
+    unit_price: price.unitPrice,
     quantity,
     ...keys,
   })
 
-  const items = await getCartItems(c.env.DB, c.get('userId'))
-  return c.json({ items, total: cartTotal(items) }, 201)
+  return c.json({ ...await cartSnapshot(c.env.DB, c.get('userId')), addedItemId }, 201)
 })
 
 // GET /api/cart/:id — one item (edit-from-cart rehydration)
@@ -110,7 +85,8 @@ router.get('/:id{[0-9]+}', async (c) => {
   if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
   // The slug lets edit-from-cart reopen the same product, even a disabled one.
   const p = item.product_id ? await getProductById(c.env.DB, item.product_id) : null
-  return c.json({ ...item, product_slug: p?.slug ?? null })
+  const price = await priceDesign(c.env.DB, item.product_id, item.design_json)
+  return c.json({ ...item, unit_price: price?.unitPrice ?? 0, unavailable: !price?.available, product_slug: p?.slug ?? null })
 })
 
 // GET /api/cart/:id/file/:field — stream the caller's OWN cart-item asset
@@ -147,8 +123,7 @@ router.patch('/:id', async (c) => {
   const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
   await updateCartItemQty(c.env.DB, id, quantity)
 
-  const items = await getCartItems(c.env.DB, c.get('userId'))
-  return c.json({ items, total: cartTotal(items) })
+  return c.json(await cartSnapshot(c.env.DB, c.get('userId')))
 })
 
 // DELETE /api/cart/:id — remove one item
@@ -158,8 +133,7 @@ router.delete('/:id', async (c) => {
   const item = await getCartItemById(c.env.DB, id)
   if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
   await deleteCartItem(c.env.DB, id)
-  const items = await getCartItems(c.env.DB, c.get('userId'))
-  return c.json({ items, total: cartTotal(items) })
+  return c.json(await cartSnapshot(c.env.DB, c.get('userId')))
 })
 
 // DELETE /api/cart — clear the whole cart
@@ -199,7 +173,10 @@ router.post('/checkout', async (c) => {
     it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)
   }
 
-  const total = cartTotal(items)
+  const snapshot = await cartSnapshot(c.env.DB, userId)
+  if (snapshot.priceChanged) return c.json({ ...snapshot, code: 'price_changed', error: 'Prices updated. Review the new total before ordering.' }, 409)
+  items.splice(0, items.length, ...snapshot.items)
+  const total = snapshot.total
   const customerName = (b.customerName as string).trim()
   const customerPhone = (b.customerPhone as string).trim()
   const address = typeof b.address === 'string' ? b.address.trim() : null
@@ -309,7 +286,7 @@ router.post('/checkout', async (c) => {
   const paymentUrl = createPaymentUrl(paymentMethod, { id: orderId, totalPrice: total }, payEnv)
 
   return c.json(
-    { id: orderId, status: 'new', itemCount: items.length, paymentMethod, paymentUrl },
+    { id: orderId, status: 'new', itemCount: items.length, paymentMethod, paymentUrl, totalPrice: total, items },
     201,
   )
 })
