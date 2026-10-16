@@ -371,10 +371,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     setFlatMode(false);
   }
 
-  if (editItem) applyCartEditDesign(editItem);
+  if (editItem) await applyCartEditDesign(editItem);
+  await restoreDraft();
+  _draftReady = true;
   // A design chosen in the marketplace lands last, so it sits on top of a
   // restored cart design rather than being overwritten by it.
-  else applyPendingArtwork();
+  if (!editItem) applyPendingArtwork();
 });
 
 // ── Edit-from-cart (configurator.html?item=ID) ──────────────────
@@ -1391,6 +1393,7 @@ function drawTexture(view) {
 
 /** Redraw whichever view is currently active. */
 function redrawActive() {
+  scheduleDraftSave();
   clearTimeout(_bakeTimer); // this IS the bake a pending scheduleRedraw() owed
   _bakeTimer = 0;
   drawTexture(designState.activeView);
@@ -1409,6 +1412,7 @@ function redrawActive() {
 let _redrawQueued = false;
 let _bakeTimer = 0;
 function scheduleRedraw() {
+  scheduleDraftSave();
   if (_redrawQueued) return;
   _redrawQueued = true;
   requestAnimationFrame(() => {
@@ -3717,6 +3721,73 @@ function bindLayerControls() {
   on("btn-reset-design", "click", resetDesign);
 }
 
+// Autosave uses IndexedDB so image drafts are not capped by localStorage's quota.
+let _draftReady = false, _draftTimer = 0, _draftDb = null, _draftConnection = null, _draftWarned = false;
+function draftKey() {
+  return `${currentProduct?.id ?? new URLSearchParams(location.search).get("slug") ?? "default"}:${new URLSearchParams(location.search).get("item") || "new"}`;
+}
+function draftDb() {
+  if (!_draftDb) _draftDb = new Promise((resolve, reject) => {
+    const request = indexedDB.open("loom.configurator.drafts", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("drafts");
+    request.onsuccess = () => { _draftConnection = request.result; resolve(request.result); };
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error("Draft storage blocked"));
+  });
+  return _draftDb;
+}
+function draftPayload() {
+  const design = JSON.parse(_buildDesignJson()), files = {};
+  for (const view of ["front", "back"]) {
+    design[view].elements = elementsOf(view).map((el) => ({ ..._serializeElement(el), placeholder: !!el.placeholder }));
+    for (const el of elementsOf(view)) if (uploadedFileData[el.id]) files[el.id] = uploadedFileData[el.id];
+  }
+  return { design, files, savedAt: new Date().toISOString() };
+}
+async function saveDraft() {
+  if (!_draftReady) return;
+  clearTimeout(_draftTimer);
+  const payload = draftPayload(), key = draftKey();
+  try {
+    const db = _draftConnection || await draftDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("drafts", "readwrite");
+      tx.objectStore("drafts").put(payload, key);
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+    });
+  } catch (_) {
+    if (!_draftWarned) { _draftWarned = true; showToast(CT("cfg.layoutSaveError", "Не удалось сохранить макет"), "error"); }
+  }
+}
+function scheduleDraftSave() {
+  if (!_draftReady) return;
+  // A tiny synchronous journal preserves the last colour/size/position even if
+  // the tab is killed before an IndexedDB transaction can finish.
+  try {
+    localStorage.setItem("loom.draft.journal:" + draftKey(), JSON.stringify({ design: JSON.parse(_buildDesignJson()), savedAt: new Date().toISOString() }));
+  } catch (_) { /* IndexedDB still holds the full draft. */ }
+  clearTimeout(_draftTimer); _draftTimer = setTimeout(saveDraft, 250);
+}
+async function restoreDraft() {
+  try {
+    const db = await draftDb();
+    let payload = await new Promise((resolve, reject) => {
+      const r = db.transaction("drafts").objectStore("drafts").get(draftKey());
+      r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+    });
+    try {
+      const journal = JSON.parse(localStorage.getItem("loom.draft.journal:" + draftKey()) || "null");
+      if (journal?.design && (!payload || journal.savedAt >= payload.savedAt)) payload = { ...payload, ...journal, files: payload?.files || {} };
+    } catch (_) { /* Ignore a corrupt journal. */ }
+    // A customer can begin typing while the catalogue request is in flight.
+    // Keep those new edits instead of replacing them with yesterday's draft.
+    const edited = !window.__loomEditingCartItem && (["front", "back"].some((v) => elementsOf(v).length) || selectedSize);
+    if (payload?.design && !edited) await restoreLayoutPayload(payload);
+  } catch (_) { /* First visit or unavailable storage: editing remains usable. */ }
+}
+window.addEventListener("pagehide", () => { void saveDraft(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") void saveDraft(); });
+
 // ── Layout save / load (this browser only) ──────────────────────
 // Stores the design — including logo pixels — under one localStorage key. Logos
 // are data URLs, so a big upload can blow the ~5MB quota; that's caught and
@@ -3754,6 +3825,11 @@ async function loadLayout() {
     return;
   }
 
+  await restoreLayoutPayload(payload);
+  showToast(CT("cfg.layoutLoaded", "Макет загружен"));
+}
+
+async function restoreLayoutPayload(payload) {
   const d = payload.design;
   if (d.shirtColor) selectShirtColor(d.shirtColor, null);
   if (d.size) {
@@ -3765,6 +3841,7 @@ async function loadLayout() {
     const st = designState[view];
     st.elements = [];
     st.selId = null;
+    if (_blankOnly) continue;
     const src = (d.v >= 2 && Array.isArray(d[view]?.elements))
       ? d[view].elements
       : _legacyViewToElements(d[view] || {});
@@ -3792,7 +3869,6 @@ async function loadLayout() {
   drawTexture("back");
   applyActiveTexture();
   redrawActive();
-  showToast(CT("cfg.layoutLoaded", "Макет загружен"));
 }
 
 /**
@@ -4250,7 +4326,7 @@ function _flatPrintRectIn(face, box) {
  * minus the print boundary and selection chrome. Returns a JPEG data URL.
  */
 const FLAT_MOCKUP_PX = 900;
-async function _renderFlatMockup(face) {
+async function _renderFlatMockup(face, size = FLAT_MOCKUP_PX) {
   const img = _flatArtImg(face);
   if (img && !img.complete) {
     await new Promise((resolve) => {
@@ -4259,7 +4335,7 @@ async function _renderFlatMockup(face) {
       setTimeout(resolve, 4000); // no art in time: the design alone, as in the editor
     });
   }
-  const S = FLAT_MOCKUP_PX;
+  const S = size;
   const c = document.createElement("canvas");
   c.width = c.height = S;
   const ctx = c.getContext("2d");
@@ -4736,6 +4812,7 @@ function setStep(step) {
   if (step === "order" && !sizeChosen()) return;
   if (step !== currentStep) setCamAccOpen(false); // collapsed on step entry
   currentStep = step;
+  document.body.dataset.cfgStep = step;
   // The 2D zoom belongs to step 1. Repaint now, before the order summary
   // snapshots the flat canvas.
   renderFlatEditor();
@@ -5721,6 +5798,7 @@ function buildColorSwatches() {
  * undo, Reset, saved layouts and cart edits all go through here.
  */
 function syncPickers() {
+  scheduleDraftSave();
   const hex = String(designState.shirtColor || "").toUpperCase();
   _syncRadios("color-swatches", ".swatch-btn", "selected", (b) => String(b.dataset.hex).toUpperCase() === hex);
   _syncRadios("size-selector", ".size-btn", "active", (b) => b.dataset.size === selectedSize);
@@ -6264,31 +6342,16 @@ function _snapshotURL(type, quality, view) {
   return _withStillCamera(view || designState.activeView, (c) => c.toDataURL(type, quality));
 }
 
+let _summaryGeneration = 0;
 function updateSummaryTab() {
-  // A picture of what they are about to buy. The 3D is the better likeness,
-  // but it only exists once the preview has been opened — and most people
-  // reach step 3 without ever opening it, which left a black square sitting
-  // where the product should be. The flat editor is always drawn, so it is
-  // the fallback.
-  const snap = document.getElementById("summary-snapshot");
-  const drawSnap = (src) => {
-    if (!snap || !src || !src.width || !src.height) return;
-    const ctx = snap.getContext("2d");
-    ctx.clearRect(0, 0, snap.width, snap.height);
-    const side = Math.min(src.width, src.height);
-    ctx.drawImage(
-      src,
-      (src.width - side) / 2, (src.height - side) / 2, side, side,
-      0, 0, snap.width, snap.height,
-    );
-  };
-  // A fresh still frame, not the 3D canvas as last drawn: with the 2D editor
-  // up the render loop is idle, so that canvas predates the latest edits.
-  if (snap && renderer && camera && controls && scene && shirtObject) {
-    _withStillCamera(designState.activeView, drawSnap);
-  } else {
-    drawSnap(document.getElementById("flat-canvas"));
-  }
+  const generation = ++_summaryGeneration;
+  Promise.all(["front", "back"].map((face) => _renderFlatMockup(face, 320))).then((urls) => {
+    if (generation !== _summaryGeneration) return;
+    ["front", "back"].forEach((face, i) => {
+      const image = document.getElementById(`summary-${face}`);
+      if (image) image.src = urls[i];
+    });
+  }).catch(() => showToast(CT("cfg.layoutSaveError", "Не удалось сохранить макет"), "error"));
 
   // Update text summary
   const setEl = (id, txt) => {

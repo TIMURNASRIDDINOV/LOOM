@@ -52,7 +52,7 @@
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=5"></script>
-    <script defer src="configurator.js?v=87"></script>
+    <script defer src="configurator.js?v=88"></script>
 
     <style>
       /* ============================================================
@@ -2083,6 +2083,16 @@
         }
         .kb-open .model-credit { display: none; }
       }
+      .summary-sides { display:grid; grid-template-columns:repeat(2,minmax(140px,1fr)); gap:8px; width:100%; }
+      .summary-sides figure { margin:0; min-width:140px; }
+      .summary-sides img { display:block; width:100%; height:auto; background:var(--media-bg); }
+      .summary-sides figcaption { text-align:center; font-size:0.85rem; margin-top:4px; }
+      @media (max-width:900px) {
+        body[data-cfg-step="order"] .surface-toggle,
+        body[data-cfg-step="order"] .view-toggle,
+        body[data-cfg-step="order"] .stage-chip,
+        body[data-cfg-step="order"] #flat-empty { visibility:hidden; pointer-events:none; }
+      }
     </style>
   </head>
 
@@ -2467,9 +2477,9 @@
               <h2 class="step-title" data-i18n="cfg.step3Title">Проверьте и закажите</h2>
               <p class="step-lead" data-i18n="cfg.step3Lead">Всё верно? Нажмите большую кнопку внизу — мы сошьём и привезём.</p>
             </header>
-            <div class="summary-snapshot-wrap">
-              <canvas id="summary-snapshot" width="200" height="200"></canvas>
-              <p class="hint-text" data-i18n="cfg.snapshot">Снимок текущего вида</p>
+            <div class="summary-sides">
+              <figure><img id="summary-front" width="320" height="320" alt="Перед" data-i18n-attr="alt:cfg.viewFront" /><figcaption data-i18n="cfg.viewFront">Перед</figcaption></figure>
+              <figure><img id="summary-back" width="320" height="320" alt="Зад" data-i18n-attr="alt:cfg.viewBack" /><figcaption data-i18n="cfg.viewBack">Зад</figcaption></figure>
             </div>
             <div class="summary-info">
               <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumColor">Цвет</span><span class="summary-val" id="sum-color">Белый</span></div>
