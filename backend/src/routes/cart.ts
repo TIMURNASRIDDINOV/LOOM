@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { requireAuth } from '../middleware/requireAuth'
 import {
   getCartItems,
@@ -9,24 +9,29 @@ import {
   clearCart,
   getProductById,
   getUserById,
-  createOrder,
-  createOrderItem,
-  getArtworkById,
-  recordArtworkSale,
   firstForeignKey,
 } from '../db/queries'
 import { serveObject } from '../lib/r2'
 import { checkVariant } from '../lib/variant'
-import { artworkIdsIn, cartSnapshot, priceDesign } from '../lib/pricing'
+import { cartSnapshot, priceDesign } from '../lib/pricing'
 import { isRateLimited, TOO_MANY } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
 import { DESIGNER_COMMISSION_PCT } from './designers'
 import type { UserEnv } from '../types'
+import { findCheckout, checkoutItems, writeCheckout, type CheckoutOrder } from '../lib/order-writer'
 
 // Account-bound cart + multi-item checkout. All routes require a logged-in user.
 const router = new Hono<UserEnv>()
 router.use('*', requireAuth)
+
+async function checkoutResponse(c: Context<UserEnv>, order: CheckoutOrder, status: 200 | 201) {
+  const paymentMethod = isValidMethod(order.payment_method) ? order.payment_method : 'cod'
+  const items = await checkoutItems(c.env.DB, order.id)
+  const paymentUrl = createPaymentUrl(paymentMethod, { id: order.id, totalPrice: order.total_price }, c.env as unknown as PaymentEnvVars)
+  return c.json({ id: order.id, status: order.status, itemCount: items.length, paymentMethod,
+    paymentUrl, totalPrice: order.total_price, items }, status)
+}
 
 // GET /api/cart — current user's cart
 router.get('/', async (c) => {
@@ -144,6 +149,13 @@ router.delete('/', async (c) => {
 
 // POST /api/cart/checkout — turn the cart into ONE multi-item order
 router.post('/checkout', async (c) => {
+  const key = c.req.header('Idempotency-Key') || ''
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(key)) {
+    return c.json({ error: 'A valid Idempotency-Key is required', code: 'idempotency_key_required' }, 400)
+  }
+  const previous = await findCheckout(c.env.DB, c.get('userId'), key)
+  if (previous) return checkoutResponse(c, previous, 200)
+
   if (await isRateLimited(c.env.RATE_LIMIT, `checkout:user:${c.get('userId')}`, 10, 10 * 60)) {
     return c.json(TOO_MANY, 429)
   }
@@ -157,6 +169,7 @@ router.post('/checkout', async (c) => {
     return c.json({ error: 'customerPhone is required' }, 400)
   }
 
+  const sessionId = typeof b.sessionId === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(b.sessionId) ? b.sessionId : null
   const userId = c.get('userId')
   const user = await getUserById(c.env.DB, userId)
   if (user?.status === 'banned') return c.json({ error: 'Your account has been blocked' }, 403)
@@ -166,9 +179,18 @@ router.post('/checkout', async (c) => {
   }
 
   const items = await getCartItems(c.env.DB, userId)
-  if (!items.length) return c.json({ error: 'Cart is empty' }, 400)
+  if (!items.length) {
+    const existing = await findCheckout(c.env.DB, userId, key)
+    if (existing) return checkoutResponse(c, existing, 200)
+    return c.json({ error: 'Cart is empty', code: 'cart_empty' }, 400)
+  }
 
   const snapshot = await cartSnapshot(c.env.DB, userId)
+  if (!snapshot.items.length) {
+    const existing = await findCheckout(c.env.DB, userId, key)
+    if (existing) return checkoutResponse(c, existing, 200)
+    return c.json({ error: 'The cart changed. Review it and try again.', code: 'cart_changed' }, 409)
+  }
   items.splice(0, items.length, ...snapshot.items)
   for (const it of items) {
     const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json, it)
@@ -207,65 +229,16 @@ router.post('/checkout', async (c) => {
     )
   }
 
-  // Order header — design_json carries a multi-item summary (NOT NULL column).
-  const orderId = await createOrder(c.env.DB, {
-    user_id: userId,
-    product_id: items[0].product_id ?? null,
-    customer_name: customerName,
-    customer_phone: customerPhone,
-    address,
-    coordinates,
-    comment,
-    design_json: JSON.stringify({ multi: true, itemCount: items.length }),
-    logo_key: items[0].logo_key ?? null,
-    total_price: total,
-    payment_method: paymentMethod,
-    address_lat: lat,
-    address_lng: lng,
-    address_details: addressDetails,
-  })
-
-  // Line items
-  for (const it of items) {
-    const p = it.product_id ? await getProductById(c.env.DB, it.product_id) : null
-    const itemId = await createOrderItem(c.env.DB, {
-      order_id: orderId,
-      product_id: it.product_id,
-      product_name: p?.name_ru ?? null,
-      design_json: it.design_json,
-      logo_key: it.logo_key,
-      unit_price: it.unit_price,
-      quantity: it.quantity,
-      front_print_key: it.front_print_key,
-      back_print_key: it.back_print_key,
-      front_mockup_key: it.front_mockup_key,
-      back_mockup_key: it.back_mockup_key,
-      back_logo_key: it.back_logo_key,
-      model_key: it.model_key,
-    })
-
-    // Designer attribution (migration 0018): every marketplace artwork on this
-    // item earns its designer a share. The markup is re-read from the artwork
-    // row rather than trusted from the client.
-    for (const artworkId of artworkIdsIn(it.design_json)) {
-      const art = await getArtworkById(c.env.DB, artworkId)
-      if (!art || art.status !== 'approved') continue
-      await recordArtworkSale(c.env.DB, {
-        order_id: orderId,
-        order_item_id: itemId,
-        artwork_id: art.id,
-        designer_user_id: art.user_id,
-        quantity: it.quantity,
-        markup: art.markup,
-        commission_pct: DESIGNER_COMMISSION_PCT,
-      })
-    }
+  const written = await writeCheckout(c.env.DB, { userId, key, sessionId, items, total,
+    customerName, customerPhone, address, coordinates, comment, paymentMethod,
+    lat, lng, addressDetails, commission: DESIGNER_COMMISSION_PCT })
+  if (!written.order) {
+    return c.json({ ...await cartSnapshot(c.env.DB, userId), code: 'cart_changed', error: 'The cart changed. Review it and try again.' }, 409)
   }
-
-  await clearCart(c.env.DB, userId)
+  const orderId = written.order.id
 
   // Telegram notification (non-blocking)
-  if (c.env.TELEGRAM_BOT_TOKEN && c.env.TELEGRAM_CHAT_ID) {
+  if (written.created && c.env.TELEGRAM_BOT_TOKEN && c.env.TELEGRAM_CHAT_ID) {
     const totalQty = items.reduce((s, i) => s + i.quantity, 0)
     c.executionCtx.waitUntil(
       sendOrderNotification(c.env.TELEGRAM_BOT_TOKEN, c.env.TELEGRAM_CHAT_ID, {
@@ -282,13 +255,7 @@ router.post('/checkout', async (c) => {
     )
   }
 
-  // Online methods: hand back the provider redirect; COD ships with none.
-  const paymentUrl = createPaymentUrl(paymentMethod, { id: orderId, totalPrice: total }, payEnv)
-
-  return c.json(
-    { id: orderId, status: 'new', itemCount: items.length, paymentMethod, paymentUrl, totalPrice: total, items },
-    201,
-  )
+  return checkoutResponse(c, written.order, written.created ? 201 : 200)
 })
 
 export default router

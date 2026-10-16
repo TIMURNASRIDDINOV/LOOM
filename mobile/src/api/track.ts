@@ -34,6 +34,9 @@ async function session(): Promise<string> {
   return sessionId
 }
 
+/** The checkout stores the same session as its funnel events. */
+export async function checkoutSessionId(): Promise<string> { return session() }
+
 /** Record a funnel event once per app session. */
 export function track(event: FunnelEvent, page = '/studio'): void {
   if (seen.has(event)) return
