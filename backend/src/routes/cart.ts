@@ -167,15 +167,15 @@ router.post('/checkout', async (c) => {
 
   const items = await getCartItems(c.env.DB, userId)
   if (!items.length) return c.json({ error: 'Cart is empty' }, 400)
+
+  const snapshot = await cartSnapshot(c.env.DB, userId)
+  items.splice(0, items.length, ...snapshot.items)
   for (const it of items) {
     const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json, it)
     if ('code' in variant) return c.json({ ...variant, itemId: it.id }, 409)
     it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)
   }
-
-  const snapshot = await cartSnapshot(c.env.DB, userId)
   if (snapshot.priceChanged) return c.json({ ...snapshot, code: 'price_changed', error: 'Prices updated. Review the new total before ordering.' }, 409)
-  items.splice(0, items.length, ...snapshot.items)
   const total = snapshot.total
   const customerName = (b.customerName as string).trim()
   const customerPhone = (b.customerPhone as string).trim()
