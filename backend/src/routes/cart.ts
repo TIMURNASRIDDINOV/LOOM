@@ -41,10 +41,10 @@ router.get('/', async (c) => {
 // POST /api/cart — add a design to the cart
 router.post('/', async (c) => {
   let b: Record<string, unknown>
-  try { b = (await c.req.json()) as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  try { const raw = await c.req.json(); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(); b = raw as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON', code: 'invalid_json' }, 400) }
 
   if (typeof b.designJson !== 'string' || !b.designJson.trim()) {
-    return c.json({ error: 'designJson is required' }, 400)
+    return c.json({ error: 'designJson is required', code: 'design_required' }, 400)
   }
 
   const productId = typeof b.productId === 'number' ? b.productId : null
@@ -87,7 +87,7 @@ router.post('/', async (c) => {
 router.get('/:id{[0-9]+}', async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   const item = await getCartItemById(c.env.DB, id)
-  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
+  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found', code: 'not_found' }, 404)
   // The slug lets edit-from-cart reopen the same product, even a disabled one.
   const p = item.product_id ? await getProductById(c.env.DB, item.product_id) : null
   const price = await priceDesign(c.env.DB, item.product_id, item.design_json)
@@ -106,25 +106,25 @@ const CART_FILE_FIELDS: Record<string, 'front_mockup_key' | 'back_mockup_key' | 
 router.get('/:id{[0-9]+}/file/:field', async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   const field = CART_FILE_FIELDS[c.req.param('field')]
-  if (!field) return c.json({ error: 'Unknown field' }, 400)
+  if (!field) return c.json({ error: 'Unknown field', code: 'invalid_request' }, 400)
   const item = await getCartItemById(c.env.DB, id)
-  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
+  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found', code: 'not_found' }, 404)
   const key = item[field]
-  if (!key) return c.json({ error: 'No file' }, 404)
+  if (!key) return c.json({ error: 'No file', code: 'not_found' }, 404)
   const object = await c.env.LOOM_UPLOADS.get(key)
-  if (!object) return c.json({ error: 'Not found' }, 404)
+  if (!object) return c.json({ error: 'Not found', code: 'not_found' }, 404)
   return serveObject(object, key, 'private, max-age=3600')
 })
 
 // PATCH /api/cart/:id — change quantity
 router.patch('/:id', async (c) => {
   const id = parseInt(c.req.param('id'), 10)
-  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id', code: 'invalid_request' }, 400)
   const item = await getCartItemById(c.env.DB, id)
-  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
+  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found', code: 'not_found' }, 404)
 
   let b: Record<string, unknown>
-  try { b = (await c.req.json()) as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  try { const raw = await c.req.json(); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(); b = raw as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON', code: 'invalid_json' }, 400) }
   const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
   await updateCartItemQty(c.env.DB, id, quantity)
 
@@ -134,9 +134,9 @@ router.patch('/:id', async (c) => {
 // DELETE /api/cart/:id — remove one item
 router.delete('/:id', async (c) => {
   const id = parseInt(c.req.param('id'), 10)
-  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id', code: 'invalid_request' }, 400)
   const item = await getCartItemById(c.env.DB, id)
-  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
+  if (!item || item.user_id !== c.get('userId')) return c.json({ error: 'Not found', code: 'not_found' }, 404)
   await deleteCartItem(c.env.DB, id)
   return c.json(await cartSnapshot(c.env.DB, c.get('userId')))
 })
@@ -160,23 +160,23 @@ router.post('/checkout', async (c) => {
     return c.json(TOO_MANY, 429)
   }
   let b: Record<string, unknown>
-  try { b = (await c.req.json()) as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  try { const raw = await c.req.json(); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(); b = raw as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON', code: 'invalid_json' }, 400) }
 
   if (typeof b.customerName !== 'string' || !b.customerName.trim()) {
-    return c.json({ error: 'customerName is required' }, 400)
+    return c.json({ error: 'customerName is required', code: 'customer_name_required' }, 400)
   }
   if (typeof b.customerPhone !== 'string' || !b.customerPhone.trim()) {
-    return c.json({ error: 'customerPhone is required' }, 400)
+    return c.json({ error: 'customerPhone is required', code: 'customer_phone_required' }, 400)
   }
 
   const sessionId = typeof b.sessionId === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(b.sessionId) ? b.sessionId : null
   if (!sessionId) return c.json({ error: 'A valid sessionId is required', code: 'session_id_required' }, 400)
   const userId = c.get('userId')
   const user = await getUserById(c.env.DB, userId)
-  if (user?.status === 'banned') return c.json({ error: 'Your account has been blocked' }, 403)
+  if (user?.status === 'banned') return c.json({ error: 'Your account has been blocked', code: 'account_banned' }, 403)
   // Require a Telegram-verified phone number before an order can be placed.
   if (!user?.telegram_user_id) {
-    return c.json({ error: 'Подтвердите номер телефона через Telegram, чтобы оформить заказ.', code: 'phone_not_verified' }, 403)
+    return c.json({ error: 'Verify your phone through Telegram before ordering.', code: 'phone_not_verified' }, 403)
   }
 
   const items = await getCartItems(c.env.DB, userId)
@@ -225,7 +225,7 @@ router.post('/checkout', async (c) => {
   const payEnv = c.env as unknown as PaymentEnvVars
   if (paymentMethod !== 'cod' && !providerConfigured(paymentMethod, payEnv)) {
     return c.json(
-      { error: 'Этот способ оплаты пока недоступен. Выберите оплату при получении.', code: 'payment_method_unavailable' },
+      { error: 'Payment method unavailable. Choose cash on delivery.', code: 'payment_method_unavailable' },
       400,
     )
   }

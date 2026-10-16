@@ -6,6 +6,11 @@
 // Interpolation: `{name}` placeholders, filled by `t(key, { name })`.
 
 export const ru = {
+  'st.blankNote': "Этот товар продаётся без принта",
+  'co.errGeneric': "Не удалось оформить заказ. Попробуйте ещё раз.",
+  'co.errBlocked': "Ваш аккаунт заблокирован.",
+  'co.errPayment': "Этот способ оплаты недоступен. Выберите оплату при получении.",
+  'co.rateLimited': "Слишком много попыток. Повторите чуть позже.",
   'co.priceChanged': 'Цены изменились. Проверьте новую сумму и подтвердите заказ ещё раз.',
   // ── Shared ────────────────────────────────────────────────────────────────
   'common.sum': 'сум',
@@ -414,6 +419,11 @@ export type StringKey = keyof typeof ru
 export type Dictionary = Record<StringKey, string>
 
 export const uz: Dictionary = {
+  'st.blankNote': "Bu mahsulot printsiz sotiladi",
+  'co.errGeneric': "Buyurtma yuborilmadi. Qayta urinib ko‘ring.",
+  'co.errBlocked': "Hisobingiz bloklangan.",
+  'co.errPayment': "Bu to‘lov usuli mavjud emas. Yetkazilganda to‘lashni tanlang.",
+  'co.rateLimited': "Juda ko‘p urinish. Birozdan so‘ng qayta urinib ko‘ring.",
   'co.priceChanged': 'Narxlar o‘zgardi. Yangi summani tekshirib, buyurtmani qayta tasdiqlang.',
   'common.sum': 'so‘m',
   'common.retry': 'Qayta urinish',
@@ -797,6 +807,11 @@ export const uz: Dictionary = {
 }
 
 export const en: Dictionary = {
+  'st.blankNote': "This product is sold without a print",
+  'co.errGeneric': "Could not place the order. Please try again.",
+  'co.errBlocked': "Your account has been blocked.",
+  'co.errPayment': "This payment method is unavailable. Choose payment on delivery.",
+  'co.rateLimited': "Too many attempts. Please try again shortly.",
   'co.priceChanged': 'Prices changed. Review the new total and place the order again.',
   'common.sum': 'UZS',
   'common.retry': 'Retry',

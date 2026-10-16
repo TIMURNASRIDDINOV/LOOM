@@ -402,14 +402,14 @@
           window.LOOM_CART.sync(data); renderSummary(); banner(t('co.errGeneric', 'Review the cart and try again.'));
         } else if (data.code === 'phone_not_verified') {
           show('co-phone-warn', 'flex');
-          verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
+          verifyPhoneBanner(t('co.phoneWarn', 'Verify your phone through Telegram'));
         } else if (res.status === 401) {
           banner(t('co.sessionLost', 'Сессия истекла. Войдите заново, чтобы оформить заказ.'));
         } else if (UNSOLD[data.code]) {
           // A bag item's product, size or colour was switched off (LOOM-166).
           banner(t(UNSOLD[data.code][0], UNSOLD[data.code][1]));
         } else {
-          banner(data.error || t('co.errGeneric', 'Не удалось оформить заказ. Попробуйте ещё раз.'));
+          banner(window.LOOM_I18N ? window.LOOM_I18N.apiErrorMessage(data.code) : t('co.errGeneric', 'Could not place the order. Please try again.'));
         }
         return;
       }

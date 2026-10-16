@@ -177,7 +177,7 @@ export default function Checkout() {
       if (err.code === 'price_changed') {
         await cart.sync().catch(() => {})
         flash(t('co.priceChanged'))
-      } else if (err.code === 'phone_not_verified' || err.status === 403) {
+      } else if (err.code === 'phone_not_verified' || err.status === 401) {
         flash(t('co.errVerify'))
         router.push('/login')
       } else if (err.code && err.code in UNSOLD) {

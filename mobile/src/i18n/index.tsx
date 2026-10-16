@@ -115,7 +115,7 @@ export function shortDate(tsSeconds: number, t: TFn): string {
   return `${d.getDate()} ${months[d.getMonth()] ?? ''}`
 }
 
-/** Product name in the interface language — `name_en` when it exists, else Russian. */
-export function productName(p: { name_ru: string; name_en?: string | null }, lang: Lang): string {
-  return lang === 'en' && p.name_en ? p.name_en : p.name_ru
+/** Product name in the interface language, with a fallback for legacy rows. */
+export function productName(p: { name_ru: string; name_uz?: string | null; name_en?: string | null }, lang: Lang): string {
+  return (lang === 'uz' ? p.name_uz : lang === 'en' ? p.name_en : p.name_ru)?.trim() || p.name_ru
 }

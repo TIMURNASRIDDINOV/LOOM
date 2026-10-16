@@ -28,6 +28,13 @@
 
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
+    'co.errBlocked': {"uz": "Hisobingiz bloklangan.", "ru": "Ваш аккаунт заблокирован.", "en": "Your account has been blocked."},
+    'co.errPayment': {"uz": "Bu to‘lov usuli mavjud emas. Yetkazilganda to‘lashni tanlang.", "ru": "Этот способ оплаты недоступен. Выберите оплату при получении.", "en": "This payment method is unavailable. Choose payment on delivery."},
+    'co.rateLimited': {"uz": "Juda ko‘p urinish. Birozdan so‘ng qayta urinib ko‘ring.", "ru": "Слишком много попыток. Повторите чуть позже.", "en": "Too many attempts. Please try again shortly."},
+    'cfg.hideFrame': {"uz": "Ramkani yashirish", "ru": "Скрыть рамку", "en": "Hide frame"},
+    'cfg.editor': {"uz": "Tahrirlash", "ru": "Редактор", "en": "Editor"},
+    'cfg.fontSizePx': {"uz": "Shrift o‘lchami, px", "ru": "Размер шрифта, px", "en": "Font size, px"},
+    'cfg.scalePercent': {"uz": "Masshtab, %", "ru": "Масштаб, %", "en": "Scale, %"},
     'co.priceChanged': { uz: 'Narxlar o‘zgardi. Yangi summani tekshirib, buyurtmani qayta tasdiqlang.', ru: 'Цены изменились. Проверьте новую сумму и подтвердите заказ ещё раз.', en: 'Prices changed. Review the new total and place the order again.' },
     // ===== Navigation (shared) =====
     'nav.home':       { uz: 'Bosh sahifa', ru: 'Главная',       en: 'Home' },
@@ -799,6 +806,10 @@
     getLang: getLang, setLang: setLang, t: t, apply: apply, plural: plural,
     applyTo: applyTo, formatPrice: formatPrice, initSwitchers: initSwitchers,
     productName: productName,
+    apiErrorMessage: function (code) {
+      const keys = { phone_not_verified: 'co.phoneWarn', account_banned: 'co.errBlocked', payment_method_unavailable: 'co.errPayment', rate_limited: 'co.rateLimited', cart_empty: 'cfg.cartEmpty', customer_name_required: 'co.needName', customer_phone_required: 'co.needPhone', price_changed: 'co.priceChanged', product_unavailable: 'cfg.productUnavailable', size_unavailable: 'cfg.sizeUnavailable', color_unavailable: 'cfg.colorUnavailable', print_unavailable: 'cfg.blankNote' };
+      return t(keys[code] || 'co.errGeneric');
+    },
     LANGS: LANGS
   };
 })();

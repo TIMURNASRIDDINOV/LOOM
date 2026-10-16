@@ -104,7 +104,12 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
           ? (err as { message: string }).message
           : tStatic('common.errorCode', { code: res.status })
     const code = d?.code ?? (err as { code?: string })?.code
-    throw new ApiError(message, res.status, code)
+    const cartKeys: Record<string, Parameters<typeof tStatic>[0]> = {
+      phone_not_verified: 'co.errVerify', account_banned: 'co.errBlocked', payment_method_unavailable: 'co.errPayment',
+      rate_limited: 'co.rateLimited', cart_empty: 'co.errEmpty', customer_name_required: 'co.errContacts', customer_phone_required: 'co.errContacts',
+      price_changed: 'co.priceChanged', product_unavailable: 'st.productUnavailable', size_unavailable: 'st.sizeUnavailable', color_unavailable: 'st.colorUnavailable', print_unavailable: 'st.blankNote',
+    }
+    throw new ApiError(path.startsWith('/api/cart') ? tStatic(cartKeys[code || ''] || 'co.errGeneric') : message, res.status, code)
   }
 
   return data as T
