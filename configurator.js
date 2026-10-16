@@ -119,6 +119,12 @@ function colorAvailable(hex) {
   return !!def && def.available !== false;
 }
 
+// Match the server's legacy-black alias when restoring a cart or saved layout.
+function restoredShirtColor(hex) {
+  return String(hex).toUpperCase() === "#1F2937" && !colorAvailable(hex) && colorAvailable("#000000")
+    ? "#000000" : hex;
+}
+
 // Font options (system + Google)
 const FONT_OPTIONS = [
   { value: "Arial", label: "Arial" },
@@ -447,7 +453,7 @@ async function applyCartEditDesign(item) {
   let d = {};
   try { d = JSON.parse(item.design_json || "{}"); } catch (e) { return; }
 
-  if (d.shirtColor) selectShirtColor(d.shirtColor, null);
+  if (d.shirtColor) selectShirtColor(restoredShirtColor(d.shirtColor), null);
   if (d.size) {
     selectedSize = d.size;
     syncPickers();
@@ -3755,7 +3761,7 @@ async function loadLayout() {
   }
 
   const d = payload.design;
-  if (d.shirtColor) selectShirtColor(d.shirtColor, null);
+  if (d.shirtColor) selectShirtColor(restoredShirtColor(d.shirtColor), null);
   if (d.size) {
     selectedSize = d.size;
     syncPickers();
