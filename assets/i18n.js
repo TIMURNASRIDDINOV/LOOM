@@ -28,6 +28,7 @@
 
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
+    'cfg.fontLoadError': { uz: 'Shrift yuklanmadi. Qayta urinib ko‘ring.', ru: 'Не удалось загрузить шрифт. Повторите попытку.', en: 'Could not load the font. Please try again.' },
     // ===== Navigation (shared) =====
     'nav.home':       { uz: 'Bosh sahifa', ru: 'Главная',       en: 'Home' },
     'nav.catalog':    { uz: 'Katalog',     ru: 'Каталог',       en: 'Catalog' },
