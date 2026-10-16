@@ -7,7 +7,7 @@ The backlog lives in **Jira Cloud — loomdesign.atlassian.net, project LOOM**, 
 | Board | Holds | Flow |
 |---|---|---|
 | **Feature Management** | Epics only — one per PRD, titled `PRD-NNN — <title>`, the PRD in its description ([TEMPLATE.md](TEMPLATE.md)) | PO (PRD) → PM → Ready for Dev → Development → Ready for Test → QA → Done |
-| **Micro Management** | Tickets (Task, Story, Bug), each a child of its epic | PM → Ready for Dev → Development → Content → Redevelopment → Ready for Test → QA → Done |
+| **Micro Management** | Tickets (Task, Story, Bug), each a child of its epic, the build spec in its description ([STORY.md](STORY.md)) | PM → Ready for Dev → Development → Content → Redevelopment → Ready for Test → QA → Done |
 
 | Status | Meaning |
 |---|---|
@@ -35,7 +35,7 @@ On epics, Content and Redevelopment don't exist — while any child is in either
 | Dependency | "Blocks" link; overlap between tickets is a "Relates" link |
 | Code | Branch `LOOM-123-slug`, PR title contains `LOOM-123` |
 
-Numbering: PRD-001–099 are platform and engineering PRDs, PRD-101 and up are UX and product PRDs, so parallel authors never collide.
+Numbering: PRD numbers are sequential from PRD-201; a new PRD takes the next free number (search the epics). PRD-001–003 and PRD-101–111 are the superseded 2026-09 sets.
 
 ## Working a ticket
 
