@@ -199,7 +199,7 @@
       const data = await res.json()
 
       if (!res.ok) {
-        errEl.textContent = data.error || 'Ошибка. Попробуйте снова.'
+        errEl.textContent = window.LOOM_AUTH?.rateLimitMessage(res.status, data.code) || data.error || 'Ошибка. Попробуйте снова.'
         btn.disabled = false
         btn.textContent = 'Продолжить через Telegram'
         return

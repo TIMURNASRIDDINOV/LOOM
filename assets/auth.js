@@ -46,6 +46,13 @@
     return null
   }
 
+  function rateLimitMessage(status, code) {
+    if (status !== 429 || code !== 'rate_limited') return null
+    const key = 'common.rateLimited'
+    const message = window.LOOM_I18N?.t(key)
+    return message && message !== key ? message : 'Too many attempts. Wait a moment and try again.'
+  }
+
   // ── Auth API calls ─────────────────────────────────────────────────────────
   async function login(email, password) {
     const res = await fetch(window.LOOM_CONFIG.API_BASE + '/api/auth/login', {
@@ -54,7 +61,7 @@
       body: JSON.stringify({ email, password }),
     })
     const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Ошибка входа')
+    if (!res.ok) throw new Error(rateLimitMessage(res.status, data.code) || data.error || 'Ошибка входа')
     setToken(data.token)
     sessionStorage.setItem(USER_KEY, JSON.stringify(data.user))
     return data
@@ -70,7 +77,7 @@
       body: JSON.stringify(body),
     })
     const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Ошибка регистрации')
+    if (!res.ok) throw new Error(rateLimitMessage(res.status, data.code) || data.error || 'Ошибка регистрации')
     setToken(data.token)
     sessionStorage.setItem(USER_KEY, JSON.stringify(data.user))
     return data
@@ -206,5 +213,5 @@
   // Re-render the auth nav when the language changes
   window.addEventListener('loom:langchange', () => { renderAuthNav() })
 
-  window.LOOM_AUTH = { getToken, setToken, clearToken, getCurrentUser, login, register, logout, renderAuthNav }
+  window.LOOM_AUTH = { rateLimitMessage, getToken, setToken, clearToken, getCurrentUser, login, register, logout, renderAuthNav }
 })()
