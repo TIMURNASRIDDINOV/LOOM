@@ -15,6 +15,9 @@
     "types": "wrangler types",
     "migrate:local": "wrangler d1 migrations apply loom-db --local",
     "migrate:prod": "wrangler d1 migrations apply loom-db --remote",
+    "smoke:local": "node scripts/smoke.mjs local",
+    "smoke:staging": "node scripts/smoke.mjs staging",
+    "smoke:prod": "node scripts/smoke.mjs prod",
     "set-webhook": "npx tsx scripts/set-telegram-webhook.ts",
     "set-menu-button": "npx tsx scripts/set-menu-button.ts",
     "set-admin": "npx tsx scripts/set-admin.ts"
