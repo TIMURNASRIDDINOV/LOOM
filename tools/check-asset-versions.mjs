@@ -22,6 +22,11 @@
 //   node tools/check-asset-versions.mjs --base main
 //   node tools/check-asset-versions.mjs --base "$BASE_SHA"     # CI: the PR base
 //
+// Scanned surfaces (LOOM-150): every site HTML file (the repo root, admin/,
+// auth/), plus the refs embedded in the root bundles and in
+// mobile/src/lib/scene-html.ts — the file that wraps the same vendor scripts as
+// configurator.js, so the two can drift apart with no HTML involved.
+//
 // The base is the commit the branch started from: the comparison is the merge
 // base, so commits that landed on main after the branch was cut are not this
 // branch's problem. In CI the workflow passes the PR base sha; locally
@@ -153,6 +158,105 @@ const isImmutable = (asset) => {
 // ─── HTML scanning ──────────────────────────────────────────────────────────
 
 const SUBPROJECT_PACKAGE = path.posix.basename('package.json')
+// ─── refs embedded in JS / TS ───────────────────────────────────────────────
+//
+// HTML is not the only place a versioned reference lives. mobile/src/lib/
+// scene-html.ts builds `${SITE_ORIGIN}/assets/vendor/${f}?v=1` over a VENDOR
+// list — the same files configurator.js loads as THREE_CHUNKS — so the two can
+// disagree while every HTML file is consistent. A reference inside such a
+// template counts once per listed file (A-2).
+
+const EMBEDDED_SOURCE = /\.(?:js|mjs|cjs|jsx|ts|tsx)$/i
+const EMBEDDED_ALWAYS = ['mobile/src/lib/scene-html.ts']
+const NOT_SITE = /^(?:tools|docs|\.github|node_modules)\//
+const EMBEDDED_EXT = new Set([
+  'js', 'mjs', 'cjs', 'css', 'glb', 'gltf',
+  'jpg', 'jpeg', 'png', 'webp', 'avif', 'svg', 'woff', 'woff2', 'ttf',
+])
+// A list literal feeding a `.map((f) => ...)` — the VENDOR shape of A-2.
+const LIST_LITERAL =
+  /\[\s*((?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*(?:,\s*(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*)*,?)\s*\]\s*\.map\(\s*\(?\s*([A-Za-z_$][\w$]*)/g
+// `<origin interpolation>?<path>?v=<n>`, the path possibly interpolated.
+const EMBEDDED_REF =
+  /(?:\$\{[A-Za-z_$][\w$.]*\}\/)?((?:[A-Za-z0-9_./-]|\$\{[A-Za-z_$][\w$.]*\})+?)(?:\.([A-Za-z0-9]+))?\?v=(\d+)/g
+
+const scannedEmbedded = new Set()
+const skippedTemplateRefs = new Set()
+
+const embeddedRefFiles = (files, dirs) =>
+  files
+    .filter(
+      (file) =>
+        EMBEDDED_SOURCE.test(file) &&
+        !NOT_SITE.test(file) &&
+        (EMBEDDED_ALWAYS.includes(file) || !inSubproject(file, dirs)),
+    )
+    .sort()
+
+function scanEmbedded(text, file) {
+  const lists = new Map() // map-param name -> the literals it iterates
+  for (const m of text.matchAll(LIST_LITERAL)) {
+    const items = [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map((x) => x[1])
+    if (items.length) lists.set(m[2], items)
+  }
+
+  const refs = []
+  for (const m of text.matchAll(EMBEDDED_REF)) {
+    const [, template, ext, version] = m
+    if (ext && !EMBEDDED_EXT.has(ext.toLowerCase())) continue
+    if (template.startsWith('//')) continue // an absolute URL, not a site asset
+    const names = [...template.matchAll(/\$\{([A-Za-z_$][\w$.]*)\}/g)].map((x) => x[1])
+    const unknown = names.filter((name) => !lists.has(name))
+    if (unknown.length) {
+      // Rather than guess what the interpolation holds, say so: a silent skip
+      // is how a gate stops being a gate.
+      skippedTemplateRefs.add(`${file}: ${template} (${unknown.join(', ')} is not a literal list)`)
+      continue
+    }
+    let paths = [template]
+    for (const name of names) {
+      paths = paths.flatMap((p) => lists.get(name).map((item) => p.split('${' + name + '}').join(item)))
+    }
+    for (const p of paths) {
+      // The extension is either the literal one after the path or, for
+      // `assets/vendor/${f}`, part of what the interpolation expands to.
+      const concrete = ext ? `${p}.${ext}` : p
+      const tail = /\.([A-Za-z0-9]+)$/.exec(concrete)
+      if (!tail || !EMBEDDED_EXT.has(tail[1].toLowerCase())) continue
+      const asset = path.posix.normalize(concrete.replace(/^\/+/, ''))
+      if (!asset || asset.startsWith('..')) continue
+      refs.push({ asset, file, v: Number(version) })
+    }
+  }
+  return refs
+}
+
+// The same bookkeeping collect() does for HTML, so one asset seen from HTML and
+// from a bundle lands in one map — which is what AC-1 asks for.
+function recordRef(tree, { asset, file, v }) {
+  if (!tree.versioned.has(asset)) tree.versioned.set(asset, new Map())
+  const versions = tree.versioned.get(asset)
+  if (!versions.has(v)) versions.set(v, new Set())
+  versions.get(v).add(file)
+
+  if (!tree.byAsset.has(asset)) tree.byAsset.set(asset, new Map())
+  tree.byAsset.get(asset).set(file, v)
+}
+
+function withEmbeddedRefs(tree, files, dirs, read) {
+  for (const file of embeddedRefFiles(files, dirs)) {
+    let text
+    try {
+      text = read(file)
+    } catch {
+      continue // not present in this tree (renamed or removed)
+    }
+    scannedEmbedded.add(file)
+    for (const ref of scanEmbedded(text, file)) recordRef(tree, ref)
+  }
+  return tree
+}
+
 const ATTR = /(?:^|\s)(?:src|href)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi
 const COMMENT = /<!--[\s\S]*?-->/g
 const VERSION = /(?:^|&)v=(\d+)(?:&|$)/
@@ -257,8 +361,21 @@ if (headHtml.length === 0) {
   process.exit(2)
 }
 
-const head = collect(headHtml, (file) => fs.readFileSync(path.join(repoRoot, file), 'utf8'))
-const baseTree = collect(baseHtml, (file) => git('show', `${baseCommit}:${file}`))
+const readHead = (file) => fs.readFileSync(path.join(repoRoot, file), 'utf8')
+const readBase = (file) => git('show', `${baseCommit}:${file}`)
+
+const head = withEmbeddedRefs(
+  collect(headHtml, readHead),
+  headFiles,
+  subprojectDirs(headFiles),
+  readHead,
+)
+const baseTree = withEmbeddedRefs(
+  collect(baseHtml, readBase),
+  baseFiles,
+  subprojectDirs(baseFiles),
+  readBase,
+)
 
 // ─── the three checks ───────────────────────────────────────────────────────
 
@@ -307,15 +424,19 @@ const checks = []
     for (const [file, version] of [...references].sort()) {
       const before = baseTree.byAsset.get(asset)?.get(file)
       if (before === undefined) continue // the reference itself is new here
-      if (before === version) {
-        problems.push(`${asset} changed since the base but ${file} still references v=${version} — bump it`)
+      // A-3: the value only counts as a bump when it went *up* — an unchanged
+      // or lowered value both leave returning visitors on the old file.
+      if (!(version > before)) {
+        problems.push(
+          `${asset} changed since the base (v=${before}) but ${file} has v=${version} — the value must rise`,
+        )
       }
     }
   }
 
   checks.push({
     label: `bumped      ${changedAssets.length} changed immutable asset(s)${
-      unreferenced ? `, ${unreferenced} not referenced from HTML` : ''
+      unreferenced ? `, ${unreferenced} not referenced from HTML or JS` : ''
     }`,
     problems,
   })
@@ -346,11 +467,29 @@ const problems = checks.flatMap((check) => check.problems)
 
 for (const problem of problems) console.error(`FAIL  ${problem}`)
 
-console.log(`\nAsset ?v= check — base ${baseLabel}, ${headHtml.length} HTML file(s) scanned`)
+console.log(
+  `\nAsset ?v= check — base ${baseLabel}, ${headHtml.length} HTML file(s) and ${scannedEmbedded.size} JS/TS file(s) scanned`,
+)
 
 for (const check of checks) {
   const marker = check.problems.length ? 'FAIL' : 'ok  '
   console.log(`${marker}  ${check.label}`)
+}
+
+// One value per asset, and where it comes from: the reading the ticket's P1
+// probe takes from this output.
+if (head.versioned.size) {
+  console.log('\nVersioned assets:')
+  for (const asset of [...head.versioned.keys()].sort()) {
+    const versions = [...head.versioned.get(asset)].sort((a, b) => a[0] - b[0])
+    const files = [...new Set(versions.flatMap(([, set]) => [...set]))].sort()
+    console.log(`  ${asset}  ${versions.map(([v]) => `v=${v}`).join(', ')}  <- ${files.join(', ')}`)
+  }
+}
+
+if (skippedTemplateRefs.size) {
+  console.log(`\nNot parsed — the interpolation is not a literal list: ${skippedTemplateRefs.size}`)
+  for (const note of [...skippedTemplateRefs].sort()) console.log(`  ${note}`)
 }
 
 if (problems.length) {
