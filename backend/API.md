@@ -255,6 +255,6 @@ Common HTTP status codes:
 
 ## Checkout attempts
 
-`POST /api/cart/checkout` is the only order writer; `POST /api/orders` is removed. Send one `Idempotency-Key` (8–128 ASCII letters/digits, `.`, `_`, `:`, `-`) per checkout attempt and reuse it after a timeout. Keys are scoped to the signed-in user. The same key returns the original order even after the cart is cleared. The optional `sessionId` is stored on the order. Header, items, artwork attribution and removal of the submitted cart rows use one D1 batch. A changed price or cart requires review before an order is created.
+`POST /api/cart/checkout` is the only order writer; `POST /api/orders` is removed. Send one `Idempotency-Key` (8–128 ASCII letters/digits, `.`, `_`, `:`, `-`) per checkout attempt and reuse it after a timeout. Keys are scoped to the signed-in user. The same key returns the original order even after the cart is cleared. A valid `sessionId` (1–64 ASCII letters/digits, `.`, `_`, `:`, `-`) is required on new orders and stored on the order. The checkout batch records `order_placed` with that session; clients send `cfg_order` only for the place-order click. `platform` is `web` (default) or `app`. Header, items, artwork attribution and removal of the submitted cart rows use one D1 batch. A changed price or cart requires review before an order is created.
 
 Apply migration `0023_atomic_checkout.sql` locally for QA. The founder must apply it before deploying this Worker and coordinate web/app clients, which now supply the required header. Existing order rows are retained.

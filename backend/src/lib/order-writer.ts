@@ -16,7 +16,7 @@ export async function checkoutItems(db: D1Database, id: number) {
 }
 
 type CheckoutInput = {
-  userId: number; key: string; sessionId: string | null; items: CartItem[]; total: number
+  userId: number; key: string; sessionId: string | null; platform?: 'web' | 'app'; items: CartItem[]; total: number
   customerName: string; customerPhone: string; address: string | null
   coordinates: string | null; comment: string | null; paymentMethod: string
   lat: number | null; lng: number | null; addressDetails: string | null; commission: number
@@ -68,6 +68,12 @@ export async function writeCheckout(db: D1Database, input: CheckoutInput) {
         .bind(item.quantity, input.commission, item.quantity, input.commission, now,
           artId, userId, key, item.id))
     }
+  }
+  if (input.sessionId) {
+    statements.push(db.prepare(`INSERT INTO page_visits (session_id, page, device_type, os, browser, referrer, event, visited_at)
+      SELECT ?, '/checkout', ?, NULL, NULL, NULL, 'order_placed', ?
+      WHERE EXISTS (SELECT 1 FROM orders WHERE user_id = ? AND idempotency_key = ?)`)
+      .bind(input.sessionId, input.platform ?? (input.sessionId.startsWith('app_') ? 'app' : 'web'), now, userId, key))
   }
   statements.push(db.prepare(`DELETE FROM cart_items WHERE user_id = ?
     AND id IN (SELECT json_extract(value, '$.id') FROM json_each(?))

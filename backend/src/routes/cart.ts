@@ -170,6 +170,7 @@ router.post('/checkout', async (c) => {
   }
 
   const sessionId = typeof b.sessionId === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(b.sessionId) ? b.sessionId : null
+  if (!sessionId) return c.json({ error: 'A valid sessionId is required', code: 'session_id_required' }, 400)
   const userId = c.get('userId')
   const user = await getUserById(c.env.DB, userId)
   if (user?.status === 'banned') return c.json({ error: 'Your account has been blocked' }, 403)
@@ -229,7 +230,7 @@ router.post('/checkout', async (c) => {
     )
   }
 
-  const written = await writeCheckout(c.env.DB, { userId, key, sessionId, items, total,
+  const written = await writeCheckout(c.env.DB, { userId, key, sessionId, platform: b.platform === 'app' ? 'app' : 'web', items, total,
     customerName, customerPhone, address, coordinates, comment, paymentMethod,
     lat, lng, addressDetails, commission: DESIGNER_COMMISSION_PCT })
   if (!written.order) {

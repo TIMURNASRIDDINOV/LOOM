@@ -59,8 +59,11 @@ files.post('/track', async (c) => {
     'cfg_design_add',  // first text or image placed
     'cfg_style',       // colour or size touched
     'cfg_preview_3d',  // flipped to the 3D preview
+    'cfg_checkout_submit',
+    'cfg_lab_teaser',
+    'cfg_mockup_miss',  // mockup renderer timeout diagnostic
     'cfg_cart',        // added to cart
-    'cfg_order',       // went through to checkout
+    'cfg_order',       // place-order click (server writes order_placed)
   ]
   const evt = typeof event === 'string' && EVENTS.includes(event) ? event : null
 

@@ -136,12 +136,15 @@ export default function Checkout() {
         if (quote.priceChanged) { await clearCheckoutAttempt(attempt.key); flash(t('co.priceChanged')); return }
         await markCheckoutSynced(attempt)
       }
+      track('cfg_checkout_submit', '/checkout')
+      track('cfg_order', '/checkout')
       const res = await api<{ id: number; paymentUrl: string | null; paymentMethod: PayMethod }>('/api/cart/checkout', {
         method: 'POST',
         auth: true,
         idempotencyKey: attempt.key,
         body: {
           sessionId: await checkoutSessionId(),
+          platform: 'app',
           customerName: name.trim(),
           customerPhone: phone.trim(),
           address: street.trim(),
@@ -160,7 +163,6 @@ export default function Checkout() {
       })
       cart.clear()
       await clearCheckoutAttempt(attempt.key)
-      track('cfg_order')
       // Remember the address for next time, like the web checkout does. Best
       // effort — the order is already placed.
       updateProfile({

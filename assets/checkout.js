@@ -376,6 +376,16 @@
       }
 
       try { payload.sessionId = sessionStorage.getItem('loom_sid') || undefined; } catch (_) {}
+      if (window.LOOM_TRACK) {
+        window.LOOM_TRACK.event('cfg_checkout_submit'); window.LOOM_TRACK.event('cfg_order');
+        payload.sessionId = window.LOOM_TRACK.getSessionId();
+      } else {
+        try {
+          payload.sessionId = sessionStorage.getItem('loom_sid');
+          if (!payload.sessionId) { payload.sessionId = 'sid_' + Date.now().toString(36) + Math.random().toString(36).slice(2); sessionStorage.setItem('loom_sid', payload.sessionId); }
+        } catch (_) { payload.sessionId = 'sid_' + Date.now().toString(36) + Math.random().toString(36).slice(2); }
+      }
+      payload.platform = 'web';
       var headers = authHeaders(true);
       headers['Idempotency-Key'] = checkoutKey(payload);
       var res = await fetch(api() + '/api/cart/checkout', {
