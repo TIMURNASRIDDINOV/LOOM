@@ -109,6 +109,9 @@ function fillConfig(p) {
   document.getElementById('f-art-front-small').value = art.front?.src_small || ''
   document.getElementById('f-art-back').value = art.back?.src || ''
   document.getElementById('f-art-back-small').value = art.back?.src_small || ''
+  for (const face of ['front', 'back']) {
+    for (const k of ['x', 'y', 'w']) document.getElementById(`f-art-${face}-p${k}`).value = art[face]?.print?.[k] ?? ''
+  }
 }
 
 /** Reads the config card into JSON strings, or throws an Error with a readable message. */
@@ -140,13 +143,20 @@ function collectConfig() {
   if (!(topFrac >= 0 && topFrac <= 1)) throw new Error('Отступ сверху должен быть от 0 до 1')
 
   const art = {}
-  for (const [face, id] of [['front', 'f-art-front'], ['back', 'f-art-back']]) {
+  for (const [face, id, label] of [['front', 'f-art-front', 'перед'], ['back', 'f-art-back', 'спина']]) {
     const src = document.getElementById(id).value.trim()
     const small = document.getElementById(id + '-small').value.trim()
     for (const k of [src, small]) {
       if (!ART_KEY_RE.test(k) || k.includes('..')) throw new Error(`Неверный путь к картинке «${k}»`)
     }
     art[face] = { src, src_small: small }
+    // Print box on the art: all three empty = the T-shirt box.
+    const [x, y, w] = ['x', 'y', 'w'].map((k) => num(`${id}-p${k}`))
+    if ([x, y, w].every(Number.isNaN)) continue
+    if (!([x, y, w].every((n) => n >= 0 && n <= 1) && w > 0 && x + w <= 1)) {
+      throw new Error(`Область печати (${label}): три числа от 0 до 1, ширина больше 0, X + ширина не больше 1`)
+    }
+    art[face].print = { x, y, w }
   }
 
   return {
@@ -235,7 +245,7 @@ async function loadProduct(id) {
   fillConfig(p)
   document.getElementById('f-order').value = p.display_order ?? 0
   document.getElementById('f-active').checked = !!p.active
-  document.getElementById('f-type').value = p.product_type === 'ready' ? 'ready' : 'custom'
+  document.getElementById('f-type').value = ['ready', 'blank'].includes(p.product_type) ? p.product_type : 'custom'
   syncGlbNote()
 
   if (p.base_colors) {

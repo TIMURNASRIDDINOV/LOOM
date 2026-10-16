@@ -237,6 +237,24 @@ python3 -m http.server 8000         # → http://localhost:8000
 ```
 Switch environments by editing `API_BASE` in `assets/config.js`.
 
+### CI — the release gates
+
+Every PR to `main` runs `.github/workflows/ci.yml`. It is exactly three gates
+and nothing else — no secrets, no deploys:
+
+```bash
+cd backend && npx tsc --noEmit            # 1. the Worker typechecks
+node tools/check-asset-versions.mjs       # 2. no asset ?v= drift
+node tools/check-site-js.mjs              # 3. every site JS file parses
+```
+
+Run the same three locally before pushing. `check-asset-versions.mjs` compares
+the branch against its base commit (`origin/main` by default, `--base <ref>` to
+choose another): an asset that changed under `assets/`, `admin/assets/` or the
+root `?v=`-qualified bundles without its `?v=` being bumped fails, and so does
+one asset referenced with two different `?v=` values. `check-site-js.mjs` runs
+`node --check` over every JS file the site serves.
+
 ---
 
 ## Environment Variables
@@ -268,8 +286,13 @@ npm run set-webhook                 # register the Telegram webhook
 **Backend → Cloudflare Workers**
 1. Create D1, R2, and KV resources (dashboard or Wrangler) and set their IDs in `wrangler.toml`.
 2. Set all secrets with `wrangler secret put`.
-3. `npm run deploy`
-4. `npm run set-webhook` to register the Telegram webhook.
+3. Record the current Worker version (`npx wrangler deployments list` — it prints oldest first, so the version in service is the **last** row) — you need it to roll back.
+4. `npm run migrate:prod` — apply pending D1 migrations **before** the Worker deploy. Migrations are additive, so the old Worker keeps working against the new schema; a deploy that skips them can fail on a missing table or column.
+5. `npm run deploy` — runs `npm run typecheck` (`tsc --noEmit`) first and stops on a type error. Never use a bare `npx wrangler deploy`: the `predeploy` gate lives on the npm script.
+6. `node scripts/health-check.mjs https://api.loomdesign.uz` — anonymous smoke check. Behind an egress proxy, prefix it with `NODE_USE_ENV_PROXY=1`.
+7. `npm run set-webhook` to register the Telegram webhook.
+
+Rollback (bad deploy, failed health check): see [scripts/rollback.md](backend/scripts/rollback.md).
 
 **Frontend → Cloudflare Pages**
 Static files deploy on push — no build step. Live at [loomdesign.uz](https://loomdesign.uz); the admin panel is served from `/admin/`.

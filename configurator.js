@@ -38,18 +38,19 @@ const REF_RECT = { w: LEGACY_PRINT_AREA.w, h: LEGACY_PRINT_AREA.h };
 
 // Resolved per view once the model's mesh is available (see resolvePrintRects).
 //
-// Seeded with the values resolvePrintRects() measures off the bundled garment,
-// rather than with LEGACY_PRINT_AREA. The 3D model is no longer loaded on page
-// load, so the measurement now happens only when the user opens the preview —
-// but the FLAT editor derives its print-band aspect from these (renderFlatEditor:
-// `rect.h = rect.w / (pr.w / pr.h)`), and it is on screen from the first frame.
-// Seeding with LEGACY's 0.8286 would show a 10.5% too-tall band until the
-// preview was opened. These numbers are what the mesh resolves to, so the flat
-// editor is correct immediately and re-resolving later is a no-op.
+// Seeded with the values resolvePrintRects() measures off the bundled garment
+// (DEFAULT_MODEL_URL), rather than with LEGACY_PRINT_AREA. The 3D model is only
+// loaded when the user opens the preview, but the FLAT editor derives its
+// print-band aspect from these (_flatPrintRectIn: `rect.h = rect.w / (pr.w / pr.h)`),
+// and it is on screen from the first frame. Seeding with LEGACY's 0.8286 would
+// show a 10.5% too-tall band until the preview was opened.
 //
-// Every product except hoodie-regular renders on this mesh. Re-measure with
-// `JSON.stringify(PRINT_RECTS)` in the console after the model loads if the
-// bundled garment is ever replaced.
+// Every product now brings its own model, so these are only the seed:
+// applyPrintArea sets the product's platen on them, and the product's own mesh
+// re-measures them when the preview opens. The bundled garment is the fallback
+// when a product has no model or the catalogue call fails. Re-measure with
+// `JSON.stringify(PRINT_RECTS)` in the console after the bundled garment loads
+// if it is ever replaced.
 const DEFAULT_PRINT_RECTS = {
   front: { x: 621.4077537536621, y: 449.80019195556645, w: 769.0009597778321, h: 1025.3346130371094 },
   back:  { x: 669.6164901733398, y: 322.6587879943848,  w: 768.8689483642579, h: 1025.1585978190105 },
@@ -153,6 +154,8 @@ function CT(key, fallback) {
 
 // Product loaded from API (null = using local fallback)
 let currentProduct = null;
+// LOOM-226: a 'blank' product is sold with colour and size only — no print tools.
+let _blankOnly = false;
 
 // Color name lookup for UI display
 const COLOR_NAMES = {};
@@ -356,6 +359,18 @@ document.addEventListener("DOMContentLoaded", async function () {
   _productReady = loadProductFromSlug().finally(() => { _flatArtHold = false; renderFlatEditor(); });
   await _productReady;
 
+  _blankOnly = !!currentProduct && currentProduct.product_type === "blank";
+  if (_blankOnly) {
+    document.body.classList.add("blank-only");
+    // Text or a file added while the product was loading is not sold here.
+    for (const view of ["front", "back"]) { designState[view].elements = []; designState[view].selId = null; }
+    for (const id in uploadedFileData) delete uploadedFileData[id];
+    redrawActive();
+    updateViewToggleMarkers(); // the CTA and the side markers
+    setStep("color");
+    setFlatMode(false);
+  }
+
   if (editItem) applyCartEditDesign(editItem);
   // A design chosen in the marketplace lands last, so it sits on top of a
   // restored cart design rather than being overwritten by it.
@@ -440,7 +455,7 @@ async function applyCartEditDesign(item) {
 
   for (const view of ["front", "back"]) {
     const srcL = d[view];
-    if (!srcL) continue;
+    if (!srcL || _blankOnly) continue; // a blank product keeps colour and size only
     const dst = designState[view];
     // v2 stores an element array in normalised coords; anything older is one text
     // + one image in raw texture px against LEGACY_PRINT_AREA.
@@ -742,12 +757,14 @@ function initThreeJS() {
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(w, h);
   renderer.outputEncoding = THREE.sRGBEncoding;
-  // ACES, not Linear. Linear clips: the old rig had to be held at exposure 0.5
-  // to stop a white chest blowing out, and everything else went grey with it.
-  // ACES rolls the highlights off instead, so the garment can be lit properly
-  // and still keep detail in the brightest folds.
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = STUDIO_EXPOSURE;
+  // Neutral, not Linear or ACES. Linear clips a white chest; ACES rolls the
+  // highlights off but caps #FFFFFF at a grey ~225 (LOOM-225). Neutral leaves
+  // everything below the highlights as authored and only compresses the top,
+  // so white cloth reads white and a hex reads as itself. ACES (at its old
+  // exposure) stays as the fallback if the three build lacks the stub.
+  const neutral = useNeutralToneMapping();
+  renderer.toneMapping = neutral ? THREE.CustomToneMapping : THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = neutral ? STUDIO_EXPOSURE : 0.95;
   // Soft shadows. The single thing that stops a garment reading as a flat
   // cut-out is the sleeve dropping a shadow onto the body.
   renderer.shadowMap.enabled = true;
@@ -799,7 +816,35 @@ function initThreeJS() {
 // key stays front-left of *the viewer* no matter how far the shirt is orbited.
 // A fixed rig lights the front beautifully and the back not at all, and the
 // back is half of what a customer came to look at.
-const STUDIO_EXPOSURE = 0.95;
+const STUDIO_EXPOSURE = 1.2;
+
+// Khronos PBR Neutral tone mapping (three r162+ ships it as NeutralToneMapping;
+// the vendored r128 does not), written into r128's empty CustomToneMapping stub.
+const TONE_STUB = "vec3 CustomToneMapping( vec3 color ) { return color; }";
+const NEUTRAL_TONE_MAPPING = `vec3 CustomToneMapping( vec3 color ) {
+	const float StartCompression = 0.8 - 0.04;
+	const float Desaturation = 0.15;
+	color *= toneMappingExposure;
+	float x = min( color.r, min( color.g, color.b ) );
+	float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+	color -= offset;
+	float peak = max( color.r, max( color.g, color.b ) );
+	if ( peak < StartCompression ) return color;
+	float d = 1. - StartCompression;
+	float newPeak = 1. - d * d / ( peak + d - StartCompression );
+	color *= newPeak / peak;
+	float g = 1. - 1. / ( Desaturation * ( peak - newPeak ) + 1. );
+	return mix( color, vec3( newPeak ), g );
+}`;
+
+/** Patch the stub before any material compiles. False: no stub, use ACES. */
+function useNeutralToneMapping() {
+  const chunk = THREE.ShaderChunk.tonemapping_pars_fragment || "";
+  if (chunk.includes(NEUTRAL_TONE_MAPPING)) return true;
+  if (!chunk.includes(TONE_STUB)) return false;
+  THREE.ShaderChunk.tonemapping_pars_fragment = chunk.replace(TONE_STUB, NEUTRAL_TONE_MAPPING);
+  return true;
+}
 
 let studioRig = null;
 let keyLight = null;
@@ -850,7 +895,8 @@ function setupLighting() {
   // shadow off pure black and nothing more: every unit of light that arrives
   // from everywhere is a unit that flattens the shape the key just carved.
   scene.add(new THREE.AmbientLight(0xffffff, 0.05));
-  const hemi = new THREE.HemisphereLight(0xf7f3ea, 0x33302b, 0.14);
+  // Neutral sky: under Neutral tone mapping a warm one tints white cloth cream.
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x33302b, 0.14);
   hemi.position.set(0, 1, 0);
   scene.add(hemi);
 
@@ -865,7 +911,7 @@ function setupLighting() {
   // that falloff IS the modelling. Measured: with the directional key 67% of
   // garment pixels sat in the top 16 levels; with this one, 86% spread across
   // the three bands below it and nothing clips.
-  keyLight = new THREE.SpotLight(0xfff4e8, 3.0, 1, 0.75, 1.0, 2.0);
+  keyLight = new THREE.SpotLight(0xffffff, 3.0, 1, 0.75, 1.0, 2.0); // white, not warm: no cream cast
   keyLight.position.set(-0.62, 0.72, 0.66);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
@@ -1033,7 +1079,7 @@ const FABRIC_ENV_INTENSITY = 0.28; // the studio environment was washing white c
 const FABRIC_PRESETS = {
   jersey: { tiles: 12, normalScale: 0.9, sheen: 0.32, sheenRough: 0.75, rough: 1.0 },
   heavy:  { tiles: 9,  normalScale: 1.15, sheen: 0.26, sheenRough: 0.85, rough: 1.05 },
-  fleece: { tiles: 7,  normalScale: 1.5, sheen: 0.5, sheenRough: 0.95, rough: 1.1 },
+  fleece: { tiles: 12, normalScale: 0.6, sheen: 0.5, sheenRough: 0.95, rough: 1.1 }, // smooth face, no waffle grid
   pique:  { tiles: 14, normalScale: 1.05, sheen: 0.22, sheenRough: 0.6, rough: 0.95 },
   twill:  { tiles: 16, normalScale: 0.75, sheen: 0.14, sheenRough: 0.5, rough: 0.9 },
 };
@@ -1436,6 +1482,101 @@ function updateLiningColor() {
 }
 
 /**
+ * FrontSide + the lining assume every piece of the model faces outwards. A
+ * piece modelled inside out shows its lining instead: the polo's collar came
+ * out as dark interior (grey on white, a grey sheen on black), and so did the
+ * whole of the cap and the sweatpants. So look at the garment from all round
+ * once, before the lining is added, and turn over each connected piece that
+ * is seen more from behind than in front. 8 id renders at 256², once per
+ * model (20-40 ms on a laptop).
+ */
+function orientGarmentParts(root) {
+  const VIEWS = 8, RES = 256;
+  const parts = []; // per mesh: [mesh, partId per vertex]
+  let count = 1;    // 0 is the background
+  root.traverse((m) => {
+    if (!m.isMesh || !m.geometry.index) return;
+    const idx = m.geometry.index.array;
+    const up = new Int32Array(m.geometry.attributes.position.count).map((_, i) => i);
+    const find = (i) => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
+    for (let t = 0; t < idx.length; t += 3) {
+      up[find(idx[t + 1])] = find(idx[t]);
+      up[find(idx[t + 2])] = find(idx[t]);
+    }
+    const ids = new Map();
+    const partId = new Float32Array(up.length).map((_, i) => {
+      const r = find(i);
+      if (!ids.has(r)) ids.set(r, count++);
+      return ids.get(r);
+    });
+    parts.push([m, partId]);
+  });
+  if (!parts.length || count > 65535) return;
+
+  // Id pass: part id in red/green, facing in blue.
+  const idMat = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    vertexShader: "attribute float partId; varying float vId;" +
+      "void main() { vId = partId; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: "varying float vId; void main() { float id = floor(vId + 0.5);" +
+      "gl_FragColor = vec4(mod(id, 256.0) / 255.0, floor(id / 256.0) / 255.0, gl_FrontFacing ? 1.0 : 0.0, 1.0); }",
+  });
+  const saved = parts.map(([m, partId]) => {
+    m.geometry.setAttribute("partId", new THREE.BufferAttribute(partId, 1));
+    const mat = m.material;
+    m.material = idMat;
+    return mat;
+  });
+  const stage = new THREE.Scene();
+  stage.background = new THREE.Color(0);
+  stage.add(root);
+  stage.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const center = box.getCenter(new THREE.Vector3());
+  const r = box.getSize(new THREE.Vector3()).length() / 2;
+  const cam = new THREE.PerspectiveCamera(45, 1, r * 0.5, r * 6);
+  const rt = new THREE.WebGLRenderTarget(RES, RES);
+  const px = new Uint8Array(RES * RES * 4);
+  const front = new Uint32Array(count), back = new Uint32Array(count);
+  for (let v = 0; v < VIEWS; v++) {
+    const a = (v / VIEWS) * Math.PI * 2;
+    cam.position.set(Math.sin(a), 0.35, Math.cos(a)).normalize().multiplyScalar(r * 2.8).add(center);
+    cam.lookAt(center);
+    renderer.setRenderTarget(rt);
+    renderer.render(stage, cam);
+    renderer.readRenderTargetPixels(rt, 0, 0, RES, RES, px);
+    for (let i = 0; i < px.length; i += 4) {
+      const id = px[i] + px[i + 1] * 256;
+      if (id) (px[i + 2] ? front : back)[id]++;
+    }
+  }
+  renderer.setRenderTarget(null);
+  rt.dispose();
+  idMat.dispose();
+  stage.remove(root);
+
+  parts.forEach(([m, partId], k) => {
+    const geo = m.geometry, idx = geo.index.array, nrm = geo.attributes.normal;
+    geo.deleteAttribute("partId");
+    m.material = saved[k];
+    const flip = (i) => back[partId[i]] > front[partId[i]];
+    let flipped = false;
+    for (let t = 0; t < idx.length; t += 3) {
+      if (!flip(idx[t])) continue;
+      const b = idx[t + 1]; idx[t + 1] = idx[t + 2]; idx[t + 2] = b;
+      flipped = true;
+    }
+    if (!flipped) return;
+    geo.index.needsUpdate = true;
+    if (!nrm) return;
+    for (let i = 0; i < nrm.count; i++) {
+      if (flip(i)) nrm.setXYZ(i, -nrm.getX(i), -nrm.getY(i), -nrm.getZ(i));
+    }
+    nrm.needsUpdate = true;
+  });
+}
+
+/**
  * Apply the front or back texture to all shirt mesh materials.
  * Called every time the active view switches.
  */
@@ -1586,7 +1727,7 @@ async function fetchDefaultProduct() {
   if (!res.ok) return null;
   const list = await res.json();
   const items = Array.isArray(list) ? list : (list && list.products) || [];
-  return items.find((p) => (p.product_type || "custom") !== "ready") || null;
+  return items.find((p) => (p.product_type || "custom") === "custom") || null;
 }
 
 /**
@@ -1697,6 +1838,7 @@ const UNSOLD = {
   product_unavailable: ["cfg.productUnavailable", "Этот товар сейчас недоступен"],
   size_unavailable: ["cfg.sizeUnavailable", "Этот размер недоступен — выберите другой"],
   color_unavailable: ["cfg.colorUnavailable", "Этот цвет недоступен — выберите другой"],
+  print_unavailable: ["cfg.blankNote", "Этот товар продаётся без принта"],
 };
 function unsoldText(code) {
   const k = UNSOLD[code];
@@ -1749,10 +1891,13 @@ function _applyProductConfig(cfg) {
   paintShirtColor(designState.shirtColor); // redraws both faces on the new rect
 }
 
-// DEFAULT_PRINT_RECTS and FLAT_ART's print boxes were measured at these.
+// DEFAULT_PRINT_RECTS was measured at these.
 const SEED_W_FRAC = 0.55, SEED_TOP_FRAC = 0.20;
 
-/** The product's platen on the seeded rects: same neckline and centre, its own width, drop and aspect. */
+/**
+ * The product's platen on the seeded rects: same neckline and centre, its own width, drop and aspect.
+ * 3D texture rects only: the 2D box is the flat art's own (applyFlatArt), so width_frac never moves it.
+ */
 function applyPrintArea(pa) {
   const pc = pa && pa.platen_cm;
   const wf = Number(pa && pa.width_frac), tf = Number(pa && pa.top_frac);
@@ -1765,21 +1910,20 @@ function applyPrintArea(pa) {
   ["front", "back"].forEach((v) => {
     const d = DEFAULT_PRINT_RECTS[v], w = d.w * k;
     PRINT_RECTS[v] = { x: d.x + (d.w - w) / 2, y: d.y + tf * w - SEED_TOP_FRAC * d.w, w, h: w * PLATEN_CM.h / PLATEN_CM.w };
-    const art = FLAT_ART[v];
-    if (!art.seedPrint) art.seedPrint = { ...art.print };
-    const f = art.seedPrint, fw = f.w * k;
-    art.print = { x: f.x + (f.w - fw) / 2, y: f.y + (tf * fw - SEED_TOP_FRAC * f.w) * art.aspect, w: fw, h: f.h * k };
   });
 }
 
 /**
  * The product's flat-editor art (config.flat_art). The built-in T-shirt art is
- * the fallback. Product art keeps FLAT_ART's framing: a square image with the
- * print box at FLAT_ART[face].print, so print coordinates never depend on it.
+ * the fallback. Product art keeps FLAT_ART's framing (a square image), and its
+ * optional print {x, y, w} places the print box on it as fractions of the image;
+ * without one the face keeps the T-shirt's box. The height follows the print
+ * rect's aspect, as _flatPrintRectIn draws it. Runs after applyPrintArea.
  */
 function applyFlatArt(fa) {
   ["front", "back"].forEach((v) => {
-    const f = fa && fa[v], art = FLAT_ART[v];
+    const f = fa && fa[v], art = FLAT_ART[v], p = f && f.print, pr = PRINT_RECTS[v];
+    if (p) art.print = { x: p.x, y: p.y, w: p.w, h: p.w * art.aspect * pr.h / pr.w };
     if (!f || !f.src || f.src === art.src) return;
     art.src = f.src;
     art.srcSmall = f.src_small || f.src;
@@ -1940,6 +2084,7 @@ function loadShirtModel(glbUrl) {
           ", back: " + backPrintMaterials.length + "); designs on that side cannot be shown in 3D:", glbUrl);
       }
 
+      orientGarmentParts(object); // before addLining(), and while not yet in the scene
       scene.add(object);
       shirtObject = object;
       addLining(object);
@@ -2178,7 +2323,9 @@ function fitCameraToObject(object) {
 
   camera.position.set(CAM_VIEWS.front.x, CAM_VIEWS.front.y, CAM_VIEWS.front.z);
   controls.target.copy(chestTarget);
-  controls.minDistance = distance * 0.7;
+  // Close enough for the print rect to be as wide as in the zoomed 2D view
+  // (~2.8x the framing at 1280x860; 0.7 stopped at 1.43x).
+  controls.minDistance = distance * 0.3;
   controls.maxDistance = distance * 1.8;
   controls.update();
 
@@ -2387,8 +2534,9 @@ function _stepTurn(now) {
   if (T.zoom) {
     const f = p % 1;
     if (f > 0.3 && f < 0.7) {
-      // 0.1% above the limit, so float error never puts it under the limit
-      const near = Math.min(T.r0, controls.minDistance * 1.001);
+      // The turntable keeps its old dolly depth (0.7 of the framing distance);
+      // only the customer's own dolly goes closer.
+      const near = Math.min(T.r0, INITIAL_VIEW.position.distanceTo(INITIAL_VIEW.target) * 0.7);
       T.s.radius = T.r0 + (near - T.r0) * (1 - Math.cos(2 * Math.PI * (f - 0.3) / 0.4)) / 2;
     }
   }
@@ -3597,6 +3745,7 @@ function saveLayout() {
 }
 
 async function loadLayout() {
+  if (_blankOnly) return;
   let payload = null;
   try { payload = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null"); }
   catch (e) { /* corrupt entry — treated as none */ }
@@ -3670,6 +3819,7 @@ function _stackTopNy(view) {
 }
 
 function addTextElement() {
+  if (_blankOnly) return;
   const st = designState[designState.activeView];
   const proto = newTextElement({
     content: CT("cfg.newTextDefault", "Ваш текст"),
@@ -3727,7 +3877,7 @@ const EDIT_ON_3D = false;
 // face falls back to the schematic outline below. Drop a back PNG in here and
 // it starts using it; nothing else needs to change.
 // This is the T-shirt art; a product's config.flat_art replaces src and
-// srcSmall per face (applyFlatArt).
+// srcSmall per face, and print when it carries one (applyFlatArt).
 const FLAT_ART = {
   front: {
     src: "configuratorprodutcs/tshirt_flat_white_1200.png",
@@ -3787,12 +3937,12 @@ let _flatBoxes = {};    // element id → drawn box, this face, this render
 let _flatGesture = null;
 let _flatPinch = null;
 const _flatPointers = new Map();
-// Fitting the whole garment leaves the print rect ~46 px wide on a phone: text
-// is unreadable and the handles overlap. While a layer is selected in step 1
-// the garment is scaled up around the rect instead (_flatZoomBox).
-const FLAT_ZOOM_MIN_W = 240; // CSS px
-let _flatZoomId = null;      // element the zoomed view last centred on; null = not zoomed
-let _flatZoomV = 0.5;        // rect y (0 top … 1 bottom) at the canvas's vertical centre
+// The default view is the whole garment, so the 2D shows the design at the
+// size the 3D does. The zoom button (#btn-flat-zoom, step 1 only) scales the
+// garment up around the print rect instead (_flatZoomBox). Selecting a layer
+// never changes the view: an auto-zoom made every design look ~2.8x bigger in
+// 2D than on the 3D garment, and jumped under the finger mid-drag.
+let _flatZoomOn = false;
 // Keyed by SRC, not by face: front and back share one file (the back is derived
 // from it), so this keeps it to a single fetch and a single decode.
 const _flatImgCache = {};
@@ -3823,14 +3973,26 @@ function _flatArtImg(face) {
   return _flatImgCache[src];
 }
 
-/** The garment's drawn box: aspect-correct, centred, contained in the canvas. */
-function _flatGarmentBox(face, W, H) {
+/**
+ * The garment's drawn box: aspect-correct, centred, contained in the canvas.
+ * tight: the phone editor's art-outline fit; the order mockup keeps the plain fit.
+ */
+function _flatGarmentBox(face, W, H, tight) {
   const img = _flatArtImg(face);
   // Art still coming: lay out for the art but draw no garment, rather than the
   // T-shirt outline, which is only for art that failed.
   const pending = _flatArtHold || !!(img && !img.complete);
   const usingArt = pending || !!(img && img.naturalWidth);
   const aspect = usingArt ? FLAT_ART[face].aspect : FLAT_OUTLINE.aspect;
+  // Phones: the art's transparent margin left the print rect ~62 px wide, so
+  // the garment's own outline (the art's alpha bbox) fills the canvas instead,
+  // below the 2D/3D pill so the pill never covers the collar.
+  const bb = tight && usingArt && !pending && _isSheetLayout() ? _flatArtBBox(img) : null;
+  if (bb) {
+    const top = _flatPillOver() + 6, Hf = H - top;
+    const w = Math.min(W / bb.w, (Hf * aspect) / bb.h), h = w / aspect;
+    return { x: W / 2 - (bb.x + bb.w / 2) * w, y: top + Hf / 2 - (bb.y + bb.h / 2) * h, w, h, usingArt, pending };
+  }
   let w = W, h = W / aspect;
   if (h > H) { h = H; w = H * aspect; }
   if (!usingArt) {
@@ -3842,35 +4004,46 @@ function _flatGarmentBox(face, W, H) {
   return { x: (W - w) / 2, y: (H - h) / 2, w, h, usingArt, pending };
 }
 
+/** How far the 2D/3D pill, floating over the canvas top on phones, reaches into the canvas (CSS px). */
+function _flatPillOver() {
+  const pill = document.querySelector(".surface-toggle");
+  return pill && _flatCv ? Math.max(0, pill.getBoundingClientRect().bottom - _flatCv.getBoundingClientRect().top) : 0;
+}
+
+/** The art's opaque area as fractions of the image, or null (not loaded, or unreadable). */
+function _flatArtBBox(img) {
+  if (!img || !img.naturalWidth) return null;
+  if ("_bb" in img) return img._bb;
+  img._bb = null;
+  try {
+    const n = 128, cv = document.createElement("canvas");
+    cv.width = cv.height = n;
+    const c = cv.getContext("2d");
+    c.drawImage(img, 0, 0, n, n);
+    const a = c.getImageData(0, 0, n, n).data;
+    let x0 = n, y0 = n, x1 = -1, y1 = -1;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      if (a[(y * n + x) * 4 + 3] > 8) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    }
+    if (x1 >= x0) img._bb = { x: x0 / n, y: y0 / n, w: (x1 + 1 - x0) / n, h: (y1 + 1 - y0) / n };
+  } catch (_) { /* cross-origin art without CORS: keep the plain fit */ }
+  return img._bb;
+}
+
 /**
- * Scale and shift the garment box so the print rect is big enough to edit:
- * as large as fits with room for the label and handles, and at least
- * FLAT_ZOOM_MIN_W wide where the canvas allows. On a phone that rect is taller
- * than the canvas, so the view shows the band around the selected element.
+ * Scale and shift the garment box so the whole print rect fills the canvas,
+ * with room for the label and the handles around it.
  */
-function _flatZoomBox(face, box, el, W, H) {
+function _flatZoomBox(face, box, W, H) {
   const pf = box.usingArt ? FLAT_ART[face].print : FLAT_OUTLINE.print;
   const pr = printRect(face);
   // Same aspect renderFlatEditor forces on the rect.
   const aspect = pr && pr.w && pr.h ? pr.w / pr.h : (pf.w * box.w) / (pf.h * box.h);
-  // Corner handles at the sides; the label and the rotate handle above.
-  const mx = 24, mTop = FLAT_ROTATE_OFFSET + 14, mBot = 24;
-  const rw = Math.min(W - 2 * mx, Math.max(FLAT_ZOOM_MIN_W, (H - mTop - mBot) * aspect));
-  const rh = rw / aspect;
-  let ry;
-  if (rh + mTop + mBot <= H) {
-    ry = (H - rh + mTop - mBot) / 2;
-  } else {
-    // Centre on a newly selected element; afterwards follow it only once its
-    // centre has left the view. Never mid-gesture: move deltas are measured
-    // against the rect, so shifting it would make the element run away.
-    if (el.id !== _flatZoomId) _flatZoomV = el.ny;
-    else if (!_flatGesture && !_flatPinch && Math.abs(el.ny - _flatZoomV) * rh > H / 2) _flatZoomV = el.ny;
-    // Never past the rect's top (label, rotate handle) or bottom edge.
-    ry = Math.min(mTop, Math.max(H - mBot - rh, H / 2 - _flatZoomV * rh));
-  }
-  _flatZoomV = (H / 2 - ry) / rh;
-  _flatZoomId = el.id;
+  // Corner handles at the sides; the label and the rotate handle above, clear
+  // of the 2D/3D pill, which floats over the canvas top on phones.
+  const mx = 24, mTop = _flatPillOver() + FLAT_ROTATE_OFFSET + 14, mBot = 24;
+  const rw = Math.min(W - 2 * mx, (H - mTop - mBot) * aspect);
+  const ry = (H - rw / aspect + mTop - mBot) / 2;
   const s = rw / (pf.w * box.w);
   box.w *= s; box.h *= s;
   box.x = (W - rw) / 2 - pf.x * box.w;
@@ -3987,12 +4160,12 @@ function renderFlatEditor() {
   const face = designState.activeView;
   _flatArtImg(face); // kicks off the load on first use; repaints on arrival
 
-  const box = _flatGarmentBox(face, W, H);
-  // Zoom only while a layer is being edited: steps 2 and 3 show the whole
-  // shirt, because picking a colour needs it.
-  const zoomEl = currentStep === "design" ? selectedElement(face) : null;
-  if (zoomEl) _flatZoomBox(face, box, zoomEl, W, H);
-  else _flatZoomId = null;
+  const box = _flatGarmentBox(face, W, H, true);
+  // Only the zoom button zooms, and only in step 1: steps 2 and 3 show the
+  // whole shirt, because picking a colour needs it.
+  const zoomed = _flatZoomOn && currentStep === "design";
+  if (zoomed) _flatZoomBox(face, box, W, H);
+  _flatSyncZoomBtn();
   _flatBox = box;
 
   // Ground the garment the same way the 3D does. Without a shadow a white
@@ -4002,7 +4175,7 @@ function renderFlatEditor() {
   // mid-range phone.
   if (!box.pending) {
     ctx.save();
-    if (!zoomEl) {
+    if (!zoomed) {
       ctx.shadowColor = "rgba(19, 19, 17, 0.22)";
       ctx.shadowBlur = Math.max(18, box.w * 0.09);
       ctx.shadowOffsetX = Math.max(6, box.w * 0.022);
@@ -4024,18 +4197,32 @@ function renderFlatEditor() {
   ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
   ctx.restore();
 
-  // Elements, bottom-of-list first — same call the garment bake uses.
+  // Elements, bottom-of-list first — same call the garment bake uses. Clipped
+  // to the print rect, as the print file is: what is outside is not printed.
   _flatBoxes = {};
-  const sel = designState[face].selId;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
+  ctx.clip();
   elementsOf(face).forEach((el) => {
     const b = drawElementIn(ctx, el, rect, false);
     if (b) _flatBoxes[el.id] = b;
   });
+  ctx.restore();
 
   _flatDrawLabel(ctx, rect);
   _flatUI = null;
   const active = _flatActiveId();
-  if (active && _flatBoxes[active]) _flatDrawChrome(ctx, _flatBoxes[active]);
+  const cm = active && _flatBoxes[active] ? _flatCmText(_flatBoxes[active], rect) : "";
+  const cmOut = document.getElementById("dock-sel-cm");
+  if (cmOut) cmOut.textContent = cm;
+  // Step 3 copies this canvas when the 3D preview has not been opened. Keep
+  // the selection in state, but leave its editing chrome out of that picture.
+  if (cm && currentStep !== "order") {
+    _flatDrawChrome(ctx, _flatBoxes[active]);
+    // The size badge belongs to the editing step only.
+    if (currentStep === "design") _flatDrawCm(ctx, _flatBoxes[active], cm, W, H);
+  }
   if (_flatGesture && (_flatGesture.snapX || _flatGesture.snapY)) _flatDrawSnap(ctx, rect);
 
   _flatSyncEmptyState();
@@ -4107,8 +4294,51 @@ function _flatDrawLabel(ctx, rect) {
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
   ctx.fillStyle = _flatDarkGarment() ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.38)";
-  ctx.fillText(CT("cfg.printArea", "область печати"), rect.x + rect.w / 2, rect.y - 5);
+  const size = `${PLATEN_CM.w} × ${PLATEN_CM.h} ${CT("cfg.cm", "см")}`;
+  ctx.fillText(CT("cfg.printArea", "область печати") + " · " + size, rect.x + rect.w / 2, rect.y - 5);
   ctx.restore();
+}
+
+/**
+ * The printed size of a drawn element, "W × H cm": its share of the rect times
+ * the platen. The part outside the rect is not printed, so it is cut off.
+ * ponytail: clips the unrotated box only; a rotated element shows its full size.
+ */
+function _flatCmText(b, rect) {
+  let w = b.w, h = b.h;
+  if (!b.rot) {
+    w = Math.min(b.cx + b.w / 2, rect.x + rect.w) - Math.max(b.cx - b.w / 2, rect.x);
+    h = Math.min(b.cy + b.h / 2, rect.y + rect.h) - Math.max(b.cy - b.h / 2, rect.y);
+  }
+  const cm = (v, px, platen) => Math.max(0, Math.round((v / px) * platen));
+  return `${cm(w, rect.w, PLATEN_CM.w)} × ${cm(h, rect.h, PLATEN_CM.h)} ${CT("cfg.cm", "см")}`;
+}
+
+/** The size tag under the selection box, kept inside the canvas. */
+function _flatDrawCm(ctx, b, text, W, H) {
+  const c = _flatCorners(b);
+  const y = Math.max(...c.map((p) => p.y)) + FLAT_HANDLE_R + 6;
+  ctx.save();
+  ctx.font = '600 11px system-ui, -apple-system, sans-serif';
+  const tw = ctx.measureText(text).width + 12, th = 18;
+  const x = Math.min(W - tw - 2, Math.max(2, b.cx - tw / 2));
+  const ty = Math.min(H - th - 2, y);
+  ctx.fillStyle = _flatSelect;
+  ctx.fillRect(x, ty, tw, th);
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x + tw / 2, ty + th / 2 + 0.5);
+  ctx.restore();
+}
+
+/** The zoom button: step 1 of the 2D only; pressed while zoomed. */
+function _flatSyncZoomBtn() {
+  const b = document.getElementById("btn-flat-zoom");
+  if (!b) return;
+  b.hidden = !flatMode || currentStep !== "design";
+  b.classList.toggle("active", _flatZoomOn);
+  b.setAttribute("aria-pressed", String(_flatZoomOn));
 }
 
 /** The element the handles belong to, or null. */
@@ -4246,7 +4476,7 @@ function _flatOnPointerDown(e) {
   }
   if (!hit && !_flatActiveId()) {
     // Empty garment → drop the selection, the way every canvas editor does.
-    // Any selection, drawn or not: an emptied text layer still holds the zoom.
+    // Any selection, drawn or not: an emptied text layer is still selected.
     if (selectedElement()) { selectElement(null); renderFlatEditor(); }
     return;
   }
@@ -4388,9 +4618,10 @@ function _flatUpdatePinch() {
 function _flatSyncEmptyState() {
   const btn = document.getElementById("flat-empty");
   if (!btn || !_flatRect) return;
-  // Not while zoomed: a layer (an emptied text) is being edited, and the
-  // prompt would cover the whole view.
-  const empty = !_flatZoomId && !_viewHasContent(designState.activeView);
+  // Not while a layer (an emptied text) is selected in step 1: it is being
+  // edited, and the prompt would cover it.
+  const editing = currentStep === "design" && !!selectedElement(designState.activeView);
+  const empty = !_blankOnly && !editing && !_viewHasContent(designState.activeView);
   btn.style.display = empty ? "flex" : "none";
   if (!empty) return;
   // This is the beginner's first action, so it has to be readable ON the
@@ -4438,6 +4669,8 @@ function bindFlatEditor() {
   _flatCtx = cv.getContext("2d");
 
   cv.addEventListener("pointerdown", _flatOnPointerDown);
+  const zb = document.getElementById("btn-flat-zoom");
+  if (zb) zb.addEventListener("click", () => { _flatZoomOn = !_flatZoomOn; renderFlatEditor(); });
   window.addEventListener("pointermove", _flatOnPointerMove);
   window.addEventListener("pointerup", _flatOnPointerUp);
   window.addEventListener("pointercancel", _flatOnPointerUp);
@@ -4499,6 +4732,7 @@ function _isSheetLayout() {
 
 function setStep(step) {
   if (SHEET_STEPS.indexOf(step) < 0) step = "design";
+  if (_blankOnly && step === "design") step = "color";
   if (step === "order" && !sizeChosen()) return;
   if (step !== currentStep) setCamAccOpen(false); // collapsed on step entry
   currentStep = step;
@@ -4833,6 +5067,7 @@ function setFlatMode(on) {
   if (flat) flat.style.display = flatMode ? "block" : "none";
   if (three) three.style.display = flatMode ? "none" : "block";
   syncModelCredit();
+  _flatSyncZoomBtn();
 
   document.querySelectorAll(".surface-btn").forEach((b) => {
     const on2 = (b.dataset.surface === "flat") === flatMode;
@@ -5363,14 +5598,19 @@ async function addToCart(opts) {
   const t0 = performance.now();
   try {
     // Capture proofs NOW — the design is only live here; it's gone by checkout.
-    const [logoKey, backLogoKey] = await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
-    const proofs = await captureProofs();
+    // A blank product is the plain garment, as the catalogue adds it: no files.
+    const [logoKey, backLogoKey] = _blankOnly
+      ? [null, null]
+      : await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    const proofs = _blankOnly ? {} : await captureProofs();
     // A side with artwork but no print master would reach the print shop empty.
     if ((_viewHasPrint("front") && !proofs.frontPrintKey) || (_viewHasPrint("back") && !proofs.backPrintKey)) {
       showToast(CT("cfg.toastAddError", "Ошибка добавления"), "error");
       return false;
     }
-    const designJson = _buildDesignJson();
+    const designJson = _blankOnly
+      ? JSON.stringify({ plain: true, shirtColor: designState.shirtColor, size: selectedSize })
+      : _buildDesignJson();
     try {
       await window.LOOM_CART.add({
         productId: currentProduct ? currentProduct.id : null,
@@ -5844,6 +6084,7 @@ function checkPrintDpi(el) {
 }
 
 function handleImageFile(file, meta) {
+  if (_blankOnly) return;
   // Phones often hand over HEIC with an empty or generic type, so the
   // extension counts too.
   const heic = /^image\/hei[cf]$/.test(file.type) || /\.hei[cf]$/i.test(file.name || "");
@@ -5895,6 +6136,7 @@ function handleImageFile(file, meta) {
       const finalType = finalData.slice(5, finalData.indexOf(";"));
 
       const apply = () => {
+      if (_blankOnly) return; // picked while the product was loading
       const st = designState[designState.activeView];
       const sel = selectedElement();
       // "+ Логотип" adds a layer; the upload area swaps the selected layer's art.

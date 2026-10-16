@@ -49,8 +49,12 @@ All commands run from `backend/`.
    bindings, `ENVIRONMENT: "staging"`, and no routes:
 
    ```sh
-   npx wrangler deploy --env staging --dry-run --outdir "$(mktemp -d)"
+   npm run deploy -- --env staging --dry-run --outdir "$(mktemp -d)"
    ```
+
+   (Deploy through the npm script, never a bare `npx wrangler deploy`: the
+   `predeploy` typecheck gate lives on the script. The `--` is required, or npm
+   swallows `--env`. See scripts/rollback.md, section 1.)
 
 ## Founder-only steps (deploy)
 
@@ -66,14 +70,15 @@ No `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` on staging (`BOT_USERNAME` is empty
 Record the prod version, deploy staging, record the prod version again:
 
 ```sh
-npx wrangler deployments list | tail -20      # prod, before
-npx wrangler deploy --env staging
-npx wrangler deployments list | tail -20      # prod, after: same latest version
+npx wrangler deployments list | tail -20          # prod, before
+npm run deploy -- --env staging                   # typecheck gate, then wrangler
+npx wrangler deployments list | tail -20          # prod, after: same latest version
 ```
 
 ## Smoke checks
 
-`STG=https://loom-backend-staging.<account-subdomain>.workers.dev` (printed by the deploy).
+`STG=https://loom-backend-staging.timurnasriddinov56.workers.dev` (also printed
+by the deploy).
 
 ```sh
 curl -s -o /dev/null -w '%{http_code}\n' $STG/api/products                       # 200

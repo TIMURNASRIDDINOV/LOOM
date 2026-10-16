@@ -53,7 +53,7 @@ binding = "IMAGES"
 #   TELEGRAM_WEBHOOK_SECRET  — 32+ char random string, set via set-telegram-webhook.ts
 
 # ─── Staging ────────────────────────────────────────────────────────────────
-# Deploy: npx wrangler deploy --env staging   (rebuild steps: scripts/staging-setup.md)
+# Deploy: npm run deploy -- --env staging   (the gate + rebuild steps: scripts/staging-setup.md)
 # DANGER: `routes` is inherited from the top level. Keep `routes = []` here or a
 # staging deploy moves api./admin.loomdesign.uz onto the staging Worker.
 # Bindings are NOT inherited: everything staging uses is declared below, and

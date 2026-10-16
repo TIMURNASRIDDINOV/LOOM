@@ -141,6 +141,8 @@
     /* Flat face editor (the primary editing surface) */
     'cfg.flatHint':     { uz: 'Dizaynni suring — ko‘chirish · burchaklar — o‘lcham · doira — burish', ru: 'Тяните дизайн — двигать · углы — размер · кружок — поворот', en: 'Drag the design to move · corners resize · circle rotates' },
     'cfg.printArea':    { uz: 'chop etish maydoni', ru: 'область печати', en: 'print area' },
+    'cfg.cm':           { uz: 'sm', ru: 'см', en: 'cm' },
+    'cfg.zoomPrint':    { uz: 'Chop etish maydonini yaqinlashtirish', ru: 'Приблизить область печати', en: 'Zoom to the print area' },
     'cfg.emptyAdd':     { uz: 'Dizayn qo‘shish', ru: 'Добавить дизайн', en: 'Add a design' },
     'cfg.addWhat':      { uz: 'Nima qo‘shamiz?', ru: 'Что добавим?', en: 'What shall we add?' },
     'cfg.addImage':     { uz: 'Rasm yuklash', ru: 'Загрузить картинку', en: 'Upload an image' },
@@ -242,6 +244,8 @@
     'cfg.productUnavailable': { uz: 'Bu mahsulot hozir mavjud emas', ru: 'Этот товар сейчас недоступен', en: 'This product is unavailable' },
     'cfg.sizeUnavailable':    { uz: 'Bu o‘lcham mavjud emas — boshqasini tanlang', ru: 'Этот размер недоступен — выберите другой', en: 'This size is unavailable — choose another' },
     'cfg.colorUnavailable':   { uz: 'Bu rang mavjud emas — boshqasini tanlang', ru: 'Этот цвет недоступен — выберите другой', en: 'This colour is unavailable — choose another' },
+    // LOOM-226: a garment sold with colour and size only (also the server's print_unavailable)
+    'cfg.blankNote':          { uz: 'Bu mahsulot bosmasiz sotiladi', ru: 'Этот товар продаётся без принта', en: 'This item is sold without a print' },
     'cfg.toastAddedCart':  { uz: 'Savatga qo‘shildi', ru: 'Добавлено в корзину', en: 'Added to cart' },
     'cfg.preparing':       { uz: 'Maketlar tayyorlanmoqda…', ru: 'Готовим макеты…', en: 'Preparing proofs…' },
     'cfg.toastLoginCart':  { uz: 'Savatga qo‘shish uchun tizimga kiring', ru: 'Войдите, чтобы добавить в корзину', en: 'Sign in to add to cart' },

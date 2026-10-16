@@ -152,6 +152,7 @@
             <select id="f-type" class="form-input">
               <option value="custom">Кастомизируемый (3D-конфигуратор)</option>
               <option value="ready">Готовый дизайн (покупка как есть)</option>
+              <option value="blank">Без принта (только цвет и размер)</option>
             </select>
           </div>
           <div class="field">
@@ -249,6 +250,36 @@
           </div>
         </div>
         <p class="field-hint" style="margin:0">Относительные пути к файлам на сайте: буквы, цифры и . _ - /</p>
+
+        <div class="form-row form-row--3" style="margin-top:var(--sp-4)">
+          <div class="field">
+            <label class="field-label" for="f-art-front-px">Перед, печать: X (0–1)</label>
+            <input id="f-art-front-px" class="form-input" type="number" min="0" max="1" step="any" placeholder="0.3665" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-art-front-py">Перед, печать: Y (0–1)</label>
+            <input id="f-art-front-py" class="form-input" type="number" min="0" max="1" step="any" placeholder="0.285" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-art-front-pw">Перед, печать: ширина (0–1)</label>
+            <input id="f-art-front-pw" class="form-input" type="number" min="0" max="1" step="any" placeholder="0.267" />
+          </div>
+        </div>
+        <div class="form-row form-row--3">
+          <div class="field">
+            <label class="field-label" for="f-art-back-px">Спина, печать: X (0–1)</label>
+            <input id="f-art-back-px" class="form-input" type="number" min="0" max="1" step="any" placeholder="0.3665" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-art-back-py">Спина, печать: Y (0–1)</label>
+            <input id="f-art-back-py" class="form-input" type="number" min="0" max="1" step="any" placeholder="0.285" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-art-back-pw">Спина, печать: ширина (0–1)</label>
+            <input id="f-art-back-pw" class="form-input" type="number" min="0" max="1" step="any" placeholder="0.267" />
+          </div>
+        </div>
+        <p class="field-hint" style="margin:0">Где на картинке плоского вида стоит область печати, в долях картинки: левый край, верхний край, ширина. Высота следует из пропорций платена. Пусто — область футболки (0.3665, 0.285, 0.267).</p>
         </fieldset>
       </div>
 
@@ -297,6 +328,6 @@
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=30"></script>
   <script>LOOM_LAYOUT.init('products', { title: 'Товар', crumbs: [{ label: 'Товары', href: 'products.html' }] })</script>
-  <script src="assets/product-edit.js?v=32"></script>
+  <script src="assets/product-edit.js?v=34"></script>
 </body>
 </html>

@@ -45,14 +45,14 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=4"></script>
     <script defer src="assets/layout.js?v=5"></script>
-    <script defer src="assets/i18n.js?v=36"></script>
+    <script defer src="assets/i18n.js?v=38"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=5"></script>
-    <script defer src="configurator.js?v=79"></script>
+    <script defer src="configurator.js?v=87"></script>
 
     <style>
       /* ============================================================
@@ -180,6 +180,11 @@
       }
       .view-btn.active { background: var(--text); color: var(--paper); }
       .view-btn:hover:not(.active) { color: var(--text); background: var(--hover-wash); }
+      /* [hidden] must win over the phone rule that makes .view-btn inline-flex */
+      .view-btn.view-zoom[hidden] { display: none; }
+      .view-btn.view-zoom { padding-left: 0.7rem; padding-right: 0.7rem; }
+      .view-btn.view-zoom svg { display: block; width: 16px; height: 16px; }
+      .view-btn.view-zoom::after { content: none; }
 
       /* Loading overlay. Below the chips (z 30) and click-through, so the
          2D/3D switch and the chips stay usable while the 3D loads; only the
@@ -501,10 +506,13 @@
       }
       .dock-sel-icon { display: inline-flex; color: var(--muted); flex-shrink: 0; }
       .dock-sel-icon svg { width: 15px; height: 15px; }
+      /* min-width: a narrow row wraps the name onto its own line instead of
+         squeezing it to nothing next to the cm size */
       .dock-sel-name {
-        flex: 1; min-width: 0; font-size: 0.78rem; color: var(--muted);
+        flex: 1; min-width: 4rem; font-size: 0.78rem; color: var(--muted);
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
+      .dock-sel-cm { flex-shrink: 0; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
       .dock-close {
         width: 26px; height: 26px; flex-shrink: 0; border: none; border-radius: 50%;
         background: var(--field-bg); color: var(--muted); font-size: 1rem; line-height: 1;
@@ -1367,6 +1375,15 @@
       }
       .studio-sheet[data-step="color"] .sheet-steps::after { transform: translateX(100%); }
       .studio-sheet[data-step="order"] .sheet-steps::after { transform: translateX(200%); }
+      /* LOOM-226: a blank garment is sold with colour and size only, so it
+         has two steps (no Design), no print chrome and a note saying so. */
+      .blank-only .step-btn[data-step="design"], .blank-only .step-num, .blank-only .step-kicker,
+      .blank-only .surface-toggle, .blank-only .print-row { display: none; }
+      .blank-note { display: none; }
+      .blank-only .blank-note { display: block; }
+      .blank-only .sheet-steps::after { width: calc((100% - 3rem - var(--gut)) / 2); }
+      .blank-only .studio-sheet[data-step="color"] .sheet-steps::after { transform: none; }
+      .blank-only .studio-sheet[data-step="order"] .sheet-steps::after { transform: translateX(100%); }
       .step-btn {
         position: relative; z-index: 2;
         min-width: 0;                     /* three languages, one row */
@@ -1684,6 +1701,7 @@
           left: 1.25rem; top: 0.55rem; bottom: calc(0.6rem + var(--gut));
           width: calc((100% - 2.5rem - var(--gut)) / 3);
         }
+        .blank-only .sheet-steps::after { width: calc((100% - 2.5rem - var(--gut)) / 2); }
         .panel-foot {
           padding: 0.8rem calc(1.25rem + var(--gut)) calc(0.8rem + env(safe-area-inset-bottom));
           gap: 0.5rem;
@@ -2178,6 +2196,10 @@
       <div class="view-toggle">
         <button id="btn-view-front" class="view-btn active" aria-pressed="true"><span data-i18n="cfg.viewFront">Перед</span></button>
         <button id="btn-view-back" class="view-btn" aria-pressed="false"><span data-i18n="cfg.viewBack">Зад</span></button>
+        <!-- Step 1 of the 2D only (configurator.js _flatSyncZoomBtn). -->
+        <button type="button" id="btn-flat-zoom" class="view-btn view-zoom" aria-pressed="false" title="Приблизить область печати" data-i18n-attr="aria-label:cfg.zoomPrint;title:cfg.zoomPrint" aria-label="Приблизить область печати" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/></svg>
+        </button>
       </div>
 
       <!-- LOOM-199: CC BY 4.0 credit of the bundled tee model. configurator.js
@@ -2285,6 +2307,7 @@
           <span class="dock-sel-icon" id="dock-sel-icon" aria-hidden="true"></span>
           <input type="color" id="text-color-picker" class="dock-swatch" value="#000000" aria-label="Цвет элемента" />
           <input type="number" id="dock-sel-num" class="dock-num" min="10" max="240" step="1" aria-label="Размер элемента" />
+          <span class="dock-sel-cm" id="dock-sel-cm"></span>
           <span class="dock-sel-name" id="dock-sel-name"></span>
           <button type="button" class="dock-close" id="btn-remove-selected" title="Удалить слой" aria-label="Удалить слой">×</button>
         </div>
@@ -2376,6 +2399,8 @@
               <h2 class="step-title" data-i18n="cfg.step2Title">Цвет и размер</h2>
               <p class="step-lead" data-i18n="cfg.step2Lead">Выберите размер, затем нажмите на квадрат, чтобы сменить цвет ткани.</p>
             </header>
+            <!-- Outside the header, which only screen readers see on step 2. -->
+            <p class="step-lead blank-note" data-i18n="cfg.blankNote">Этот товар продаётся без принта</p>
             <!-- Size comes first and has no default: an order must never carry
                  a size the customer did not see (LOOM-179). -->
             <p class="tab-section-label" data-i18n="cfg.size">Размер</p>
@@ -2449,9 +2474,9 @@
             <div class="summary-info">
               <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumColor">Цвет</span><span class="summary-val" id="sum-color">Белый</span></div>
               <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumSize">Размер</span><span class="summary-val" id="sum-size">L</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumText">Текст</span><span class="summary-val" id="sum-text">—</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumFont">Шрифт</span><span class="summary-val" id="sum-font">Arial</span></div>
-              <div class="summary-row"><span class="summary-label" data-i18n="cfg.sumLogo">Логотип</span><span class="summary-val" id="sum-image">Не загружено</span></div>
+              <div class="summary-row print-row"><span class="summary-label" data-i18n="cfg.sumText">Текст</span><span class="summary-val" id="sum-text">—</span></div>
+              <div class="summary-row print-row"><span class="summary-label" data-i18n="cfg.sumFont">Шрифт</span><span class="summary-val" id="sum-font">Arial</span></div>
+              <div class="summary-row print-row"><span class="summary-label" data-i18n="cfg.sumLogo">Логотип</span><span class="summary-val" id="sum-image">Не загружено</span></div>
             </div>
           </div>
         </div>

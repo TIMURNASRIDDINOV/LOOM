@@ -1,0 +1,56 @@
+name: CI
+
+# The release gates from PRD-201 R4, on every PR to main (LOOM-151):
+#   1. backend/ typechecks (tsc --noEmit)
+#   2. no asset ?v= drift (tools/check-asset-versions.mjs)
+#   3. every site JS file parses (node --check)
+#
+# No secrets and no deploys: Cloudflare Pages and Workers publish from the
+# branch themselves, and every step here only reads the checkout.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: Release gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The ?v= gate diffs the branch against its base commit, so it needs
+          # the history the default shallow clone does not fetch.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      # The same command `predeploy` runs locally before a deploy. Kept
+      # literal here so the gate does not depend on that script (it landed in
+      # LOOM-149) being present in the branch being tested.
+      - name: Backend typecheck (tsc --noEmit)
+        working-directory: backend
+        run: npx --no-install tsc --noEmit
+
+      - name: Asset ?v= drift (no stale immutable asset)
+        run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
+
+      - name: Site JS parses (node --check)
+        run: node tools/check-site-js.mjs

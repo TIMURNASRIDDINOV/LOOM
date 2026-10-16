@@ -27,7 +27,7 @@ export interface Product {
   glb_key: string | null
   thumbnail_key: string | null
   base_colors: string | null  // JSON: ["#FFFFFF","#1F2937"]
-  product_type: string        // 'custom' (configurator) | 'ready' (buy as-is)
+  product_type: string        // 'custom' (configurator) | 'ready' (buy as-is) | 'blank' (configurator, colour + size, no print)
   active: number
   display_order: number
   created_at: number
@@ -37,7 +37,7 @@ export interface Product {
   sizes_json: string | null       // ["XS","S","M"]
   colors_json: string | null      // [{hex,name_uz,name_ru,name_en,available}]
   print_area_json: string | null  // {platen_cm:{w,h},width_frac,top_frac}
-  flat_art_json: string | null    // {front:{src,src_small},back:{src,src_small}}
+  flat_art_json: string | null    // {front:{src,src_small,print?:{x,y,w}},back:{same}}
 }
 
 export interface User {

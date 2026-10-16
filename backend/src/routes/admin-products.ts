@@ -146,9 +146,11 @@ function checkPrintArea(v: unknown): Checked {
   return { value: { platen_cm: { w, h }, width_frac: v.width_frac, top_frac: v.top_frac } }
 }
 
+// Optional print {x, y, w} per face: where the print box sits on that face's art,
+// as fractions of the image (LOOM-227). Its height follows the platen aspect.
 function checkFlatArt(v: unknown): Checked {
-  if (!isObj(v)) return { error: 'flat_art must be {front:{src,src_small}, back:{src,src_small}}' }
-  const out: Record<string, { src: string; src_small: string }> = {}
+  if (!isObj(v)) return { error: 'flat_art must be {front:{src,src_small,print?}, back:{src,src_small,print?}}' }
+  const out: Record<string, { src: string; src_small: string; print?: { x: number; y: number; w: number } }> = {}
   for (const face of ['front', 'back']) {
     const f = v[face]
     if (!isObj(f)) return { error: `flat_art.${face} is required` }
@@ -159,6 +161,12 @@ function checkFlatArt(v: unknown): Checked {
       }
     }
     out[face] = { src: f.src as string, src_small: f.src_small as string }
+    if (f.print === undefined) continue
+    const p = f.print
+    if (!isObj(p) || !isFrac(p.x) || !isFrac(p.y) || !isFrac(p.w) || p.w === 0 || p.x + p.w > 1) {
+      return { error: `flat_art.${face}.print must be {x, y, w}: numbers in [0, 1], w > 0, x + w ≤ 1` }
+    }
+    out[face].print = { x: p.x, y: p.y, w: p.w }
   }
   return { value: out }
 }
@@ -263,8 +271,8 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
   const active = formData.get('active') === '0' ? 0 : 1
 
   const product_type = ((formData.get('product_type') as string | null)?.trim() || 'custom')
-  if (product_type !== 'custom' && product_type !== 'ready') {
-    return c.json({ ok: false, error: { code: 'INVALID', message: "product_type must be 'custom' or 'ready'", field: 'product_type' } }, 400)
+  if (product_type !== 'custom' && product_type !== 'ready' && product_type !== 'blank') {
+    return c.json({ ok: false, error: { code: 'INVALID', message: "product_type must be 'custom', 'ready' or 'blank'", field: 'product_type' } }, 400)
   }
 
   const colorsResult = parseColors(formData.get('base_colors'))
@@ -387,7 +395,9 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
 
   const typeRaw = (formData.get('product_type') as string | null)?.trim()
   if (typeRaw != null) {
-    if (typeRaw !== 'custom' && typeRaw !== 'ready') return c.json({ error: "product_type must be 'custom' or 'ready'" }, 400)
+    if (typeRaw !== 'custom' && typeRaw !== 'ready' && typeRaw !== 'blank') {
+      return c.json({ error: "product_type must be 'custom', 'ready' or 'blank'" }, 400)
+    }
     updates.product_type = typeRaw
   }
 

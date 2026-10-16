@@ -22,7 +22,7 @@ function buildFileUrl(requestUrl: string, key: string): string {
  *   { sizes: string[],
  *     colors: {hex, name_uz, name_ru, name_en, available}[],
  *     print_area: {platen_cm: {w, h}, width_frac, top_frac},
- *     flat_art: {front: {src, src_small}, back: {src, src_small}} }
+ *     flat_art: {front: {src, src_small, print?: {x, y, w}}, back: {same}} }
  * null when the row has no config (DB before 0022) or a column is not valid
  * JSON; clients then keep their built-in defaults.
  */
@@ -111,9 +111,6 @@ pub.post('/orders', async (c) => {
     if (!product) return c.json({ error: 'Product not found' }, 400)
     productId = product.id
   }
-  const variant = await checkVariant(c.env.DB, productId, b.designJson)
-  if ('code' in variant) return c.json(variant, 409)
-
   const keyField = (v: unknown) => (typeof v === 'string' ? v : null)
   const keys = {
     logo_key: keyField(b.logoKey),
@@ -124,6 +121,9 @@ pub.post('/orders', async (c) => {
     back_logo_key: keyField(b.backLogoKey),
     model_key: keyField(b.modelKey),
   }
+  const variant = await checkVariant(c.env.DB, productId, b.designJson, keys)
+  if ('code' in variant) return c.json(variant, 409)
+
   if (await firstForeignKey(c.env.DB, userId, Object.values(keys))) {
     return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
   }
