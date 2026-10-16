@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { errorLog } from './lib/error-log'
 import publicRoutes from './routes/public'
 import authRoutes from './routes/auth'
 import telegramAuthRoutes, { webhookRouter } from './routes/telegram-auth'
@@ -95,7 +96,7 @@ app.get('/', (c) =>
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 
 app.onError((err, c) => {
-  console.error('Unhandled error:', err.message, err.stack)
+  errorLog('Unhandled server error', err.stack, c.req.method, c.req.routePath || '/', c.req.header('cf-ray'))
   return c.json({ error: 'Internal server error' }, 500)
 })
 

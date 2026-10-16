@@ -1,4 +1,5 @@
 import React from 'react'
+import { reportRenderError } from '../api/report-error'
 import { StyleSheet, View } from 'react-native'
 
 import { C } from '../theme/tokens'
@@ -20,6 +21,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    reportRenderError(error)
     if (__DEV__) console.error('[ErrorBoundary]', error, info.componentStack)
   }
 
