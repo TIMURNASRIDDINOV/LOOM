@@ -27,6 +27,8 @@ export type ArtLayer = {
   mime?: string
   /** R2 key the print shop fetches: our upload, or the marketplace file. */
   uploadKey: string | null
+  originalKey?: string | null
+  artworkKey?: string | null
   /** Marketplace artwork id — attributes the sale to its designer. */
   artworkId?: number
   /** Designer markup added to the garment price, in sum. */
@@ -111,7 +113,7 @@ type StudioCtx = {
   setArt: (a: Omit<ArtLayer, 'sizePct' | 'rotation' | 'offset' | 'id'> & Partial<ArtLayer>) => void
   updateArt: (patch: Partial<ArtLayer>) => void
   /** Patch the artwork on a specific face, whichever face is active. */
-  updateArtOn: (face: Face, patch: Partial<ArtLayer>) => void
+  updateArtOn: (face: Face, patch: Partial<ArtLayer>, expectedUri?: string) => void
   removeArt: () => void
   centerArt: () => void
   nudge: (dx: number, dy: number) => void
@@ -267,8 +269,8 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
 
     setArt,
     updateArt,
-    updateArtOn: (f, patch) =>
-      setS((prev) => (prev[f].art ? { ...prev, [f]: { ...prev[f], art: { ...prev[f].art!, ...patch } } } : prev)),
+    updateArtOn: (f, patch, expectedUri) =>
+      setS((prev) => (prev[f].art && (!expectedUri || prev[f].art!.uri === expectedUri) ? { ...prev, [f]: { ...prev[f], art: { ...prev[f].art!, ...patch } } } : prev)),
     removeArt: () => {
       patchFace((f) => ({ ...f, art: null }))
       setArtSelected(false)

@@ -252,3 +252,9 @@ Common HTTP status codes:
 - `422` Unprocessable (e.g., user has no Telegram linked)
 - `429` Rate limited
 - `500` Internal server error
+
+### Original artwork uploads
+
+`POST /api/uploads` accepts multipart `file` plus `original=1` to retain a selected image unchanged (PNG, JPEG, WebP, HEIC/HEIF, GIF or SVG; 15 MiB maximum). The returned `originals/<uuid>.<ext>` key is new for every upload. Originals are authenticated downloads; use a separate PNG/JPEG preview key for editor/print preview. The ordinary upload contract is unchanged.
+
+`design_json` v2 stores `originalKey` and `artworkKey` on each image element, plus the first available key on its face for compatibility. Existing `key` remains the preview. App cart sync sends both faces' preview/original/artwork keys and the complete design JSON. New references are ownership checked like other cart assets. Marketplace artwork can reuse its existing approved source key. Older saved designs that only contain a downscaled preview cannot recover discarded pixels.

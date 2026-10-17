@@ -42,7 +42,7 @@ const VENDOR = [
 ].map((f) => `${SITE_ORIGIN}/assets/vendor/${f}?v=1`)
 
 export const FONTS_CSS =
-  'https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;700;800&family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600;700&display=swap'
+  `${SITE_ORIGIN}/assets/print-fonts.css?v=1`
 
 /** Tileable woven-cotton surface (CC0, assets/textures) — see configurator.js FABRIC_*. */
 const FABRIC_NORMAL_URL = `${SITE_ORIGIN}/assets/textures/fabric-jersey-normal.jpg?v=1`

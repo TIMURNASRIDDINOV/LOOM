@@ -20,6 +20,11 @@ export type CartItem = {
   designJson: string
   meta: string
   logoKey: string | null
+  backLogoKey?: string | null
+  originalKey?: string | null
+  backOriginalKey?: string | null
+  artworkKey?: string | null
+  backArtworkKey?: string | null
   /** Front and back mockups (JPEG data URLs) drawn at add-to-cart, uploaded at sync. */
   mockups?: Mockups | null
   /** R2 keys of those mockups once uploaded, so a retried checkout reuses them. */
@@ -104,6 +109,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           unitPrice: it.unitPrice,
           quantity: it.quantity,
           logoKey: it.logoKey ?? undefined,
+          backLogoKey: it.backLogoKey ?? undefined,
+          originalKey: it.originalKey ?? undefined,
+          backOriginalKey: it.backOriginalKey ?? undefined,
+          artworkKey: it.artworkKey ?? undefined,
+          backArtworkKey: it.backArtworkKey ?? undefined,
           frontMockupKey: front ?? undefined,
           backMockupKey: back ?? undefined,
         },

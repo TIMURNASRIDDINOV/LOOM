@@ -1,3 +1,4 @@
+import { designAssetKeys } from '../lib/design-assets'
 import { Hono } from 'hono'
 import { requireAuth } from '../middleware/requireAuth'
 import {
@@ -86,7 +87,7 @@ router.post('/', async (c) => {
   const quantity = Math.max(1, Math.min(99, parseInt(String(b.quantity ?? 1), 10) || 1))
 
   // Only files this user uploaded, or approved marketplace artwork.
-  if (await firstForeignKey(c.env.DB, c.get('userId'), Object.values(keys))) {
+  if (await firstForeignKey(c.env.DB, c.get('userId'), [...Object.values(keys), ...designAssetKeys(b.designJson), ...['originalKey', 'backOriginalKey', 'artworkKey', 'backArtworkKey'].map(k => typeof b[k] === 'string' ? b[k] as string : null)])) {
     return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
   }
 

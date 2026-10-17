@@ -1,9 +1,10 @@
+import { designAssetKeys } from '../lib/design-assets'
 import { Hono, type Context } from 'hono'
 import {
   getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId,
   getUserNotifications, recordUpload, isOwnUpload, firstForeignKey,
 } from '../db/queries'
-import { validateUpload, generateLogoKey, serveObject } from '../lib/r2'
+import { validateUpload, generateLogoKey, serveObject, ORIGINAL_TYPES } from '../lib/r2'
 import { requireAuth, authenticateUser, userTokenFrom } from '../middleware/requireAuth'
 import { clientIp, isRateLimited } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
@@ -124,7 +125,7 @@ pub.post('/orders', async (c) => {
   const variant = await checkVariant(c.env.DB, productId, b.designJson, keys)
   if ('code' in variant) return c.json(variant, 409)
 
-  if (await firstForeignKey(c.env.DB, userId, Object.values(keys))) {
+  if (await firstForeignKey(c.env.DB, userId, [...Object.values(keys), ...designAssetKeys(b.designJson), ...['originalKey', 'backOriginalKey', 'artworkKey', 'backArtworkKey'].map(k => typeof b[k] === 'string' ? b[k] as string : null)])) {
     return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
   }
 
@@ -196,10 +197,11 @@ uploads.post('/', requireAuth, async (c) => {
 
   // Type is decided by the file's content, not the declared MIME type or name.
   const bytes = new Uint8Array(await fileObj.arrayBuffer())
-  const validation = validateUpload(bytes)
+  const original = formData.get('original') === '1'
+  const validation = original ? validateUpload(bytes, ORIGINAL_TYPES) : validateUpload(bytes)
   if (!validation.ok) return c.json({ error: validation.error }, 400)
 
-  const key = generateLogoKey(validation.type.ext)
+  const key = original ? `originals/${crypto.randomUUID()}.${validation.type.ext}` : generateLogoKey(validation.type.ext)
   await c.env.LOOM_UPLOADS.put(key, bytes, {
     httpMetadata: { contentType: validation.type.mime },
   })
