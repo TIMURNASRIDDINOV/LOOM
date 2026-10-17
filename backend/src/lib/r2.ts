@@ -21,6 +21,14 @@ export function sniffType(bytes: Uint8Array): Sniffed | null {
   if (b.length >= 12 && ascii(b, 0, 4) === 'RIFF' && ascii(b, 8, 12) === 'WEBP') {
     return { mime: 'image/webp', ext: 'webp' }
   }
+  if (b.length >= 12 && ascii(b, 4, 8) === 'ftyp') {
+    const brands = ascii(b, 8, Math.min(b.length, 64))
+    if (/heic|heix|hevc|hevx/.test(brands)) return { mime: 'image/heic', ext: 'heic' }
+    if (/mif1|msf1/.test(brands)) return { mime: 'image/heif', ext: 'heif' }
+  }
+  if (b.length >= 6 && /^GIF8[79]a$/.test(ascii(b, 0, 6))) return { mime: 'image/gif', ext: 'gif' }
+  const prefix = new TextDecoder().decode(b.subarray(0, 4096)).replace(/^\uFEFF/, '').trimStart()
+  if (/^(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg(?:\s|>)/i.test(prefix)) return { mime: 'image/svg+xml', ext: 'svg' }
   if (b.length >= 4 && ascii(b, 0, 4) === 'glTF') {
     return { mime: 'model/gltf-binary', ext: 'glb' }
   }
@@ -33,6 +41,7 @@ function ascii(b: Uint8Array, from: number, to: number): string {
 
 // Uploads bucket: print artwork, mockups, the textured review model.
 const UPLOAD_TYPES = new Set(['image/png', 'image/jpeg', 'model/gltf-binary'])
+export const ORIGINAL_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif', 'image/gif', 'image/svg+xml'])
 export const AVATAR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 /** Old avatar keys were derived from the user id; they are never served. */
@@ -65,6 +74,7 @@ const TYPE_BY_EXT: Record<string, string> = {
   jpeg: 'image/jpeg',
   webp: 'image/webp',
   glb: 'model/gltf-binary',
+  svg: 'image/svg+xml', heic: 'image/heic', heif: 'image/heif', gif: 'image/gif',
 }
 
 /** Content type for a stored key, from a fixed table. Unknown → opaque bytes. */
@@ -81,6 +91,7 @@ export function contentTypeForKey(key: string): string {
 export function serveObject(object: R2ObjectBody, key: string, cacheControl: string): Response {
   const headers = new Headers()
   headers.set('content-type', contentTypeForKey(key))
+  if (key.startsWith('originals/')) headers.set('content-disposition', 'attachment; filename=original.' + (key.split('.').pop() || 'bin'))
   headers.set('x-content-type-options', 'nosniff')
   headers.set('content-security-policy', "default-src 'none'; sandbox")
   headers.set('etag', object.httpEtag)

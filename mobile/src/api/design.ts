@@ -17,7 +17,7 @@ import { colorName, tStatic, type TFn } from '../i18n'
 
 type Element = Record<string, unknown>
 
-function serializeFace(face: StudioState['front']): { printRect: typeof LEGACY_PRINT_AREA; elements: Element[] } {
+function serializeFace(face: StudioState['front']) {
   const elements: Element[] = []
 
   if (face.art) {
@@ -31,6 +31,8 @@ function serializeFace(face: StudioState['front']): { printRect: typeof LEGACY_P
       name: face.art.name,
       scalePct: face.art.sizePct,
       key: face.art.uploadKey ?? null,
+      originalKey: face.art.originalKey || face.art.uploadKey || null,
+      artworkKey: face.art.artworkId ? (face.art.artworkKey || face.art.uploadKey || null) : null,
       ...(face.art.artworkId ? { artworkId: face.art.artworkId, author: face.art.author ?? null } : {}),
     })
   }
@@ -52,7 +54,10 @@ function serializeFace(face: StudioState['front']): { printRect: typeof LEGACY_P
     })
   }
 
-  return { printRect: { ...LEGACY_PRINT_AREA }, elements }
+  return { printRect: { ...LEGACY_PRINT_AREA }, elements,
+    originalKey: face.art?.originalKey || face.art?.uploadKey || null,
+    artworkKey: face.art?.artworkId ? (face.art.artworkKey || face.art.uploadKey || null) : null,
+  }
 }
 
 export function buildDesignJson(s: StudioState, platenCm: { w: number; h: number } = PLATEN_CM): string {

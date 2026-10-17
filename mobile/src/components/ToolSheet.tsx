@@ -128,7 +128,7 @@ function TextTool() {
 }
 
 function ImageTool() {
-  const { setArt, updateArt } = useStudio()
+  const { setArt, updateArtOn, face } = useStudio()
   const { flash } = useToast()
   const t = useT()
   const [busy, setBusy] = useState(false)
@@ -149,7 +149,7 @@ function ImageTool() {
     const asset = res.assets[0]
     const mime = asset.mimeType ?? 'image/png'
     const name = asset.fileName ?? t('tool.image')
-    if (asset.fileSize && asset.fileSize > 20 * 1024 * 1024) {
+    if (asset.fileSize && asset.fileSize > 15 * 1024 * 1024) {
       flash(t('tool.errBig'))
       return
     }
@@ -160,8 +160,8 @@ function ImageTool() {
     setArt({ name, uri: asset.uri, mime, uploadKey: null, price: 0 })
     flash(t('tool.placed'))
     try {
-      const key = await uploadFile(asset.uri, asset.fileName ?? 'artwork.png', mime)
-      updateArt({ uploadKey: key })
+      const key = await uploadFile(asset.uri, asset.fileName ?? 'artwork.png', mime, true)
+      updateArtOn(face, { uploadKey: key, originalKey: key }, asset.uri)
     } catch {
       flash(t('tool.uploadLater'))
     } finally {

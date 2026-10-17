@@ -28,6 +28,8 @@
 
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
+    'cfg.printFailed': { uz: 'Chop etish fayli tayyorlanmadi. Asl rasm mavjudligini va fayl hajmini tekshirib, qayta urinib ko‘ring.', ru: 'Не удалось подготовить файл печати. Проверьте исходное изображение и размер файла, затем повторите.', en: 'Could not prepare the print file. Check the original image and file size, then try again.' },
+    'cfg.fontLoadError': { uz: 'Shrift yuklanmadi. Qayta urinib ko‘ring.', ru: 'Не удалось загрузить шрифт. Повторите попытку.', en: 'Could not load the font. Please try again.' },
     // ===== Navigation (shared) =====
     'nav.home':       { uz: 'Bosh sahifa', ru: 'Главная',       en: 'Home' },
     'nav.catalog':    { uz: 'Katalog',     ru: 'Каталог',       en: 'Catalog' },

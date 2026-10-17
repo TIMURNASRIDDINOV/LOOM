@@ -109,9 +109,10 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
 }
 
 /** Multipart upload to `POST /api/uploads` → `{ key }`. */
-export async function uploadFile(uri: string, name: string, type: string): Promise<string> {
+export async function uploadFile(uri: string, name: string, type: string, original = false): Promise<string> {
+  if (Platform.OS === 'web') return postUpload(await (await fetch(uri)).blob(), name, original)
   // React Native's FormData takes this {uri,name,type} shape rather than a Blob.
-  return postUpload({ uri, name, type } as unknown as Blob)
+  return postUpload({ uri, name, type } as unknown as Blob, undefined, original)
 }
 
 /** Upload a rendered image (a `data:` URL, e.g. an order mockup) → `{ key }`. */
@@ -124,8 +125,9 @@ export async function uploadDataUrl(dataUrl: string, name: string): Promise<stri
   return uploadFile(uri, name, /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? 'image/jpeg')
 }
 
-async function postUpload(file: Blob, name?: string): Promise<string> {
+async function postUpload(file: Blob, name?: string, original = false): Promise<string> {
   const form = new FormData()
+  if (original) form.append('original', '1')
   if (name) form.append('file', file, name)
   else form.append('file', file)
 

@@ -329,7 +329,7 @@ function viewModel(d, view) {
   const platenCm = (d.v >= 2 && d.platenCm) ? d.platenCm : PHYS_CM
 
   if (d.v >= 2 && Array.isArray(vd.elements)) {
-    return { rect: vd.printRect || { ...LEGACY_PRINT_AREA }, elements: vd.elements, platenCm }
+    return { rect: vd.printRect || { ...LEGACY_PRINT_AREA }, elements: vd.elements, platenCm, refRect: d.refRect || REF_RECT, texSize: d.texSize || TEX_SIZE }
   }
 
   const L = LEGACY_PRINT_AREA
@@ -395,9 +395,12 @@ function proofUrlsOf(row) {
 
 // Active 3D viewers' render loops, cancelled before a re-render (e.g. after approve).
 let _viewerStops = []
+let _printObjectUrls = []
+const sharedPrintRenderer = import('../../assets/print-renderer.mjs?v=1')
 function stopAllViewers() {
   _viewerStops.forEach((fn) => { try { fn() } catch {} })
   _viewerStops = []
+  _printObjectUrls.forEach(url => URL.revokeObjectURL(url)); _printObjectUrls = []
 }
 
 async function renderProductionSheet(o) {
@@ -576,14 +579,28 @@ async function buildView(name, vm, mockUrl, printUrl, logoUrl) {
     const dl = document.createElement('a')
     dl.className = 'ps-dl'; dl.href = printUrl; dl.download = `print-${name}.png`; dl.textContent = 'Скачать PNG'
     cap.appendChild(dl)
+    const resolution = document.createElement('span'); resolution.textContent = 'Проверка разрешения…'; cap.appendChild(resolution)
+    const probe = new Image()
+    probe.onload = () => showPrintResolution(resolution, probe.naturalWidth, probe.naturalHeight, vm.platenCm)
+    probe.onerror = () => { resolution.textContent = 'Не удалось проверить разрешение'; resolution.className = 'ps-recon-note' }
+    probe.src = printUrl
     fig.appendChild(cap)
   } else if (hasContent) {
     const wrap = document.createElement('div'); wrap.className = 'ps-print-wrap'
     const canvas = document.createElement('canvas'); wrap.appendChild(canvas)
     fig.appendChild(wrap)
-    fig.insertAdjacentHTML('beforeend',
-      `<figcaption class="ps-figcap"><span class="ps-recon-note">реконструкция (приблизительно)</span></figcaption>`)
-    await drawReconstruction(canvas, vm, logoUrl)
+    const cap = document.createElement('figcaption'); cap.className = 'ps-figcap'
+    const resolution = document.createElement('span'); resolution.textContent = 'Подготовка 300 DPI…'; cap.appendChild(resolution); fig.appendChild(cap)
+    try {
+      const result = await drawReconstruction(canvas, vm, logoUrl)
+      showPrintResolution(resolution, canvas.width, canvas.height, vm.platenCm)
+      if (result.lowSourceDpi) { const warning = document.createElement('span'); warning.className = 'ps-recon-note'; warning.textContent = 'Исходное изображение ниже 300 DPI'; cap.appendChild(warning) }
+      const module = await sharedPrintRenderer
+      const blob = await module.printPng(canvas), url = URL.createObjectURL(blob); _printObjectUrls.push(url)
+      const preview = document.createElement('canvas'); preview.width = Math.min(640, canvas.width); preview.height = Math.round(preview.width * canvas.height / canvas.width)
+      preview.getContext('2d').drawImage(canvas, 0, 0, preview.width, preview.height); canvas.replaceWith(preview); canvas.width = canvas.height = 0
+      const download = document.createElement('a'); download.className = 'ps-dl'; download.href = url; download.download = `print-${name}.png`; download.textContent = 'Скачать PNG'; cap.appendChild(download)
+    } catch (_) { resolution.textContent = 'Не удалось подготовить печать — проверьте исходные файлы'; resolution.className = 'ps-recon-note'; canvas.remove() }
   } else {
     fig.innerHTML = `<div class="ps-empty">Нет дизайна на этой стороне</div>`
   }
@@ -593,56 +610,28 @@ async function buildView(name, vm, mockUrl, printUrl, logoUrl) {
 
 // Re-draw the print artwork from design_json for orders that have no saved print
 // master. Uses the SAME geometry as configurator.js drawElement/_renderPrintCanvas.
-// In practice this is the legacy path: every v2 order ships a print master.
+// App orders without a stored print use the same renderer and original keys.
+function showPrintResolution(node, width, height, cm) {
+  const dpi = Math.min(width / (cm.w / 2.54), height / (cm.h / 2.54))
+  node.textContent = `${width} × ${height} px · ${dpi.toFixed(1)} DPI` + (dpi < 299.5 ? ' · Ниже 300 DPI' : '')
+  if (dpi < 299.5) node.className = 'ps-recon-note'
+}
+
 async function drawReconstruction(canvas, vm, logoUrl) {
-  const r = vm.rect
-  const scale = 0.55 // ~510×616 internal px (display-only)
-  canvas.width = Math.round(r.w * scale)
-  canvas.height = Math.round(r.h * scale)
-  const ctx = canvas.getContext('2d')
-  ctx.scale(scale, scale)
-
-  // The configurator expresses font px and logo scale against REF_RECT, so a rect
-  // of a different size scales them proportionally.
-  const kW = r.w / REF_RECT.w, kH = r.h / REF_RECT.h
-  let usedLogo = false
-
-  for (const el of vm.elements) {
-    const cx = el.nx * r.w, cy = el.ny * r.h
-
-    if (el.type === 'image') {
-      // Only the first logo has a resolvable URL here (logo_key / back_logo_key).
-      if (usedLogo || !logoUrl) continue
-      usedLogo = true
-      await new Promise((resolve) => {
-        const img = new Image()
-        img.onload = () => {
-          const natW = img.naturalWidth || img.width, natH = img.naturalHeight || img.height
-          const factor = ((el.scalePct || 100) / 100) * (TEX_SIZE * 0.30 * kW) / Math.max(natW, natH)
-          const dw = natW * factor, dh = natH * factor
-          ctx.save(); ctx.translate(cx, cy); ctx.rotate(el.rotation || 0)
-          ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh); ctx.restore()
-          resolve()
-        }
-        img.onerror = resolve
-        img.src = logoUrl
-      })
-      continue
-    }
-
-    if (!el.content) continue
-    const size = (el.size || 160) * kH, font = el.font || 'Arial'
-    try { await document.fonts.load(`${size}px "${font}"`) } catch { /* fallback face */ }
-    ctx.save()
-    const weight = el.bold ? 'bold' : 'normal'
-    const style = el.italic ? 'italic' : 'normal'
-    ctx.font = `${style} ${weight} ${size}px "${font}"`
-    ctx.fillStyle = el.color || '#000'
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.translate(cx, cy); ctx.rotate(el.rotation || 0)
-    ctx.fillText(el.content, 0, 0)
-    ctx.restore()
-  }
+  const module = await sharedPrintRenderer
+  let legacyUsed = false
+  const elements = vm.elements.map(el => {
+    if (el.type !== 'image' || el.originalKey || el.artworkKey || el.key) return el
+    if (!legacyUsed && logoUrl) { legacyUsed = true; return { ...el, key: '__legacy-logo' } }
+    return el
+  })
+  const design = { v: 2, platenCm: vm.platenCm, refRect: vm.refRect || REF_RECT, texSize: vm.texSize || TEX_SIZE, front: { elements } }
+  const result = await module.renderPrint(design, 'front', { canvasFactory: () => canvas, loadImage: async key => {
+    const response = key === '__legacy-logo' ? await fetch(logoUrl) : await window.LOOM.apiFetch('/api/admin/media/' + encodeURIComponent(key))
+    if (!response.ok) throw new Error('Original print source unavailable')
+    return module.imageFromBlob(await response.blob(), key)
+  } })
+  return result
 }
 
 function posStr(el, platenCm) {

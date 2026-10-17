@@ -119,14 +119,32 @@ function colorAvailable(hex) {
   return !!def && def.available !== false;
 }
 
-// Font options (system + Google)
+// Self-hosted print faces; assets/print-fonts.css also defines legacy aliases.
 const FONT_OPTIONS = [
-  { value: "Arial", label: "Arial" },
-  { value: "Georgia", label: "Georgia" },
-  { value: "Impact", label: "Impact" },
-  { value: "Courier New", label: "Courier New" },
-  { value: "Pacifico", label: "Pacifico (Script)" },
+  { value: "Noto Sans", label: "Noto Sans" },
+  { value: "Noto Serif", label: "Noto Serif" },
+  { value: "Noto Sans Black", label: "Noto Sans Black" },
+  { value: "Noto Sans Mono", label: "Noto Sans Mono" },
+  { value: "Caveat", label: "Caveat" },
 ];
+
+// A print must never capture a temporary system fallback while a font loads.
+const _printFontLoads = new Map();
+function ensureDesignFonts() {
+  if (!document.fonts) return Promise.resolve();
+  const texts = ["front", "back"].flatMap((view) => elementsOf(view)).filter((el) => el.type === "text" && el.content);
+  return Promise.all(texts.map((el) => {
+    const spec = `${el.italic ? "italic" : "normal"} ${el.bold ? "700" : "400"} 32px "${el.font}"`;
+    if (!_printFontLoads.has(spec)) {
+      const loading = document.fonts.load(spec, "Oʻzbekiston Ғ ш").then((faces) => {
+        if (!faces.length) throw new Error("Print font unavailable");
+        drawTexture("front"); drawTexture("back"); renderFlatEditor();
+      }).catch((error) => { _printFontLoads.delete(spec); throw error; });
+      _printFontLoads.set(spec, loading);
+    }
+    return _printFontLoads.get(spec);
+  }));
+}
 
 // API base — resolved via config.js if available
 function getApiBase() {
@@ -189,7 +207,7 @@ function newTextElement(over) {
   return Object.assign({
     id: _uid(), type: "text",
     nx: 0.5, ny: 0.32, rotation: 0,
-    content: "", font: "Arial", size: 160,
+    content: "", font: "Noto Sans", size: 160,
     color: "#000000", bold: false, italic: false,
   }, over || {});
 }
@@ -495,7 +513,7 @@ async function applyCartEditDesign(item) {
         if (!img) continue;
         const el = newImageElement({
           nx: s.nx, ny: s.ny, rotation: s.rotation || 0,
-          img, name: s.name || "", scalePct: s.scalePct || 100, key: s.key || null,
+          img, name: s.name || "", scalePct: s.scalePct || 100, key: s.key || null, originalKey: s.originalKey || s.artworkKey || null,
         });
         // Carry the designer credit through an edit. Without this, reopening a
         // bag item and saving it would quietly drop the artwork id, and the
@@ -1391,6 +1409,7 @@ function drawTexture(view) {
 
 /** Redraw whichever view is currently active. */
 function redrawActive() {
+  ensureDesignFonts().catch(() => {});
   clearTimeout(_bakeTimer); // this IS the bake a pending scheduleRedraw() owed
   _bakeTimer = 0;
   drawTexture(designState.activeView);
@@ -1409,6 +1428,7 @@ function redrawActive() {
 let _redrawQueued = false;
 let _bakeTimer = 0;
 function scheduleRedraw() {
+  ensureDesignFonts().catch(() => {});
   if (_redrawQueued) return;
   _redrawQueued = true;
   requestAnimationFrame(() => {
@@ -5319,7 +5339,7 @@ function _serializeElement(el) {
       color: el.color, bold: !!el.bold, italic: !!el.italic,
     });
   }
-  const img = Object.assign(base, { name: el.name, scalePct: el.scalePct, key: el.key || null });
+  const img = Object.assign(base, { name: el.name, scalePct: el.scalePct, key: el.key || null, originalKey: el.originalKey || null, artworkKey: el.artworkKey || null });
   if (el.artworkId) {
     img.artworkId = el.artworkId;
     img.artworkPrice = el.artworkPrice || 0;
@@ -5332,6 +5352,8 @@ function _serializeElement(el) {
 function _serializeView(view) {
   const r = printRect(view);
   return {
+    originalKey: elementsOf(view).find(e => e.type === "image" && e.originalKey)?.originalKey || null,
+    artworkKey: elementsOf(view).find(e => e.type === "image" && e.artworkKey)?.artworkKey || null,
     printRect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) },
     // Placeholder copy is preview-only and must never be stored as artwork.
     elements: elementsOf(view).filter((e) => e.type === "text"
@@ -5356,8 +5378,8 @@ function _buildDesignJson() {
   });
 }
 // Generic R2 upload from any data URL (logo, flat print PNG, 3D mockup JPEG).
-// Returns the R2 key, or null on any failure (non-fatal — proofs are best-effort).
-async function _uploadDataUrl(dataUrl, filename) {
+// Returns the R2 key, or null on failure; callers require image/original keys before adding.
+async function _uploadDataUrl(dataUrl, filename, original) {
   if (!dataUrl) return null;
   try {
     const [header, b64] = dataUrl.split(",");
@@ -5366,6 +5388,7 @@ async function _uploadDataUrl(dataUrl, filename) {
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const fd = new FormData();
+    if (original) fd.append("original", "1");
     fd.append("file", new File([new Blob([bytes], { type: mime })], filename || "asset.png", { type: mime }));
     // Uploads are tied to the signed-in user, so send the session along.
     const up = await fetch(getApiBase() + "/api/uploads", {
@@ -5391,9 +5414,20 @@ function _imageElements(view) {
 async function _uploadLogoFor(view) {
   const els = _imageElements(view);
   if (!els.length) return null;
-  const keys = await Promise.all(els.map((el) => {
+  const keys = await Promise.all(els.map(async (el) => {
     const f = uploadedFileData[el.id];
-    return _uploadDataUrl(f.base64, f.name || view + "-logo.png");
+    if (!el.originalKey) el.originalKey = el.artworkKey || await _uploadDataUrl(f.originalBase64 || f.base64, f.originalName || f.name, true);
+    let preview = f.base64;
+    if (f.type === 'image/svg+xml') {
+      const cm = el.scalePct / 100 * (TEX_SIZE * 0.30 / REF_RECT.w) * PLATEN_CM.w;
+      const long = Math.ceil(cm / 2.54 * 300), aspect = el.img.naturalWidth / el.img.naturalHeight;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(aspect >= 1 ? long : long * aspect));
+      canvas.height = Math.max(1, Math.round(aspect >= 1 ? long / aspect : long));
+      canvas.getContext('2d').drawImage(el.img, 0, 0, canvas.width, canvas.height);
+      preview = canvas.toDataURL('image/png');
+    }
+    return _uploadDataUrl(preview, view + '-preview.png');
   }));
   els.forEach((el, i) => { el.key = keys[i] || null; });
   return keys[0] || null;
@@ -5401,7 +5435,7 @@ async function _uploadLogoFor(view) {
 
 /** Did any logo on this view fail to upload? */
 function _logoUploadIncomplete(view) {
-  return _imageElements(view).some((el) => !el.key);
+  return _imageElements(view).some((el) => !el.key || !el.originalKey);
 }
 
 // ── Plain-text summaries (order modal, Telegram payload) ─────────
@@ -5433,69 +5467,49 @@ function _scaleSummary(view) {
 // Uses the exact same geometry as drawTexture() so the placement matches the
 // preview pixel-for-pixel; only the resolution differs.
 // Returns a PNG data URL, or null if the view is empty.
-const PRINT_DPI = 235;     // 30×40 cm → 2776×3701 px, whatever the model's UV rect spans
-const PRINT_MAX_PX = 12e6; // iOS Safari refuses canvases over ~16.7M px; keep a margin
-/** Texture px → print px. The rect always spans PLATEN_CM.w, so the dpi is fixed. */
-function _printScale(r) {
-  let s = (PLATEN_CM.w / 2.54) * PRINT_DPI / r.w;
-  const px = r.w * r.h * s * s;
-  if (px > PRINT_MAX_PX) {
-    s *= Math.sqrt(PRINT_MAX_PX / px);
-    const dpi = Math.round(r.w * s / (PLATEN_CM.w / 2.54));
-    console.warn(`[LOOM] print file capped to ${PRINT_MAX_PX} px: ${dpi} dpi on ${PLATEN_CM.w}×${PLATEN_CM.h} cm` +
-      (dpi < MIN_PRINT_DPI ? ` (below MIN_PRINT_DPI ${MIN_PRINT_DPI})` : ""));
-  }
-  return s;
+const PRINT_MAX_BYTES = 15 * 1024 * 1024;
+let printRendererModule;
+function sharedPrintRenderer() {
+  return printRendererModule || (printRendererModule = import('./assets/print-renderer.mjs?v=1'));
 }
-// POST /api/uploads refuses files over 15 MiB (backend/src/routes/public.ts).
-const PRINT_MAX_BYTES = 14.5 * 1024 * 1024;
-/** Print PNG that fits the upload cap: a dense photo near full size re-renders at a lower dpi, never under MIN_PRINT_DPI. */
-function _renderPrintCanvas(view) {
+async function _renderPrintCanvas(view) {
   if (!_viewHasPrint(view)) return null;
-  const r = printRect(view);
-  const minS = (PLATEN_CM.w / 2.54) * MIN_PRINT_DPI / r.w;
-  let s = _printScale(r);
-  for (;;) {
-    const url = _paintPrint(view, r, s);
-    const bytes = (url.length - url.indexOf(",") - 1) * 0.75;
-    if (bytes <= PRINT_MAX_BYTES || s <= minS) return url;
-    // PNG bytes track pixel count; 5% margin.
-    s = Math.max(minS, s * Math.sqrt(PRINT_MAX_BYTES / bytes) * 0.95);
-    console.warn(`[LOOM] print PNG ${(bytes / 1048576).toFixed(1)} MB is over the upload cap: ` +
-      `re-rendering at ${Math.round(r.w * s / (PLATEN_CM.w / 2.54))} dpi`);
-  }
-}
-function _paintPrint(view, r, s) {
-  const c = document.createElement("canvas");
-  c.width = Math.round(r.w * s);
-  c.height = Math.round(r.h * s);
-  const ctx = c.getContext("2d");
-  ctx.scale(s, s);
-  ctx.translate(-r.x, -r.y); // texture coords → print-area-local
-
-  // Same painter as the on-garment preview, minus the screen-only drop shadow —
-  // but with the FLAT mapping, not the warped one: the centreline warp corrects
-  // the posed 3D scan, and a real shirt isn't posed. nx 0.5 must land on the
-  // physical platen centre in the file a print shop receives.
-  elementsOf(view).forEach((el) => {
-    if (el.type === "text" && el.placeholder) return;
-    drawElementIn(ctx, el, r, false);
-  });
-  const url = c.toDataURL("image/png");
-  c.width = c.height = 0; // iOS frees canvas memory only when it shrinks
-  return url;
+  const module = await sharedPrintRenderer();
+  const design = JSON.parse(_buildDesignJson());
+  const result = await module.renderPrint(design, view, { loadImage: async (key) => {
+    // Newly uploaded originals are already on this device. Resolve by their
+    // recorded key without downloading the same bytes a second time.
+    const local = elementsOf(view).find(el => (el.originalKey || el.artworkKey) === key && uploadedFileData[el.id]?.originalBase64);
+    let blob;
+    if (local) blob = await (await fetch(uploadedFileData[local.id].originalBase64)).blob();
+    else {
+      let response = await fetch(getApiBase() + '/api/uploads/' + encodeURIComponent(key), { headers: _authHeaders(false), credentials: 'include' });
+      if (!response.ok) response = await fetch(getApiBase() + '/api/files/artwork/' + encodeURIComponent(key));
+      if (!response.ok) throw new Error('Original print source unavailable');
+      blob = await response.blob();
+    }
+    return module.imageFromBlob(blob, key);
+  } });
+  try {
+    const blob = await module.printPng(result.canvas);
+    if (blob.size > PRINT_MAX_BYTES) throw new Error('Print exceeds upload limit');
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob);
+    });
+  } finally { result.canvas.width = result.canvas.height = 0; }
 }
 
 // Capture production proofs for the current design: shadow-free flat print PNGs +
 // 3D garment mockups (JPEG). Uploads them and returns R2 keys + the mockup data
 // URLs (so the Telegram worker payload can reuse them without re-rendering).
 async function captureProofs() {
+  await ensureDesignFonts();
   const active = { front: _viewHasPrint("front"), back: _viewHasPrint("back") };
 
   // Flat print masters (artwork-only, transparent, hi-res) for non-empty views.
   const printData = {
-    front: active.front ? _renderPrintCanvas("front") : null,
-    back: active.back ? _renderPrintCanvas("back") : null,
+    front: active.front ? await _renderPrintCanvas("front") : null,
+    back: active.back ? await _renderPrintCanvas("back") : null,
   };
 
   // 3D mockups — one still frame per side; the customer's camera comes back.
@@ -5597,11 +5611,17 @@ async function addToCart(opts) {
   if (orderBtn) orderBtn.disabled = true;
   const t0 = performance.now();
   try {
+    try { await ensureDesignFonts(); }
+    catch (_) { showToast(CT("cfg.fontLoadError", "Не удалось загрузить шрифт. Повторите попытку."), "error"); return false; }
     // Capture proofs NOW — the design is only live here; it's gone by checkout.
     // A blank product is the plain garment, as the catalogue adds it: no files.
     const [logoKey, backLogoKey] = _blankOnly
       ? [null, null]
       : await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    if (!_blankOnly && (_logoUploadIncomplete('front') || _logoUploadIncomplete('back'))) {
+      showToast(CT('cfg.uploadErrLogo', 'Could not upload your image. Please try again.'), 'error');
+      return false;
+    }
     const proofs = _blankOnly ? {} : await captureProofs();
     // A side with artwork but no print master would reach the print shop empty.
     if ((_viewHasPrint("front") && !proofs.frontPrintKey) || (_viewHasPrint("back") && !proofs.backPrintKey)) {
@@ -5659,7 +5679,7 @@ async function addToCart(opts) {
     }
     return true;
   } catch (e) {
-    showToast("Ошибка сети", "error");
+    showToast(CT("cfg.printFailed", "Could not prepare the print. Please try again."), "error");
     return false;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
@@ -6002,7 +6022,7 @@ function bindTextControls() {
     if (!t) return;
     t.font = fontSel.value;
     // Pre-load the font in the browser before redrawing
-    document.fonts.load(`24px "${fontSel.value}"`).then(() => redrawActive());
+    ensureDesignFonts().then(() => redrawActive()).catch(() => showToast(CT("cfg.fontLoadError", "Не удалось загрузить шрифт. Повторите попытку."), "error"));
   });
 
   if (colorPkr) colorPkr.addEventListener("input", () => {
@@ -6075,7 +6095,7 @@ function checkPrintDpi(el) {
   if (!el || el.type !== "image" || !el.img) return;
   const f = uploadedFileData[el.id];
   if (f && f.type === "image/svg+xml") return;
-  const px = Math.max(el.img.naturalWidth || 0, el.img.naturalHeight || 0);
+  const px = Math.max(f?.originalWidth || el.img.naturalWidth || 0, f?.originalHeight || el.img.naturalHeight || 0);
   const low = px > 0 && printDpi(px, el.scalePct) < MIN_PRINT_DPI;
   if (low && !el._lowDpi) {
     showToast(CT("cfg.uploadLowDpi", "Низкое разрешение: при таком размере печать может быть размытой. Уменьшите изображение или загрузите файл побольше."), "warning");
@@ -6083,7 +6103,7 @@ function checkPrintDpi(el) {
   el._lowDpi = low;
 }
 
-function handleImageFile(file, meta) {
+function handleImageFile(file, meta, original) {
   if (_blankOnly) return;
   // Phones often hand over HEIC with an empty or generic type, so the
   // extension counts too.
@@ -6110,7 +6130,7 @@ function handleImageFile(file, meta) {
         .then(() => window.HeicTo({ blob: file, type: "image/jpeg", quality: 0.92 }))
         .then((blob) => handleImageFile(
           new File([blob], (file.name || "photo").replace(/\.hei[cf]$/i, "") + ".jpg", { type: "image/jpeg" }),
-          meta,
+          meta, original || { base64: e.target.result, name: file.name, type: file.type, size: file.size },
         ))
         .catch(failed);
     };
@@ -6164,6 +6184,7 @@ function handleImageFile(file, meta) {
       el.name = (meta && meta.title) || file.name;
       el.scalePct = scalePct;
       el.key = null; // re-uploaded on the next order
+      el.originalKey = null;
 
       // Marketplace artwork carries its designer with it: `artworkId` is what
       // the checkout reads to credit the sale (see cart.ts artworkIdsIn), and
@@ -6176,6 +6197,7 @@ function handleImageFile(file, meta) {
         // 2048px derivative. Keep the designer's original R2 key alongside it:
         // the print shop should be able to pull the full-resolution file.
         el.artworkKey = meta.imageKey || null;
+        el.originalKey = el.artworkKey;
       } else {
         delete el.artworkId; delete el.artworkPrice;
         delete el.artworkAuthor; delete el.artworkKey;
@@ -6184,6 +6206,10 @@ function handleImageFile(file, meta) {
       // Store (possibly re-encoded) file data per ELEMENT for order submission
       uploadedFileData[el.id] = {
         base64: finalData,
+        originalBase64: original ? original.base64 : e.target.result,
+        originalName: original ? original.name : file.name,
+        originalType: original ? original.type : file.type,
+        originalWidth: img.naturalWidth, originalHeight: img.naturalHeight,
         name: finalType === file.type ? file.name
           : file.name.replace(/\.[^.]*$/, "") + (finalType === "image/jpeg" ? ".jpg" : ".png"),
         type: finalType,
