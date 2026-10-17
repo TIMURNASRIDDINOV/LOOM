@@ -28,16 +28,18 @@ export const NO_MOCKUPS: Mockups = { front: null, back: null }
 
 /** Never let a stuck page hold up add-to-cart: past `ms`, go on without mockups. */
 export function withTimeout(p: Promise<Mockups>, ms = 6000): Promise<Mockups> {
-  return Promise.race([p, new Promise<Mockups>((resolve) => setTimeout(() => resolve(NO_MOCKUPS), ms))])
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(NO_MOCKUPS), ms)
+    p.then((value) => { clearTimeout(timer); resolve(value) }, () => { clearTimeout(timer); resolve(NO_MOCKUPS) })
+  })
 }
 
 export function buildMockupHtml(): string {
   return (
     '<!doctype html><html><head><meta charset="utf-8">' +
-    `<link rel="stylesheet" href="${FONTS_CSS}">` +
     '</head><body><script>' +
     'window.__LOOM_CFG=' +
-    JSON.stringify({ TEX_SIZE, REF_RECT, GARMENT_URL }) +
+    JSON.stringify({ TEX_SIZE, REF_RECT, GARMENT_URL, FONTS_CSS }) +
     ';' +
     MOCKUP_JS +
     '</script></body></html>'
@@ -65,6 +67,13 @@ const MOCKUP_JS = String.raw`
     });
   }
   var garment = load(CFG.GARMENT_URL);
+  // Do not let a slow stylesheet block installing the ready/ping handler.
+  var fontStylesReady = new Promise(function (resolve, reject) {
+    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = CFG.FONTS_CSS;
+    css.onload = resolve; css.onerror = function () { reject(new Error('Mockup fonts unavailable')); };
+    document.head.appendChild(css);
+  });
+  fontStylesReady.catch(function () {});
 
   ${DRAW_ELEMENT_JS}
 
@@ -91,10 +100,10 @@ const MOCKUP_JS = String.raw`
 
   window.__loomRender = function (req) {
     var d = req.design, els = (d.front || []).concat(d.back || []);
-    var waits = [garment];
+    var waits = [garment, fontStylesReady];
     els.forEach(function (el) {
       if (el.type === 'image' && el.src) waits.push(load(el.src).then(function (i) { if (i) images[el.src] = i; }));
-      if (el.type === 'text' && document.fonts) waits.push(document.fonts.load('bold 40px "' + el.font + '"').catch(function () {}));
+      if (el.type === 'text' && document.fonts) waits.push(fontStylesReady.then(function () { return document.fonts.load('bold 40px "' + el.font + '"', el.content || ''); }));
     });
     Promise.all(waits).then(function (r) {
       post({
@@ -104,11 +113,12 @@ const MOCKUP_JS = String.raw`
       });
     }).catch(function () { post({ type: 'mockups', id: req.id, front: null, back: null }); });
   };
-  window.addEventListener('message', function (e) {
-    var m = e.data;
+  window.__loomMessage = function (m) {
     if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { return; } }
-    if (m && m.type === 'render') window.__loomRender(m);
-  });
+    if (m && m.type === 'ping') post({ type: 'ready' });
+    else if (m && m.type === 'render') window.__loomRender(m);
+  };
+  window.addEventListener('message', function (e) { window.__loomMessage(e.data); });
   post({ type: 'ready' });
 })();
 `
@@ -118,31 +128,53 @@ export type MockupRendererHandle = { render: (req: MockupRequest) => Promise<Moc
 
 /** Shared reply bookkeeping for the native and web hosts. */
 export function mockupBridge() {
-  const pending = new Map<number, (m: Mockups) => void>()
-  let seq = 0
+  type Pending = { resolve: (m: Mockups) => void; send: (msg: string) => void; message: string; sent: boolean; timer?: ReturnType<typeof setTimeout>; ping?: ReturnType<typeof setTimeout> }
+  const pending = new Map<number, Pending>()
+  let seq = 0, ready = false
+  function finish(id: number, value: Mockups) {
+    const p = pending.get(id)
+    if (!p) return
+    clearTimeout(p.timer); clearTimeout(p.ping)
+    pending.delete(id); p.resolve(value)
+  }
+  function deliver(id: number) {
+    const p = pending.get(id)
+    if (!p) return
+    clearTimeout(p.ping)
+    try {
+      if (ready) {
+        if (!p.sent) { p.sent = true; p.send(p.message) }
+      } else {
+        p.send(JSON.stringify({ type: 'ping' }))
+        // A synchronous ready reply may already have sent this request.
+        if (!ready && pending.has(id)) p.ping = setTimeout(() => deliver(id), 250)
+      }
+    } catch { finish(id, NO_MOCKUPS) }
+  }
   return {
-    ready: false,
-    /** Queue a request; `send` delivers it to the page. */
-    request(req: MockupRequest, send: (msg: string) => void): Promise<Mockups> {
-      if (!this.ready) return Promise.resolve(NO_MOCKUPS)
-      const id = ++seq
-      const p = new Promise<Mockups>((resolve) => pending.set(id, resolve))
-      send(JSON.stringify({ ...req, type: 'render', id }))
-      return withTimeout(p)
+    get ready() { return ready },
+    reset() {
+      ready = false
+      for (const [id, p] of pending) { p.sent = false; deliver(id) }
     },
-    /** Handle a message from the page. */
+    dispose() { for (const id of pending.keys()) finish(id, NO_MOCKUPS) },
+    request(req: MockupRequest, send: (msg: string) => void, timeoutMs = 6000): Promise<Mockups> {
+      const id = ++seq
+      return new Promise((resolve) => {
+        const p: Pending = { resolve, send, message: JSON.stringify({ ...req, type: 'render', id }), sent: false }
+        pending.set(id, p)
+        p.timer = setTimeout(() => finish(id, NO_MOCKUPS), timeoutMs)
+        deliver(id)
+      })
+    },
     receive(data: unknown) {
       let m: { type?: string; id?: number; front?: string | null; back?: string | null }
-      try {
-        m = typeof data === 'string' ? JSON.parse(data) : (data as typeof m)
-      } catch {
-        return
+      try { m = typeof data === 'string' ? JSON.parse(data) : (data as typeof m) } catch { return }
+      if (m?.type === 'ready') {
+        ready = true
+        for (const id of pending.keys()) deliver(id)
       }
-      if (m?.type === 'ready') this.ready = true
-      if (m?.type === 'mockups' && typeof m.id === 'number') {
-        pending.get(m.id)?.({ front: m.front ?? null, back: m.back ?? null })
-        pending.delete(m.id)
-      }
+      if (m?.type === 'mockups' && typeof m.id === 'number') finish(m.id, { front: m.front ?? null, back: m.back ?? null })
     },
   }
 }

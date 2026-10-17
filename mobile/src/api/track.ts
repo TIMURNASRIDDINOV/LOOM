@@ -14,6 +14,7 @@ export type FunnelEvent =
   | 'cfg_design_add'
   | 'cfg_style'
   | 'cfg_preview_3d'
+  | 'cfg_mockup_miss'
   | 'cfg_cart'
   | 'cfg_order'
 
@@ -36,8 +37,10 @@ async function session(): Promise<string> {
 
 /** Record a funnel event once per app session. */
 export function track(event: FunnelEvent, page = '/studio'): void {
-  if (seen.has(event)) return
-  seen.add(event)
+  if (event !== 'cfg_mockup_miss') {
+    if (seen.has(event)) return
+    seen.add(event)
+  }
   session()
     .then((id) =>
       fetch(`${API_BASE}/api/files/track`, {

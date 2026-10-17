@@ -59,6 +59,7 @@ files.post('/track', async (c) => {
     'cfg_design_add',  // first text or image placed
     'cfg_style',       // colour or size touched
     'cfg_preview_3d',  // flipped to the 3D preview
+    'cfg_mockup_miss', // an app cart item was added without both mockups
     'cfg_cart',        // added to cart
     'cfg_order',       // went through to checkout
   ]
