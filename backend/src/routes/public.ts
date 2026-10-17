@@ -8,6 +8,7 @@ import { requireAuth, authenticateUser, userTokenFrom } from '../middleware/requ
 import { clientIp, isRateLimited } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import { checkVariant } from '../lib/variant'
+import { priceDesign } from '../lib/pricing'
 import type { BaseEnv, UserEnv } from '../types'
 
 const pub = new Hono<BaseEnv>()
@@ -90,9 +91,6 @@ pub.post('/orders', async (c) => {
   if (typeof b.designJson !== 'string' || !b.designJson.trim()) {
     return c.json({ error: 'designJson is required' }, 400)
   }
-  if (typeof b.totalPrice !== 'number' || b.totalPrice < 0) {
-    return c.json({ error: 'totalPrice must be a non-negative number' }, 400)
-  }
 
   // Required auth (same checks as requireAuth: deleted, banned, revoked).
   const auth = await authenticateUser(c.env, userTokenFrom(c))
@@ -123,6 +121,9 @@ pub.post('/orders', async (c) => {
   }
   const variant = await checkVariant(c.env.DB, productId, b.designJson, keys)
   if ('code' in variant) return c.json(variant, 409)
+  const price = await priceDesign(c.env.DB, productId, variant.designJson)
+  if (!price?.available) return c.json({ error: 'This product is unavailable', code: 'product_unavailable' }, 409)
+  productId = price.productId
 
   if (await firstForeignKey(c.env.DB, userId, Object.values(keys))) {
     return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
@@ -137,7 +138,7 @@ pub.post('/orders', async (c) => {
     coordinates: typeof b.coordinates === 'string' ? b.coordinates.trim() : null,
     comment: typeof b.comment === 'string' ? b.comment.trim() : null,
     design_json: variant.designJson,
-    total_price: b.totalPrice as number,
+    total_price: price.unitPrice,
     ...keys,
   })
 
@@ -152,14 +153,14 @@ pub.post('/orders', async (c) => {
         address: typeof b.address === 'string' ? b.address : null,
         coordinates: typeof b.coordinates === 'string' ? b.coordinates : null,
         comment: typeof b.comment === 'string' ? b.comment : null,
-        totalPrice: b.totalPrice as number,
+        totalPrice: price.unitPrice,
         designJson: variant.designJson,
         productName: product?.name_ru ?? null,
       }),
     )
   }
 
-  return c.json({ id: orderId, status: 'new' }, 201)
+  return c.json({ id: orderId, status: 'new', totalPrice: price.unitPrice }, 201)
 })
 
 // ─── POST /api/uploads  (signed-in users) ────────────────────────────────────

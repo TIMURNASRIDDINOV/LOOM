@@ -362,7 +362,11 @@
       });
       var data = await res.json().catch(function () { return {}; });
       if (!res.ok) {
-        if (data.code === 'phone_not_verified') {
+        if (data.code === 'price_changed') {
+          window.LOOM_CART.sync(data);
+          renderSummary();
+          banner(t('co.priceChanged', 'Prices changed. Review the new total and place the order again.'));
+        } else if (data.code === 'phone_not_verified') {
           show('co-phone-warn', 'flex');
           verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
         } else if (res.status === 401) {

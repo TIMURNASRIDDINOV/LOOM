@@ -6,6 +6,7 @@
 // Interpolation: `{name}` placeholders, filled by `t(key, { name })`.
 
 export const ru = {
+  'co.priceChanged': 'Цены изменились. Проверьте новую сумму и подтвердите заказ ещё раз.',
   // ── Shared ────────────────────────────────────────────────────────────────
   'common.sum': 'сум',
   'common.retry': 'Повторить',
@@ -413,6 +414,7 @@ export type StringKey = keyof typeof ru
 export type Dictionary = Record<StringKey, string>
 
 export const uz: Dictionary = {
+  'co.priceChanged': 'Narxlar o‘zgardi. Yangi summani tekshirib, buyurtmani qayta tasdiqlang.',
   'common.sum': 'so‘m',
   'common.retry': 'Qayta urinish',
   'common.back': 'Orqaga',
@@ -795,6 +797,7 @@ export const uz: Dictionary = {
 }
 
 export const en: Dictionary = {
+  'co.priceChanged': 'Prices changed. Review the new total and place the order again.',
   'common.sum': 'UZS',
   'common.retry': 'Retry',
   'common.back': 'Back',
