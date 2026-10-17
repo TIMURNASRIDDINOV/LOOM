@@ -356,13 +356,17 @@
         payload.addressLng = addr.lng;
       }
 
+      try { await window.LOOM_CART.waitForUploads(); }
+      catch (uploadError) { banner(uploadError.message); return; }
       var res = await fetch(api() + '/api/cart/checkout', {
         method: 'POST', headers: authHeaders(true), credentials: 'include',
         body: JSON.stringify(payload),
       });
       var data = await res.json().catch(function () { return {}; });
       if (!res.ok) {
-        if (data.code === 'phone_not_verified') {
+        if (data.code === 'uploads_pending') {
+          banner(t('co.uploadsPending', 'Файлы ещё загружаются. Проверьте интернет и повторите оформление заказа.'));
+        } else if (data.code === 'phone_not_verified') {
           show('co-phone-warn', 'flex');
           verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
         } else if (res.status === 401) {

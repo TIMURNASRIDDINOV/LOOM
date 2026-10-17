@@ -1,3 +1,4 @@
+import { filesReady } from '../lib/pending-uploads'
 import { Hono, type Context } from 'hono'
 import {
   getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId,
@@ -128,6 +129,8 @@ pub.post('/orders', async (c) => {
     return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
   }
 
+  if (!(await filesReady(c.env.LOOM_UPLOADS, [{ ...keys, design_json: variant.designJson }]))) return c.json({ error: 'Print files are still uploading. Retry before placing the order.', code: 'uploads_pending' }, 409)
+
   const orderId = await createOrder(c.env.DB, {
     user_id: userId,
     product_id: productId,
@@ -208,6 +211,18 @@ uploads.post('/', requireAuth, async (c) => {
   return c.json({ key }, 201)
 })
 
+// Reserve a print/logo/mockup key; bytes are durably queued on the client.
+uploads.post('/reserve', requireAuth, async (c) => {
+  const userId = c.get('userId')
+  if (await uploadsLimited(c, userId)) return c.json({ error: TOO_MANY_UPLOADS }, 429)
+  const b = await c.req.json<{ type?: string }>().catch(() => ({} as { type?: string }))
+  const ext = b.type === 'image/png' ? 'png' : b.type === 'image/jpeg' ? 'jpg' : null
+  if (!ext) return c.json({ error: 'Use PNG or JPEG.' }, 400)
+  const key = `pending/${crypto.randomUUID()}.${ext}`
+  await recordUpload(c.env.DB, key, userId)
+  return c.json({ key }, 201)
+})
+
 // ─── POST /api/uploads/model  (signed-in users) ──────────────────────────────
 // Reserves the key of the 3D review model (LOOM-206). The bag item and the
 // order carry the key at once; the ~6 MB .glb follows with PUT in the
@@ -222,19 +237,21 @@ uploads.post('/model', requireAuth, async (c) => {
 })
 
 // ─── PUT /api/uploads/:key  (the uploader only) ──────────────────────────────
-// Fills a reserved model key with its .glb bytes, once. A stored object is
+// Fills a reserved image or model key with its bytes once. A stored object is
 // never replaced.
 
 uploads.put('/:key{.+}', requireAuth, async (c) => {
   const key = c.req.param('key')
-  if (!key.endsWith('.glb') || !(await isOwnUpload(c.env.DB, key, c.get('userId')))) {
+  const image = /^pending\/[0-9a-f-]+\.(png|jpg)$/.test(key)
+  if ((!key.endsWith('.glb') && !image) || !(await isOwnUpload(c.env.DB, key, c.get('userId')))) {
     return c.json({ error: 'Not found' }, 404)
   }
   if (await c.env.LOOM_UPLOADS.head(key)) return c.json({ error: 'Already uploaded' }, 409)
   const bytes = new Uint8Array(await c.req.arrayBuffer())
-  const validation = validateUpload(bytes, new Set(['model/gltf-binary']))
+  const validation = validateUpload(bytes, new Set([image ? (key.endsWith('.png') ? 'image/png' : 'image/jpeg') : 'model/gltf-binary']))
   if (!validation.ok) return c.json({ error: validation.error }, 400)
-  await c.env.LOOM_UPLOADS.put(key, bytes, { httpMetadata: { contentType: validation.type.mime } })
+  const stored = await c.env.LOOM_UPLOADS.put(key, bytes, { onlyIf: new Headers({ 'If-None-Match': '*' }), httpMetadata: { contentType: validation.type.mime } })
+  if (!stored) return c.json({ error: 'Already uploaded' }, 409)
   return c.json({ key }, 201)
 })
 

@@ -172,59 +172,107 @@
     }, 350);
   }
 
-  /* ── 3D review model: background upload that outlives the page ──
-     (LOOM-206) The bag item already carries the model's reserved key. The
-     .glb (~6 MB, ~30 s on a slow mobile uplink) waits in IndexedDB until its
-     PUT lands, and every page with the bag (checkout too) resumes an upload
-     that leaving a page cut off. */
+  /* Files survive navigation in the existing upload database. Images are
+     staged before the cart POST, then uploaded afterwards (LOOM-213). */
   var saving = Promise.resolve();
   var putting = {};
-  function models(mode, fn) {
+  var uploadActive = 0, uploadWaiting = [];
+  function uploadSlot() {
     return new Promise(function (resolve) {
+      function start() { uploadActive++; resolve(); }
+      if (uploadActive < 2) start(); else uploadWaiting.push(start);
+    });
+  }
+  function releaseUploadSlot() { uploadActive--; if (uploadWaiting.length) uploadWaiting.shift()(); }
+  function models(mode, fn, strict) {
+    return new Promise(function (resolve, reject) {
+      function fail(error) { if (strict) reject(error || new Error('Upload storage unavailable')); else resolve(null); }
       try {
         var open = indexedDB.open('loom-models', 1);
         open.onupgradeneeded = function () { open.result.createObjectStore('glb', { keyPath: 'key' }); };
-        open.onerror = function () { resolve(null); };
+        open.onerror = function () { fail(open.error); };
         open.onsuccess = function () {
-          var db = open.result, req;
-          try { req = fn(db.transaction('glb', mode).objectStore('glb')); } catch (e) { db.close(); resolve(null); return; }
-          req.onsuccess = function () { db.close(); resolve(req.result); };
-          req.onerror = function () { db.close(); resolve(null); };
+          var db = open.result, tx, req;
+          try { tx = db.transaction('glb', mode); req = fn(tx.objectStore('glb')); }
+          catch (e) { db.close(); fail(e); return; }
+          tx.oncomplete = function () { db.close(); resolve(req.result); };
+          tx.onabort = tx.onerror = function () { db.close(); fail(tx.error); };
         };
-      } catch (e) { resolve(null); }
+      } catch (e) { fail(e); }
     });
   }
-  function putModel(key, blob) {
-    if (putting[key]) return;
-    putting[key] = true;
-    fetch(api() + '/api/uploads/' + key, {
-      method: 'PUT', headers: Object.assign(authHeaders(false), { 'Content-Type': 'model/gltf-binary' }),
-      credentials: 'include', body: blob,
-    }).then(function (res) {
-      // Stored, or never will be (not ours, already there, invalid): forget it.
-      // 401, 429 and 5xx stay for the next page.
-      if (res.ok || [400, 404, 409].indexOf(res.status) >= 0) {
-        return models('readwrite', function (s) { return s.delete(key); });
+  async function uploadOwner() {
+    var user = window.LOOM_AUTH && await window.LOOM_AUTH.getCurrentUser();
+    return user && String(user.id);
+  }
+  async function stageUpload(key, blob) {
+    var owner = await uploadOwner();
+    if (!owner || !key || !blob || !blob.size) throw new Error('Upload not saved');
+    await models('readwrite', function (s) { return s.put({ key: key, blob: blob, owner: owner, at: Date.now() }); }, true);
+    return key;
+  }
+  function putAsset(row) {
+    if (putting[row.key]) return putting[row.key];
+    putting[row.key] = uploadSlot().then(function () { return fetch(api() + '/api/uploads/' + row.key, {
+      method: 'PUT', headers: Object.assign(authHeaders(false), { 'Content-Type': row.blob.type || 'model/gltf-binary' }),
+      credentials: 'include', body: row.blob,
+    }); }).then(async function (res) {
+      // A repeated immutable PUT means the previous attempt already landed.
+      if (res.ok || res.status === 409) {
+        await models('readwrite', function (s) { return s.delete(row.key); });
+        render();
+        return true;
       }
-    }).catch(function () { /* page left or offline: resumed on the next page */ })
-      .then(function () { delete putting[key]; });
+      if (row.key.endsWith('.glb') && [400, 404].indexOf(res.status) >= 0) await models('readwrite', function (s) { return s.delete(row.key); });
+      return false; // keep failed images: checkout reports and retries them
+    }).catch(function () { return false; })
+      .then(function (ok) { releaseUploadSlot(); delete putting[row.key]; return ok; });
+    return putting[row.key];
   }
-  // Resolves once the .glb is built and kept on the device; the upload runs on.
   function uploadModel(key, glb) {
-    saving = Promise.resolve(glb).then(function (blob) {
+    saving = Promise.resolve(glb).then(async function (blob) {
       if (!key || !blob) return;
-      return models('readwrite', function (s) { return s.put({ key: key, blob: blob, at: Date.now() }); })
-        .then(function () { putModel(key, blob); });
-    });
+      await stageUpload(key, blob);
+      resumeModels();
+    }).catch(function () { /* optional review model; print files are gated separately */ });
     return saving;
   }
-  function resumeModels() {
-    models('readonly', function (s) { return s.getAll(); }).then(function (rows) {
-      (rows || []).forEach(function (r) {
-        if (Date.now() - r.at > 7 * 864e5) models('readwrite', function (s) { return s.delete(r.key); });
-        else putModel(r.key, r.blob);
-      });
+  async function resumeModels() {
+    var owner = await uploadOwner();
+    if (!owner) return [];
+    var rows = await models('readonly', function (s) { return s.getAll(); });
+    return Promise.all((rows || []).filter(function (r) {
+      if (r.key.endsWith('.glb') && Date.now() - r.at > 7 * 864e5) { models('readwrite', function (s) { return s.delete(r.key); }); return false; }
+      return !r.owner || r.owner === owner;
+    }).map(putAsset));
+  }
+  async function waitForUploads() {
+    var needed = new Set();
+    function add(key) { if (typeof key === 'string' && key.indexOf('pending/') === 0) needed.add(key); }
+    state.items.forEach(function (item) {
+      ['logo_key', 'back_logo_key', 'front_print_key', 'back_print_key', 'front_mockup_key', 'back_mockup_key'].forEach(function (k) { add(item[k]); });
+      try {
+        var d = JSON.parse(item.design_json);
+        [d.front, d.back].forEach(function (face) {
+          if (!face) return;
+          add(face.logoKey); add(face.originalKey);
+          (face.elements || []).forEach(function (el) { add(el.key); add(el.originalKey); });
+        });
+      } catch (_) { /* server validates the design */ }
     });
+    var owner = await uploadOwner();
+    var rows = await models('readonly', function (s) { return s.getAll(); });
+    var timer;
+    var result;
+    try {
+      result = await Promise.race([
+        Promise.all((rows || []).filter(function (r) { return needed.has(r.key) && r.owner === owner; }).map(putAsset)),
+        new Promise(function (r) { timer = setTimeout(function () { r(null); }, 30000); }),
+      ]);
+    } finally { clearTimeout(timer); }
+    if (!result || result.some(function (ok) { return !ok; })) {
+      throw new Error(t('co.uploadsPending', 'Файлы ещё загружаются. Проверьте интернет и повторите оформление заказа.'));
+    }
   }
 
   /* ── thumbnails: authenticated blob → objectURL ─────────────── */
@@ -401,12 +449,13 @@
        race a not-yet-logged-in 401 into the state. */
     if (document.body.getAttribute('data-page') !== 'checkout') load();
     resumeModels();
+    window.addEventListener('online', resumeModels);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
   window.LOOM_CART = {
-    load: load, sync: sync, add: add, remove: remove, setQty: setQty, uploadModel: uploadModel,
+    load: load, sync: sync, add: add, remove: remove, setQty: setQty, uploadModel: uploadModel, stageUpload: stageUpload, startUploads: resumeModels, waitForUploads: waitForUploads,
     open: open, close: close, updateBadge: updateBadge, toast: toast,
     thumbInto: thumbInto, summarize: summarize,
     get state() { return state; },

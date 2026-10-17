@@ -294,6 +294,7 @@
     'co.free':         { uz: 'Bepul',         ru: 'Бесплатно',  en: 'Free' },
     'co.total':        { uz: 'Jami',          ru: 'Итого',      en: 'Total' },
     'co.place':        { uz: 'Buyurtma berish', ru: 'Оформить заказ', en: 'Place order' },
+    'co.uploadsPending': { uz: 'Fayllar hali yuklanmoqda. Internetni tekshirib, buyurtmani rasmiylashtirishga qayta urinib ko‘ring.', ru: 'Файлы ещё загружаются. Проверьте интернет и повторите оформление заказа.', en: 'Files are still uploading. Check your connection and try placing the order again.' },
     'co.placing':      { uz: 'Yuborilmoqda…', ru: 'Оформляем…', en: 'Placing…' },
     'co.terms':        { uz: 'Buyurtma berish orqali siz yetkazib berish shartlariga rozilik bildirasiz', ru: 'Оформляя заказ, вы соглашаетесь с условиями доставки', en: 'By placing an order you agree to the delivery terms' },
     'co.needName':     { uz: 'Ismingizni kiriting', ru: 'Укажите имя', en: 'Enter your name' },

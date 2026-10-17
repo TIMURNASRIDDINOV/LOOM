@@ -1,3 +1,4 @@
+import { filesReady } from '../lib/pending-uploads'
 import { Hono } from 'hono'
 import { requireAuth } from '../middleware/requireAuth'
 import {
@@ -198,6 +199,8 @@ router.post('/checkout', async (c) => {
     if ('code' in variant) return c.json({ ...variant, itemId: it.id }, 409)
     it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)
   }
+
+  if (!(await filesReady(c.env.LOOM_UPLOADS, items))) return c.json({ error: 'Print files are still uploading. Retry before placing the order.', code: 'uploads_pending' }, 409)
 
   const total = cartTotal(items)
   const customerName = (b.customerName as string).trim()

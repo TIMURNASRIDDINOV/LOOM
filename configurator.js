@@ -5356,7 +5356,7 @@ function _buildDesignJson() {
   });
 }
 // Generic R2 upload from any data URL (logo, flat print PNG, 3D mockup JPEG).
-// Returns the R2 key, or null on any failure (non-fatal — proofs are best-effort).
+// Returns a durably saved reserved key, or null on failure. Checkout waits for bytes.
 async function _uploadDataUrl(dataUrl, filename) {
   if (!dataUrl) return null;
   try {
@@ -5365,8 +5365,20 @@ async function _uploadDataUrl(dataUrl, filename) {
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+    // Persist the exact bytes before returning a reserved key. If browser
+    // storage is unavailable, retain the original foreground upload path.
+    try {
+      const reserved = await fetch(getApiBase() + "/api/uploads/reserve", {
+        method: "POST", body: JSON.stringify({ type: mime }), headers: _authHeaders(true), credentials: "include",
+      });
+      if (reserved.status === 404) throw new Error("Upload reservation unavailable");
+      if (!reserved.ok) return null;
+      const key = (await reserved.json()).key;
+      return await window.LOOM_CART.stageUpload(key, blob);
+    } catch (_) { /* foreground fallback below keeps the file safe */ }
     const fd = new FormData();
-    fd.append("file", new File([new Blob([bytes], { type: mime })], filename || "asset.png", { type: mime }));
+    fd.append("file", new File([blob], filename || "asset.png", { type: mime }));
     // Uploads are tied to the signed-in user, so send the session along.
     const up = await fetch(getApiBase() + "/api/uploads", {
       method: "POST", body: fd, headers: _authHeaders(false), credentials: "include",
@@ -5388,12 +5400,32 @@ function _imageElements(view) {
  * side, and the print master PNG already bakes all of them, so extra logos ride
  * along inside design_json rather than needing a schema change.
  */
+/** SVG remains vector in the editor; the upload route receives a 300 DPI PNG. */
+function _logoUploadSource(el, view) {
+  const file = uploadedFileData[el.id];
+  if (file.type !== "image/svg+xml" && !/^data:image\/svg\+xml/i.test(file.base64)) {
+    return { data: file.base64, name: file.name || view + "-logo.png" };
+  }
+  const width = el.img.naturalWidth || el.img.width, height = el.img.naturalHeight || el.img.height;
+  if (!(width > 0 && height > 0)) throw new Error("Invalid SVG dimensions");
+  const longPx = Math.ceil(elTexImgMax(el, view) / printRect(view).w * PLATEN_CM.w / 2.54 * 300);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.ceil(longPx * width / Math.max(width, height)));
+  canvas.height = Math.max(1, Math.ceil(longPx * height / Math.max(width, height)));
+  try {
+    canvas.getContext("2d").drawImage(el.img, 0, 0, canvas.width, canvas.height);
+    return { data: canvas.toDataURL("image/png"), name: (file.name || view + "-logo").replace(/\.[^.]+$/, "") + ".png" };
+  } finally { canvas.width = canvas.height = 0; }
+}
+
 async function _uploadLogoFor(view) {
   const els = _imageElements(view);
   if (!els.length) return null;
-  const keys = await Promise.all(els.map((el) => {
-    const f = uploadedFileData[el.id];
-    return _uploadDataUrl(f.base64, f.name || view + "-logo.png");
+  const keys = await Promise.all(els.map(async (el) => {
+    try {
+      const source = _logoUploadSource(el, view);
+      return await _uploadDataUrl(source.data, source.name);
+    } catch (_) { return null; }
   }));
   els.forEach((el, i) => { el.key = keys[i] || null; });
   return keys[0] || null;
@@ -5602,6 +5634,10 @@ async function addToCart(opts) {
     const [logoKey, backLogoKey] = _blankOnly
       ? [null, null]
       : await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    if (!_blankOnly && (_logoUploadIncomplete("front") || _logoUploadIncomplete("back"))) {
+      showToast(CT("cfg.uploadErrLogo", "Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа."), "error");
+      return false;
+    }
     const proofs = _blankOnly ? {} : await captureProofs();
     // A side with artwork but no print master would reach the print shop empty.
     if ((_viewHasPrint("front") && !proofs.frontPrintKey) || (_viewHasPrint("back") && !proofs.backPrintKey)) {
@@ -5633,6 +5669,7 @@ async function addToCart(opts) {
       }
       return false;
     }
+    window.LOOM_CART.startUploads();
     // The item already carries the model's key; the bytes upload in the
     // background and resume on the next page if this one is left (cart.js).
     // `saved` settles once the .glb is built and kept on the device.
@@ -5659,7 +5696,7 @@ async function addToCart(opts) {
     }
     return true;
   } catch (e) {
-    showToast("Ошибка сети", "error");
+    showToast(CT("co.errNetwork", "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз."), "error");
     return false;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
