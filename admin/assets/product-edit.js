@@ -103,6 +103,8 @@ function fillConfig(p) {
   document.getElementById('f-platen-h').value = pa.platen_cm?.h ?? ''
   document.getElementById('f-width-frac').value = pa.width_frac ?? ''
   document.getElementById('f-top-frac').value = pa.top_frac ?? ''
+  document.getElementById('f-back-width-frac').value = pa.back?.width_frac ?? ''
+  document.getElementById('f-back-top-frac').value = pa.back?.top_frac ?? ''
   document.getElementById('f-panel-w').value = pa.platen_cm?.w && pa.width_frac ? +(pa.platen_cm.w / pa.width_frac).toFixed(1) : ''
   const art = parse(p.flat_art_json, {})
   document.getElementById('f-art-front').value = art.front?.src || ''
@@ -142,6 +144,13 @@ function collectConfig() {
   if (!(widthFrac > 0 && widthFrac <= 1)) throw new Error('Доля ширины должна быть больше 0 и не больше 1')
   if (!(topFrac >= 0 && topFrac <= 1)) throw new Error('Отступ сверху должен быть от 0 до 1')
 
+  const back = {}
+  for (const [field, id] of [['width_frac', 'f-back-width-frac'], ['top_frac', 'f-back-top-frac']]) {
+    if (!document.getElementById(id).value.trim()) continue
+    const value = num(id)
+    if (!(value >= 0 && value <= 1) || (field === 'width_frac' && value === 0)) throw new Error('Параметры спины: доля ширины (0–1], отступ [0–1]')
+    back[field] = value
+  }
   const art = {}
   for (const [face, id, label] of [['front', 'f-art-front', 'перед'], ['back', 'f-art-back', 'спина']]) {
     const src = document.getElementById(id).value.trim()
@@ -162,7 +171,7 @@ function collectConfig() {
   return {
     sizes_json: JSON.stringify(sizes),
     colors_json: JSON.stringify(colors),
-    print_area_json: JSON.stringify({ platen_cm: { w, h }, width_frac: widthFrac, top_frac: topFrac }),
+    print_area_json: JSON.stringify({ platen_cm: { w, h }, width_frac: widthFrac, top_frac: topFrac, ...(Object.keys(back).length ? { back } : {}) }),
     flat_art_json: JSON.stringify(art),
   }
 }

@@ -145,7 +145,21 @@ function checkPrintArea(v: unknown): Checked {
   if (!cm(w) || !cm(h)) return { error: 'platen_cm w and h must be numbers in (0, 100]' }
   if (!isFrac(v.width_frac) || v.width_frac === 0) return { error: 'width_frac must be a number in (0, 1]' }
   if (!isFrac(v.top_frac)) return { error: 'top_frac must be a number in [0, 1]' }
-  return { value: { platen_cm: { w, h }, width_frac: v.width_frac, top_frac: v.top_frac } }
+  if (Object.keys(v).some(k => !['platen_cm', 'width_frac', 'top_frac', 'back'].includes(k)) || Object.keys(v.platen_cm).some(k => !['w', 'h'].includes(k))) return { error: 'unknown print_area field' }
+  let back: { width_frac?: number; top_frac?: number } | undefined
+  if (v.back !== undefined) {
+    if (!isObj(v.back) || Object.keys(v.back).some(k => !['width_frac', 'top_frac'].includes(k))) return { error: 'back must contain only width_frac and top_frac' }
+    back = {}
+    if (v.back.width_frac !== undefined) {
+      if (!isFrac(v.back.width_frac) || v.back.width_frac === 0) return { error: 'back.width_frac must be a number in (0, 1]' }
+      back.width_frac = v.back.width_frac
+    }
+    if (v.back.top_frac !== undefined) {
+      if (!isFrac(v.back.top_frac)) return { error: 'back.top_frac must be a number in [0, 1]' }
+      back.top_frac = v.back.top_frac
+    }
+  }
+  return { value: { platen_cm: { w, h }, width_frac: v.width_frac, top_frac: v.top_frac, ...(back ? { back } : {}) } }
 }
 
 // Optional print {x, y, w} per face: where the print box sits on that face's art,

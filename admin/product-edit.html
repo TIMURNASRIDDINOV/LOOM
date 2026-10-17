@@ -229,6 +229,14 @@
             <input id="f-top-frac" class="form-input" type="number" min="0" max="1" step="any" />
             <p class="field-hint">Доля ширины платена от горловины. 0.20 × 30 см = 6 см.</p>
           </div>
+          <div class="field">
+            <label class="field-label" for="f-back-width-frac">Спина: доля ширины (пусто = общая)</label>
+            <input id="f-back-width-frac" class="form-input" type="number" min="0.001" max="1" step="any" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-back-top-frac">Спина: отступ сверху (пусто = общий)</label>
+            <input id="f-back-top-frac" class="form-input" type="number" min="0" max="1" step="any" />
+          </div>
         </div>
 
         <div class="form-row">
@@ -329,6 +337,6 @@
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=30"></script>
   <script>LOOM_LAYOUT.init('products', { title: 'Товар', crumbs: [{ label: 'Товары', href: 'products.html' }] })</script>
-  <script src="assets/product-edit.js?v=35"></script>
+  <script src="assets/product-edit.js?v=36"></script>
 </body>
 </html>
