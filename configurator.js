@@ -4496,7 +4496,7 @@ function _flatOnPointerDown(e) {
   if (hit.type === "pending") {
     _flatGesture = hit;
   } else if (hit.type === "move") {
-    _flatGesture = { type: "move", lastX: p.x, lastY: p.y };
+    _flatGesture = { type: "move", lastX: p.x, lastY: p.y, rawNx: el.nx, rawNy: el.ny };
   } else if (hit.type === "scale") {
     const d0 = Math.hypot(p.x - center.x, p.y - center.y);
     _flatGesture = { type: "scale", d0: Math.max(8, d0), startSize: el.type === "text" ? el.size : el.scalePct };
@@ -4520,11 +4520,13 @@ function _flatOnPointerMove(e) {
 
   if (_flatGesture.type === "move") {
     // On a flat, unwarped canvas a screen delta IS a normalised delta.
-    el.nx += (p.x - _flatGesture.lastX) / r.w;
-    el.ny += (p.y - _flatGesture.lastY) / r.h;
+    // Accumulate before snapping: repeated 1px moves must eventually escape
+    // the magnet, rather than starting again from the displayed centre.
+    _flatGesture.rawNx = Math.max(0, Math.min(1, _flatGesture.rawNx + (p.x - _flatGesture.lastX) / r.w));
+    _flatGesture.rawNy = Math.max(0, Math.min(1, _flatGesture.rawNy + (p.y - _flatGesture.lastY) / r.h));
     _flatGesture.lastX = p.x; _flatGesture.lastY = p.y;
-    const u = Math.max(0, Math.min(1, el.nx));
-    const v = Math.max(0, Math.min(1, el.ny));
+    const u = _flatGesture.rawNx;
+    const v = _flatGesture.rawNy;
     const thr = 8;
     _flatGesture.snapX = !e.ctrlKey && Math.abs(u - 0.5) * r.w < thr;
     _flatGesture.snapY = !e.ctrlKey && Math.abs(v - 0.5) * r.h < thr;
