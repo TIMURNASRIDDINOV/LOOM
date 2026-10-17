@@ -5670,7 +5670,7 @@ async function addToCart(opts) {
 // "Купить сейчас" — Amazon-style buy-now: add the live design to the bag,
 // then jump straight to checkout (skipping the drawer).
 async function buyNow() {
-  trackStep("cfg_order");
+  trackStep("cfg_checkout_submit");
   const ok = await addToCart({ openDrawer: false });
   if (ok) location.href = "checkout.html";
 }

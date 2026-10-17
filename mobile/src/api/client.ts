@@ -55,13 +55,15 @@ type Options = {
   body?: unknown
   auth?: boolean
   signal?: AbortSignal
+  idempotencyKey?: string
 }
 
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
-  const { method = 'GET', body, auth = false, signal } = opts
+  const { method = 'GET', body, auth = false, signal, idempotencyKey } = opts
   const headers: Record<string, string> = { Accept: 'application/json' }
 
   if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
   if (auth) {
     const token = await getToken()
     if (token) headers.Authorization = `Bearer ${token}`
