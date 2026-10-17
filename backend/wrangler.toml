@@ -9,6 +9,9 @@ routes = [
   { pattern = "admin.loomdesign.uz", custom_domain = true },
 ]
 
+[observability]
+enabled = true
+
 [vars]
 ENVIRONMENT = "production"
 # The bot username WITHOUT the @ prefix
@@ -61,6 +64,9 @@ binding = "IMAGES"
 [env.staging]
 routes = []
 workers_dev = true
+
+[env.staging.observability]
+enabled = true
 
 [env.staging.vars]
 ENVIRONMENT = "staging"

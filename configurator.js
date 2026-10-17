@@ -5372,7 +5372,11 @@ async function _uploadDataUrl(dataUrl, filename) {
       method: "POST", body: fd, headers: _authHeaders(false), credentials: "include",
     });
     if (up.ok) return (await up.json()).key || null;
-  } catch (e) { /* non-fatal */ }
+  } catch (e) {
+    if (window.LOOM_REPORT_ERROR) window.LOOM_REPORT_ERROR("upload", e);
+    return null;
+  }
+  if (window.LOOM_REPORT_ERROR) window.LOOM_REPORT_ERROR("upload");
   return null;
 }
 
@@ -5602,6 +5606,10 @@ async function addToCart(opts) {
     const [logoKey, backLogoKey] = _blankOnly
       ? [null, null]
       : await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    if (!_blankOnly && (_logoUploadIncomplete("front") || _logoUploadIncomplete("back"))) {
+      showToast(CT("cfg.uploadErrLogo", "Could not upload your logo. Please try again."), "error");
+      return false;
+    }
     const proofs = _blankOnly ? {} : await captureProofs();
     // A side with artwork but no print master would reach the print shop empty.
     if ((_viewHasPrint("front") && !proofs.frontPrintKey) || (_viewHasPrint("back") && !proofs.backPrintKey)) {
@@ -5659,7 +5667,8 @@ async function addToCart(opts) {
     }
     return true;
   } catch (e) {
-    showToast("Ошибка сети", "error");
+    if (window.LOOM_REPORT_ERROR) window.LOOM_REPORT_ERROR("upload", e);
+    showToast(CT("co.errNetwork", "No connection to the server. Please try again."), "error");
     return false;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }

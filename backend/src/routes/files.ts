@@ -1,9 +1,37 @@
 import { Hono } from 'hono'
+import { errorLog } from '../lib/error-log'
 import { trackPageVisit, isArtworkKey } from '../db/queries'
 import { serveObject, LEGACY_AVATAR_KEY } from '../lib/r2'
 import type { BaseEnv } from '../types'
 
 const files = new Hono<BaseEnv>()
+
+// Diagnostics only: bounded streaming read, no DB/R2 writes or arbitrary text logs.
+files.post('/client-error', async (c) => {
+  const reader = c.req.raw.body?.getReader()
+  if (!reader) return c.json({ error: 'Invalid report' }, 400)
+  let size = 0
+  const chunks: Uint8Array[] = []
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > 8192) { await reader.cancel(); return c.json({ error: 'Report too large' }, 413) }
+    chunks.push(value)
+  }
+  let body: Record<string, unknown>
+  try {
+    const bytes = new Uint8Array(size); let offset = 0
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+    body = JSON.parse(new TextDecoder().decode(bytes))
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error()
+  } catch { return c.json({ error: 'Invalid report' }, 400) }
+  const kinds = ['error', 'unhandledrejection', 'upload', 'render']
+  if (!kinds.includes(String(body.kind))) return c.json({ error: 'Invalid report' }, 400)
+  const surface = ['web', 'admin', 'app'].includes(String(body.surface)) ? String(body.surface) : 'web'
+  errorLog(`Client ${surface} ${body.kind}`, body.stack, 'CLIENT', surface, c.req.header('cf-ray'))
+  return c.json({ ok: true })
+})
 
 // ─── GET /api/files/models/:key  (public, long-cached) ───────────────────────
 
