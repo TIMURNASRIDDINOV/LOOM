@@ -28,6 +28,7 @@
 
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
+    'co.priceChanged': { uz: 'Narxlar o‘zgardi. Yangi summani tekshirib, buyurtmani qayta tasdiqlang.', ru: 'Цены изменились. Проверьте новую сумму и подтвердите заказ ещё раз.', en: 'Prices changed. Review the new total and place the order again.' },
     // ===== Navigation (shared) =====
     'nav.home':       { uz: 'Bosh sahifa', ru: 'Главная',       en: 'Home' },
     'nav.catalog':    { uz: 'Katalog',     ru: 'Каталог',       en: 'Catalog' },

@@ -61,6 +61,25 @@
   var user = null;
   var placing = false;
 
+  var pendingAttempt = null;
+  function checkoutKey(payload) {
+    var body = Object.assign({}, payload); delete body.sessionId;
+    var fingerprint = JSON.stringify({ user: user && user.id, items: window.LOOM_CART.state.items.map(function (item) {
+      return { id: item.id, quantity: item.quantity, design: item.design_json };
+    }), body: body });
+    if (!pendingAttempt) { try { pendingAttempt = JSON.parse(sessionStorage.getItem('loom_checkout_attempt') || 'null'); } catch (_) {} }
+    if (!pendingAttempt || pendingAttempt.fingerprint !== fingerprint) {
+      pendingAttempt = { fingerprint: fingerprint, key: window.crypto && window.crypto.randomUUID
+        ? window.crypto.randomUUID() : 'checkout_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2) };
+      try { sessionStorage.setItem('loom_checkout_attempt', JSON.stringify(pendingAttempt)); } catch (_) {}
+    }
+    return pendingAttempt.key;
+  }
+  function clearCheckoutKey() {
+    pendingAttempt = null;
+    try { sessionStorage.removeItem('loom_checkout_attempt'); } catch (_) {}
+  }
+
   /* ── Leaflet on demand ──────────────────────────────────────────
      Both the stylesheet and the script are injected here so a page
      that never mounts a map never pays for them, and so neither can
@@ -356,13 +375,22 @@
         payload.addressLng = addr.lng;
       }
 
+      try { payload.sessionId = sessionStorage.getItem('loom_sid') || undefined; } catch (_) {}
+      var headers = authHeaders(true);
+      headers['Idempotency-Key'] = checkoutKey(payload);
       var res = await fetch(api() + '/api/cart/checkout', {
-        method: 'POST', headers: authHeaders(true), credentials: 'include',
+        method: 'POST', headers: headers, credentials: 'include',
         body: JSON.stringify(payload),
       });
       var data = await res.json().catch(function () { return {}; });
       if (!res.ok) {
-        if (data.code === 'phone_not_verified') {
+        if (data.code === 'price_changed') {
+          window.LOOM_CART.sync(data);
+          renderSummary();
+          banner(t('co.priceChanged', 'Prices changed. Review the new total and place the order again.'));
+        } else if (data.code === 'cart_changed') {
+          window.LOOM_CART.sync(data); renderSummary(); banner(t('co.errGeneric', 'Review the cart and try again.'));
+        } else if (data.code === 'phone_not_verified') {
           show('co-phone-warn', 'flex');
           verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
         } else if (res.status === 401) {
@@ -375,6 +403,7 @@
         }
         return;
       }
+      clearCheckoutKey();
       // paid online → provider page; COD → success screen
       if (data.paymentUrl) { redirecting = true; location.href = data.paymentUrl; return; }
       window.LOOM_CART.load(); // server cleared it — refresh the badge
