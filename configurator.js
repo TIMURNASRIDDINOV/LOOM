@@ -513,7 +513,7 @@ async function applyCartEditDesign(item) {
         if (!img) continue;
         const el = newImageElement({
           nx: s.nx, ny: s.ny, rotation: s.rotation || 0,
-          img, name: s.name || "", scalePct: s.scalePct || 100, key: s.key || null,
+          img, name: s.name || "", scalePct: s.scalePct || 100, key: s.key || null, originalKey: s.originalKey || s.artworkKey || null,
         });
         // Carry the designer credit through an edit. Without this, reopening a
         // bag item and saving it would quietly drop the artwork id, and the
@@ -5339,7 +5339,7 @@ function _serializeElement(el) {
       color: el.color, bold: !!el.bold, italic: !!el.italic,
     });
   }
-  const img = Object.assign(base, { name: el.name, scalePct: el.scalePct, key: el.key || null });
+  const img = Object.assign(base, { name: el.name, scalePct: el.scalePct, key: el.key || null, originalKey: el.originalKey || null, artworkKey: el.artworkKey || null });
   if (el.artworkId) {
     img.artworkId = el.artworkId;
     img.artworkPrice = el.artworkPrice || 0;
@@ -5352,6 +5352,8 @@ function _serializeElement(el) {
 function _serializeView(view) {
   const r = printRect(view);
   return {
+    originalKey: elementsOf(view).find(e => e.type === "image" && e.originalKey)?.originalKey || null,
+    artworkKey: elementsOf(view).find(e => e.type === "image" && e.artworkKey)?.artworkKey || null,
     printRect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) },
     // Placeholder copy is preview-only and must never be stored as artwork.
     elements: elementsOf(view).filter((e) => e.type === "text"
@@ -5376,8 +5378,8 @@ function _buildDesignJson() {
   });
 }
 // Generic R2 upload from any data URL (logo, flat print PNG, 3D mockup JPEG).
-// Returns the R2 key, or null on any failure (non-fatal — proofs are best-effort).
-async function _uploadDataUrl(dataUrl, filename) {
+// Returns the R2 key, or null on failure; callers require image/original keys before adding.
+async function _uploadDataUrl(dataUrl, filename, original) {
   if (!dataUrl) return null;
   try {
     const [header, b64] = dataUrl.split(",");
@@ -5386,6 +5388,7 @@ async function _uploadDataUrl(dataUrl, filename) {
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const fd = new FormData();
+    if (original) fd.append("original", "1");
     fd.append("file", new File([new Blob([bytes], { type: mime })], filename || "asset.png", { type: mime }));
     // Uploads are tied to the signed-in user, so send the session along.
     const up = await fetch(getApiBase() + "/api/uploads", {
@@ -5411,9 +5414,20 @@ function _imageElements(view) {
 async function _uploadLogoFor(view) {
   const els = _imageElements(view);
   if (!els.length) return null;
-  const keys = await Promise.all(els.map((el) => {
+  const keys = await Promise.all(els.map(async (el) => {
     const f = uploadedFileData[el.id];
-    return _uploadDataUrl(f.base64, f.name || view + "-logo.png");
+    if (!el.originalKey) el.originalKey = el.artworkKey || await _uploadDataUrl(f.originalBase64 || f.base64, f.originalName || f.name, true);
+    let preview = f.base64;
+    if (f.type === 'image/svg+xml') {
+      const cm = el.scalePct / 100 * (TEX_SIZE * 0.30 / REF_RECT.w) * PLATEN_CM.w;
+      const long = Math.ceil(cm / 2.54 * 300), aspect = el.img.naturalWidth / el.img.naturalHeight;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(aspect >= 1 ? long : long * aspect));
+      canvas.height = Math.max(1, Math.round(aspect >= 1 ? long / aspect : long));
+      canvas.getContext('2d').drawImage(el.img, 0, 0, canvas.width, canvas.height);
+      preview = canvas.toDataURL('image/png');
+    }
+    return _uploadDataUrl(preview, view + '-preview.png');
   }));
   els.forEach((el, i) => { el.key = keys[i] || null; });
   return keys[0] || null;
@@ -5421,7 +5435,7 @@ async function _uploadLogoFor(view) {
 
 /** Did any logo on this view fail to upload? */
 function _logoUploadIncomplete(view) {
-  return _imageElements(view).some((el) => !el.key);
+  return _imageElements(view).some((el) => !el.key || !el.originalKey);
 }
 
 // ── Plain-text summaries (order modal, Telegram payload) ─────────
@@ -5625,6 +5639,10 @@ async function addToCart(opts) {
     const [logoKey, backLogoKey] = _blankOnly
       ? [null, null]
       : await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    if (!_blankOnly && (_logoUploadIncomplete('front') || _logoUploadIncomplete('back'))) {
+      showToast(CT('cfg.uploadErrLogo', 'Could not upload your image. Please try again.'), 'error');
+      return false;
+    }
     const proofs = _blankOnly ? {} : await captureProofs();
     // A side with artwork but no print master would reach the print shop empty.
     if ((_viewHasPrint("front") && !proofs.frontPrintKey) || (_viewHasPrint("back") && !proofs.backPrintKey)) {
@@ -6098,7 +6116,7 @@ function checkPrintDpi(el) {
   if (!el || el.type !== "image" || !el.img) return;
   const f = uploadedFileData[el.id];
   if (f && f.type === "image/svg+xml") return;
-  const px = Math.max(el.img.naturalWidth || 0, el.img.naturalHeight || 0);
+  const px = Math.max(f?.originalWidth || el.img.naturalWidth || 0, f?.originalHeight || el.img.naturalHeight || 0);
   const low = px > 0 && printDpi(px, el.scalePct) < MIN_PRINT_DPI;
   if (low && !el._lowDpi) {
     showToast(CT("cfg.uploadLowDpi", "Низкое разрешение: при таком размере печать может быть размытой. Уменьшите изображение или загрузите файл побольше."), "warning");
@@ -6106,7 +6124,7 @@ function checkPrintDpi(el) {
   el._lowDpi = low;
 }
 
-function handleImageFile(file, meta) {
+function handleImageFile(file, meta, original) {
   if (_blankOnly) return;
   // Phones often hand over HEIC with an empty or generic type, so the
   // extension counts too.
@@ -6133,7 +6151,7 @@ function handleImageFile(file, meta) {
         .then(() => window.HeicTo({ blob: file, type: "image/jpeg", quality: 0.92 }))
         .then((blob) => handleImageFile(
           new File([blob], (file.name || "photo").replace(/\.hei[cf]$/i, "") + ".jpg", { type: "image/jpeg" }),
-          meta,
+          meta, original || { base64: e.target.result, name: file.name, type: file.type, size: file.size },
         ))
         .catch(failed);
     };
@@ -6187,6 +6205,7 @@ function handleImageFile(file, meta) {
       el.name = (meta && meta.title) || file.name;
       el.scalePct = scalePct;
       el.key = null; // re-uploaded on the next order
+      el.originalKey = null;
 
       // Marketplace artwork carries its designer with it: `artworkId` is what
       // the checkout reads to credit the sale (see cart.ts artworkIdsIn), and
@@ -6199,6 +6218,7 @@ function handleImageFile(file, meta) {
         // 2048px derivative. Keep the designer's original R2 key alongside it:
         // the print shop should be able to pull the full-resolution file.
         el.artworkKey = meta.imageKey || null;
+        el.originalKey = el.artworkKey;
       } else {
         delete el.artworkId; delete el.artworkPrice;
         delete el.artworkAuthor; delete el.artworkKey;
@@ -6207,6 +6227,10 @@ function handleImageFile(file, meta) {
       // Store (possibly re-encoded) file data per ELEMENT for order submission
       uploadedFileData[el.id] = {
         base64: finalData,
+        originalBase64: original ? original.base64 : e.target.result,
+        originalName: original ? original.name : file.name,
+        originalType: original ? original.type : file.type,
+        originalWidth: img.naturalWidth, originalHeight: img.naturalHeight,
         name: finalType === file.type ? file.name
           : file.name.replace(/\.[^.]*$/, "") + (finalType === "image/jpeg" ? ".jpg" : ".png"),
         type: finalType,

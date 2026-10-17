@@ -97,9 +97,9 @@ export default function Studio() {
           const a = s[f].art
           if (a?.uri && !a.uploadKey && !a.pattern) {
             try {
-              const key = await uploadFile(a.uri, a.name || 'artwork.png', a.mime ?? 'image/png')
+              const key = await uploadFile(a.uri, a.name || 'artwork.png', a.mime ?? 'image/png', true)
               keys[f] = key
-              st.updateArtOn(f, { uploadKey: key })
+              st.updateArtOn(f, { uploadKey: key, originalKey: key })
             } catch {
               flash(t('st.errUpload'))
               return
@@ -110,8 +110,8 @@ export default function Studio() {
       // `s` is the render-time snapshot; fold the fresh keys in for this build.
       const snapshot = {
         ...s,
-        front: { ...s.front, art: s.front.art ? { ...s.front.art, uploadKey: keys.front } : null },
-        back: { ...s.back, art: s.back.art ? { ...s.back.art, uploadKey: keys.back } : null },
+        front: { ...s.front, art: s.front.art ? { ...s.front.art, uploadKey: keys.front, originalKey: s.front.art.originalKey || keys.front } : null },
+        back: { ...s.back, art: s.back.art ? { ...s.back.art, uploadKey: keys.back, originalKey: s.back.art.originalKey || keys.back } : null },
       }
 
       // Front and back mockups for the admin, drawn like the flat stage. The page
@@ -145,6 +145,11 @@ export default function Studio() {
         designJson: buildDesignJson(snapshot, config.printArea.platen_cm),
         meta,
         logoKey: keys.front ?? keys.back ?? null,
+        backLogoKey: keys.back,
+        originalKey: snapshot.front.art?.originalKey || keys.front,
+        backOriginalKey: snapshot.back.art?.originalKey || keys.back,
+        artworkKey: snapshot.front.art?.artworkId ? (snapshot.front.art.artworkKey || keys.front) : null,
+        backArtworkKey: snapshot.back.art?.artworkId ? (snapshot.back.art.artworkKey || keys.back) : null,
         mockups,
       })
       track('cfg_cart')
