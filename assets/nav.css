@@ -205,7 +205,7 @@
   counter-increment: mlink;
   content: '0' counter(mlink);
   font-family: var(--font-mono, monospace);
-  font-size: 0.62rem; font-weight: 400; letter-spacing: 0.2em;
+  font-size: max(0.75rem, 12px); font-weight: 400; letter-spacing: 0.2em;
   color: var(--ink-38, rgba(19,19,17,0.38));
 }
 .mobile-menu.active .mobile-menu-link { opacity: 1; transform: none; }
@@ -234,7 +234,7 @@
   margin-top: auto;
 }
 .mobile-lang-label {
-  display: block; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase;
+  display: block; font-size: max(0.75rem, 12px); letter-spacing: 0.2em; text-transform: uppercase;
   color: var(--ink-38, rgba(19,19,17,0.38)); font-family: var(--font-mono, monospace); margin-bottom: 0.75rem;
 }
 .mobile-lang .lang-switcher { width: 100%; }
@@ -284,7 +284,7 @@ body.menu-open { overflow: hidden; }
   border-top: 1px solid var(--line-soft, rgba(19,19,17,0.09));
 }
 .mobile-theme-label {
-  display: block; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase;
+  display: block; font-size: max(0.75rem, 12px); letter-spacing: 0.2em; text-transform: uppercase;
   color: var(--ink-38, rgba(19,19,17,0.38)); font-family: var(--font-mono, monospace); margin-bottom: 0.75rem;
 }
 .mobile-theme .theme-dots { gap: 14px; }
