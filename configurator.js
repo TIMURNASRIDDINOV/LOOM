@@ -5467,57 +5467,36 @@ function _scaleSummary(view) {
 // Uses the exact same geometry as drawTexture() so the placement matches the
 // preview pixel-for-pixel; only the resolution differs.
 // Returns a PNG data URL, or null if the view is empty.
-const PRINT_DPI = 235;     // 30×40 cm → 2776×3701 px, whatever the model's UV rect spans
-const PRINT_MAX_PX = 12e6; // iOS Safari refuses canvases over ~16.7M px; keep a margin
-/** Texture px → print px. The rect always spans PLATEN_CM.w, so the dpi is fixed. */
-function _printScale(r) {
-  let s = (PLATEN_CM.w / 2.54) * PRINT_DPI / r.w;
-  const px = r.w * r.h * s * s;
-  if (px > PRINT_MAX_PX) {
-    s *= Math.sqrt(PRINT_MAX_PX / px);
-    const dpi = Math.round(r.w * s / (PLATEN_CM.w / 2.54));
-    console.warn(`[LOOM] print file capped to ${PRINT_MAX_PX} px: ${dpi} dpi on ${PLATEN_CM.w}×${PLATEN_CM.h} cm` +
-      (dpi < MIN_PRINT_DPI ? ` (below MIN_PRINT_DPI ${MIN_PRINT_DPI})` : ""));
-  }
-  return s;
+const PRINT_MAX_BYTES = 15 * 1024 * 1024;
+let printRendererModule;
+function sharedPrintRenderer() {
+  return printRendererModule || (printRendererModule = import('./assets/print-renderer.mjs?v=1'));
 }
-// POST /api/uploads refuses files over 15 MiB (backend/src/routes/public.ts).
-const PRINT_MAX_BYTES = 14.5 * 1024 * 1024;
-/** Print PNG that fits the upload cap: a dense photo near full size re-renders at a lower dpi, never under MIN_PRINT_DPI. */
-function _renderPrintCanvas(view) {
+async function _renderPrintCanvas(view) {
   if (!_viewHasPrint(view)) return null;
-  const r = printRect(view);
-  const minS = (PLATEN_CM.w / 2.54) * MIN_PRINT_DPI / r.w;
-  let s = _printScale(r);
-  for (;;) {
-    const url = _paintPrint(view, r, s);
-    const bytes = (url.length - url.indexOf(",") - 1) * 0.75;
-    if (bytes <= PRINT_MAX_BYTES || s <= minS) return url;
-    // PNG bytes track pixel count; 5% margin.
-    s = Math.max(minS, s * Math.sqrt(PRINT_MAX_BYTES / bytes) * 0.95);
-    console.warn(`[LOOM] print PNG ${(bytes / 1048576).toFixed(1)} MB is over the upload cap: ` +
-      `re-rendering at ${Math.round(r.w * s / (PLATEN_CM.w / 2.54))} dpi`);
-  }
-}
-function _paintPrint(view, r, s) {
-  const c = document.createElement("canvas");
-  c.width = Math.round(r.w * s);
-  c.height = Math.round(r.h * s);
-  const ctx = c.getContext("2d");
-  ctx.scale(s, s);
-  ctx.translate(-r.x, -r.y); // texture coords → print-area-local
-
-  // Same painter as the on-garment preview, minus the screen-only drop shadow —
-  // but with the FLAT mapping, not the warped one: the centreline warp corrects
-  // the posed 3D scan, and a real shirt isn't posed. nx 0.5 must land on the
-  // physical platen centre in the file a print shop receives.
-  elementsOf(view).forEach((el) => {
-    if (el.type === "text" && el.placeholder) return;
-    drawElementIn(ctx, el, r, false);
-  });
-  const url = c.toDataURL("image/png");
-  c.width = c.height = 0; // iOS frees canvas memory only when it shrinks
-  return url;
+  const module = await sharedPrintRenderer();
+  const design = JSON.parse(_buildDesignJson());
+  const result = await module.renderPrint(design, view, { loadImage: async (key) => {
+    // Newly uploaded originals are already on this device. Resolve by their
+    // recorded key without downloading the same bytes a second time.
+    const local = elementsOf(view).find(el => (el.originalKey || el.artworkKey) === key && uploadedFileData[el.id]?.originalBase64);
+    let blob;
+    if (local) blob = await (await fetch(uploadedFileData[local.id].originalBase64)).blob();
+    else {
+      let response = await fetch(getApiBase() + '/api/uploads/' + encodeURIComponent(key), { headers: _authHeaders(false), credentials: 'include' });
+      if (!response.ok) response = await fetch(getApiBase() + '/api/files/artwork/' + encodeURIComponent(key));
+      if (!response.ok) throw new Error('Original print source unavailable');
+      blob = await response.blob();
+    }
+    return module.imageFromBlob(blob, key);
+  } });
+  try {
+    const blob = await module.printPng(result.canvas);
+    if (blob.size > PRINT_MAX_BYTES) throw new Error('Print exceeds upload limit');
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob);
+    });
+  } finally { result.canvas.width = result.canvas.height = 0; }
 }
 
 // Capture production proofs for the current design: shadow-free flat print PNGs +
@@ -5529,8 +5508,8 @@ async function captureProofs() {
 
   // Flat print masters (artwork-only, transparent, hi-res) for non-empty views.
   const printData = {
-    front: active.front ? _renderPrintCanvas("front") : null,
-    back: active.back ? _renderPrintCanvas("back") : null,
+    front: active.front ? await _renderPrintCanvas("front") : null,
+    back: active.back ? await _renderPrintCanvas("back") : null,
   };
 
   // 3D mockups — one still frame per side; the customer's camera comes back.
@@ -5700,7 +5679,7 @@ async function addToCart(opts) {
     }
     return true;
   } catch (e) {
-    showToast("Ошибка сети", "error");
+    showToast(CT("cfg.printFailed", "Could not prepare the print. Please try again."), "error");
     return false;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
