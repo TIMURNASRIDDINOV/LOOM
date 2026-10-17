@@ -28,6 +28,7 @@
 
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
+    'common.rateLimited': { uz: 'Juda ko‘p urinish. Biroz kutib, qayta urinib ko‘ring.', ru: 'Слишком много попыток. Подождите немного и повторите.', en: 'Too many attempts. Wait a moment and try again.' },
     // ===== Navigation (shared) =====
     'nav.home':       { uz: 'Bosh sahifa', ru: 'Главная',       en: 'Home' },
     'nav.catalog':    { uz: 'Katalog',     ru: 'Каталог',       en: 'Catalog' },
