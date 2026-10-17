@@ -5388,12 +5388,32 @@ function _imageElements(view) {
  * side, and the print master PNG already bakes all of them, so extra logos ride
  * along inside design_json rather than needing a schema change.
  */
+/** SVG remains vector in the editor; the upload route receives a 300 DPI PNG. */
+function _logoUploadSource(el, view) {
+  const file = uploadedFileData[el.id];
+  if (file.type !== "image/svg+xml" && !/^data:image\/svg\+xml/i.test(file.base64)) {
+    return { data: file.base64, name: file.name || view + "-logo.png" };
+  }
+  const width = el.img.naturalWidth || el.img.width, height = el.img.naturalHeight || el.img.height;
+  if (!(width > 0 && height > 0)) throw new Error("Invalid SVG dimensions");
+  const longPx = Math.ceil(elTexImgMax(el, view) / printRect(view).w * PLATEN_CM.w / 2.54 * 300);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.ceil(longPx * width / Math.max(width, height)));
+  canvas.height = Math.max(1, Math.ceil(longPx * height / Math.max(width, height)));
+  try {
+    canvas.getContext("2d").drawImage(el.img, 0, 0, canvas.width, canvas.height);
+    return { data: canvas.toDataURL("image/png"), name: (file.name || view + "-logo").replace(/\.[^.]+$/, "") + ".png" };
+  } finally { canvas.width = canvas.height = 0; }
+}
+
 async function _uploadLogoFor(view) {
   const els = _imageElements(view);
   if (!els.length) return null;
-  const keys = await Promise.all(els.map((el) => {
-    const f = uploadedFileData[el.id];
-    return _uploadDataUrl(f.base64, f.name || view + "-logo.png");
+  const keys = await Promise.all(els.map(async (el) => {
+    try {
+      const source = _logoUploadSource(el, view);
+      return await _uploadDataUrl(source.data, source.name);
+    } catch (_) { return null; }
   }));
   els.forEach((el, i) => { el.key = keys[i] || null; });
   return keys[0] || null;
@@ -5602,6 +5622,10 @@ async function addToCart(opts) {
     const [logoKey, backLogoKey] = _blankOnly
       ? [null, null]
       : await Promise.all([_uploadLogoFor("front"), _uploadLogoFor("back")]);
+    if (!_blankOnly && (_logoUploadIncomplete("front") || _logoUploadIncomplete("back"))) {
+      showToast(CT("cfg.uploadErrLogo", "Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа."), "error");
+      return false;
+    }
     const proofs = _blankOnly ? {} : await captureProofs();
     // A side with artwork but no print master would reach the print shop empty.
     if ((_viewHasPrint("front") && !proofs.frontPrintKey) || (_viewHasPrint("back") && !proofs.backPrintKey)) {
@@ -5659,7 +5683,7 @@ async function addToCart(opts) {
     }
     return true;
   } catch (e) {
-    showToast("Ошибка сети", "error");
+    showToast(CT("co.errNetwork", "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз."), "error");
     return false;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
