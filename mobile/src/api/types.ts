@@ -1,7 +1,7 @@
 // Mirrors `backend/src/db/schema.ts` and the route responses. Kept hand-written
 // rather than generated so the app only carries the fields it actually renders.
 
-export type ProductType = 'custom' | 'ready'
+export type ProductType = 'custom' | 'ready' | 'blank'
 
 export type Product = {
   id: number
