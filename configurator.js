@@ -3541,7 +3541,7 @@ function _updatePreviewChip() {
   if (!chip) return;
   chip.classList.toggle("active", !editMode);
   const lbl = chip.querySelector(".chip-label");
-  if (lbl) lbl.textContent = editMode ? "Скрыть рамку" : "Редактор";
+  if (lbl) lbl.textContent = editMode ? CT("cfg.hideFrame", "Hide frame") : CT("cfg.editor", "Editor");
 }
 
 function enterEditMode() {
@@ -3666,6 +3666,8 @@ function bindLangChange() {
       drawTexture("back");
       applyActiveTexture();
     }
+    syncPanelFromState();
+    _updatePreviewChip();
     // Summary tab (if visible) uses translated color/labels
     try { if (typeof updateSummaryTab === "function") updateSummaryTab(); } catch (e) {}
     try { if (typeof renderCart === "function") renderCart(); } catch (e) {}
@@ -5258,8 +5260,8 @@ function syncPanelFromState() {
   // One numeric field drives font size for text and scale % for a logo.
   const num = document.getElementById("dock-sel-num");
   if (num && el) {
-    if (isText) { num.min = 24; num.max = 240; num.value = el.size; num.title = "Размер шрифта, px"; }
-    else { num.min = 10; num.max = 200; num.value = el.scalePct; num.title = "Масштаб, %"; }
+    if (isText) { num.min = 24; num.max = 240; num.value = el.size; num.title = CT("cfg.fontSizePx", "Font size, px"); }
+    else { num.min = 10; num.max = 200; num.value = el.scalePct; num.title = CT("cfg.scalePercent", "Scale, %"); }
   }
 
   const ti = document.getElementById("text-content-input");
@@ -5629,7 +5631,7 @@ async function addToCart(opts) {
       if (err && err.status === 401) showToast(CT("cfg.toastLoginCart", "Войдите, чтобы добавить в корзину"), "error");
       else {
         if (err && err.code === "product_unavailable") showProductUnavailable();
-        showToast(unsoldText(err && err.code) || err.message || CT("cfg.toastAddError", "Ошибка добавления"), "error");
+        showToast(unsoldText(err && err.code) || (window.LOOM_I18N ? window.LOOM_I18N.apiErrorMessage(err && err.code) : CT("cfg.toastAddError", "Could not add to cart")), "error");
       }
       return false;
     }
@@ -5659,7 +5661,7 @@ async function addToCart(opts) {
     }
     return true;
   } catch (e) {
-    showToast("Ошибка сети", "error");
+    showToast(CT("co.errNetwork", "No connection. Please try again."), "error");
     return false;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
@@ -5670,7 +5672,7 @@ async function addToCart(opts) {
 // "Купить сейчас" — Amazon-style buy-now: add the live design to the bag,
 // then jump straight to checkout (skipping the drawer).
 async function buyNow() {
-  trackStep("cfg_order");
+  trackStep("cfg_checkout_submit");
   const ok = await addToCart({ openDrawer: false });
   if (ok) location.href = "checkout.html";
 }
