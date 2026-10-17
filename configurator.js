@@ -5356,7 +5356,7 @@ function _buildDesignJson() {
   });
 }
 // Generic R2 upload from any data URL (logo, flat print PNG, 3D mockup JPEG).
-// Returns the R2 key, or null on any failure (non-fatal — proofs are best-effort).
+// Returns a durably saved reserved key, or null on failure. Checkout waits for bytes.
 async function _uploadDataUrl(dataUrl, filename) {
   if (!dataUrl) return null;
   try {
@@ -5365,8 +5365,20 @@ async function _uploadDataUrl(dataUrl, filename) {
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+    // Persist the exact bytes before returning a reserved key. If browser
+    // storage is unavailable, retain the original foreground upload path.
+    try {
+      const reserved = await fetch(getApiBase() + "/api/uploads/reserve", {
+        method: "POST", body: JSON.stringify({ type: mime }), headers: _authHeaders(true), credentials: "include",
+      });
+      if (reserved.status === 404) throw new Error("Upload reservation unavailable");
+      if (!reserved.ok) return null;
+      const key = (await reserved.json()).key;
+      return await window.LOOM_CART.stageUpload(key, blob);
+    } catch (_) { /* foreground fallback below keeps the file safe */ }
     const fd = new FormData();
-    fd.append("file", new File([new Blob([bytes], { type: mime })], filename || "asset.png", { type: mime }));
+    fd.append("file", new File([blob], filename || "asset.png", { type: mime }));
     // Uploads are tied to the signed-in user, so send the session along.
     const up = await fetch(getApiBase() + "/api/uploads", {
       method: "POST", body: fd, headers: _authHeaders(false), credentials: "include",
@@ -5657,6 +5669,7 @@ async function addToCart(opts) {
       }
       return false;
     }
+    window.LOOM_CART.startUploads();
     // The item already carries the model's key; the bytes upload in the
     // background and resume on the next page if this one is left (cart.js).
     // `saved` settles once the .glb is built and kept on the device.
