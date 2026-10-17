@@ -30,6 +30,10 @@ const PLATEN_CM = { w: 30, h: 40 }; // A3 DTG platen — matches admin/assets/or
 // (applyPrintArea, LOOM-166).
 let PLATEN_W_FRAC = 0.55;
 let PLATEN_TOP_FRAC = 0.20;
+let BACK_PRINT_FRACS = null;
+function printAreaFractions(view) {
+  return view === "back" && BACK_PRINT_FRACS ? BACK_PRINT_FRACS : { width_frac: PLATEN_W_FRAC, top_frac: PLATEN_TOP_FRAC };
+}
 
 // Pre-mesh fallback, and the unit basis for the UI's px/% sliders: a font-size of
 // 160 means 160px in a rect this tall, scaled proportionally in any real rect.
@@ -1896,9 +1900,11 @@ const SEED_W_FRAC = 0.55, SEED_TOP_FRAC = 0.20;
 
 /**
  * The product's platen on the seeded rects: same neckline and centre, its own width, drop and aspect.
- * 3D texture rects only: the 2D box is the flat art's own (applyFlatArt), so width_frac never moves it.
+ * Shared values keep the calibrated flat art unchanged. An explicit back override
+ * applies the same relative width/drop adjustment to that face's flat box.
  */
 function applyPrintArea(pa) {
+  BACK_PRINT_FRACS = null;
   const pc = pa && pa.platen_cm;
   const wf = Number(pa && pa.width_frac), tf = Number(pa && pa.top_frac);
   if (!pc || !(pc.w > 0 && pc.h > 0 && wf > 0 && wf <= 1 && tf >= 0 && tf <= 1)) return;
@@ -1906,10 +1912,14 @@ function applyPrintArea(pa) {
   PLATEN_CM.h = Number(pc.h);
   PLATEN_W_FRAC = wf;
   PLATEN_TOP_FRAC = tf;
-  const k = wf / SEED_W_FRAC;
+  if (pa.back && typeof pa.back === 'object') {
+    const bw = pa.back.width_frac ?? wf, bt = pa.back.top_frac ?? tf;
+    if (typeof bw === 'number' && typeof bt === 'number' && bw > 0 && bw <= 1 && bt >= 0 && bt <= 1) BACK_PRINT_FRACS = { width_frac: bw, top_frac: bt };
+  }
   ["front", "back"].forEach((v) => {
+    const face = printAreaFractions(v), k = face.width_frac / SEED_W_FRAC;
     const d = DEFAULT_PRINT_RECTS[v], w = d.w * k;
-    PRINT_RECTS[v] = { x: d.x + (d.w - w) / 2, y: d.y + tf * w - SEED_TOP_FRAC * d.w, w, h: w * PLATEN_CM.h / PLATEN_CM.w };
+    PRINT_RECTS[v] = { x: d.x + (d.w - w) / 2, y: d.y + face.top_frac * w - SEED_TOP_FRAC * d.w, w, h: w * PLATEN_CM.h / PLATEN_CM.w };
   });
 }
 
@@ -3043,10 +3053,11 @@ function measurePrintRect(view) {
   // Width comes from the panel's HORIZONTAL extent: front and back are the same
   // width in the atlas (they're the same garment width), so the printable area
   // comes out the same size in texture px on both — only the placement differs.
-  const w = PLATEN_W_FRAC * panelW;
+  const face = printAreaFractions(view);
+  const w = face.width_frac * panelW;
   const h = w * (PLATEN_CM.h / PLATEN_CM.w);
   let x = centerTx - w / 2;
-  let y = neckTy + PLATEN_TOP_FRAC * w;
+  let y = neckTy + face.top_frac * w;
 
   // A model with an unexpected unwrap must not push the rect off the fabric.
   if (!(w > 0) || !(h > 0) || w > panelW || h > panelH) return null;
@@ -4239,6 +4250,12 @@ function _flatPrintRectIn(face, box) {
   // WYSIWYG contract: text sizes against rect.h, images against rect.w, and the
   // bake does the same against the texture print rect — so this rect must keep
   // that rect's aspect or the two surfaces quietly disagree about proportions.
+  if (face === 'back' && BACK_PRINT_FRACS && (BACK_PRINT_FRACS.width_frac !== PLATEN_W_FRAC || BACK_PRINT_FRACS.top_frac !== PLATEN_TOP_FRAC)) {
+    const previousWidth = rect.w;
+    rect.w *= BACK_PRINT_FRACS.width_frac / PLATEN_W_FRAC;
+    rect.x += (previousWidth - rect.w) / 2;
+    rect.y += BACK_PRINT_FRACS.top_frac * rect.w - PLATEN_TOP_FRAC * previousWidth;
+  }
   const pr = printRect(face);
   if (pr && pr.w && pr.h) rect.h = rect.w / (pr.w / pr.h);
   return rect;

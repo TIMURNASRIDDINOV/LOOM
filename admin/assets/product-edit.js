@@ -103,6 +103,8 @@ function fillConfig(p) {
   document.getElementById('f-platen-h').value = pa.platen_cm?.h ?? ''
   document.getElementById('f-width-frac').value = pa.width_frac ?? ''
   document.getElementById('f-top-frac').value = pa.top_frac ?? ''
+  document.getElementById('f-back-width-frac').value = pa.back?.width_frac ?? ''
+  document.getElementById('f-back-top-frac').value = pa.back?.top_frac ?? ''
   document.getElementById('f-panel-w').value = pa.platen_cm?.w && pa.width_frac ? +(pa.platen_cm.w / pa.width_frac).toFixed(1) : ''
   const art = parse(p.flat_art_json, {})
   document.getElementById('f-art-front').value = art.front?.src || ''
@@ -142,6 +144,13 @@ function collectConfig() {
   if (!(widthFrac > 0 && widthFrac <= 1)) throw new Error('Доля ширины должна быть больше 0 и не больше 1')
   if (!(topFrac >= 0 && topFrac <= 1)) throw new Error('Отступ сверху должен быть от 0 до 1')
 
+  const back = {}
+  for (const [field, id] of [['width_frac', 'f-back-width-frac'], ['top_frac', 'f-back-top-frac']]) {
+    if (!document.getElementById(id).value.trim()) continue
+    const value = num(id)
+    if (!(value >= 0 && value <= 1) || (field === 'width_frac' && value === 0)) throw new Error('Параметры спины: доля ширины (0–1], отступ [0–1]')
+    back[field] = value
+  }
   const art = {}
   for (const [face, id, label] of [['front', 'f-art-front', 'перед'], ['back', 'f-art-back', 'спина']]) {
     const src = document.getElementById(id).value.trim()
@@ -162,7 +171,7 @@ function collectConfig() {
   return {
     sizes_json: JSON.stringify(sizes),
     colors_json: JSON.stringify(colors),
-    print_area_json: JSON.stringify({ platen_cm: { w, h }, width_frac: widthFrac, top_frac: topFrac }),
+    print_area_json: JSON.stringify({ platen_cm: { w, h }, width_frac: widthFrac, top_frac: topFrac, ...(Object.keys(back).length ? { back } : {}) }),
     flat_art_json: JSON.stringify(art),
   }
 }
@@ -215,9 +224,30 @@ for (const zoneId of ['glb-zone', 'thumb-zone']) {
   })
 }
 
+let modelCheck = null
+let disposeModelPreview = null
+let modelGeneration = 0
+async function checkModel(file) {
+  const generation = ++modelGeneration
+  const host = document.getElementById('model-preview')
+  if (disposeModelPreview) { disposeModelPreview(); disposeModelPreview = null }
+  host.textContent = 'Checking model…'
+  const { previewModel } = await import('./model-preview.mjs?v=1')
+  const num = (id, fallback) => { const value = document.getElementById(id).value; return value === '' ? fallback : Number(value) }
+  const target = document.createElement('div')
+  const dispose = await previewModel(file, target, {
+    platen_cm: { w: num('f-platen-w', 30), h: num('f-platen-h', 40) },
+    width_frac: num('f-width-frac', 0.55), top_frac: num('f-top-frac', 0.20),
+  })
+  if (generation !== modelGeneration) { dispose(); return }
+  disposeModelPreview = dispose
+  host.replaceChildren(target)
+}
 document.getElementById('f-glb').addEventListener('change', (e) => {
   const file = e.target.files[0]
   document.getElementById('glb-filename').textContent = file ? file.name : ''
+  modelCheck = file ? checkModel(file) : null
+  modelCheck?.catch((err) => { document.getElementById('model-preview').textContent = err.message })
 })
 
 // GLB is optional for ready-made designs — surface that in the form
@@ -298,7 +328,7 @@ function submitWithXHR(url, method, formData) {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(data)
       } else {
-        reject(new Error(data.error || `HTTP ${xhr.status}`))
+        reject(new Error(data.error?.message || data.error || `HTTP ${xhr.status}`))
       }
     })
 
@@ -359,7 +389,15 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
     return
   }
 
-  if (glbFile) fd.append('glb', glbFile)
+  if (glbFile) {
+    try { await checkModel(glbFile) }
+    catch (err) {
+      errEl.textContent = err.message
+      btn.disabled = false; btn.textContent = 'Сохранить'
+      return
+    }
+    fd.append('glb', glbFile)
+  }
   if (thumbFile) fd.append('thumbnail', thumbFile)
 
   try {

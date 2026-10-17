@@ -11,6 +11,7 @@ import {
 } from '../db/queries'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
+import { inspectGarmentGlb, MAX_MODEL_BYTES } from '../../../assets/glb-contract.mjs'
 
 // Product writes require manager or owner (staff is read-only here).
 
@@ -44,14 +45,15 @@ function getFileField(formData: FormData, key: string): FileField | null {
   return f as unknown as FileField
 }
 
-function validateGlb(f: FileField): string | null {
+async function validateGlb(f: FileField): Promise<string | null> {
   const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
-  const allowedExts = new Set(['glb', 'gltf'])
   // Accept any content-type when the extension is valid — browsers often send
   // application/octet-stream or empty string for .glb files.
-  if (!allowedExts.has(ext)) return 'GLB file must have .glb or .gltf extension'
-  if (f.size > 20 * 1024 * 1024) return 'GLB file must be ≤ 20 MB'
+  if (ext !== 'glb') return 'Model must have .glb extension (binary glTF 2.0)'
+  if (f.size > MAX_MODEL_BYTES) return 'Model must be at most 3 MB'
   if (f.size <= 0) return 'Invalid GLB file size'
+  try { inspectGarmentGlb(await f.arrayBuffer()) }
+  catch (err) { return err instanceof Error ? err.message : 'Invalid model' }
   return null
 }
 
@@ -143,7 +145,21 @@ function checkPrintArea(v: unknown): Checked {
   if (!cm(w) || !cm(h)) return { error: 'platen_cm w and h must be numbers in (0, 100]' }
   if (!isFrac(v.width_frac) || v.width_frac === 0) return { error: 'width_frac must be a number in (0, 1]' }
   if (!isFrac(v.top_frac)) return { error: 'top_frac must be a number in [0, 1]' }
-  return { value: { platen_cm: { w, h }, width_frac: v.width_frac, top_frac: v.top_frac } }
+  if (Object.keys(v).some(k => !['platen_cm', 'width_frac', 'top_frac', 'back'].includes(k)) || Object.keys(v.platen_cm).some(k => !['w', 'h'].includes(k))) return { error: 'unknown print_area field' }
+  let back: { width_frac?: number; top_frac?: number } | undefined
+  if (v.back !== undefined) {
+    if (!isObj(v.back) || Object.keys(v.back).some(k => !['width_frac', 'top_frac'].includes(k))) return { error: 'back must contain only width_frac and top_frac' }
+    back = {}
+    if (v.back.width_frac !== undefined) {
+      if (!isFrac(v.back.width_frac) || v.back.width_frac === 0) return { error: 'back.width_frac must be a number in (0, 1]' }
+      back.width_frac = v.back.width_frac
+    }
+    if (v.back.top_frac !== undefined) {
+      if (!isFrac(v.back.top_frac)) return { error: 'back.top_frac must be a number in [0, 1]' }
+      back.top_frac = v.back.top_frac
+    }
+  }
+  return { value: { platen_cm: { w, h }, width_frac: v.width_frac, top_frac: v.top_frac, ...(back ? { back } : {}) } }
 }
 
 // Optional print {x, y, w} per face: where the print box sits on that face's art,
@@ -293,7 +309,7 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
     return c.json({ ok: false, error: { code: 'REQUIRED', message: 'glb file is required', field: 'glb' } }, 400)
   }
   if (glbFile) {
-    const glbError = validateGlb(glbFile)
+    const glbError = await validateGlb(glbFile)
     if (glbError) return c.json({ ok: false, error: { code: 'INVALID', message: glbError, field: 'glb' } }, 400)
   }
 
@@ -415,7 +431,7 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
   // New GLB
   const glbFile = getFileField(formData, 'glb')
   if (glbFile) {
-    const glbError = validateGlb(glbFile)
+    const glbError = await validateGlb(glbFile)
     if (glbError) return c.json({ error: glbError }, 400)
     const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
     const glb_key = newAssetKey('glb', effectiveSlug, glbExt)
