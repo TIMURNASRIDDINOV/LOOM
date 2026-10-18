@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { WebView } from 'react-native-webview'
 
@@ -11,6 +11,8 @@ export const MockupRenderer = forwardRef<MockupRendererHandle>(function MockupRe
   const web = useRef<WebView>(null)
   const bridge = useRef(mockupBridge()).current
   const html = useMemo(buildMockupHtml, [])
+
+  useEffect(() => () => bridge.dispose(), [bridge])
 
   useImperativeHandle(ref, () => ({
     render: (req) => bridge.request(req, (msg) => web.current?.injectJavaScript(`window.__loomRender(${msg}); true;`)),
