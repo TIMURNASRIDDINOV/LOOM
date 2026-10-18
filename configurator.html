@@ -52,7 +52,7 @@
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=4"></script>
     <script defer src="assets/cart.js?v=6"></script>
-    <script defer src="configurator.js?v=89"></script>
+    <script defer src="configurator.js?v=90"></script>
 
     <style>
       /* ============================================================
@@ -1168,6 +1168,12 @@
         .kb-open .studio-sheet {
           position: relative; inset: auto; height: auto; min-height: 0; flex: 0 1 auto;
         }
+        /* Keep every control at a 330px viewport height: tighter gutters let
+           the colour/size/remove strip fit on one line without shrinking
+           controls or spending the garment's 120px basis on a wrapped row. */
+        .kb-open .design-dock { padding: 4px 8px; gap: 4px; }
+        .kb-open .studio-sheet .dock-row { gap: 4px; }
+        .kb-open .studio-sheet .dock-sel { padding: 4px 6px 6px; }
         .kb-open .nav, .kb-open .stage-chip, .kb-open .surface-toggle, .kb-open .view-toggle,
         .kb-open .sheet-handle, .kb-open .sheet-steps, .kb-open .panel-foot,
         .kb-open .design-dock > :not(#dock-sel):not(#dock-textrow) { display: none; }
