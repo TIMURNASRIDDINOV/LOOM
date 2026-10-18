@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { KeyboardAvoidingView, Platform, StyleSheet, View, useWindowDimensions } from 'react-native'
+import { Image, ScrollView, KeyboardAvoidingView, Platform, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -11,8 +11,8 @@ import { MockupRenderer } from '../src/components/MockupRenderer'
 import { ToolSheet } from '../src/components/ToolSheet'
 import { Cart, ChevronLeft, ImageTool, SizeTool, TypeTool } from '../src/components/icons'
 import { Segmented, T, Tap, Toast } from '../src/components/ui'
-import { buildDesignJson, designMissingUploads } from '../src/api/design'
-import { fetchProducts, useAsync } from '../src/api/catalog'
+import { buildDesignJson, buildPlainDesignJson, designMissingUploads } from '../src/api/design'
+import { fetchProducts, productImage, useAsync } from '../src/api/catalog'
 import { uploadFile } from '../src/api/client'
 import { cachedSrc, toDisplayableSrc } from '../src/lib/files'
 import { MOCKUP_PX, type MockupRendererHandle } from '../src/lib/mockup-html'
@@ -62,10 +62,11 @@ export default function Studio() {
 
   // The product (or the default garment) and its sizes, colours and print area.
   const { product, unavailable, config } = useStudioProduct()
+  const isBlank = product?.product_type === 'blank'
 
   const addToCart = async () => {
     if (busyRef.current) return
-    if (layerCount === 0 && !s.back.art && !s.back.text?.content) {
+    if (!isBlank && layerCount === 0 && !s.back.art && !s.back.text?.content) {
       flash(t('st.errEmpty'))
       return
     }
@@ -86,6 +87,17 @@ export default function Studio() {
     }
     busyRef.current = true
     try {
+      if (isBlank && product) {
+        cart.add({
+          productId: product.id, name: productName(product, lang), image: product.thumbnail_url,
+          unitPrice: product.price, designJson: buildPlainDesignJson(s.size, s.color),
+          meta: `${colorName(s.color, t)} · ${s.size} · ${t('common.noPrint')}`,
+          logoKey: null, mockups: null,
+        })
+        track('cfg_cart'); flash(t('st.added')); router.push('/cart')
+        return
+      }
+
       // A logo whose upload failed earlier gets one more try here — the print
       // shop cannot work from a file that only exists on the phone.
       const keys: Record<'front' | 'back', string | null> = {
@@ -154,6 +166,46 @@ export default function Studio() {
       busyRef.current = false
     }
   }
+
+  // Blank products have a colour/size form, with no editor, layers or captures.
+  if (isBlank && product) return (
+    <View style={styles.screen}>
+      <View style={[styles.head, { paddingTop: insets.top + 8 }]}>
+        <Tap style={styles.backBtn} onPress={() => goBack(router)}><ChevronLeft /></Tap>
+        <T style={disp(18, 1.2)}>{productName(product, lang)}</T>
+      </View>
+      <ScrollView contentContainerStyle={{ padding: 18, gap: 18 }}>
+        <Image source={productImage(product)} style={{ width: '100%', height: 220 }} resizeMode="contain" />
+        <T style={mono(12, 1.6)}>{t('st.blankNote')}</T>
+        <T style={disp(16, 1.2)}>{t('st.color')}</T>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+          {config.colors.map((color) => (
+            <Tap key={color.hex} onPress={() => { if (color.available) st.setColor(color.hex) }}
+              accessibilityRole="radio" accessibilityState={{ checked: s.color.toUpperCase() === color.hex, disabled: !color.available }}
+              accessibilityLabel={swatchName(color, lang, t)}
+              style={{ padding: 10, borderWidth: s.color.toUpperCase() === color.hex ? 3 : 1, borderColor: C.ink, opacity: color.available ? 1 : 0.35 }}>
+              <View style={{ width: 26, height: 26, backgroundColor: color.hex, borderWidth: 1, borderColor: C.i55 }} />
+              <T style={mono(11, 1.4)}>{swatchName(color, lang, t)}</T>
+            </Tap>
+          ))}
+        </View>
+        <T style={disp(16, 1.2)}>{t('product.size')}</T>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {config.sizes.map((size) => (
+            <Tap key={size} onPress={() => st.setSize(size)} accessibilityRole="radio" accessibilityState={{ checked: s.size === size }}
+              style={{ padding: 14, borderWidth: s.size === size ? 3 : 1, borderColor: C.ink }}>
+              <T style={disp(15, 1.2)}>{size}</T>
+            </Tap>
+          ))}
+        </View>
+        <T style={disp(24, 1.2)}>{fmt(product.price)}</T>
+        <Tap style={[styles.cta, offset(3, C.ink)]} onPress={addToCart}>
+          <Cart color={C.white} /><T style={disp(17, 1.2, { color: C.white })}>{t('st.toCart')}</T>
+        </Tap>
+      </ScrollView>
+      <Toast message={message} bottom={30} />
+    </View>
+  )
 
   // The sheet is capped so the garment always keeps most of the stage.
   const sheetMax = Math.min(Math.round(height * 0.34), 320)
