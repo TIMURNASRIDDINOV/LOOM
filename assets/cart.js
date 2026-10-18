@@ -103,6 +103,7 @@
     document.getElementById('cartBackdrop').addEventListener('click', function () { close(); });
     document.getElementById('cartCheckoutBtn').addEventListener('click', function () {
       if (!state.items.length) { toast(t('cfg.cartEmpty', 'Корзина пуста'), 'error'); return; }
+      if (window.LOOM_TRACK) window.LOOM_TRACK.event('cfg_checkout_submit');
       close();
       // A 3D model still being built would be lost with the page: wait for it (≤ 5 s).
       Promise.race([saving, new Promise(function (r) { setTimeout(r, 5000); })])
@@ -140,7 +141,7 @@
     });
     if (!res.ok) {
       var e = await res.json().catch(function () { return {}; });
-      throw Object.assign(new Error(e.error || 'add failed'), { status: res.status, code: e.code });
+      throw Object.assign(new Error(window.LOOM_I18N ? window.LOOM_I18N.apiErrorMessage(e.code) : 'Could not add to cart'), { status: res.status, code: e.code });
     }
     sync(await res.json());
     return state;

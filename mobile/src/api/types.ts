@@ -7,6 +7,7 @@ export type Product = {
   id: number
   slug: string
   name_ru: string
+  name_uz?: string | null
   name_en: string | null
   description_ru: string | null
   price: number

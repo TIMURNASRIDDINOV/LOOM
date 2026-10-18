@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
@@ -18,7 +18,8 @@ import { MapPicker, type Pin } from '../../src/components/MapPicker'
 import { Button, Panel, SlashTitle, T, Tap } from '../../src/components/ui'
 import { ApiError, api } from '../../src/api/client'
 import { fetchPaymentMethods, useAsync } from '../../src/api/catalog'
-import { track } from '../../src/api/track'
+import { track, checkoutSessionId } from '../../src/api/track'
+import { checkoutAttempt, markCheckoutSynced, clearCheckoutAttempt } from '../../src/api/checkout-attempt'
 import type { PaymentMethods } from '../../src/api/types'
 import { useAuth } from '../../src/state/auth'
 import { useCart } from '../../src/state/cart'
@@ -61,6 +62,7 @@ export default function Checkout() {
   const [step, setStep] = useState(1)
   const [placed, setPlaced] = useState<Placed>(null)
   const [busy, setBusy] = useState(false)
+  const placingRef = useRef(false)
   const [payMethod, setPayMethod] = useState<PayMethod>('cod')
 
   const [name, setName] = useState('')
@@ -96,6 +98,7 @@ export default function Checkout() {
   }, [user])
 
   const place = async () => {
+    if (placingRef.current) return
     if (!signedIn) {
       flash(t('co.errSignIn'))
       router.push('/login')
@@ -118,14 +121,30 @@ export default function Checkout() {
       return
     }
 
+    placingRef.current = true
     setBusy(true)
+    let attemptKey: string | null = null
     try {
-      // The server cart is what checkout reads, so push the local one first.
-      await cart.sync()
+      const fingerprint = JSON.stringify({ user: user?.id, items: cart.items.map((item) => ({ id: item.id, productId: item.productId, quantity: item.quantity, design: item.designJson })),
+        name: name.trim(), phone: phone.trim(), street: street.trim(), pin, entrance, flat, floor, intercom, method: payMethod })
+      const attempt = await checkoutAttempt(fingerprint)
+      attemptKey = attempt.key
+      // On a retry the previous request may already have cleared the server
+      // cart. Do not re-create it before asking for that attempt's result.
+      if (!attempt.synced) {
+        const quote = await cart.sync()
+        if (quote.priceChanged) { await clearCheckoutAttempt(attempt.key); flash(t('co.priceChanged')); return }
+        await markCheckoutSynced(attempt)
+      }
+      track('cfg_checkout_submit', '/checkout')
+      track('cfg_order', '/checkout')
       const res = await api<{ id: number; paymentUrl: string | null; paymentMethod: PayMethod }>('/api/cart/checkout', {
         method: 'POST',
         auth: true,
+        idempotencyKey: attempt.key,
         body: {
+          sessionId: await checkoutSessionId(),
+          platform: 'app',
           customerName: name.trim(),
           customerPhone: phone.trim(),
           address: street.trim(),
@@ -143,7 +162,7 @@ export default function Checkout() {
         },
       })
       cart.clear()
-      track('cfg_order')
+      await clearCheckoutAttempt(attempt.key)
       // Remember the address for next time, like the web checkout does. Best
       // effort — the order is already placed.
       updateProfile({
@@ -154,7 +173,11 @@ export default function Checkout() {
       if (res.paymentUrl) WebBrowser.openBrowserAsync(res.paymentUrl).catch(() => {})
     } catch (e) {
       const err = e as ApiError
-      if (err.code === 'phone_not_verified' || err.status === 403) {
+      if (attemptKey && err.status >= 400 && err.status < 500 && err.status !== 429) await clearCheckoutAttempt(attemptKey)
+      if (err.code === 'price_changed') {
+        await cart.sync().catch(() => {})
+        flash(t('co.priceChanged'))
+      } else if (err.code === 'phone_not_verified' || err.status === 401) {
         flash(t('co.errVerify'))
         router.push('/login')
       } else if (err.code && err.code in UNSOLD) {
@@ -164,6 +187,7 @@ export default function Checkout() {
         flash(err.message)
       }
     } finally {
+      placingRef.current = false
       setBusy(false)
     }
   }

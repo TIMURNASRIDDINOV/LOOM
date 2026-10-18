@@ -38,7 +38,7 @@ type CartCtx = {
   remove: (id: string) => void
   clear: () => void
   /** Pushes the local cart to the server; returns the server item count. */
-  sync: () => Promise<number>
+  sync: () => Promise<{ count: number; priceChanged: boolean; total: number }>
 }
 
 const Ctx = createContext<CartCtx | null>(null)
@@ -84,6 +84,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     // Replace the server cart wholesale — the local one is authoritative.
     await api('/api/cart', { method: 'DELETE', auth: true })
     const uploaded: Record<string, Mockups> = {}
+    const prices: Record<string, number> = {}
+    let priceChanged = false, serverTotal = 0
     for (const it of items) {
       // Uploads need the session, which only exists from checkout on. A failed
       // one is not fatal: the order still goes through, the admin shows no mockup.
@@ -95,7 +97,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       const [front, back] = await Promise.all([up('front'), up('back')])
       uploaded[it.id] = { front, back }
-      await api('/api/cart', {
+      const quote = await api<{ items: { id: number; unit_price: number }[]; total: number; addedItemId?: number }>('/api/cart', {
         method: 'POST',
         auth: true,
         body: {
@@ -108,9 +110,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           backMockupKey: back ?? undefined,
         },
       })
+      const line = quote.items.find((i) => i.id === quote.addedItemId) ?? quote.items[quote.items.length - 1]
+      if (line) { prices[it.id] = line.unit_price; priceChanged ||= line.unit_price !== it.unitPrice }
+      serverTotal = quote.total
     }
-    setItems((prev) => prev.map((i) => (uploaded[i.id] ? { ...i, mockupKeys: uploaded[i.id] } : i)))
-    return items.length
+    setItems((prev) => prev.map((i) => (uploaded[i.id] ? { ...i, unitPrice: prices[i.id] ?? i.unitPrice, mockupKeys: uploaded[i.id] } : i)))
+    return { count: items.length, priceChanged, total: serverTotal }
   }, [items])
 
   const count = items.reduce((a, i) => a + i.quantity, 0)
