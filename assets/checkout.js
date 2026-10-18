@@ -362,7 +362,9 @@
       });
       var data = await res.json().catch(function () { return {}; });
       if (!res.ok) {
-        if (data.code === 'phone_not_verified') {
+        if (res.status === 429 && data.code === 'rate_limited') {
+          banner(t('common.rateLimited', 'Too many attempts. Wait a moment and try again.'));
+        } else if (data.code === 'phone_not_verified') {
           show('co-phone-warn', 'flex');
           verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
         } else if (res.status === 401) {

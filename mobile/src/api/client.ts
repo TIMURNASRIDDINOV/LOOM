@@ -95,13 +95,14 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
     // Admin product routes use `{ ok:false, error:{ code, message } }`; every
     // other route uses `{ error: string }`. Handle both shapes.
     const err = d?.error
+    const code = d?.code ?? (err as { code?: string })?.code
     const message =
+      res.status === 429 && code === 'rate_limited' ? tStatic('common.rateLimited') :
       typeof err === 'string'
         ? err
         : typeof (err as { message?: string })?.message === 'string'
           ? (err as { message: string }).message
           : tStatic('common.errorCode', { code: res.status })
-    const code = d?.code ?? (err as { code?: string })?.code
     throw new ApiError(message, res.status, code)
   }
 
