@@ -1,13 +1,11 @@
 import { Hono, type Context } from 'hono'
 import {
-  getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId,
-  getUserNotifications, recordUpload, isOwnUpload, firstForeignKey,
+  getActiveProducts, getProductBySlug, getOrdersByUserId,
+  getUserNotifications, recordUpload, isOwnUpload,
 } from '../db/queries'
 import { validateUpload, generateLogoKey, serveObject } from '../lib/r2'
-import { requireAuth, authenticateUser, userTokenFrom } from '../middleware/requireAuth'
+import { requireAuth } from '../middleware/requireAuth'
 import { clientIp, isRateLimited } from '../lib/rateLimit'
-import { sendOrderNotification } from '../lib/telegram'
-import { checkVariant } from '../lib/variant'
 import type { BaseEnv, UserEnv } from '../types'
 
 const pub = new Hono<BaseEnv>()
@@ -62,104 +60,6 @@ pub.get('/products/:slug', async (c) => {
   const product = await getProductBySlug(c.env.DB, slug)
   if (!product || !product.active) return c.json({ error: 'Not found' }, 404)
   return c.json(withUrls(c.req.url, product as unknown as Record<string, unknown>))
-})
-
-// ─── POST /api/orders ─────────────────────────────────────────────────────────
-
-pub.post('/orders', async (c) => {
-  if (await isRateLimited(c.env.RATE_LIMIT, `orders:${clientIp(c)}`, 5, 60)) {
-    return c.json({ error: 'Too many requests. Please wait a minute before placing another order.' }, 429)
-  }
-
-  let body: unknown
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Invalid JSON' }, 400)
-  }
-
-  const b = body as Record<string, unknown>
-
-  // Required fields
-  if (typeof b.customerName !== 'string' || !b.customerName.trim()) {
-    return c.json({ error: 'customerName is required' }, 400)
-  }
-  if (typeof b.customerPhone !== 'string' || !b.customerPhone.trim()) {
-    return c.json({ error: 'customerPhone is required' }, 400)
-  }
-  if (typeof b.designJson !== 'string' || !b.designJson.trim()) {
-    return c.json({ error: 'designJson is required' }, 400)
-  }
-  if (typeof b.totalPrice !== 'number' || b.totalPrice < 0) {
-    return c.json({ error: 'totalPrice must be a non-negative number' }, 400)
-  }
-
-  // Required auth (same checks as requireAuth: deleted, banned, revoked).
-  const auth = await authenticateUser(c.env, userTokenFrom(c))
-  if (!auth.ok) return c.json(auth.body, auth.status)
-  const userRecord = auth.user
-  const userId = userRecord.id
-  // Require a Telegram-verified phone number before an order can be placed.
-  if (!userRecord.telegram_user_id) {
-    return c.json({ error: 'Подтвердите номер телефона через Telegram, чтобы оформить заказ.', code: 'phone_not_verified' }, 403)
-  }
-
-  // Optional: validate productId
-  let productId: number | null = null
-  if (typeof b.productId === 'number') {
-    const product = await getProductById(c.env.DB, b.productId)
-    if (!product) return c.json({ error: 'Product not found' }, 400)
-    productId = product.id
-  }
-  const keyField = (v: unknown) => (typeof v === 'string' ? v : null)
-  const keys = {
-    logo_key: keyField(b.logoKey),
-    front_print_key: keyField(b.frontPrintKey),
-    back_print_key: keyField(b.backPrintKey),
-    front_mockup_key: keyField(b.frontMockupKey),
-    back_mockup_key: keyField(b.backMockupKey),
-    back_logo_key: keyField(b.backLogoKey),
-    model_key: keyField(b.modelKey),
-  }
-  const variant = await checkVariant(c.env.DB, productId, b.designJson, keys)
-  if ('code' in variant) return c.json(variant, 409)
-
-  if (await firstForeignKey(c.env.DB, userId, Object.values(keys))) {
-    return c.json({ error: 'Unknown file reference', code: 'invalid_file_key' }, 400)
-  }
-
-  const orderId = await createOrder(c.env.DB, {
-    user_id: userId,
-    product_id: productId,
-    customer_name: (b.customerName as string).trim(),
-    customer_phone: (b.customerPhone as string).trim(),
-    address: typeof b.address === 'string' ? b.address.trim() : null,
-    coordinates: typeof b.coordinates === 'string' ? b.coordinates.trim() : null,
-    comment: typeof b.comment === 'string' ? b.comment.trim() : null,
-    design_json: variant.designJson,
-    total_price: b.totalPrice as number,
-    ...keys,
-  })
-
-  // Send Telegram notification without blocking the response
-  if (c.env.TELEGRAM_BOT_TOKEN && c.env.TELEGRAM_CHAT_ID) {
-    const product = productId ? await getProductById(c.env.DB, productId) : null
-    c.executionCtx.waitUntil(
-      sendOrderNotification(c.env.TELEGRAM_BOT_TOKEN, c.env.TELEGRAM_CHAT_ID, {
-        id: orderId,
-        customerName: (b.customerName as string).trim(),
-        customerPhone: (b.customerPhone as string).trim(),
-        address: typeof b.address === 'string' ? b.address : null,
-        coordinates: typeof b.coordinates === 'string' ? b.coordinates : null,
-        comment: typeof b.comment === 'string' ? b.comment : null,
-        totalPrice: b.totalPrice as number,
-        designJson: variant.designJson,
-        productName: product?.name_ru ?? null,
-      }),
-    )
-  }
-
-  return c.json({ id: orderId, status: 'new' }, 201)
 })
 
 // ─── POST /api/uploads  (signed-in users) ────────────────────────────────────
