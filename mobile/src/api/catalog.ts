@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ImageSourcePropType } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { api } from './client'
-import type { Artwork, DesignerProfile, DesignerStats, MyArtwork, Order, PaymentMethods, Product } from './types'
+import type { ArtworkCategory, Artwork, DesignerProfile, DesignerStats, MyArtwork, Order, PaymentMethods, Product } from './types'
 
 // Product photography ships in the bundle so the catalog paints instantly and
 // still reads correctly offline. A product's own `thumbnail_url` wins when the
@@ -133,6 +133,15 @@ export function fetchArtworks() {
   return api<{ items: Artwork[] }>('/api/artworks').then((r) => r.items)
 }
 
+export function fetchArtworkCategories() {
+  return api<{ items: ArtworkCategory[] }>('/api/artwork-categories').then((r) => r.items)
+}
+
+export function fetchArtworkPage(categoryId: number | null, page = 1) {
+  return api<{ items: Artwork[]; total: number; page: number }>(`/api/artworks?page=${page}${categoryId === null ? '' : `&category_id=${categoryId}`}`)
+    .then((data) => ({ ...data, categoryId }))
+}
+
 /** The signed-in designer's own submissions, in every moderation state. */
 export function fetchMyArtworks() {
   return api<{ items: MyArtwork[] }>('/api/designer/artworks', { auth: true }).then((r) => r.items)
@@ -154,6 +163,7 @@ export function fetchPaymentMethods() {
 }
 
 export function submitArtwork(body: {
+  category_id: number
   title: string
   tags?: string | null
   image_key: string

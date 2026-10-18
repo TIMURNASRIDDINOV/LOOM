@@ -103,7 +103,9 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
           ? (err as { message: string }).message
           : tStatic('common.errorCode', { code: res.status })
     const code = d?.code ?? (err as { code?: string })?.code
-    throw new ApiError(message, res.status, code)
+    const localized = code && ['artwork_title', 'artwork_markup', 'artwork_tags', 'artwork_category', 'artwork_price_changed'].includes(code)
+      ? tStatic(code as 'artwork_title' | 'artwork_markup' | 'artwork_tags' | 'artwork_category' | 'artwork_price_changed') : message
+    throw new ApiError(localized, res.status, code)
   }
 
   return data as T

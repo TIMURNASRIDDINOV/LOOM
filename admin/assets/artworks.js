@@ -12,6 +12,9 @@
   const PAGE_SIZE = 30
   let status = 'pending'
   let page = 1
+  let categories = []
+  const artworks = new Map()
+  let canEdit = false
 
   const el = (id) => document.getElementById(id)
 
@@ -56,12 +59,14 @@
           '<span>·</span><span>+' + esc(formatPrice(a.markup)) + '</span>' +
           sold +
         '</div>' +
+        '<div class="art-meta">' + esc((categories.find((cat) => cat.id === a.category_id) || {}).name_ru || 'Без категории') + '</div>' +
         (a.tags ? '<div class="art-tags" title="' + esc(a.tags) + '">' + esc(a.tags) + '</div>' : '') +
         (a.status === 'rejected' && a.reject_note ? '<div class="art-note">' + esc(a.reject_note) + '</div>' : '') +
         '<div class="art-meta"><span>Загружена ' + esc(formatDate(a.created_at)) + '</span>' +
           (a.reviewed_at ? '<span>· проверена ' + esc(formatDate(a.reviewed_at)) + '</span>' : '') +
         '</div>' +
       '</div>' +
+      (canEdit ? '<div class="art-actions"><button type="button" class="btn btn--sm" data-act="edit" data-id="' + a.id + '">Изменить</button></div>' : '') +
       actions +
     '</article>'
   }
@@ -69,6 +74,8 @@
   function render(data) {
     const grid = el('art-grid')
     const items = data.items || []
+    artworks.clear()
+    items.forEach((a) => artworks.set(a.id, a))
     el('count-pending').textContent = data.pending ? data.pending : ''
 
     if (!items.length) {
@@ -95,12 +102,110 @@
     try {
       const qs = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) })
       if (status) qs.set('status', status)
-      const data = await apiJSON('/api/admin/artworks?' + qs)
+      const [data, taxonomy] = await Promise.all([apiJSON('/api/admin/artworks?' + qs), apiJSON('/api/admin/artwork-categories')])
+      categories = taxonomy.items || []
+      renderCategories()
       render(data)
     } catch (err) {
       if (err.status === 401) { window.location.href = 'login.html'; return }
       grid.innerHTML = stateBlock(esc(apiErrorMessage(err)), 'error')
     }
+  }
+
+  function field(label, name, value, attrs) {
+    return '<label class="art-field">' + esc(label) + '<input class="input" name="' + name + '" value="' + esc(value) + '" ' + (attrs || '') + ' /></label>'
+  }
+
+  // One form dialog for metadata and categories. A failed request leaves it open.
+  function editDialog(title, fields, save) {
+    const previous = document.activeElement
+    const backdrop = document.createElement('div')
+    backdrop.className = 'dialog-backdrop'
+    backdrop.innerHTML = '<form class="dialog" role="dialog" aria-modal="true" aria-labelledby="art-edit-title">' +
+      '<h2 class="dialog-title" id="art-edit-title">' + esc(title) + '</h2>' + fields +
+      '<p class="art-note" role="alert" hidden></p>' +
+      '<div class="dialog-actions"><button type="button" class="btn" data-cancel>Отмена</button>' +
+      '<button type="submit" class="btn btn--primary">Сохранить</button></div></form>'
+    document.body.appendChild(backdrop)
+    const form = backdrop.querySelector('form')
+    let busy = false
+    function close() {
+      if (busy) return
+      document.removeEventListener('keydown', keydown, true)
+      backdrop.remove()
+      if (previous && previous.isConnected) previous.focus()
+    }
+    function keydown(e) {
+      if (e.key === 'Escape') { e.preventDefault(); close() }
+      if (e.key === 'Tab') {
+        const controls = Array.from(form.querySelectorAll('input, select, button')).filter((n) => !n.disabled)
+        const first = controls[0], last = controls[controls.length - 1]
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      }
+    }
+    document.addEventListener('keydown', keydown, true)
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close() })
+    form.querySelector('[data-cancel]').addEventListener('click', close)
+    form.querySelector('input, select').focus()
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      if (busy || !form.reportValidity()) return
+      busy = true
+      const button = form.querySelector('[type="submit"]')
+      button.disabled = true
+      const error = form.querySelector('[role="alert"]')
+      error.hidden = true
+      try {
+        await save(new FormData(form))
+        busy = false
+        close()
+        toast('Сохранено', 'success')
+        load()
+      } catch (err) {
+        error.textContent = apiErrorMessage(err)
+        error.hidden = false
+      } finally {
+        busy = false
+        button.disabled = false
+      }
+    })
+  }
+
+  function editArtwork(a) {
+    if (!a || !canEdit) return
+    const options = '<option value="">Выберите категорию</option>' + categories
+      .filter((cat) => cat.active || cat.id === a.category_id)
+      .map((cat) => '<option value="' + cat.id + '"' + (cat.id === a.category_id ? ' selected' : '') + '>' + esc(cat.name_ru) + (cat.active ? '' : ' (неактивна)') + '</option>').join('')
+    editDialog('Изменить работу',
+      field('Название', 'title', a.title, 'required maxlength="80"') +
+      field('Наценка дизайнера, сум (0 — бесплатно)', 'markup', a.markup, 'type="number" min="0" max="200000" step="1" required') +
+      field('Теги', 'tags', a.tags || '', 'maxlength="200"') +
+      '<label class="art-field">Категория<select class="input" name="category_id" required>' + options + '</select></label>' +
+      '<p class="dialog-body">Статус публикации сохранится. Новая наценка применяется при следующем расчёте покупки; прошлые продажи не меняются.</p>',
+      (data) => apiJSON('/api/admin/artworks/' + a.id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: data.get('title'), markup: Number(data.get('markup')), tags: data.get('tags'), category_id: Number(data.get('category_id')) }),
+      }))
+  }
+
+  function editCategory(cat) {
+    if (!canEdit) return
+    editDialog(cat ? 'Изменить категорию' : 'Новая категория',
+      field('Название · RU', 'name_ru', cat ? cat.name_ru : '', 'required maxlength="80"') +
+      field('Название · UZ', 'name_uz', cat ? cat.name_uz : '', 'required maxlength="80"') +
+      field('Название · EN', 'name_en', cat ? cat.name_en : '', 'required maxlength="80"') +
+      '<label class="art-field"><span><input type="checkbox" name="active"' + (!cat || cat.active ? ' checked' : '') + ' /> Доступна для новых загрузок</span></label>',
+      (data) => apiJSON('/api/admin/artwork-categories' + (cat ? '/' + cat.id : ''), {
+        method: cat ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name_ru: data.get('name_ru'), name_uz: data.get('name_uz'), name_en: data.get('name_en'), active: data.has('active') }),
+      }))
+  }
+
+  function renderCategories() {
+    el('category-list').innerHTML = categories.map((cat) =>
+      '<div class="art-category"><span>' + esc(cat.name_ru) + ' / ' + esc(cat.name_uz) + ' / ' + esc(cat.name_en) +
+      (cat.active ? '' : ' · Неактивна') + '</span>' + (canEdit ? '<button class="btn btn--sm" type="button" data-category="' + cat.id + '">Изменить</button>' : '') + '</div>').join('')
   }
 
   // ── Review actions ─────────────────────────────────────────────────────
@@ -229,6 +334,13 @@
   window.LOOM_LAYOUT.onReady((me) => {
     // Mirror the capability onto <body> so card actions can read it cheaply.
     const caps = (me && me.capabilities) || []
+    canEdit = caps.includes('artworks.edit') || (me && me.role === 'owner')
+    el('new-category-btn').hidden = !canEdit
+    el('new-category-btn').addEventListener('click', () => editCategory(null))
+    el('category-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-category]')
+      if (btn) editCategory(categories.find((cat) => cat.id === Number(btn.dataset.category)))
+    })
     if (caps.includes('artworks.review') || (me && me.role === 'owner')) {
       document.body.dataset.capArtworksReview = '1'
     }
@@ -247,6 +359,7 @@
       if (btn) {
         const cardEl = btn.closest('.art-card')
         const title = cardEl ? cardEl.querySelector('.art-title').textContent : ''
+        if (btn.dataset.act === 'edit') editArtwork(artworks.get(Number(btn.dataset.id)))
         if (btn.dataset.act === 'approve') approve(btn.dataset.id, title)
         if (btn.dataset.act === 'reject') reject(btn.dataset.id, title)
         return

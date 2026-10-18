@@ -64,6 +64,7 @@
       const err = new Error((data && data.error) || 'HTTP ' + res.status)
       err.status = res.status
       err.code = data && data.code
+      if (err.code && /^artwork_(title|markup|tags|category)$/.test(err.code)) err.message = T(err.code, err.message)
       throw err
     }
     return data
@@ -214,6 +215,25 @@
     })
   }
 
+  async function loadCategories() {
+    const select = $('dz-category')
+    if (!select) return
+    const chosen = select.value
+    const error = $('dz-category-error'), retry = $('dz-category-retry')
+    try {
+      const data = await api('/api/artwork-categories')
+      select.innerHTML = '<option value="">' + esc(T('cat.choose', 'Выберите категорию для дизайна')) + '</option>' +
+        data.items.filter((cat) => cat.active).map((cat) => '<option value="' + cat.id + '">' + esc(cat['name_' + lang()] || cat.name_ru) + '</option>').join('')
+      select.value = chosen
+      error.hidden = true
+      retry.hidden = true
+    } catch (err) {
+      error.textContent = T('cat.failed', 'Не удалось загрузить категории. Попробуйте снова.')
+      error.hidden = false
+      retry.hidden = false
+    }
+  }
+
   // ── Upload ────────────────────────────────────────────────────────────────
 
   function readImageSize(file) {
@@ -288,9 +308,15 @@
         flash('dz-submit-msg', 'dz-submit-err', '', T('dz.needFile', 'Сначала выберите файл.'))
         return
       }
-      if (!title) {
-        flash('dz-submit-msg', 'dz-submit-err', '', T('dz.needTitle', 'Укажите название работы.'))
+      if (!title || title.length > 80) {
+        flash('dz-submit-msg', 'dz-submit-err', '', T('artwork_title', 'Название должно содержать от 1 до 80 символов.'))
         return
+      }
+      const categoryId = Number($('dz-category').value)
+      if (!categoryId) { flash('dz-submit-msg', 'dz-submit-err', '', T('artwork_category', 'Выберите действующую категорию.')); return }
+      const markup = Number($('dz-markup').value)
+      if (!$('dz-markup').value || !Number.isInteger(markup) || markup < 0 || markup > 200000) {
+        flash('dz-submit-msg', 'dz-submit-err', '', T('artwork_markup', 'Наценка — целое число от 0 до 200 000 сум.')); return
       }
       submit.disabled = true
       const original = submit.textContent
@@ -318,7 +344,8 @@
             image_key: pending.key,
             width: pending.width,
             height: pending.height,
-            markup: Math.max(0, parseInt($('dz-markup').value, 10) || 0),
+            markup: markup,
+            category_id: categoryId,
           }),
         })
         flash('dz-submit-msg', 'dz-submit-err',
@@ -328,6 +355,7 @@
         loadStats()
       } catch (e) {
         flash('dz-submit-msg', 'dz-submit-err', '', e.message)
+        if (e.code === 'artwork_category') loadCategories()
       } finally {
         submit.disabled = false
         submit.textContent = original
@@ -341,6 +369,7 @@
     if (drop) drop.classList.remove('has-file')
     const prev = $('dz-preview')
     if (prev) prev.removeAttribute('src')
+    const category = $('dz-category'); if (category) category.value = ''
     ;['dz-title', 'dz-tags'].forEach((id) => { const n = $(id); if (n) n.value = '' })
     const m = $('dz-markup'); if (m) m.value = '0'
     const info = $('dz-file-info'); if (info) info.textContent = ''
@@ -355,6 +384,8 @@
 
     bindApply()
     bindUpload()
+    loadCategories()
+    const retry = $('dz-category-retry'); if (retry) retry.addEventListener('click', loadCategories)
 
     // account.js does the redirect-to-login; here a missing user just means
     // there is nothing to render yet.
@@ -377,6 +408,7 @@
     }
 
     window.addEventListener('loom:langchange', () => {
+      loadCategories()
       if (user && user.is_designer) { loadStats(); loadWorks() }
     })
   }

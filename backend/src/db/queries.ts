@@ -1858,10 +1858,12 @@ export interface Artwork {
   user_id: number
   title: string
   tags: string | null
+  category_id: number | null
   image_key: string
   width: number | null
   height: number | null
   markup: number
+  price_updated_at: number
   status: 'pending' | 'approved' | 'rejected'
   reject_note: string | null
   reviewed_by: number | null
@@ -1977,14 +1979,15 @@ export async function createArtwork(
     width: number | null
     height: number | null
     markup: number
+    category_id: number
   },
 ): Promise<number> {
   return safeQuery('createArtwork', async () => {
     const now = Date.now()
     const result = await db
       .prepare(
-        `INSERT INTO artworks (user_id, title, tags, image_key, width, height, markup, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+        `INSERT INTO artworks (user_id, title, tags, image_key, width, height, markup, status, created_at, updated_at, category_id)
+         SELECT ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, id FROM artwork_categories WHERE id = ? AND active = 1`,
       )
       .bind(
         params.user_id,
@@ -1996,9 +1999,10 @@ export async function createArtwork(
         params.markup,
         now,
         now,
+        params.category_id,
       )
       .run()
-    return Number(result.meta.last_row_id)
+    return result.meta.changes ? Number(result.meta.last_row_id) : 0
   })
 }
 
@@ -2007,6 +2011,7 @@ export async function getApprovedArtworks(
   db: D1Database,
   page = 1,
   limit = 40,
+  categoryId: number | null = null,
 ): Promise<{ items: ArtworkWithAuthor[]; total: number }> {
   return safeQuery('getApprovedArtworks', async () => {
     const offset = (page - 1) * limit
@@ -2014,13 +2019,14 @@ export async function getApprovedArtworks(
       .prepare(
         `SELECT a.*, u.designer_handle AS author_handle, u.name AS author_name
          FROM artworks a JOIN users u ON u.id = a.user_id
-         WHERE a.status = 'approved'
-         ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
+         WHERE a.status = 'approved' AND (? IS NULL OR a.category_id = ?)
+         ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?`,
       )
-      .bind(limit, offset)
+      .bind(categoryId, categoryId, limit, offset)
       .all<ArtworkWithAuthor>()
     const row = await db
-      .prepare("SELECT COUNT(*) AS c FROM artworks WHERE status = 'approved'")
+      .prepare("SELECT COUNT(*) AS c FROM artworks WHERE status = 'approved' AND (? IS NULL OR category_id = ?)")
+      .bind(categoryId, categoryId)
       .first<{ c: number }>()
     return { items: results, total: row?.c ?? 0 }
   })
@@ -2339,5 +2345,52 @@ export async function anonymizeUser(db: D1Database, userId: number): Promise<voi
 export async function touchUserLogin(db: D1Database, userId: number): Promise<void> {
   return safeQuery('touchUserLogin', async () => {
     await db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').bind(Date.now(), userId).run()
+  })
+}
+
+// LOOM-241: shared taxonomy, retaining inactive assignments for existing work.
+export interface ArtworkCategory {
+  id: number
+  name_ru: string
+  name_uz: string
+  name_en: string
+  active: number
+}
+
+export async function getArtworkCategories(db: D1Database, admin = false): Promise<ArtworkCategory[]> {
+  return safeQuery('getArtworkCategories', async () => {
+    const { results } = await db.prepare(`SELECT c.* FROM artwork_categories c
+      ${admin ? '' : "WHERE c.active = 1 OR EXISTS (SELECT 1 FROM artworks a WHERE a.category_id = c.id AND a.status = 'approved')"}
+      ORDER BY c.id`).all<ArtworkCategory>()
+    return results
+  })
+}
+
+export async function getArtworkCategory(db: D1Database, id: number): Promise<ArtworkCategory | null> {
+  return safeQuery('getArtworkCategory', () =>
+    db.prepare('SELECT * FROM artwork_categories WHERE id = ?').bind(id).first<ArtworkCategory>())
+}
+
+export async function saveArtworkCategory(db: D1Database, id: number | null, value: Omit<ArtworkCategory, 'id'>) {
+  return safeQuery('saveArtworkCategory', async () => {
+    const params = [value.name_ru, value.name_uz, value.name_en, value.active]
+    const result = id === null
+      ? await db.prepare('INSERT INTO artwork_categories (name_ru, name_uz, name_en, active) VALUES (?, ?, ?, ?)').bind(...params).run()
+      : await db.prepare('UPDATE artwork_categories SET name_ru = ?, name_uz = ?, name_en = ?, active = ? WHERE id = ?').bind(...params, id).run()
+    return id ?? Number(result.meta.last_row_id)
+  })
+}
+
+export async function updateArtworkDetails(db: D1Database, id: number, value: {
+  title: string; tags: string | null; markup: number; category_id: number
+}): Promise<boolean> {
+  return safeQuery('updateArtworkDetails', async () => {
+    // Preserve the current inactive assignment, but do not allow a new one.
+    const now = Date.now()
+    const result = await db.prepare(`UPDATE artworks SET price_updated_at = CASE WHEN markup != ? THEN ? ELSE price_updated_at END,
+      title = ?, tags = ?, markup = ?, category_id = ?, updated_at = ?
+      WHERE id = ? AND EXISTS (SELECT 1 FROM artwork_categories c WHERE c.id = ? AND (c.active = 1 OR artworks.category_id = c.id))`)
+      .bind(value.markup, now, value.title, value.tags, value.markup, value.category_id, now, id, value.category_id).run()
+    return result.meta.changes > 0
   })
 }

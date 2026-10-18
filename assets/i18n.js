@@ -28,6 +28,18 @@
 
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
+    "artwork_price_changed": {"uz": "Dizayn narxi o‘zgardi. Yangi narxni ko‘rish uchun mahsulotni savatchadan o‘chirib, qayta qo‘shing.", "ru": "Цена дизайна изменилась. Удалите эту вещь из корзины и добавьте её заново, чтобы увидеть новую цену.", "en": "This design’s price changed. Remove this item from your cart and add it again to see the new price."},
+    "cat.label": { uz: "Kategoriya", ru: "Категория", en: "Category" },
+    "cat.choose": { uz: "Dizayningizga mos kategoriyani tanlang", ru: "Выберите категорию для дизайна", en: "Choose the category that fits your design" },
+    "cat.all": { uz: "Barcha kategoriyalar", ru: "Все категории", en: "All categories" },
+    "cat.empty": { uz: "Bu kategoriyada hali dizaynlar yo‘q.", ru: "В этой категории пока нет дизайнов.", en: "No designs in this category yet." },
+    "cat.failed": { uz: "Kategoriyalarni yuklab bo‘lmadi. Qayta urinib ko‘ring.", ru: "Не удалось загрузить категории. Попробуйте снова.", en: "Could not load categories. Please retry." },
+    "cat.retry": { uz: "Qayta urinish", ru: "Повторить", en: "Retry" },
+    "artwork_title": { uz: "Nom 1–80 belgidan iborat bo‘lishi kerak.", ru: "Название должно содержать от 1 до 80 символов.", en: "Title must contain 1–80 characters." },
+    "artwork_markup": { uz: "Ustama 0 dan 200 000 so‘mgacha butun son bo‘lishi kerak.", ru: "Наценка — целое число от 0 до 200 000 сум.", en: "Markup must be a whole number from 0 to 200,000 UZS." },
+    "artwork_tags": { uz: "Teglar 200 belgidan oshmasligi kerak.", ru: "Теги — не более 200 символов.", en: "Tags must be at most 200 characters." },
+    "artwork_category": { uz: "Amaldagi kategoriyani tanlang.", ru: "Выберите действующую категорию.", en: "Choose an active category." },
+
     // ===== Navigation (shared) =====
     'nav.home':       { uz: 'Bosh sahifa', ru: 'Главная',       en: 'Home' },
     'nav.catalog':    { uz: 'Katalog',     ru: 'Каталог',       en: 'Catalog' },

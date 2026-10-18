@@ -1,12 +1,13 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 
 import { C, RULE, fmt, offset } from '../../src/theme/tokens'
 import { body, disp, mono } from '../../src/theme/type'
+import { ArtworkCategories } from '../../src/components/ArtworkCategories'
 import { AppBar } from '../../src/components/AppBar'
 import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
-import { fetchArtworks, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
+import { fetchArtworkCategories, fetchArtworkPage, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
 import type { Artwork } from '../../src/api/types'
 import { useT } from '../../src/i18n'
 import { useAuth } from '../../src/state/auth'
@@ -23,10 +24,33 @@ export default function Market() {
   const { setArt } = useStudio()
   const { flash } = useToast()
   const { isDesigner, signedIn } = useAuth()
-  const { data, loading, error, reload } = useAsync(fetchArtworks, [])
+  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const { data, loading, error, reload } = useAsync(() => fetchArtworkPage(categoryId), [categoryId])
+  const categories = useAsync(fetchArtworkCategories, [])
+  useRefreshOnFocus(categories.reload)
+  const [extra, setExtra] = useState<Artwork[]>([])
+  const [page, setPage] = useState(1)
+  const [moreBusy, setMoreBusy] = useState(false)
+  const generation = useRef(0)
+  const selection = useRef(categoryId)
+  selection.current = categoryId
+  useEffect(() => { generation.current++; setExtra([]); setPage(1) }, [data, categoryId])
   useRefreshOnFocus(reload)
 
-  const items = data ?? []
+  const current = data?.categoryId === categoryId
+  const items = current ? [...data.items, ...extra] : []
+  const loadMore = async () => {
+    setMoreBusy(true)
+    const selected = categoryId
+    const version = generation.current
+    try {
+      const result = await fetchArtworkPage(selected, page + 1)
+      if (selection.current !== selected || generation.current !== version) return
+      setExtra((old) => [...old, ...result.items])
+      setPage(result.page)
+    } catch (err) { flash((err as Error).message) }
+    finally { setMoreBusy(false) }
+  }
 
   const apply = (a: Artwork) => {
     setArt({
@@ -55,7 +79,11 @@ export default function Market() {
         <SlashTitle size={30}>{t('mk.title')}</SlashTitle>
         <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 6, marginBottom: 20 }]}>{t('mk.subtitle')}</T>
 
-        {loading && !data ? (
+        {categories.error ? <View style={{ marginBottom: 12 }}>
+          <T style={body(13)}>{t('cat.failed')}</T>
+          <Button title={t('cat.retry')} onPress={categories.reload} variant="outline" />
+        </View> : <ArtworkCategories items={categories.data ?? []} value={categoryId} onChange={setCategoryId} all />}
+        {loading || !current && !error ? (
           <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
         ) : error ? (
           <View style={{ gap: 16 }}>
@@ -64,8 +92,8 @@ export default function Market() {
           </View>
         ) : items.length === 0 ? (
           <View style={styles.empty}>
-            <T style={[disp(24, 1.1, { ls: -0.02, color: C.coral }), { maxWidth: 280 }]}>{t('mk.emptyTitle')}</T>
-            <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 12 }]}>{t('mk.emptyBody')}</T>
+            <T style={[disp(24, 1.1, { ls: -0.02, color: C.coral }), { maxWidth: 280 }]}>{t(categoryId === null ? 'mk.emptyTitle' : 'cat.empty')}</T>
+            {categoryId === null ? <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 12 }]}>{t('mk.emptyBody')}</T> : null}
           </View>
         ) : (
           <View style={styles.grid}>
@@ -94,6 +122,8 @@ export default function Market() {
           </View>
         )}
 
+        {current && !loading && items.length < data.total ? <Button
+          title={t('cat.more')} onPress={loadMore} loading={moreBusy} variant="outline" /> : null}
         <Button
           title={isDesigner ? t('mk.myWorks') : t('mk.become')}
           variant="ink"

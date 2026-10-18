@@ -1,6 +1,11 @@
 import { Hono } from 'hono'
+import { ARTWORK_ERRORS, artworkDetails, categoryDetails } from '../lib/artwork-details'
 import {
   getArtworkById,
+  getArtworkCategories,
+  getArtworkCategory,
+  saveArtworkCategory,
+  updateArtworkDetails,
   getArtworkSalesCounts,
   getArtworksForReview,
   getDesignerPayouts,
@@ -51,6 +56,7 @@ router.get('/artworks', requireAdmin, requireCap('artworks.view'), async (c) => 
       title: a.title,
       tags: a.tags,
       markup: a.markup,
+      category_id: a.category_id,
       width: a.width,
       height: a.height,
       status: a.status,
@@ -67,6 +73,44 @@ router.get('/artworks', requireAdmin, requireCap('artworks.view'), async (c) => 
     page,
     limit,
   })
+})
+
+// Metadata edits never change moderation or the immutable sale snapshots.
+router.patch('/artworks/:id', requireAdmin, requireCap('artworks.edit'), async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isSafeInteger(id) || id <= 0) return c.json({ error: 'Invalid id', code: 'invalid_id' }, 400)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ error: 'Invalid JSON', code: 'invalid_json' }, 400)
+  const details = artworkDetails(body)
+  if (details.error) return c.json({ error: ARTWORK_ERRORS[details.error], code: details.error }, 400)
+  const artwork = await getArtworkById(c.env.DB, id)
+  if (!artwork) return c.json({ error: 'Not found', code: 'not_found' }, 404)
+  const saved = await updateArtworkDetails(c.env.DB, id, details.value)
+  if (!saved) return c.json({ error: 'Выберите действующую категорию.', code: 'artwork_category' }, 400)
+  return c.json({ ok: true, artwork: await getArtworkById(c.env.DB, id) })
+})
+
+router.get('/artwork-categories', requireAdmin, requireCap('artworks.view'), async (c) => {
+  return c.json({ items: await getArtworkCategories(c.env.DB, true) })
+})
+
+router.post('/artwork-categories', requireAdmin, requireCap('artworks.edit'), async (c) => {
+  const body = await c.req.json().catch(() => null)
+  const value = body && typeof body === 'object' && !Array.isArray(body) ? categoryDetails(body) : null
+  if (!value) return c.json({ error: 'Укажите названия на ru, uz и en (до 80 символов).', code: 'category_names' }, 400)
+  const id = await saveArtworkCategory(c.env.DB, null, value)
+  return c.json({ id }, 201)
+})
+
+router.patch('/artwork-categories/:id', requireAdmin, requireCap('artworks.edit'), async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isSafeInteger(id) || id <= 0) return c.json({ error: 'Invalid id', code: 'invalid_id' }, 400)
+  const body = await c.req.json().catch(() => null)
+  const value = body && typeof body === 'object' && !Array.isArray(body) ? categoryDetails(body) : null
+  if (!value) return c.json({ error: 'Укажите названия на ru, uz и en (до 80 символов).', code: 'category_names' }, 400)
+  if (!await getArtworkCategory(c.env.DB, id)) return c.json({ error: 'Not found', code: 'not_found' }, 404)
+  await saveArtworkCategory(c.env.DB, id, value)
+  return c.json({ ok: true })
 })
 
 // ─── GET /api/admin/designers/payouts ────────────────────────────────────────

@@ -21,6 +21,7 @@ import { isRateLimited, TOO_MANY } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
 import { DESIGNER_COMMISSION_PCT } from './designers'
+import type { Artwork } from '../db/queries'
 import type { UserEnv } from '../types'
 
 // Account-bound cart + multi-item checkout. All routes require a logged-in user.
@@ -193,7 +194,17 @@ router.post('/checkout', async (c) => {
 
   const items = await getCartItems(c.env.DB, userId)
   if (!items.length) return c.json({ error: 'Cart is empty' }, 400)
+  const pricedArtworks = new Map<number, Artwork>()
   for (const it of items) {
+    // A cart freezes its displayed unit price. Refuse stale artwork pricing
+    // before writing any order so its designer share cannot use a newer price.
+    for (const artworkId of artworkIdsIn(it.design_json)) {
+      const art = await getArtworkById(c.env.DB, artworkId)
+      if (art) pricedArtworks.set(artworkId, art)
+      if (art && art.price_updated_at > it.created_at) {
+        return c.json({ error: 'Цена дизайна изменилась. Удалите эту вещь из корзины и добавьте её заново, чтобы увидеть новую цену.', code: 'artwork_price_changed', itemId: it.id }, 409)
+      }
+    }
     const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json, it)
     if ('code' in variant) return c.json({ ...variant, itemId: it.id }, 409)
     it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)
@@ -268,10 +279,10 @@ router.post('/checkout', async (c) => {
     })
 
     // Designer attribution (migration 0018): every marketplace artwork on this
-    // item earns its designer a share. The markup is re-read from the artwork
+    // item earns its designer a share. Use the artwork price validated above
     // row rather than trusted from the client.
     for (const artworkId of artworkIdsIn(it.design_json)) {
-      const art = await getArtworkById(c.env.DB, artworkId)
+      const art = pricedArtworks.get(artworkId)
       if (!art || art.status !== 'approved') continue
       await recordArtworkSale(c.env.DB, {
         order_id: orderId,

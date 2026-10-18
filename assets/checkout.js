@@ -365,6 +365,8 @@
         if (data.code === 'phone_not_verified') {
           show('co-phone-warn', 'flex');
           verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
+        } else if (data.code === 'artwork_price_changed') {
+          banner(t('artwork_price_changed', data.error));
         } else if (res.status === 401) {
           banner(t('co.sessionLost', 'Сессия истекла. Войдите заново, чтобы оформить заказ.'));
         } else if (UNSOLD[data.code]) {
