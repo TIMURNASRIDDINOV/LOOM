@@ -1445,6 +1445,23 @@ function updatePlainColorMaterials() {
 // has an inside, and the inside is darker — so give it one: the same geometry
 // again, back faces only, in a shaded-down version of the shirt colour.
 let liningMaterial = null;
+const liningDarkness = { value: 0 };
+
+// The outer fabric already damps dark sheen. The inside also sits in shadow:
+// suppress grazing specular and reduce diffuse illumination only near black.
+function shadeLining(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.loomLiningDarkness = liningDarkness;
+    shader.fragmentShader = 'uniform float loomLiningDarkness;\n' + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <aomap_fragment>', `
+      reflectedLight.directDiffuse *= 1.0 - 0.7 * loomLiningDarkness;
+      reflectedLight.indirectDiffuse *= 1.0 - 0.7 * loomLiningDarkness;
+      reflectedLight.directSpecular *= 1.0 - loomLiningDarkness;
+      reflectedLight.indirectSpecular *= 1.0 - loomLiningDarkness;
+      #include <aomap_fragment>`);
+  };
+  material.customProgramCacheKey = () => 'loom-dark-lining-v1';
+}
 
 function liningColor() {
   const c = new THREE.Color(designState.shirtColor || "#ffffff");
@@ -1465,6 +1482,8 @@ function addLining(root) {
       side: THREE.BackSide,
     });
   }
+  shadeLining(liningMaterial);
+  updateLiningColor();
   const meshes = [];
   root.traverse((child) => { if (child.isMesh && !child.userData.isLining) meshes.push(child); });
   meshes.forEach((m) => {
@@ -1479,6 +1498,7 @@ function addLining(root) {
 
 function updateLiningColor() {
   if (liningMaterial) liningMaterial.color.copy(liningColor());
+  liningDarkness.value = _darkFabric;
 }
 
 /**
