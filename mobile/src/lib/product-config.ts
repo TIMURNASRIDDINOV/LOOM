@@ -39,6 +39,11 @@ export function colorOk(cfg: Config, hex: string): boolean {
   return cfg.colors.some((c) => c.available && c.hex === hex.toUpperCase())
 }
 
+/** Same conditional alias as the server and web saved-design restoration. */
+export function restoredColor(cfg: Config, hex: string): string {
+  return hex.toUpperCase() === '#1F2937' && !colorOk(cfg, hex) && colorOk(cfg, '#000000') ? '#000000' : hex
+}
+
 /**
  * The studio's garment: its product, or the default garment (the first custom
  * product, as on the web and the server) when none was picked. `unavailable`

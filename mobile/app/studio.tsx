@@ -23,7 +23,7 @@ import { useStudio } from '../src/state/studio'
 import { useToast } from '../src/state/toast'
 import { goBack } from '../src/lib/nav'
 import { colorName, productName, useI18n } from '../src/i18n'
-import { colorOk, swatchName, useStudioProduct } from '../src/lib/product-config'
+import { colorOk, restoredColor, swatchName, useStudioProduct } from '../src/lib/product-config'
 
 export default function Studio() {
   const router = useRouter()
@@ -62,6 +62,14 @@ export default function Studio() {
 
   // The product (or the default garment) and its sizes, colours and print area.
   const { product, unavailable, config } = useStudioProduct()
+  useEffect(() => {
+    if (!st.hydrated || !product) return
+    const color = restoredColor(config, s.color)
+    if (color !== s.color) st.setColor(color)
+    // Config is derived from product; wait for both catalogue and saved state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, s.color, st.hydrated])
+
 
   const addToCart = async () => {
     if (busyRef.current) return
