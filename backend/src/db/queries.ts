@@ -1542,6 +1542,10 @@ export interface CartItem {
   id: number
   user_id: number
   product_id: number | null
+  product_name: string | null
+  product_name_ru: string | null
+  product_name_uz: string | null
+  product_name_en: string | null
   design_json: string
   logo_key: string | null
   unit_price: number
@@ -1571,7 +1575,10 @@ export interface ProofKeys {
 export async function getCartItems(db: D1Database, userId: number): Promise<CartItem[]> {
   return safeQuery('getCartItems', async () => {
     const { results } = await db
-      .prepare('SELECT * FROM cart_items WHERE user_id = ? ORDER BY created_at ASC')
+      .prepare(`SELECT ci.*, p.name_ru AS product_name, p.name_ru AS product_name_ru,
+          p.name_uz AS product_name_uz, p.name_en AS product_name_en
+        FROM cart_items ci LEFT JOIN products p ON p.id = ci.product_id
+        WHERE ci.user_id = ? ORDER BY ci.created_at ASC`)
       .bind(userId)
       .all<CartItem>()
     return results
@@ -1580,7 +1587,9 @@ export async function getCartItems(db: D1Database, userId: number): Promise<Cart
 
 export async function getCartItemById(db: D1Database, id: number): Promise<CartItem | null> {
   return safeQuery('getCartItemById', () =>
-    db.prepare('SELECT * FROM cart_items WHERE id = ?').bind(id).first<CartItem>(),
+    db.prepare(`SELECT ci.*, p.name_ru AS product_name, p.name_ru AS product_name_ru,
+        p.name_uz AS product_name_uz, p.name_en AS product_name_en
+      FROM cart_items ci LEFT JOIN products p ON p.id = ci.product_id WHERE ci.id = ?`).bind(id).first<CartItem>(),
   )
 }
 

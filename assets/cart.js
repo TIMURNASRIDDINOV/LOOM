@@ -265,6 +265,10 @@
     if (d.plain) bits.push(t('cart.plain', 'Без принта'));
     return bits;
   }
+  function productName(item) {
+    var lang = window.LOOM_I18N && window.LOOM_I18N.getLang ? window.LOOM_I18N.getLang() : 'ru';
+    return item['product_name_' + lang] || item.product_name_ru || item.product_name || item.product_name_en || item.product_name_uz || t('cart.item', 'Футболка');
+  }
   function hasDesign(item) {
     try {
       var d = JSON.parse(item.design_json || '{}');
@@ -309,7 +313,7 @@
             '<img alt="" loading="lazy" style="display:none">' +
           '</div>' +
           '<div class="cart-item-info">' +
-            '<span class="cart-item-name">' + esc(it.product_name || t('cart.item', 'Футболка')) + '</span>' +
+            '<span class="cart-item-name">' + esc(productName(it)) + '</span>' +
             (meta ? '<span class="cart-item-meta">' + meta + '</span>' : '') +
             '<div class="cart-item-row">' +
               '<div class="cart-qty" role="group" aria-label="Quantity">' +
@@ -406,6 +410,7 @@
   else boot();
 
   window.LOOM_CART = {
+    productName: productName,
     load: load, sync: sync, add: add, remove: remove, setQty: setQty, uploadModel: uploadModel,
     open: open, close: close, updateBadge: updateBadge, toast: toast,
     thumbInto: thumbInto, summarize: summarize,
