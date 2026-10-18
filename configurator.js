@@ -119,14 +119,32 @@ function colorAvailable(hex) {
   return !!def && def.available !== false;
 }
 
-// Font options (system + Google)
+// Self-hosted print faces; assets/print-fonts.css also defines legacy aliases.
 const FONT_OPTIONS = [
-  { value: "Arial", label: "Arial" },
-  { value: "Georgia", label: "Georgia" },
-  { value: "Impact", label: "Impact" },
-  { value: "Courier New", label: "Courier New" },
-  { value: "Pacifico", label: "Pacifico (Script)" },
+  { value: "Noto Sans", label: "Noto Sans" },
+  { value: "Noto Serif", label: "Noto Serif" },
+  { value: "Noto Sans Black", label: "Noto Sans Black" },
+  { value: "Noto Sans Mono", label: "Noto Sans Mono" },
+  { value: "Caveat", label: "Caveat" },
 ];
+
+// A print must never capture a temporary system fallback while a font loads.
+const _printFontLoads = new Map();
+function ensureDesignFonts() {
+  if (!document.fonts) return Promise.resolve();
+  const texts = ["front", "back"].flatMap((view) => elementsOf(view)).filter((el) => el.type === "text" && el.content);
+  return Promise.all(texts.map((el) => {
+    const spec = `${el.italic ? "italic" : "normal"} ${el.bold ? "700" : "400"} 32px "${el.font}"`;
+    if (!_printFontLoads.has(spec)) {
+      const loading = document.fonts.load(spec, "Oʻzbekiston Ғ ш").then((faces) => {
+        if (!faces.length) throw new Error("Print font unavailable");
+        drawTexture("front"); drawTexture("back"); renderFlatEditor();
+      }).catch((error) => { _printFontLoads.delete(spec); throw error; });
+      _printFontLoads.set(spec, loading);
+    }
+    return _printFontLoads.get(spec);
+  }));
+}
 
 // API base — resolved via config.js if available
 function getApiBase() {
@@ -189,7 +207,7 @@ function newTextElement(over) {
   return Object.assign({
     id: _uid(), type: "text",
     nx: 0.5, ny: 0.32, rotation: 0,
-    content: "", font: "Arial", size: 160,
+    content: "", font: "Noto Sans", size: 160,
     color: "#000000", bold: false, italic: false,
   }, over || {});
 }
@@ -1391,6 +1409,7 @@ function drawTexture(view) {
 
 /** Redraw whichever view is currently active. */
 function redrawActive() {
+  ensureDesignFonts().catch(() => {});
   clearTimeout(_bakeTimer); // this IS the bake a pending scheduleRedraw() owed
   _bakeTimer = 0;
   drawTexture(designState.activeView);
@@ -1409,6 +1428,7 @@ function redrawActive() {
 let _redrawQueued = false;
 let _bakeTimer = 0;
 function scheduleRedraw() {
+  ensureDesignFonts().catch(() => {});
   if (_redrawQueued) return;
   _redrawQueued = true;
   requestAnimationFrame(() => {
@@ -5490,6 +5510,7 @@ function _paintPrint(view, r, s) {
 // 3D garment mockups (JPEG). Uploads them and returns R2 keys + the mockup data
 // URLs (so the Telegram worker payload can reuse them without re-rendering).
 async function captureProofs() {
+  await ensureDesignFonts();
   const active = { front: _viewHasPrint("front"), back: _viewHasPrint("back") };
 
   // Flat print masters (artwork-only, transparent, hi-res) for non-empty views.
@@ -5597,6 +5618,8 @@ async function addToCart(opts) {
   if (orderBtn) orderBtn.disabled = true;
   const t0 = performance.now();
   try {
+    try { await ensureDesignFonts(); }
+    catch (_) { showToast(CT("cfg.fontLoadError", "Не удалось загрузить шрифт. Повторите попытку."), "error"); return false; }
     // Capture proofs NOW — the design is only live here; it's gone by checkout.
     // A blank product is the plain garment, as the catalogue adds it: no files.
     const [logoKey, backLogoKey] = _blankOnly
@@ -6002,7 +6025,7 @@ function bindTextControls() {
     if (!t) return;
     t.font = fontSel.value;
     // Pre-load the font in the browser before redrawing
-    document.fonts.load(`24px "${fontSel.value}"`).then(() => redrawActive());
+    ensureDesignFonts().then(() => redrawActive()).catch(() => showToast(CT("cfg.fontLoadError", "Не удалось загрузить шрифт. Повторите попытку."), "error"));
   });
 
   if (colorPkr) colorPkr.addEventListener("input", () => {
