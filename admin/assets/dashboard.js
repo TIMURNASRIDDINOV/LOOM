@@ -9,6 +9,89 @@
 
   const el = (id) => document.getElementById(id)
 
+  const funnelTranslations = {
+    ru: {
+      title: 'Воронка', heading: 'Воронка конфигуратора',
+      definition: 'Сессии по дню первого открытия в выбранном периоде (UTC). Каждый шаг требует предыдущего; процент — от предыдущего шага.',
+      from: 'С', to: 'По', platform: 'Платформа', all: 'Все', web: 'Сайт', app: 'Приложение', apply: 'Показать',
+      summary: 'За период', daily: 'По дням', day: 'День (UTC)', opens: 'Открыли', carts: 'В корзину',
+      checkouts: 'Отправили заказ', placed: 'Оформили заказ', orders: 'Заказы',
+      note: 'Оформление подтверждается сервером. Заказы без отменённых и известного тестового №54; одна сессия может оформить несколько заказов.',
+      loading: 'Загрузка…', empty: 'За этот период открытий конфигуратора нет.',
+      failed: 'Не удалось загрузить воронку. Повторите попытку.', range: 'Выберите корректные даты UTC: не более 366 дней.',
+    },
+    uz: {
+      title: 'Voronka', heading: 'Konfigurator voronkasi',
+      definition: 'Sessiyalar tanlangan davrdagi birinchi ochilish kuni (UTC) bo‘yicha. Har bir bosqich oldingisini talab qiladi; foiz oldingi bosqichga nisbatan.',
+      from: 'Dan', to: 'Gacha', platform: 'Platforma', all: 'Barchasi', web: 'Sayt', app: 'Ilova', apply: 'Ko‘rsatish',
+      summary: 'Davr bo‘yicha', daily: 'Kunlar bo‘yicha', day: 'Kun (UTC)', opens: 'Ochilgan', carts: 'Savatga',
+      checkouts: 'Buyurtma yuborilgan', placed: 'Buyurtma berilgan', orders: 'Buyurtmalar',
+      note: 'Buyurtma server tomonidan tasdiqlanadi. Bekor qilingan va ma’lum №54 test buyurtmasi hisoblanmaydi; bir sessiyada bir nechta buyurtma bo‘lishi mumkin.',
+      loading: 'Yuklanmoqda…', empty: 'Bu davrda konfigurator ochilmagan.',
+      failed: 'Voronkani yuklab bo‘lmadi. Qayta urinib ko‘ring.', range: 'To‘g‘ri UTC sanalarini tanlang: 366 kundan oshmasin.',
+    },
+    en: {
+      title: 'Funnel', heading: 'Configurator funnel',
+      definition: 'Sessions by their first open day in the selected period (UTC). Each step requires the previous one; percentages are relative to the previous step.',
+      from: 'From', to: 'To', platform: 'Platform', all: 'All', web: 'Web', app: 'App', apply: 'Show',
+      summary: 'Period total', daily: 'By day', day: 'Day (UTC)', opens: 'Opened', carts: 'Added to cart',
+      checkouts: 'Submitted checkout', placed: 'Placed an order', orders: 'Orders',
+      note: 'Placement is confirmed by the server. Orders exclude cancellations and known test #54; one session can place several orders.',
+      loading: 'Loading…', empty: 'No configurator opens in this period.',
+      failed: 'Could not load the funnel. Please try again.', range: 'Choose valid UTC dates, up to 366 days.',
+    },
+  }
+  const ft = funnelTranslations[document.documentElement.lang.split('-')[0]] || funnelTranslations.ru
+  let funnelData = null
+
+  function renderFunnel() {
+    if (!funnelData) return
+    const platform = el('funnel-platform').value
+    const platforms = platform === 'all' ? ['web', 'app'] : [platform]
+    const cell = (count, previous) => '<td class="num">' + count +
+      '<span class="funnel-rate">' + (previous ? (count / previous * 100).toFixed(1) + '%' : '—') + '</span></td>'
+    const row = (r, daily) => '<tr>' + (daily ? '<td class="num">' + esc(r.day) + '</td>' : '') +
+      '<th scope="row">' + esc(ft[r.platform]) + '</th>' + cell(r.opens, r.opens) + cell(r.carts, r.opens) +
+      cell(r.checkouts, r.carts) + cell(r.placed, r.checkouts) + '<td class="num">' + r.orders + '</td></tr>'
+    el('funnel-summary').innerHTML = platforms.map((p) => row({ ...funnelData.totals[p], platform: p }, false)).join('')
+    el('funnel-daily').innerHTML = funnelData.daily.filter((r) => platforms.includes(r.platform)).map((r) => row(r, true)).join('')
+    el('funnel-message').textContent = platforms.some((p) => funnelData.totals[p].opens) ? '' : ft.empty
+    el('funnel-results').hidden = false
+  }
+
+  async function loadFunnel(initial = false) {
+    funnelData = null
+    el('funnel-apply').disabled = true
+    el('funnel-results').hidden = true
+    el('funnel-message').textContent = ft.loading
+    el('funnel-message').classList.remove('state--error')
+    try {
+      const query = initial ? '' : '?' + new URLSearchParams({ from: el('funnel-from').value, to: el('funnel-to').value })
+      funnelData = await apiJSON('/api/admin/analytics/funnel' + query)
+      el('funnel-from').value = funnelData.from
+      el('funnel-to').value = funnelData.to
+      renderFunnel()
+    } catch (error) {
+      funnelData = null
+      el('funnel-message').textContent = error.data?.code === 'funnel_range' ? ft.range : ft.failed
+      el('funnel-message').classList.add('state--error')
+    } finally {
+      el('funnel-apply').disabled = false
+    }
+  }
+
+  function wireFunnel() {
+    document.querySelectorAll('[data-funnel-i18n]').forEach((node) => {
+      if (ft[node.dataset.funnelI18n]) node.textContent = ft[node.dataset.funnelI18n]
+    })
+    el('funnel-filters').addEventListener('submit', (event) => {
+      event.preventDefault()
+      loadFunnel()
+    })
+    el('funnel-platform').addEventListener('change', renderFunnel)
+    loadFunnel(true)
+  }
+
   // Russian needs three forms; "2 заказа(ов)" is not something you ship to a
   // person who reads this screen every morning.
   function plural(n, one, few, many) {
@@ -181,6 +264,7 @@
     const tabs = [
       { tab: el('tab-orders'), panel: el('panel-orders') },
       { tab: el('tab-visitors'), panel: el('panel-visitors') },
+      { tab: el('tab-funnel'), panel: el('panel-funnel') },
     ]
     tabs.forEach(({ tab }, i) => {
       tab.addEventListener('click', () => {
@@ -230,6 +314,7 @@
 
   window.LOOM_LAYOUT.onReady(() => {
     wireTabs()
+    wireFunnel()
     load()
   })
 })()
