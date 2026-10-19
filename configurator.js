@@ -3085,11 +3085,12 @@ function texToWorldMesh(view, tx, ty) {
   return null;
 }
 
-const _projV = (typeof THREE !== "undefined") ? new THREE.Vector3() : null;
+let _projV = null; // three.js is loaded only when the preview opens
 // texture px → screen (page) px, exact via the active face's mesh triangles.
 function texToScreenMesh(tx, ty) {
   const m = _meshTris[designState.activeView];
-  if (!m || !m.all.length || !camera || !renderer) return null;
+  if (!m || !m.all.length || !camera || !renderer || typeof THREE === "undefined") return null;
+  if (!_projV) _projV = new THREE.Vector3();
   const u = tx / TEX_SIZE, v = ty / TEX_SIZE; // textures use flipY=false → v = ty/TEX
   const BN = m.bn;
   const bi = Math.max(0, Math.min(BN - 1, (u * BN) | 0));
@@ -4496,7 +4497,7 @@ function _flatOnPointerDown(e) {
   if (hit.type === "pending") {
     _flatGesture = hit;
   } else if (hit.type === "move") {
-    _flatGesture = { type: "move", lastX: p.x, lastY: p.y };
+    _flatGesture = { type: "move", lastX: p.x, lastY: p.y, rawNx: el.nx, rawNy: el.ny };
   } else if (hit.type === "scale") {
     const d0 = Math.hypot(p.x - center.x, p.y - center.y);
     _flatGesture = { type: "scale", d0: Math.max(8, d0), startSize: el.type === "text" ? el.size : el.scalePct };
@@ -4520,11 +4521,13 @@ function _flatOnPointerMove(e) {
 
   if (_flatGesture.type === "move") {
     // On a flat, unwarped canvas a screen delta IS a normalised delta.
-    el.nx += (p.x - _flatGesture.lastX) / r.w;
-    el.ny += (p.y - _flatGesture.lastY) / r.h;
+    // Accumulate before snapping: repeated 1px moves must eventually escape
+    // the magnet, rather than starting again from the displayed centre.
+    _flatGesture.rawNx = Math.max(0, Math.min(1, _flatGesture.rawNx + (p.x - _flatGesture.lastX) / r.w));
+    _flatGesture.rawNy = Math.max(0, Math.min(1, _flatGesture.rawNy + (p.y - _flatGesture.lastY) / r.h));
     _flatGesture.lastX = p.x; _flatGesture.lastY = p.y;
-    const u = Math.max(0, Math.min(1, el.nx));
-    const v = Math.max(0, Math.min(1, el.ny));
+    const u = _flatGesture.rawNx;
+    const v = _flatGesture.rawNy;
     const thr = 8;
     _flatGesture.snapX = !e.ctrlKey && Math.abs(u - 0.5) * r.w < thr;
     _flatGesture.snapY = !e.ctrlKey && Math.abs(v - 0.5) * r.h < thr;

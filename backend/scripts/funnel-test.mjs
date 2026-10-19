@@ -179,6 +179,22 @@ try {
     const chain = await db.prepare('SELECT event, COUNT(*) AS n FROM page_visits WHERE session_id = ? GROUP BY event ORDER BY event').bind(sessionId).all()
     assert.deepEqual(chain.results, ['cfg_cart', 'cfg_checkout_submit', 'cfg_open', 'order_placed'].map((event) => ({ event, n: 1 })))
   }
+  // Regression proof for the latest main's artwork-price validation when
+  // integrated with the prerequisite's atomic checkout writer.
+  await db.prepare("INSERT INTO artworks (id,user_id,title,image_key,markup,status,created_at,updated_at,price_updated_at) VALUES (1001,1,'QA art','qa.png',10000,'approved',1,1,1)").run()
+  const auth = { Authorization: `Bearer ${token(1, 'user')}` }
+  for (const legacy of [false, true]) {
+    await db.prepare('DELETE FROM cart_items WHERE user_id = 1').run()
+    await post('/api/cart', { productId: 1001, designJson: JSON.stringify({ size: 'M', shirtColor: '#FFFFFF',
+      front: { elements: [{ artworkId: 1001, ...(legacy ? {} : { artworkPrice: 10000 }) }] } }) }, 201, auth)
+    await db.prepare('UPDATE cart_items SET created_at = 1 WHERE user_id = 1').run()
+    await db.prepare('UPDATE artworks SET markup = 20000, price_updated_at = ? WHERE id = 1001').bind(Date.now()).run()
+    const before = await db.prepare('SELECT COUNT(*) AS n FROM orders').first()
+    const rejected = await post('/api/cart/checkout', { customerName: 'QA User', customerPhone: '+998900000000', sessionId: 'web-art-price' }, 409,
+      { ...auth, 'Idempotency-Key': `funnel-art-price-${legacy}` })
+    assert.equal(rejected.code, 'artwork_price_changed')
+    assert.deepEqual(await db.prepare('SELECT COUNT(*) AS n FROM orders').first(), before)
+  }
   console.log(`PASS: ${checks} route checks; local D1 matches, default/range boundaries, deduplication, platform attribution, chronology, KR3 exclusions, capability checks, real web/app tracker-to-checkout chains and idempotent retries.`)
   if (serve) {
     console.log('Local funnel fixture ready: http://localhost:8790 (ephemeral D1; qa-admin cookie signed with local-funnel-test-only)')

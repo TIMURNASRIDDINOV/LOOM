@@ -244,7 +244,7 @@
             '<img alt="" loading="lazy" decoding="async" style="display:none">' +
           '</div>' +
           '<div class="co-item-info">' +
-            '<span class="co-item-name">' + esc(it.product_name || t('cart.item', 'Футболка')) + (it.quantity > 1 ? ' ×' + it.quantity : '') + '</span>' +
+            '<span class="co-item-name">' + esc(window.LOOM_CART.productName(it)) + (it.quantity > 1 ? ' ×' + it.quantity : '') + '</span>' +
             (meta ? '<span class="co-item-meta">' + meta + '</span>' : '') +
           '</div>' +
           '<span class="co-item-price">' + fmt(it.unit_price * it.quantity) + '</span>' +
@@ -403,6 +403,11 @@
         } else if (data.code === 'phone_not_verified') {
           show('co-phone-warn', 'flex');
           verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
+        } else if (data.code === 'artwork_price_changed') {
+          banner(data.artworkTitle
+            ? t('artwork_price_changed_title', 'Цена дизайна «{title}» изменилась. Удалите вещь с этим дизайном из корзины и добавьте её заново, чтобы увидеть новую цену.')
+              .replace('{title}', function () { return data.artworkTitle; })
+            : t('artwork_price_changed', data.error));
         } else if (res.status === 401) {
           banner(t('co.sessionLost', 'Сессия истекла. Войдите заново, чтобы оформить заказ.'));
         } else if (UNSOLD[data.code]) {

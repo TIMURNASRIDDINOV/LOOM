@@ -101,6 +101,12 @@ export const CAPABILITIES = [
     description: 'Очередь модерации и все загруженные работы с их статусом.',
   },
   {
+    id: 'artworks.edit',
+    group: 'artworks',
+    label: 'Редактировать работы и категории',
+    description: 'Менять названия, наценки, теги и категории работ; управлять категориями маркета.',
+  },
+  {
     id: 'artworks.review',
     group: 'artworks',
     label: 'Одобрять и отклонять работы',

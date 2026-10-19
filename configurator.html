@@ -30,7 +30,7 @@
 
     <!-- Design system -->
     <link rel="stylesheet" href="assets/theme.css?v=12" />
-    <link rel="stylesheet" href="assets/nav.css?v=12" />
+    <link rel="stylesheet" href="assets/nav.css?v=13" />
     <link rel="stylesheet" href="assets/auth.css?v=13" />
     <link rel="stylesheet" href="assets/login-modal.css?v=6" />
     <script src="assets/boot.js?v=9"></script>
@@ -45,14 +45,14 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=4"></script>
     <script defer src="assets/layout.js?v=5"></script>
-    <script defer src="assets/i18n.js?v=39"></script>
+    <script defer src="assets/i18n.js?v=40"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=5"></script>
-    <script defer src="assets/cart.js?v=6"></script>
-    <script defer src="configurator.js?v=88"></script>
+    <script defer src="assets/cart.js?v=7"></script>
+    <script defer src="configurator.js?v=90"></script>
 
     <style>
       /* ============================================================
@@ -933,71 +933,7 @@
       }
       .btn-secondary-full:hover { border-color: var(--text); color: var(--text); }
 
-      /* ── Order Modal ─────────────────────────────────────────── */
-      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      @keyframes scaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-      @keyframes slideIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
-      .modal-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; animation: fadeIn 0.3s var(--ease); }
-      .modal-backdrop { position: absolute; inset: 0; background: var(--scrim); backdrop-filter: blur(8px); }
-      .modal-card {
-        /* min(…, 100%) — a flex-centered child taller than the overlay
-           overflows off the top with no way to scroll to it on iOS */
-        position: relative; width: 100%; max-width: 540px; max-height: min(90dvh, 100%); overflow-y: auto; overscroll-behavior: contain;
-        background: var(--panel); border: 1px solid var(--hairline);
-        border-radius: 2px; padding: 2rem; animation: scaleIn 0.3s var(--ease); color: var(--text);
-        box-shadow: var(--shadow-lg);
-      }
-      .modal-close {
-        position: absolute; top: 1.25rem; right: 1.25rem; background: var(--bg); border: 1px solid var(--hairline);
-        border-radius: 2px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-        cursor: pointer; transition: border-color 200ms ease, transform 200ms ease; color: var(--muted);
-      }
-      .modal-close:hover { border-color: var(--text); color: var(--text); transform: rotate(90deg); }
-      .modal-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 1.5rem; color: var(--text); }
-      .order-summary { background: var(--bg); border-radius: 2px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid var(--hairline); }
-      .summary-title { font-size: 0.95rem; font-weight: 500; margin: 0 0 1rem; color: var(--text); }
-      .summary-content { display: flex; gap: 1.25rem; align-items: flex-start; }
-      .summary-preview { flex-shrink: 0; background: var(--media-bg); border-radius: 2px; padding: 0.5rem; border: 1px solid var(--hairline); }
-      #summaryCanvas { display: block; max-width: 100%; height: auto; }
-      .summary-details { flex: 1; display: flex; flex-direction: column; gap: 0.4rem; }
-      .summary-value { color: var(--text); font-weight: 500; }
-      .summary-price { margin-top: 0.5rem; padding-top: 0.65rem; border-top: 1px solid var(--hairline); }
-      .summary-price .summary-value { color: var(--text); font-size: 1.15rem; font-weight: 700; }
-      .order-form { display: flex; flex-direction: column; gap: 1.1rem; }
-      .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
-      .form-field { position: relative; }
-      .form-label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--ink-70); margin-bottom: 0.45rem; }
-      .required { color: var(--danger); }
-      .order-form .form-input { padding: 0.85rem 1rem; border-radius: 2px; font-size: 0.92rem; background: var(--field-bg); border: 1px solid var(--hairline); color: var(--text); }
-      .order-form .form-input:focus { border-color: var(--text); box-shadow: 0 0 0 3px rgba(252,80,68,0.08); }
-      .order-form .form-input.error { border-color: var(--danger); }
-      .order-form .form-input.success { border-color: var(--ok); }
-      .field-error { display: block; color: var(--danger); font-size: 0.72rem; margin-top: 0.25rem; min-height: 18px; }
-      .field-success { position: absolute; right: 12px; top: 38px; color: var(--ok); font-size: 1.1rem; }
-      .location-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-      .saved-loc-preview { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.85rem; border-radius: 2px; background: var(--ok-tint); border: 1px solid var(--ok-border); color: var(--ink-70); font-size: 0.83rem; margin-bottom: 0.75rem; }
-      .toggle-btn { flex: 1; padding: 0.7rem 1rem; border: 1px solid var(--hairline); border-radius: 2px; background: var(--field-bg); font-family: inherit; font-size: 0.85rem; cursor: pointer; color: var(--muted); transition: all 200ms ease;
-        display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
-      /* These two buttons carried 📍 and ✏️. Emoji render in the system
-         colour font, so they ignored the button's own colour and inverted
-         state — and the glyph differs on every OS. Stroked icons inherit
-         currentColor and flip with .active like everything else here. */
-      .toggle-btn .ico { width: 17px; height: 17px; flex-shrink: 0; }
-      .summary-title .ico { width: 18px; height: 18px; flex-shrink: 0; }
-      .summary-title { display: flex; align-items: center; gap: 0.5rem; }
-      .toggle-btn:hover { color: var(--text); border-color: var(--text); }
-      .toggle-btn.active { background: var(--text); color: var(--paper); border-color: var(--text); }
-      .map-container { margin-bottom: 0.5rem; }
-      #map { border: 1px solid var(--hairline); position: relative; }
-      .map-center-marker { position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; margin-left: -15px; margin-top: -30px; z-index: 1000; pointer-events: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
-      .map-coords { font-size: 0.8rem; color: var(--muted); margin: 0.4rem 0 0; font-family: var(--mono); }
-      .address-container textarea { resize: vertical; min-height: 60px; }
-      .btn-submit { width: 100%; padding: 0.95rem 1.5rem; background: var(--text); color: var(--paper); border: 1px solid var(--text); border-radius: 2px; font-family: inherit; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: background 0.3s ease, border-color 0.3s ease; margin-top: 0.5rem; }
-      .btn-submit:hover:not(:disabled) { background: var(--brand); border-color: var(--brand); }
-      .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
       .spinner { animation: spin 0.8s linear infinite; }
-      .success-toast { position: fixed; top: 2rem; right: 2rem; background: var(--ok); color: var(--on-accent); padding: 1rem 1.5rem; border-radius: 2px; display: flex; align-items: center; gap: 0.75rem; font-weight: 500; z-index: 10000; animation: slideIn 0.3s ease; }
-      body.modal-open { overflow: hidden; }
 
       /* Size selector */
       .size-selector { display: flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -1198,7 +1134,7 @@
         .view-toggle { bottom: auto; top: calc(100dvh - var(--peek) - 56px); left: 50%; }
 
         /* ≥16px inputs: iOS Safari zoom-jumps on focus below that */
-        .form-input, .form-select, .order-form .form-input { font-size: 16px; }
+        .form-input, .form-select { font-size: 16px; }
 
         /* thumb-sized controls */
         .view-btn { padding: 0.65rem 1.3rem; }
@@ -1211,7 +1147,6 @@
         .dock-input, .dock-select, .dock-num { font-size: 16px; padding: 0.55rem 0.6rem; }
         .dock-num { width: 64px; }
         .btn-ghost, .btn-danger-outline { padding: 0.7rem 0.75rem; }
-        .toggle-btn { padding: 0.85rem 1rem; }
 
         /* ══ Keyboard open (body.kb-open, set by bindKeyboardLayout) ══════
            The keyboard shrinks only the visual viewport, so the studio is
@@ -1243,10 +1178,9 @@
         .slider::-moz-range-thumb { width: 26px; height: 26px; }
       }
 
-      /* Order modal as a bottom sheet on phones */
+      /* Add-design sheet on phones */
       @media (max-width: 640px) {
-        .form-row { grid-template-columns: 1fr; }
-        /* Add-sheet becomes a real bottom sheet, like the order modal */
+        /* Add-sheet becomes a real bottom sheet */
         .flat-add-card {
           top: auto; bottom: 0; left: 0; transform: none;
           width: 100%; border-radius: 8px 8px 0 0;
@@ -1254,13 +1188,7 @@
           animation: sheetIn 0.32s var(--ease);
         }
         .flat-add-opt { padding: 1rem 0.9rem; font-size: 0.95rem; }
-        .modal-overlay { align-items: flex-end; padding: 0; }
-        .modal-card {
-          max-width: 100%; max-height: 94dvh;
-          border-radius: 8px 8px 0 0;
-          padding: 1.5rem 1.25rem calc(1.75rem + env(safe-area-inset-bottom));
-          animation: sheetIn 0.32s var(--ease);
-        }
+
       }
       @keyframes sheetIn { from { opacity: 0.6; transform: translateY(48px); } to { opacity: 1; transform: translateY(0); } }
 

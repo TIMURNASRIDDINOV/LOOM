@@ -43,10 +43,13 @@ export async function setToken(token: string | null): Promise<void> {
 export class ApiError extends Error {
   status: number
   code?: string
-  constructor(message: string, status: number, code?: string) {
+  /** The parsed error body, for callers that act on more than the code. */
+  details?: Record<string, unknown>
+  constructor(message: string, status: number, code?: string, details?: Record<string, unknown>) {
     super(message)
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -93,18 +96,23 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    const d = data as { error?: unknown; code?: string } | null
+    const d = data as { error?: unknown; code?: string; artworkTitle?: unknown } | null
     // Admin product routes use `{ ok:false, error:{ code, message } }`; every
     // other route uses `{ error: string }`. Handle both shapes.
     const err = d?.error
     const message =
+      d?.code === 'print_unavailable' ? tStatic('st.blankNote') :
       typeof err === 'string'
         ? err
         : typeof (err as { message?: string })?.message === 'string'
           ? (err as { message: string }).message
           : tStatic('common.errorCode', { code: res.status })
     const code = d?.code ?? (err as { code?: string })?.code
-    throw new ApiError(message, res.status, code)
+    const localized = code === 'artwork_price_changed' && typeof d?.artworkTitle === 'string' && d.artworkTitle
+      ? tStatic('artwork_price_changed_title', { title: d.artworkTitle })
+      : code && ['artwork_title', 'artwork_markup', 'artwork_tags', 'artwork_category', 'artwork_price_changed'].includes(code)
+        ? tStatic(code as 'artwork_title' | 'artwork_markup' | 'artwork_tags' | 'artwork_category' | 'artwork_price_changed') : message
+    throw new ApiError(localized, res.status, code, d && typeof d === 'object' ? (d as Record<string, unknown>) : undefined)
   }
 
   return data as T

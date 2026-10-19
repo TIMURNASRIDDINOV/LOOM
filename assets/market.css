@@ -514,3 +514,8 @@
   .dir-card:hover { transform: none; }
   .dir-card:hover .dir-card__art img { transform: none; }
 }
+
+/* LOOM-241: native select follows customer theme tokens. */
+.mk-category-filter { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
+.mk-category-filter select { padding: 12px; max-width: 100%; color: var(--ink); background: var(--paper); border: 1px solid currentColor; font: inherit; }
+.mk-category-filter select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

@@ -14,6 +14,9 @@
   <link rel="stylesheet" href="assets/theme.css?v=30" />
   <script src="assets/theme-init.js?v=30"></script>
   <style>
+    .art-field { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+    .art-category { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+    .dialog { max-height: 90vh; overflow-y: auto; }
     .art-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--sp-4); }
     .art-card { display: flex; flex-direction: column; overflow: hidden; }
     .art-thumb {
@@ -50,6 +53,11 @@
       </div>
     </div>
 
+    <details class="card" id="categories-panel" style="margin-bottom: var(--sp-6)">
+      <summary style="cursor: pointer; font-weight: 600">Категории маркета · управление</summary>
+      <div class="card-head"><div><h3 class="card-title">Категории маркета</h3><p class="card-sub">Дизайнер выбирает одну категорию при загрузке. Неактивные категории сохраняются у существующих работ.</p></div><button type="button" class="btn btn--sm" id="new-category-btn" hidden>Добавить категорию</button></div>
+      <div id="category-list" aria-live="polite"></div>
+    </details>
     <div class="tabs" role="tablist" id="status-tabs">
       <button type="button" class="tab" role="tab" data-status="pending" aria-selected="true">На проверке <span class="count" id="count-pending"></span></button>
       <button type="button" class="tab" role="tab" data-status="approved" aria-selected="false">Опубликованы</button>
@@ -96,6 +104,6 @@
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=30"></script>
   <script>LOOM_LAYOUT.init('artworks')</script>
-  <script src="assets/artworks.js?v=30"></script>
+  <script src="assets/artworks.js?v=31"></script>
 </body>
 </html>

@@ -98,71 +98,82 @@
   async function initMarket() {
     const grid = $('mk-grid')
     if (!grid) return
-    const moreBtn = $('mk-more-btn')
+    const moreBtn = $('mk-more-btn'), select = $('mk-category')
     const byId = {}
     let page = 1
-    let total = 0
-
+    let request = 0
     bindGrid(grid, byId)
+    const showOpenCall = (on) => { const el = $('mk-open-call'); if (el) el.hidden = !on }
 
-    function showOpenCall(on) {
-      const el = $('mk-open-call')
-      if (el) el.hidden = !on
-    }
-
-    async function load(p, append) {
-      if (!append) grid.innerHTML = skeletons(8)
+    async function loadCategories() {
       try {
-        const res = await fetch(API() + '/api/artworks?page=' + p)
+        const res = await fetch(API() + '/api/artwork-categories')
         if (!res.ok) throw new Error('HTTP ' + res.status)
         const data = await res.json()
-        const items = data.items || []
-        total = data.total || items.length
-        items.forEach((a) => { byId[a.id] = a })
-
-        const html = items.map(cardHtml).join('')
-        if (append) {
-          grid.insertAdjacentHTML('beforeend', html)
-        } else if (html) {
-          grid.innerHTML = html
-          showOpenCall(false)
-        } else {
-          /* No approved works yet. An apology in the grid is worth less than
-             the pitch below it, so hand the page over to the open call. */
-          grid.innerHTML = ''
-          showOpenCall(true)
-        }
-
-        const shown = grid.querySelectorAll('.mk-card').length
-        const count = $('mk-count')
-        if (count) {
-          count.textContent = total
-            ? total + ' ' + plural(total, 'plural.works', T('mk.works', 'работ'))
-            : T('mk.worksNone', 'пока пусто')
-        }
-        if (moreBtn) moreBtn.style.display = shown < total ? '' : 'none'
-      } catch (e) {
-        if (!append) {
-          /* A failed fetch is not an empty market — never recruit on an error. */
-          showOpenCall(false)
-          grid.innerHTML = '<p class="mk-error">' +
-            esc(T('mk.failed', 'Не удалось загрузить маркет. Обновите страницу.')) + '</p>'
-        }
-        console.warn('[LOOM] market load failed:', e.message)
+        const chosen = select.value
+        const lang = window.LOOM_I18N ? window.LOOM_I18N.getLang() : 'ru'
+        select.innerHTML = '<option value="">' + esc(T('cat.all', 'Все категории')) + '</option>' +
+          data.items.map((cat) => '<option value="' + cat.id + '">' + esc(cat['name_' + lang] || cat.name_ru) + '</option>').join('')
+        select.value = chosen
+        if (select.value !== chosen) { select.value = ''; page = 1; load(1, false) }
+        $('mk-category-error').hidden = true
+        $('mk-category-retry').hidden = true
+      } catch (err) {
+        $('mk-category-error').textContent = T('cat.failed', 'Не удалось загрузить категории. Попробуйте снова.')
+        $('mk-category-error').hidden = false
+        $('mk-category-retry').hidden = false
       }
     }
 
-    if (moreBtn) {
-      moreBtn.addEventListener('click', async () => {
-        moreBtn.disabled = true
-        page += 1
-        await load(page, true)
-        moreBtn.disabled = false
-      })
+    async function load(p, append) {
+      const version = ++request
+      const category = select.value
+      moreBtn.disabled = true
+      if (!append) {
+        moreBtn.style.display = 'none'
+        grid.innerHTML = skeletons(8)
+        Object.keys(byId).forEach((id) => delete byId[id])
+      }
+      try {
+        const res = await fetch(API() + '/api/artworks?page=' + p + (category ? '&category_id=' + encodeURIComponent(category) : ''))
+        if (!res.ok) throw new Error('HTTP ' + res.status)
+        const data = await res.json()
+        if (version !== request) return
+        const items = data.items || [], total = data.total || 0
+        items.forEach((a) => { byId[a.id] = a })
+        const html = items.map(cardHtml).join('')
+        if (append) {
+          grid.querySelectorAll('.mk-error').forEach((el) => el.remove())
+          grid.insertAdjacentHTML('beforeend', html)
+        } else grid.innerHTML = html || (category ? '<p class="mk-error">' + esc(T('cat.empty', 'В этой категории пока нет дизайнов.')) + '</p>' : '')
+        showOpenCall(!category && !total)
+        page = p
+        const count = $('mk-count')
+        if (count) count.textContent = total ? total + ' ' + plural(total, 'plural.works', T('mk.works', 'работ')) : T('mk.worksNone', 'пока пусто')
+        moreBtn.style.display = grid.querySelectorAll('.mk-card').length < total ? '' : 'none'
+      } catch (err) {
+        if (version !== request) return
+        showOpenCall(false)
+        if (!append) grid.innerHTML = '<p class="mk-error">' + esc(T('mk.failed', 'Не удалось загрузить маркет. Обновите страницу.')) + '</p>'
+        else {
+          // Keep the page number so retry never skips an unreceived page.
+          const error = document.createElement('p')
+          error.className = 'mk-error'
+          error.setAttribute('role', 'alert')
+          error.textContent = T('mk.moreFailed', 'Не удалось загрузить. Попробуйте ещё раз.')
+          grid.querySelectorAll('.mk-error').forEach((el) => el.remove())
+          grid.appendChild(error)
+        }
+      } finally {
+        if (version === request) moreBtn.disabled = false
+      }
     }
-
+    moreBtn.addEventListener('click', () => load(page + 1, true))
+    select.addEventListener('change', () => { page = 1; load(1, false) })
+    $('mk-category-retry').addEventListener('click', loadCategories)
+    loadCategories()
     load(1, false)
-    window.addEventListener('loom:langchange', () => { page = 1; load(1, false) })
+    window.addEventListener('loom:langchange', () => { loadCategories(); page = 1; load(1, false) })
   }
 
   // ── designer.html ─────────────────────────────────────────────────────────

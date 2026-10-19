@@ -9,6 +9,7 @@ import {
   clearCart,
   getProductById,
   getUserById,
+  getArtworkById,
   firstForeignKey,
 } from '../db/queries'
 import { serveObject } from '../lib/r2'
@@ -31,6 +32,29 @@ async function checkoutResponse(c: Context<UserEnv>, order: CheckoutOrder, statu
   const paymentUrl = createPaymentUrl(paymentMethod, { id: order.id, totalPrice: order.total_price }, c.env as unknown as PaymentEnvVars)
   return c.json({ id: order.id, status: order.status, itemCount: items.length, paymentMethod,
     paymentUrl, totalPrice: order.total_price, items }, status)
+}
+
+/**
+ * Every marketplace element of a design_json v2 document, with the markup the
+ * buyer was shown when it was added (null from clients that did not record it).
+ */
+function artworkPricesIn(designJson: string): { id: number; price: number | null }[] {
+  let d: Record<string, unknown>
+  try {
+    d = JSON.parse(designJson) as Record<string, unknown>
+  } catch {
+    return []
+  }
+  const out: { id: number; price: number | null }[] = []
+  for (const view of ['front', 'back']) {
+    const v = d[view] as { elements?: { artworkId?: unknown; artworkPrice?: unknown }[] } | undefined
+    for (const el of v?.elements ?? []) {
+      const id = typeof el.artworkId === 'number' ? el.artworkId : parseInt(String(el.artworkId ?? ''), 10)
+      const price = typeof el.artworkPrice === 'number' && Number.isFinite(el.artworkPrice) ? el.artworkPrice : null
+      if (Number.isInteger(id) && id > 0) out.push({ id, price })
+    }
+  }
+  return out
 }
 
 // GET /api/cart — current user's cart
@@ -194,6 +218,24 @@ router.post('/checkout', async (c) => {
   }
   items.splice(0, items.length, ...snapshot.items)
   for (const it of items) {
+    // A cart freezes its displayed unit price. Refuse stale artwork pricing
+    // before writing any order so its designer share cannot use a newer price.
+    // The markup recorded on the element is what the unit price was built
+    // from; older clients record none, so the row's age decides for them.
+    for (const { id: artworkId, price } of artworkPricesIn(it.design_json)) {
+      const art = await getArtworkById(c.env.DB, artworkId)
+      if (!art) continue
+      if (price === null ? art.price_updated_at > it.created_at : price !== art.markup) {
+        return c.json({
+          error: 'Цена дизайна изменилась. Удалите эту вещь из корзины и добавьте её заново, чтобы увидеть новую цену.',
+          code: 'artwork_price_changed',
+          itemId: it.id,
+          artworkId: art.id,
+          // Title and markup are public only once the artwork is approved.
+          ...(art.status === 'approved' ? { artworkTitle: art.title, currentPrice: art.markup } : {}),
+        }, 409)
+      }
+    }
     const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json, it)
     if ('code' in variant) return c.json({ ...variant, itemId: it.id }, 409)
     it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)
