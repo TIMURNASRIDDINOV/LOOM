@@ -6,11 +6,12 @@ import * as ImagePicker from 'expo-image-picker'
 import { C, RULE, fmt, noShadow, offset } from '../../src/theme/tokens'
 import { body, disp, kicker, label as labelType, mono, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
+import { ArtworkCategories } from '../../src/components/ArtworkCategories'
 import { Hatch } from '../../src/components/ArtPattern'
 import { ChevronLeft } from '../../src/components/icons'
 import { Button, Panel, T, Tap } from '../../src/components/ui'
 import { uploadFile } from '../../src/api/client'
-import { fetchDesignerStats, fetchMyArtworks, submitArtwork, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
+import { fetchArtworkCategories, fetchDesignerStats, fetchMyArtworks, submitArtwork, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
 import type { MyArtwork } from '../../src/api/types'
 import { useAuth } from '../../src/state/auth'
 import { useToast } from '../../src/state/toast'
@@ -143,6 +144,9 @@ function DesignerHome({ handle }: { handle: string | null }) {
   const t = useT()
   const { data, loading, reload } = useAsync(fetchMyArtworks, [])
   const stats = useAsync(fetchDesignerStats, [])
+  const categories = useAsync(fetchArtworkCategories, [])
+  const [categoryId, setCategoryId] = useState<number | null>(null)
+  useRefreshOnFocus(categories.reload)
   // Moderation happens elsewhere; coming back to this tab must show the verdict.
   const refreshAll = useCallback(() => {
     reload()
@@ -167,6 +171,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
   const [busy, setBusy] = useState(false)
 
   const works = data ?? []
+  const chosen = !!categories.data?.some((cat) => cat.id === categoryId && cat.active)
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -191,7 +196,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
       size: a.fileSize ?? 0,
     }
     setFile(picked)
-    setTitle(picked.name.replace(/\.[^.]+$/, ''))
+    setTitle(picked.name.replace(/\.[^.]+$/, '').slice(0, 80))
     setStep(2)
 
     // Upload straight away so the details step never waits on the network.
@@ -211,13 +216,19 @@ function DesignerHome({ handle }: { handle: string | null }) {
       flash(t('pub.errNotUploaded'))
       return
     }
-    if (!title.trim()) {
-      flash(t('pub.errTitle'))
+    if (!title.trim() || title.trim().length > 80) {
+      flash(t('artwork_title'))
+      return
+    }
+    if (!categoryId || !chosen) {
+      flash(t('artwork_category'))
+      categories.reload()
       return
     }
     setBusy(true)
     try {
       await submitArtwork({
+        category_id: categoryId,
         title: title.trim(),
         tags: tags.trim() || null,
         image_key: key,
@@ -241,6 +252,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
     setKey(null)
     setTitle('')
     setTags('')
+    setCategoryId(null)
     setStep(0)
   }
 
@@ -420,6 +432,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
             <Field label={t('pub.titleField')} value={title} onChange={setTitle} placeholder={t('pub.titlePh')} />
             <Field label={t('pub.tags')} value={tags} onChange={setTags} placeholder={t('pub.tagsPh')} />
 
+            <ArtworkCategories categories={categories} value={categoryId} onChange={setCategoryId} />
             <View style={{ marginBottom: 11 }}>
               <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{t('pub.markup')}</T>
               <View style={{ flexDirection: 'row', gap: 7 }}>
@@ -457,7 +470,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
               size={16}
               vPad={17}
               loading={busy}
-              disabled={uploading || !key}
+              disabled={uploading || !key || !chosen || !!categories.error}
               onPress={submit}
             />
           </>

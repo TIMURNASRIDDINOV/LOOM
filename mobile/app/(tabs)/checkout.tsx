@@ -22,6 +22,7 @@ import { track } from '../../src/api/track'
 import type { PaymentMethods } from '../../src/api/types'
 import { useAuth } from '../../src/state/auth'
 import { useCart } from '../../src/state/cart'
+import { useStudio } from '../../src/state/studio'
 import { useToast } from '../../src/state/toast'
 import { useT, type TFn } from '../../src/i18n'
 import type { StringKey } from '../../src/i18n/strings'
@@ -54,6 +55,7 @@ export default function Checkout() {
   const router = useRouter()
   const { user, signedIn, phoneVerified, updateProfile } = useAuth()
   const cart = useCart()
+  const { repriceArtwork } = useStudio()
   const { flash } = useToast()
   const t = useT()
   const PAY_LABELS = payLabels(t)
@@ -162,6 +164,11 @@ export default function Checkout() {
         // A bag item's product, size or colour was switched off (LOOM-166).
         flash(t(UNSOLD[err.code]))
       } else {
+        const d = err.details
+        if (err.code === 'artwork_price_changed' && typeof d?.artworkId === 'number' && typeof d.currentPrice === 'number') {
+          // Adding the studio design again then carries the new markup.
+          repriceArtwork(d.artworkId, d.currentPrice)
+        }
         flash(err.message)
       }
     } finally {

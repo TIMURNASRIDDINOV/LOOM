@@ -31,7 +31,10 @@ function serializeFace(face: StudioState['front']): { printRect: typeof LEGACY_P
       name: face.art.name,
       scalePct: face.art.sizePct,
       key: face.art.uploadKey ?? null,
-      ...(face.art.artworkId ? { artworkId: face.art.artworkId, author: face.art.author ?? null } : {}),
+      // Drafts saved before artworkPrice existed carry the same markup in price.
+      ...(face.art.artworkId
+        ? { artworkId: face.art.artworkId, artworkPrice: face.art.artworkPrice ?? face.art.price, author: face.art.author ?? null }
+        : {}),
     })
   }
 

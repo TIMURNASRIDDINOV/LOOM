@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
+import { ARTWORK_ERRORS, artworkDetails } from '../lib/artwork-details'
 import { requireAuth } from '../middleware/requireAuth'
 import {
   becomeDesigner,
+  getArtworkCategories,
   createArtwork,
   getApprovedArtworks,
   getApprovedArtworksByUser,
@@ -41,6 +43,7 @@ function publicArtwork(
     title: string
     tags: string | null
     markup: number
+    category_id: number | null
     width: number | null
     height: number | null
     image_key: string
@@ -54,6 +57,7 @@ function publicArtwork(
     title: a.title,
     tags: a.tags,
     markup: a.markup,
+    category_id: a.category_id,
     width: a.width,
     height: a.height,
     image_url: artworkUrl(requestUrl, a.image_key),
@@ -68,9 +72,16 @@ function publicArtwork(
 
 // ─── GET /api/artworks — public marketplace ──────────────────────────────────
 
+router.get('/artwork-categories', async (c) => c.json({ items: await getArtworkCategories(c.env.DB) }))
+
 router.get('/artworks', async (c) => {
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
-  const { items, total } = await getApprovedArtworks(c.env.DB, page, 40)
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1)
+  const category = c.req.query('category_id')
+  const categoryId = category === undefined ? null : Number(category)
+  if (categoryId !== null && (!Number.isSafeInteger(categoryId) || categoryId <= 0)) {
+    return c.json({ error: 'Invalid category', code: 'artwork_category' }, 400)
+  }
+  const { items, total } = await getApprovedArtworks(c.env.DB, page, 40, categoryId)
   const sold = await getArtworkSalesCounts(c.env.DB, items.map((a) => a.id))
   return c.json({
     items: items.map((a) =>
@@ -181,6 +192,7 @@ me.get('/artworks', async (c) => {
       title: a.title,
       tags: a.tags,
       markup: a.markup,
+      category_id: a.category_id,
       status: a.status,
       reject_note: a.reject_note,
       image_url: artworkUrl(c.req.url, a.image_key),
@@ -222,9 +234,10 @@ me.post('/artworks', async (c) => {
     return c.json({ error: 'Invalid JSON' }, 400)
   }
 
-  const title = typeof body.title === 'string' ? body.title.trim() : ''
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ error: 'Invalid JSON', code: 'invalid_json' }, 400)
+  const details = artworkDetails(body)
+  if (details.error) return c.json({ error: ARTWORK_ERRORS[details.error], code: details.error }, 400)
   const imageKey = typeof body.image_key === 'string' ? body.image_key.trim() : ''
-  if (!title) return c.json({ error: 'Укажите название работы' }, 400)
   if (!imageKey) return c.json({ error: 'Сначала загрузите файл' }, 400)
   // The file must be one this designer uploaded and not already another artwork.
   if (!(await isOwnUpload(c.env.DB, imageKey, c.get('userId'))) || (await isArtworkKey(c.env.DB, imageKey, true))) {
@@ -239,18 +252,14 @@ me.post('/artworks', async (c) => {
     return c.json({ error: 'Минимум 1500 px по длинной стороне' }, 400)
   }
 
-  const markupRaw = typeof body.markup === 'number' ? Math.round(body.markup) : 0
-  const markup = Math.min(200000, Math.max(0, markupRaw))
-
   const id = await createArtwork(c.env.DB, {
     user_id: c.get('userId'),
-    title: title.slice(0, 80),
-    tags: typeof body.tags === 'string' ? body.tags.trim().slice(0, 200) || null : null,
+    ...details.value,
     image_key: imageKey,
     width,
     height,
-    markup,
   })
+  if (!id) return c.json({ error: 'Выберите действующую категорию.', code: 'artwork_category' }, 400)
 
   return c.json({ id, status: 'pending' }, 201)
 })

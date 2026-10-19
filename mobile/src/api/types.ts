@@ -77,7 +77,16 @@ export type Me = {
 }
 
 /** A graphic published by a designer, as the marketplace serves it. */
+export type ArtworkCategory = {
+  id: number
+  name_ru: string
+  name_uz: string
+  name_en: string
+  active: number
+}
+
 export type Artwork = {
+  category_id: number | null
   id: number
   title: string
   tags: string | null

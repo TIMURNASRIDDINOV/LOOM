@@ -21,6 +21,7 @@ import { isRateLimited, TOO_MANY } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
 import { DESIGNER_COMMISSION_PCT } from './designers'
+import type { Artwork } from '../db/queries'
 import type { UserEnv } from '../types'
 
 // Account-bound cart + multi-item checkout. All routes require a logged-in user.
@@ -31,23 +32,32 @@ function cartTotal(items: { unit_price: number; quantity: number }[]): number {
   return items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
 }
 
-/** Distinct marketplace artwork ids referenced by a design_json v2 document. */
-function artworkIdsIn(designJson: string): number[] {
+/**
+ * Every marketplace element of a design_json v2 document, with the markup the
+ * buyer was shown when it was added (null from clients that did not record it).
+ */
+function artworkPricesIn(designJson: string): { id: number; price: number | null }[] {
   let d: Record<string, unknown>
   try {
     d = JSON.parse(designJson) as Record<string, unknown>
   } catch {
     return []
   }
-  const ids = new Set<number>()
+  const out: { id: number; price: number | null }[] = []
   for (const view of ['front', 'back']) {
-    const v = d[view] as { elements?: { artworkId?: unknown }[] } | undefined
+    const v = d[view] as { elements?: { artworkId?: unknown; artworkPrice?: unknown }[] } | undefined
     for (const el of v?.elements ?? []) {
       const id = typeof el.artworkId === 'number' ? el.artworkId : parseInt(String(el.artworkId ?? ''), 10)
-      if (Number.isInteger(id) && id > 0) ids.add(id)
+      const price = typeof el.artworkPrice === 'number' && Number.isFinite(el.artworkPrice) ? el.artworkPrice : null
+      if (Number.isInteger(id) && id > 0) out.push({ id, price })
     }
   }
-  return [...ids]
+  return out
+}
+
+/** Distinct marketplace artwork ids referenced by a design_json v2 document. */
+function artworkIdsIn(designJson: string): number[] {
+  return [...new Set(artworkPricesIn(designJson).map((el) => el.id))]
 }
 
 // GET /api/cart — current user's cart
@@ -193,7 +203,27 @@ router.post('/checkout', async (c) => {
 
   const items = await getCartItems(c.env.DB, userId)
   if (!items.length) return c.json({ error: 'Cart is empty' }, 400)
+  const pricedArtworks = new Map<number, Artwork>()
   for (const it of items) {
+    // A cart freezes its displayed unit price. Refuse stale artwork pricing
+    // before writing any order so its designer share cannot use a newer price.
+    // The markup recorded on the element is what the unit price was built
+    // from; older clients record none, so the row's age decides for them.
+    for (const { id: artworkId, price } of artworkPricesIn(it.design_json)) {
+      const art = await getArtworkById(c.env.DB, artworkId)
+      if (!art) continue
+      pricedArtworks.set(artworkId, art)
+      if (price === null ? art.price_updated_at > it.created_at : price !== art.markup) {
+        return c.json({
+          error: 'Цена дизайна изменилась. Удалите эту вещь из корзины и добавьте её заново, чтобы увидеть новую цену.',
+          code: 'artwork_price_changed',
+          itemId: it.id,
+          artworkId: art.id,
+          // Title and markup are public only once the artwork is approved.
+          ...(art.status === 'approved' ? { artworkTitle: art.title, currentPrice: art.markup } : {}),
+        }, 409)
+      }
+    }
     const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json, it)
     if ('code' in variant) return c.json({ ...variant, itemId: it.id }, 409)
     it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)
@@ -268,10 +298,10 @@ router.post('/checkout', async (c) => {
     })
 
     // Designer attribution (migration 0018): every marketplace artwork on this
-    // item earns its designer a share. The markup is re-read from the artwork
+    // item earns its designer a share. Use the artwork price validated above
     // row rather than trusted from the client.
     for (const artworkId of artworkIdsIn(it.design_json)) {
-      const art = await getArtworkById(c.env.DB, artworkId)
+      const art = pricedArtworks.get(artworkId)
       if (!art || art.status !== 'approved') continue
       await recordArtworkSale(c.env.DB, {
         order_id: orderId,

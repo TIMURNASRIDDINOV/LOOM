@@ -223,6 +223,7 @@ function DesignerGrid() {
               // the sale to them at checkout.
               uploadKey: a.image_key,
               artworkId: a.id,
+              artworkPrice: a.markup,
               price: a.markup,
               author: a.author,
             })
