@@ -4,10 +4,10 @@ import type { ArtworkCategory } from '../api/types'
 import { useI18n } from '../i18n'
 import { C, RULE } from '../theme/tokens'
 import { body } from '../theme/type'
-import { T, Tap } from './ui'
+import { Button, T, Tap } from './ui'
 
-export function ArtworkCategories({ items, value, onChange, all = false }: {
-  items: ArtworkCategory[]
+export function ArtworkCategories({ categories, value, onChange, all = false }: {
+  categories: { data: ArtworkCategory[] | null; error: Error | null; reload: () => void }
   value: number | null
   onChange: (id: number | null) => void
   all?: boolean
@@ -15,7 +15,7 @@ export function ArtworkCategories({ items, value, onChange, all = false }: {
   const { lang, t } = useI18n()
   const choices = [
     ...(all ? [{ id: null, label: t('cat.all') }] : []),
-    ...items.filter((cat) => all || cat.active).map((cat) => ({ id: cat.id, label: cat[`name_${lang}`] })),
+    ...(categories.data ?? []).filter((cat) => all || cat.active).map((cat) => ({ id: cat.id, label: cat[`name_${lang}`] })),
   ]
   return <View style={{ marginBottom: 16 }}>
     <T style={[body(13), { marginBottom: 8 }]}>{t(all ? 'cat.label' : 'cat.choose')}</T>
@@ -26,5 +26,10 @@ export function ArtworkCategories({ items, value, onChange, all = false }: {
         <T style={body(13, 1.4, { color: cat.id === value ? C.paper : C.ink })}>{cat.label}</T>
       </Tap>)}
     </ScrollView>
+    {categories.error ? <View style={{ marginTop: 8, gap: 8 }}>
+      <T style={body(13)}>{t('cat.failed')}</T>
+      <Button title={t('cat.retry')} onPress={categories.reload} variant="outline" />
+    </View> : !categories.data ? <T style={[body(13, 1.4, { color: C.i55 }), { marginTop: 8 }]}>{t('common.loading')}</T>
+      : !choices.length ? <T style={[body(13), { marginTop: 8 }]}>{t('cat.none')}</T> : null}
   </View>
 }

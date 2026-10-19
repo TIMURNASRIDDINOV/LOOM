@@ -29,6 +29,7 @@
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
     "artwork_price_changed": {"uz": "Dizayn narxi o‘zgardi. Yangi narxni ko‘rish uchun mahsulotni savatchadan o‘chirib, qayta qo‘shing.", "ru": "Цена дизайна изменилась. Удалите эту вещь из корзины и добавьте её заново, чтобы увидеть новую цену.", "en": "This design’s price changed. Remove this item from your cart and add it again to see the new price."},
+    "artwork_price_changed_title": {"uz": "«{title}» dizayni narxi o‘zgardi. Yangi narxni ko‘rish uchun shu dizayndagi mahsulotni savatchadan o‘chirib, qayta qo‘shing.", "ru": "Цена дизайна «{title}» изменилась. Удалите вещь с этим дизайном из корзины и добавьте её заново, чтобы увидеть новую цену.", "en": "The price of the design “{title}” changed. Remove the item with this design from your cart and add it again to see the new price."},
     "cat.label": { uz: "Kategoriya", ru: "Категория", en: "Category" },
     "cat.choose": { uz: "Dizayningizga mos kategoriyani tanlang", ru: "Выберите категорию для дизайна", en: "Choose the category that fits your design" },
     "cat.all": { uz: "Barcha kategoriyalar", ru: "Все категории", en: "All categories" },
@@ -556,6 +557,7 @@
     'mk.worksNone':   { uz: 'hozircha bo‘sh', ru: 'пока пусто', en: 'nothing yet' },
     'mk.empty':       { uz: 'Hozircha bo‘sh. Birinchi ishlar tez orada paydo bo‘ladi — yoki o‘zingiznikini yuklang.', ru: 'Здесь пока пусто. Первые работы появятся совсем скоро — или загрузите свою.', en: 'Nothing here yet. The first works are coming soon — or upload your own.' },
     'mk.failed':      { uz: 'Yuklab bo‘lmadi. Sahifani yangilang.', ru: 'Не удалось загрузить. Обновите страницу.', en: 'Could not load. Please refresh.' },
+    'mk.moreFailed':  { uz: 'Yuklab bo‘lmadi. Qayta urinib ko‘ring.', ru: 'Не удалось загрузить. Попробуйте ещё раз.', en: 'Could not load. Please try again.' },
     'mk.loadMore':    { uz: 'Yana ko‘rsatish', ru: 'Показать ещё', en: 'Show more' },
     'mk.backToMarket':{ uz: '← Marketga', ru: '← В маркет', en: '← Back to market' },
     // ----- Designer directory (designers.html) -----

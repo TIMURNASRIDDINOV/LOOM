@@ -23,8 +23,9 @@ export function artworkDetails(body: Record<string, unknown>) {
 
 export function categoryDetails(body: Record<string, unknown>) {
   const names = ['name_ru', 'name_uz', 'name_en'] as const
-  const value = { name_ru: '', name_uz: '', name_en: '', active: body.active === false ? 0 : 1 }
+  // Omitted `active` keeps the stored flag on PATCH; a new category starts active.
   if (body.active !== undefined && typeof body.active !== 'boolean') return null
+  const value = { name_ru: '', name_uz: '', name_en: '', active: body.active === undefined ? undefined : Number(body.active) }
   for (const key of names) {
     const name = body[key]
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) return null

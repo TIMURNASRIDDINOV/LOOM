@@ -32,6 +32,7 @@ export default function DesignerScreen() {
       uri: a.image_url,
       uploadKey: a.image_key,
       artworkId: a.id,
+      artworkPrice: a.markup,
       price: a.markup,
       author: a.author,
     })

@@ -13,8 +13,11 @@
   let status = 'pending'
   let page = 1
   let categories = []
+  let categoriesError = ''
   const artworks = new Map()
   let canEdit = false
+  const TITLE_ERROR = 'Название должно содержать от 1 до 80 символов.'
+  const NAMES_ERROR = 'Укажите названия на ru, uz и en (до 80 символов).'
 
   const el = (id) => document.getElementById(id)
 
@@ -30,6 +33,19 @@
 
   function canReview() {
     return !!document.body.dataset.capArtworksReview
+  }
+
+  function categoryName(id) {
+    const cat = categories.find((c) => c.id === id)
+    return cat ? cat.name_ru : id ? 'Категория #' + id : 'Без категории'
+  }
+
+  // Only a press that starts and ends on the backdrop closes a dialog, so a
+  // text selection dragged out of a field keeps what was typed.
+  function closeOnBackdrop(backdrop, close) {
+    let pressed = false
+    backdrop.addEventListener('mousedown', (e) => { pressed = e.button === 0 && e.target === backdrop })
+    backdrop.addEventListener('mouseup', (e) => { if (pressed && e.target === backdrop) close() })
   }
 
   function card(a) {
@@ -59,7 +75,7 @@
           '<span>·</span><span>+' + esc(formatPrice(a.markup)) + '</span>' +
           sold +
         '</div>' +
-        '<div class="art-meta">' + esc((categories.find((cat) => cat.id === a.category_id) || {}).name_ru || 'Без категории') + '</div>' +
+        '<div class="art-meta">' + esc(categoryName(a.category_id)) + '</div>' +
         (a.tags ? '<div class="art-tags" title="' + esc(a.tags) + '">' + esc(a.tags) + '</div>' : '') +
         (a.status === 'rejected' && a.reject_note ? '<div class="art-note">' + esc(a.reject_note) + '</div>' : '') +
         '<div class="art-meta"><span>Загружена ' + esc(formatDate(a.created_at)) + '</span>' +
@@ -96,15 +112,26 @@
     el('next-btn').disabled = to >= data.total
   }
 
+  // Categories are optional here: moderation must work while they fail.
+  async function loadCategories() {
+    try {
+      categories = (await apiJSON('/api/admin/artwork-categories')).items || []
+      categoriesError = ''
+    } catch (err) {
+      categoriesError = apiErrorMessage(err)
+    }
+    renderCategories()
+  }
+
   async function load() {
     const grid = el('art-grid')
     grid.innerHTML = stateBlock('Загрузка…')
+    const taxonomy = loadCategories()
     try {
       const qs = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) })
       if (status) qs.set('status', status)
-      const [data, taxonomy] = await Promise.all([apiJSON('/api/admin/artworks?' + qs), apiJSON('/api/admin/artwork-categories')])
-      categories = taxonomy.items || []
-      renderCategories()
+      const data = await apiJSON('/api/admin/artworks?' + qs)
+      await taxonomy
       render(data)
     } catch (err) {
       if (err.status === 401) { window.location.href = 'login.html'; return }
@@ -121,7 +148,7 @@
     const previous = document.activeElement
     const backdrop = document.createElement('div')
     backdrop.className = 'dialog-backdrop'
-    backdrop.innerHTML = '<form class="dialog" role="dialog" aria-modal="true" aria-labelledby="art-edit-title">' +
+    backdrop.innerHTML = '<form class="dialog" role="dialog" aria-modal="true" aria-labelledby="art-edit-title" novalidate>' +
       '<h2 class="dialog-title" id="art-edit-title">' + esc(title) + '</h2>' + fields +
       '<p class="art-note" role="alert" hidden></p>' +
       '<div class="dialog-actions"><button type="button" class="btn" data-cancel>Отмена</button>' +
@@ -145,11 +172,12 @@
       }
     }
     document.addEventListener('keydown', keydown, true)
-    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close() })
+    closeOnBackdrop(backdrop, close)
     form.querySelector('[data-cancel]').addEventListener('click', close)
     form.querySelector('input, select').focus()
     form.addEventListener('submit', async (e) => {
       e.preventDefault()
+      form.querySelectorAll('[data-blank]').forEach((input) => input.setCustomValidity(input.value.trim() ? '' : input.dataset.blank))
       if (busy || !form.reportValidity()) return
       busy = true
       const button = form.querySelector('[type="submit"]')
@@ -170,6 +198,7 @@
         button.disabled = false
       }
     })
+    return form
   }
 
   function editArtwork(a) {
@@ -177,24 +206,34 @@
     const options = '<option value="">Выберите категорию</option>' + categories
       .filter((cat) => cat.active || cat.id === a.category_id)
       .map((cat) => '<option value="' + cat.id + '"' + (cat.id === a.category_id ? ' selected' : '') + '>' + esc(cat.name_ru) + (cat.active ? '' : ' (неактивна)') + '</option>').join('')
-    editDialog('Изменить работу',
-      field('Название', 'title', a.title, 'required maxlength="80"') +
+    // Without the list the current category is kept; it cannot be changed.
+    // A work with no category cannot be saved until the list loads.
+    const keepCategory = !!categoriesError
+    const blocked = keepCategory && !a.category_id
+    const category = keepCategory
+      ? '<label class="art-field">Категория<select class="input" disabled><option>' + esc(categoryName(a.category_id)) + '</option></select></label>' +
+        '<p class="art-note">' + (blocked
+          ? 'Категории не загрузились, а у работы нет категории — без неё изменения не сохранить. Закройте окно, нажмите «Повторить» в разделе категорий и откройте работу снова.'
+          : 'Категории не загрузились — текущая сохранится. Нажмите «Повторить» в разделе категорий.') + '</p>'
+      : '<label class="art-field">Категория<select class="input" name="category_id" required>' + options + '</select></label>'
+    const form = editDialog('Изменить работу',
+      field('Название', 'title', a.title, 'required maxlength="80" data-blank="' + esc(TITLE_ERROR) + '"') +
       field('Наценка дизайнера, сум (0 — бесплатно)', 'markup', a.markup, 'type="number" min="0" max="200000" step="1" required') +
-      field('Теги', 'tags', a.tags || '', 'maxlength="200"') +
-      '<label class="art-field">Категория<select class="input" name="category_id" required>' + options + '</select></label>' +
+      field('Теги', 'tags', a.tags || '', 'maxlength="200"') + category +
       '<p class="dialog-body">Статус публикации сохранится. Новая наценка применяется при следующем расчёте покупки; прошлые продажи не меняются.</p>',
       (data) => apiJSON('/api/admin/artworks/' + a.id, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: data.get('title'), markup: Number(data.get('markup')), tags: data.get('tags'), category_id: Number(data.get('category_id')) }),
+        body: JSON.stringify({ title: data.get('title'), markup: Number(data.get('markup')), tags: data.get('tags'), category_id: keepCategory ? a.category_id : Number(data.get('category_id')) }),
       }))
+    form.querySelector('[type="submit"]').disabled = blocked
   }
 
   function editCategory(cat) {
     if (!canEdit) return
     editDialog(cat ? 'Изменить категорию' : 'Новая категория',
-      field('Название · RU', 'name_ru', cat ? cat.name_ru : '', 'required maxlength="80"') +
-      field('Название · UZ', 'name_uz', cat ? cat.name_uz : '', 'required maxlength="80"') +
-      field('Название · EN', 'name_en', cat ? cat.name_en : '', 'required maxlength="80"') +
+      field('Название · RU', 'name_ru', cat ? cat.name_ru : '', 'required maxlength="80" data-blank="' + esc(NAMES_ERROR) + '"') +
+      field('Название · UZ', 'name_uz', cat ? cat.name_uz : '', 'required maxlength="80" data-blank="' + esc(NAMES_ERROR) + '"') +
+      field('Название · EN', 'name_en', cat ? cat.name_en : '', 'required maxlength="80" data-blank="' + esc(NAMES_ERROR) + '"') +
       '<label class="art-field"><span><input type="checkbox" name="active"' + (!cat || cat.active ? ' checked' : '') + ' /> Доступна для новых загрузок</span></label>',
       (data) => apiJSON('/api/admin/artwork-categories' + (cat ? '/' + cat.id : ''), {
         method: cat ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
@@ -203,6 +242,11 @@
   }
 
   function renderCategories() {
+    if (categoriesError) {
+      el('category-list').innerHTML = '<div class="state state--error">' + esc(categoriesError) +
+        ' <button class="btn btn--sm" type="button" data-retry-categories>Повторить</button></div>'
+      return
+    }
     el('category-list').innerHTML = categories.map((cat) =>
       '<div class="art-category"><span>' + esc(cat.name_ru) + ' / ' + esc(cat.name_uz) + ' / ' + esc(cat.name_en) +
       (cat.active ? '' : ' · Неактивна') + '</span>' + (canEdit ? '<button class="btn btn--sm" type="button" data-category="' + cat.id + '">Изменить</button>' : '') + '</div>').join('')
@@ -260,7 +304,7 @@
         if (e.key === 'Escape') { e.preventDefault(); close(null) }
       }
       document.addEventListener('keydown', onKey, true)
-      backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(null) })
+      closeOnBackdrop(backdrop, () => close(null))
       backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => close(null))
       backdrop.querySelector('[data-act="ok"]').addEventListener('click', () => {
         const v = note.value.trim()
@@ -338,6 +382,7 @@
     el('new-category-btn').hidden = !canEdit
     el('new-category-btn').addEventListener('click', () => editCategory(null))
     el('category-list').addEventListener('click', (e) => {
+      if (e.target.closest('[data-retry-categories]')) { load(); return }
       const btn = e.target.closest('[data-category]')
       if (btn) editCategory(categories.find((cat) => cat.id === Number(btn.dataset.category)))
     })

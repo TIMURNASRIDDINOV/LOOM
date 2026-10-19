@@ -7,12 +7,14 @@
 
 export const ru = {
   "artwork_price_changed": "Цена дизайна изменилась. Удалите эту вещь из корзины и добавьте её заново, чтобы увидеть новую цену.",
+  "artwork_price_changed_title": "Цена дизайна «{title}» изменилась. Удалите вещь с этим дизайном из корзины и добавьте её заново, чтобы увидеть новую цену.",
   "cat.more": "Показать ещё",
   "cat.label": "Категория",
   "cat.choose": "Выберите категорию для дизайна",
   "cat.all": "Все категории",
   "cat.empty": "В этой категории пока нет дизайнов.",
   "cat.failed": "Не удалось загрузить категории. Попробуйте снова.",
+  "cat.none": "Сейчас нет доступных категорий. Попробуйте позже.",
   "cat.retry": "Повторить",
   "artwork_title": "Название должно содержать от 1 до 80 символов.",
   "artwork_markup": "Наценка — целое число от 0 до 200 000 сум.",
@@ -429,12 +431,14 @@ export type Dictionary = Record<StringKey, string>
 
 export const uz: Dictionary = {
   "artwork_price_changed": "Dizayn narxi o‘zgardi. Yangi narxni ko‘rish uchun mahsulotni savatchadan o‘chirib, qayta qo‘shing.",
+  "artwork_price_changed_title": "«{title}» dizayni narxi o‘zgardi. Yangi narxni ko‘rish uchun shu dizayndagi mahsulotni savatchadan o‘chirib, qayta qo‘shing.",
   "cat.more": "Yana ko‘rsatish",
   "cat.label": "Kategoriya",
   "cat.choose": "Dizayningizga mos kategoriyani tanlang",
   "cat.all": "Barcha kategoriyalar",
   "cat.empty": "Bu kategoriyada hali dizaynlar yo‘q.",
   "cat.failed": "Kategoriyalarni yuklab bo‘lmadi. Qayta urinib ko‘ring.",
+  "cat.none": "Hozircha mavjud kategoriyalar yo‘q. Keyinroq urinib ko‘ring.",
   "cat.retry": "Qayta urinish",
   "artwork_title": "Nom 1–80 belgidan iborat bo‘lishi kerak.",
   "artwork_markup": "Ustama 0 dan 200 000 so‘mgacha butun son bo‘lishi kerak.",
@@ -826,12 +830,14 @@ export const uz: Dictionary = {
 
 export const en: Dictionary = {
   "artwork_price_changed": "This design’s price changed. Remove this item from your cart and add it again to see the new price.",
+  "artwork_price_changed_title": "The price of the design “{title}” changed. Remove the item with this design from your cart and add it again to see the new price.",
   "cat.more": "Load more",
   "cat.label": "Category",
   "cat.choose": "Choose the category that fits your design",
   "cat.all": "All categories",
   "cat.empty": "No designs in this category yet.",
   "cat.failed": "Could not load categories. Please retry.",
+  "cat.none": "No categories are available right now. Please try again later.",
   "cat.retry": "Retry",
   "artwork_title": "Title must contain 1–80 characters.",
   "artwork_markup": "Markup must be a whole number from 0 to 200,000 UZS.",

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 
@@ -28,27 +28,51 @@ export default function Market() {
   const { data, loading, error, reload } = useAsync(() => fetchArtworkPage(categoryId), [categoryId])
   const categories = useAsync(fetchArtworkCategories, [])
   useRefreshOnFocus(categories.reload)
-  const [extra, setExtra] = useState<Artwork[]>([])
-  const [page, setPage] = useState(1)
+  // Pages are fetched by offset, so the grid is one snapshot: Load-more pages
+  // belong to the page-one response they extend (`of`) and drop out in the
+  // render that replaces page one. `epoch` counts page-one requests, so a Load
+  // more that started before one never lands.
+  const [more, setMore] = useState<{ of: object; items: Artwork[]; page: number; total: number } | null>(null)
   const [moreBusy, setMoreBusy] = useState(false)
-  const generation = useRef(0)
-  const selection = useRef(categoryId)
-  selection.current = categoryId
-  useEffect(() => { generation.current++; setExtra([]); setPage(1) }, [data, categoryId])
-  useRefreshOnFocus(reload)
+  const epoch = useRef(0)
 
-  const current = data?.categoryId === categoryId
-  const items = current ? [...data.items, ...extra] : []
+  const current = data?.categoryId === categoryId ? data : null
+  const extra = current && more?.of === current ? more : null
+  const items = current ? [...current.items, ...(extra?.items ?? [])] : []
+  const hasExtra = useRef(false)
+  hasExtra.current = !!extra
+  // Returning to the tab refetches page one only while no extra pages are
+  // loaded; otherwise the buyer keeps a consistent list and their place.
+  useRefreshOnFocus(useCallback(() => {
+    if (hasExtra.current) return
+    epoch.current++
+    reload()
+  }, [reload]))
+  const refresh = () => { epoch.current++; reload() }
+  const pick = (id: number | null) => {
+    if (id === categoryId) return
+    epoch.current++
+    setMore(null)
+    setCategoryId(id)
+  }
   const loadMore = async () => {
+    if (!current) return
+    const of = current
+    const at = epoch.current
     setMoreBusy(true)
-    const selected = categoryId
-    const version = generation.current
     try {
-      const result = await fetchArtworkPage(selected, page + 1)
-      if (selection.current !== selected || generation.current !== version) return
-      setExtra((old) => [...old, ...result.items])
-      setPage(result.page)
-    } catch (err) { flash((err as Error).message) }
+      const result = await fetchArtworkPage(of.categoryId, (extra?.page ?? 1) + 1)
+      if (at !== epoch.current) return
+      // Offset paging repeats a work when the list grows between pages.
+      const seen = new Set(items.map((a) => a.id))
+      setMore({
+        of,
+        items: [...(extra?.items ?? []), ...result.items.filter((a) => !seen.has(a.id))],
+        page: result.page,
+        // An empty page means the list shrank: stop offering more.
+        total: result.items.length ? result.total : 0,
+      })
+    } catch (err) { if (at === epoch.current) flash((err as Error).message) }
     finally { setMoreBusy(false) }
   }
 
@@ -61,6 +85,7 @@ export default function Market() {
       // sale is credited to them.
       uploadKey: a.image_key,
       artworkId: a.id,
+      artworkPrice: a.markup,
       price: a.markup,
       author: a.author,
     })
@@ -74,22 +99,19 @@ export default function Market() {
       <ScrollView
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={reload} tintColor={C.coral} />}
+        refreshControl={<RefreshControl refreshing={loading && !!current} onRefresh={refresh} tintColor={C.coral} />}
       >
         <SlashTitle size={30}>{t('mk.title')}</SlashTitle>
         <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 6, marginBottom: 20 }]}>{t('mk.subtitle')}</T>
 
-        {categories.error ? <View style={{ marginBottom: 12 }}>
-          <T style={body(13)}>{t('cat.failed')}</T>
-          <Button title={t('cat.retry')} onPress={categories.reload} variant="outline" />
-        </View> : <ArtworkCategories items={categories.data ?? []} value={categoryId} onChange={setCategoryId} all />}
-        {loading || !current && !error ? (
-          <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
-        ) : error ? (
+        <ArtworkCategories categories={categories} value={categoryId} onChange={pick} all />
+        {error ? (
           <View style={{ gap: 16 }}>
             <T style={body(14, 1.6, { color: C.i55 })}>{error.message}</T>
-            <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={reload} />
+            <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={refresh} />
           </View>
+        ) : !current ? (
+          <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
         ) : items.length === 0 ? (
           <View style={styles.empty}>
             <T style={[disp(24, 1.1, { ls: -0.02, color: C.coral }), { maxWidth: 280 }]}>{t(categoryId === null ? 'mk.emptyTitle' : 'cat.empty')}</T>
@@ -122,7 +144,7 @@ export default function Market() {
           </View>
         )}
 
-        {current && !loading && items.length < data.total ? <Button
+        {current && !loading && !error && items.length < (extra ?? current).total ? <Button
           title={t('cat.more')} onPress={loadMore} loading={moreBusy} variant="outline" /> : null}
         <Button
           title={isDesigner ? t('mk.myWorks') : t('mk.become')}

@@ -2371,12 +2371,12 @@ export async function getArtworkCategory(db: D1Database, id: number): Promise<Ar
     db.prepare('SELECT * FROM artwork_categories WHERE id = ?').bind(id).first<ArtworkCategory>())
 }
 
-export async function saveArtworkCategory(db: D1Database, id: number | null, value: Omit<ArtworkCategory, 'id'>) {
+export async function saveArtworkCategory(db: D1Database, id: number | null, value: Omit<ArtworkCategory, 'id' | 'active'> & { active?: number }) {
   return safeQuery('saveArtworkCategory', async () => {
-    const params = [value.name_ru, value.name_uz, value.name_en, value.active]
+    const params = [value.name_ru, value.name_uz, value.name_en]
     const result = id === null
-      ? await db.prepare('INSERT INTO artwork_categories (name_ru, name_uz, name_en, active) VALUES (?, ?, ?, ?)').bind(...params).run()
-      : await db.prepare('UPDATE artwork_categories SET name_ru = ?, name_uz = ?, name_en = ?, active = ? WHERE id = ?').bind(...params, id).run()
+      ? await db.prepare('INSERT INTO artwork_categories (name_ru, name_uz, name_en, active) VALUES (?, ?, ?, ?)').bind(...params, value.active ?? 1).run()
+      : await db.prepare('UPDATE artwork_categories SET name_ru = ?, name_uz = ?, name_en = ?, active = COALESCE(?, active) WHERE id = ?').bind(...params, value.active ?? null, id).run()
     return id ?? Number(result.meta.last_row_id)
   })
 }

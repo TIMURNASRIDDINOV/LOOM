@@ -218,13 +218,14 @@
   async function loadCategories() {
     const select = $('dz-category')
     if (!select) return
-    const chosen = select.value
     const error = $('dz-category-error'), retry = $('dz-category-retry')
     try {
       const data = await api('/api/artwork-categories')
+      const chosen = select.value
       select.innerHTML = '<option value="">' + esc(T('cat.choose', 'Выберите категорию для дизайна')) + '</option>' +
         data.items.filter((cat) => cat.active).map((cat) => '<option value="' + cat.id + '">' + esc(cat['name_' + lang()] || cat.name_ru) + '</option>').join('')
       select.value = chosen
+      if (select.value !== chosen) select.value = ''
       error.hidden = true
       retry.hidden = true
     } catch (err) {

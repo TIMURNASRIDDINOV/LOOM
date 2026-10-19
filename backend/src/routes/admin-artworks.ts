@@ -87,6 +87,17 @@ router.patch('/artworks/:id', requireAdmin, requireCap('artworks.edit'), async (
   if (!artwork) return c.json({ error: 'Not found', code: 'not_found' }, 404)
   const saved = await updateArtworkDetails(c.env.DB, id, details.value)
   if (!saved) return c.json({ error: 'Выберите действующую категорию.', code: 'artwork_category' }, 400)
+  const changes: Record<string, { from: unknown; to: unknown }> = {}
+  for (const key of ['title', 'markup', 'tags', 'category_id'] as const) {
+    if (artwork[key] !== details.value[key]) changes[key] = { from: artwork[key], to: details.value[key] }
+  }
+  if (Object.keys(changes).length) {
+    await insertUserActivity(c.env.DB, {
+      user_id: artwork.user_id,
+      action: 'artwork_edited',
+      metadata: { artwork_id: id, title: artwork.title, by_admin_id: c.get('adminId'), changes },
+    })
+  }
   return c.json({ ok: true, artwork: await getArtworkById(c.env.DB, id) })
 })
 

@@ -29,6 +29,8 @@ export type ArtLayer = {
   uploadKey: string | null
   /** Marketplace artwork id — attributes the sale to its designer. */
   artworkId?: number
+  /** Marketplace markup the buyer was shown; checkout refuses it once the price changes. */
+  artworkPrice?: number
   /** Designer markup added to the garment price, in sum. */
   price: number
   /** Author handle for marketplace artwork. */
@@ -112,6 +114,8 @@ type StudioCtx = {
   updateArt: (patch: Partial<ArtLayer>) => void
   /** Patch the artwork on a specific face, whichever face is active. */
   updateArtOn: (face: Face, patch: Partial<ArtLayer>) => void
+  /** Set a marketplace artwork's new markup on every face that carries it. */
+  repriceArtwork: (artworkId: number, price: number) => void
   removeArt: () => void
   centerArt: () => void
   nudge: (dx: number, dy: number) => void
@@ -269,6 +273,14 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     updateArt,
     updateArtOn: (f, patch) =>
       setS((prev) => (prev[f].art ? { ...prev, [f]: { ...prev[f], art: { ...prev[f].art!, ...patch } } } : prev)),
+    repriceArtwork: (artworkId, price) =>
+      setS((prev) => {
+        const fix = (f: FaceState): FaceState =>
+          f.art?.artworkId === artworkId ? { ...f, art: { ...f.art, price, artworkPrice: price } } : f
+        const front = fix(prev.front)
+        const back = fix(prev.back)
+        return front === prev.front && back === prev.back ? prev : { ...prev, front, back }
+      }),
     removeArt: () => {
       patchFace((f) => ({ ...f, art: null }))
       setArtSelected(false)

@@ -171,6 +171,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
   const [busy, setBusy] = useState(false)
 
   const works = data ?? []
+  const chosen = !!categories.data?.some((cat) => cat.id === categoryId && cat.active)
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -219,7 +220,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
       flash(t('artwork_title'))
       return
     }
-    if (!categoryId || !categories.data?.some((cat) => cat.id === categoryId && cat.active)) {
+    if (!categoryId || !chosen) {
       flash(t('artwork_category'))
       categories.reload()
       return
@@ -431,10 +432,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
             <Field label={t('pub.titleField')} value={title} onChange={setTitle} placeholder={t('pub.titlePh')} />
             <Field label={t('pub.tags')} value={tags} onChange={setTags} placeholder={t('pub.tagsPh')} />
 
-            {categories.error ? <View style={{ marginBottom: 12 }}>
-              <T style={body(13)}>{t('cat.failed')}</T>
-              <Button title={t('cat.retry')} onPress={categories.reload} variant="outline" />
-            </View> : <ArtworkCategories items={categories.data ?? []} value={categoryId} onChange={setCategoryId} />}
+            <ArtworkCategories categories={categories} value={categoryId} onChange={setCategoryId} />
             <View style={{ marginBottom: 11 }}>
               <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{t('pub.markup')}</T>
               <View style={{ flexDirection: 'row', gap: 7 }}>
@@ -472,7 +470,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
               size={16}
               vPad={17}
               loading={busy}
-              disabled={uploading || !key || !categoryId || categories.loading || !!categories.error}
+              disabled={uploading || !key || !chosen || !!categories.error}
               onPress={submit}
             />
           </>

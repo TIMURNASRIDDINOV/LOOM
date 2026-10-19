@@ -45,33 +45,31 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
+  // Only the newest request may write state, so a slow older response never
+  // replaces newer data or ends a newer request's loading.
+  const latest = useRef(0)
 
   const run = useCallback(async () => {
+    const id = ++latest.current
     setLoading(true)
     setError(null)
     try {
-      setData(await fn())
+      const d = await fn()
+      if (id === latest.current) setData(d)
     } catch (e) {
-      setError(e as Error)
+      if (id === latest.current) setError(e as Error)
     } finally {
-      setLoading(false)
+      if (id === latest.current) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
 
   useEffect(() => {
-    let alive = true
-    setLoading(true)
-    setError(null)
-    fn()
-      .then((d) => alive && setData(d))
-      .catch((e) => alive && setError(e as Error))
-      .finally(() => alive && setLoading(false))
+    run()
     return () => {
-      alive = false
+      latest.current++
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
+  }, [run])
 
   return { data, error, loading, reload: run }
 }
@@ -80,18 +78,21 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
  * Re-run a loader every time its screen comes back into focus. Tab screens
  * stay mounted, so without this a marketplace opened once shows the same
  * list all session — a work approved a minute ago would never appear.
- * The first focus is skipped: `useAsync` already fetched on mount.
+ * The first focus is skipped: `useAsync` already fetched on mount. A new
+ * `reload` (its deps changed) is not a focus: `useAsync` refetches that itself.
  */
 export function useRefreshOnFocus(reload: () => void) {
   const first = useRef(true)
+  const latest = useRef(reload)
+  latest.current = reload
   useFocusEffect(
     useCallback(() => {
       if (first.current) {
         first.current = false
         return
       }
-      reload()
-    }, [reload]),
+      latest.current()
+    }, []),
   )
 }
 

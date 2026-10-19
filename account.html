@@ -426,6 +426,10 @@
     .dz-drop.has-file img { display: block; }
     .dz-drop.has-file .dz-drop-empty { display: none; }
 
+    #dz-category-error, #dz-category-retry { margin-top: 0.6rem; }
+    /* .btn-ghost's inline-flex would otherwise beat the hidden attribute */
+    #dz-category-retry[hidden] { display: none; }
+
     /* Submissions */
     .dz-work {
       display: flex; gap: 0.9rem; align-items: flex-start; padding: 0.85rem;
@@ -740,11 +744,11 @@
           <input id="dz-tags" class="field-input" maxlength="200" placeholder="минимализм, город, линии" data-i18n-attr="placeholder:dz.tagsPh" />
         </div>
 
-        <div class="field-group">
+        <div class="field">
           <label class="field-label" for="dz-category" data-i18n="cat.label">Категория</label>
           <select id="dz-category" class="field-input" required><option value="" data-i18n="cat.choose">Выберите категорию для дизайна</option></select>
           <p id="dz-category-error" class="msg-err" role="alert" hidden></p>
-          <button type="button" class="btn-line" id="dz-category-retry" data-i18n="cat.retry" hidden>Повторить</button>
+          <button type="button" class="btn-ghost" id="dz-category-retry" data-i18n="cat.retry" hidden>Повторить</button>
         </div>
         <div class="form-actions">
           <button class="btn-primary" id="dz-submit-btn" data-i18n="dz.submitWork">Отправить на проверку</button>

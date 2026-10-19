@@ -106,15 +106,16 @@
     const showOpenCall = (on) => { const el = $('mk-open-call'); if (el) el.hidden = !on }
 
     async function loadCategories() {
-      const chosen = select.value
       try {
         const res = await fetch(API() + '/api/artwork-categories')
         if (!res.ok) throw new Error('HTTP ' + res.status)
         const data = await res.json()
+        const chosen = select.value
         const lang = window.LOOM_I18N ? window.LOOM_I18N.getLang() : 'ru'
         select.innerHTML = '<option value="">' + esc(T('cat.all', 'Все категории')) + '</option>' +
           data.items.map((cat) => '<option value="' + cat.id + '">' + esc(cat['name_' + lang] || cat.name_ru) + '</option>').join('')
         select.value = chosen
+        if (select.value !== chosen) { select.value = ''; page = 1; load(1, false) }
         $('mk-category-error').hidden = true
         $('mk-category-retry').hidden = true
       } catch (err) {
@@ -141,8 +142,10 @@
         const items = data.items || [], total = data.total || 0
         items.forEach((a) => { byId[a.id] = a })
         const html = items.map(cardHtml).join('')
-        if (append) grid.insertAdjacentHTML('beforeend', html)
-        else grid.innerHTML = html || (category ? '<p class="mk-error">' + esc(T('cat.empty', 'В этой категории пока нет дизайнов.')) + '</p>' : '')
+        if (append) {
+          grid.querySelectorAll('.mk-error').forEach((el) => el.remove())
+          grid.insertAdjacentHTML('beforeend', html)
+        } else grid.innerHTML = html || (category ? '<p class="mk-error">' + esc(T('cat.empty', 'В этой категории пока нет дизайнов.')) + '</p>' : '')
         showOpenCall(!category && !total)
         page = p
         const count = $('mk-count')
@@ -157,7 +160,7 @@
           const error = document.createElement('p')
           error.className = 'mk-error'
           error.setAttribute('role', 'alert')
-          error.textContent = T('mk.failed', 'Не удалось загрузить маркет. Обновите страницу.')
+          error.textContent = T('mk.moreFailed', 'Не удалось загрузить. Попробуйте ещё раз.')
           grid.querySelectorAll('.mk-error').forEach((el) => el.remove())
           grid.appendChild(error)
         }
