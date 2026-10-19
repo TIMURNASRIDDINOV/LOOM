@@ -183,6 +183,20 @@ All endpoints require `admin_token` cookie (set by `/api/admin/login`).
 
 Response includes: `ordersByStatus`, `revenueLast30Days`, `ordersLast7Days`, `topProducts`, `ordersPerDay`, `recentOrders`, `totalUsers`, `newUsersLast7Days`, `newUsersLast30Days`
 
+### Configurator funnel
+
+GET `/api/admin/analytics/funnel` requires an admin session and `analytics.view`.
+Optional `from` and `to` are inclusive UTC dates (`YYYY-MM-DD`, at most 366 days);
+the default is the last 30 calendar days including today. Invalid dates return
+400 with code `funnel_range`. Responses use `Cache-Control: no-store`.
+
+Returns `from`, `to`, `timezone`, `totals: { web, app }`, and zero-filled `daily`
+rows with `day`, `platform`, `opens`, `carts`, `checkouts`, `placed`, `orders`.
+The first four counts are distinct sessions following the steps in order,
+grouped by the session's first open day within the range. `orders` counts
+matching server-confirmed orders, excluding cancellations and known test #54.
+See [funnel QA and counting contract](scripts/funnel.md).
+
 ### Orders
 
 | Method | Path | Description |
