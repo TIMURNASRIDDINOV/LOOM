@@ -25,8 +25,8 @@ const mf = new Miniflare({ modules: true, modulesRoot: scratch, scriptPath: join
   ...(serve ? { port: 8787, host: 'localhost' } : {}), d1Databases: ['DB'], r2Buckets: ['LOOM_UPLOADS', 'LOOM_MODELS'], kvNamespaces: ['RATE_LIMIT'],
   bindings: { JWT_SECRET: secret, ENVIRONMENT: 'test', TELEGRAM_BOT_TOKEN: '', BOT_USERNAME: '' } })
 let checks = 0
-async function request(path, { method = 'GET', body, admin = 1, user, status = 200, anonymous = false } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
+async function request(path, { method = 'GET', body, admin = 1, user, status = 200, anonymous = false, headers: extra = {} } = {}) {
+  const headers = { 'Content-Type': 'application/json', ...extra }
   if (!anonymous) {
     if (user) headers.Authorization = `Bearer ${token(user, 'user')}`
     else headers.Cookie = `admin_token=${token(admin, 'admin')}`
@@ -51,6 +51,9 @@ try {
   await db.prepare("INSERT INTO users (id,email,password_hash,is_designer,designer_handle,created_at) VALUES (1,'designer@test.invalid','unused',1,'@test',1),(2,'buyer@test.invalid','unused',0,NULL,1)").run()
   for (const id of [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]) await db.prepare("INSERT INTO users (id,email,password_hash,is_designer,telegram_user_id,created_at) VALUES (?,?,'unused',0,?,1)").bind(id, `buyer${id}@test.invalid`, 1000 + id).run()
   await db.prepare("INSERT INTO artworks (id,user_id,title,image_key,markup,status,created_at,updated_at) VALUES (1,1,'Legacy','legacy.png',15000,'approved',1,1)").run()
+  // LOOM-158/159: checkout now needs a real server-priced garment, a session,
+  // and an idempotency key. Keep legacy designs without variant configuration.
+  await db.prepare("INSERT INTO products (id,slug,name_ru,price,active,sizes_json,colors_json,created_at,updated_at) VALUES (1,'qa-shirt','QA',115000,1,NULL,NULL,1,1)").run()
   await db.prepare("INSERT INTO orders (id,user_id,customer_name,customer_phone,design_json,total_price,status,created_at,updated_at) VALUES (1,1,'Test','+998900000000','{}',115000,'delivered',1,1)").run()
   await db.prepare('INSERT INTO artwork_sales (order_id,artwork_id,designer_user_id,quantity,markup,commission_pct,designer_share,created_at) VALUES (1,1,1,1,15000,30,10500,1)').run()
   const before = await db.prepare('SELECT * FROM artwork_sales').all()
@@ -59,7 +62,10 @@ try {
     .results.map((row) => ({ user_id: row.user_id, ...JSON.parse(row.metadata) }))
   const design = (...elements) => JSON.stringify({ version: 2, front: { elements }, back: { elements: [] } })
   const addToCart = (user, unitPrice, ...elements) => request('/api/cart', { method: 'POST', user, body: { designJson: design(...elements), unitPrice }, status: 201 })
-  const checkout = (user, status) => request('/api/cart/checkout', { method: 'POST', user, body: { customerName: 'Test', customerPhone: '+998900000000' }, status })
+  let checkoutAttempt = 0
+  const checkout = (user, status) => request('/api/cart/checkout', { method: 'POST', user,
+    headers: { 'Idempotency-Key': `artwork-qa-${++checkoutAttempt}` },
+    body: { customerName: 'Test', customerPhone: '+998900000000', sessionId: `artwork-qa-${user}` }, status })
   const cats = await request('/api/artwork-categories', { anonymous: true })
   assert.equal(cats.items.length, 6)
   assert.equal((await request('/api/artworks', { anonymous: true })).items[0].category_id, null)
@@ -104,7 +110,7 @@ try {
   await db.prepare('UPDATE users SET telegram_user_id = 12345 WHERE id = 1').run()
   await db.prepare('INSERT INTO cart_items (user_id, design_json, unit_price, quantity, created_at, updated_at) VALUES (1, ?, 115000, 1, 1, 1)')
     .bind(JSON.stringify({ version: 2, front: { elements: [{ artworkId: 1 }] } })).run()
-  const blocked = await request('/api/cart/checkout', { method: 'POST', user: 1, body: { customerName: 'Test', customerPhone: '+998900000000' }, status: 409 })
+  const blocked = await checkout(1, 409)
   assert.deepEqual([blocked.code, blocked.artworkTitle, blocked.currentPrice], ['artwork_price_changed', 'Updated', 35000])
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM orders').first()).n, 1)
   assert.equal((await db.prepare('SELECT unit_price FROM cart_items WHERE user_id = 1').first()).unit_price, 115000)

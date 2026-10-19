@@ -210,13 +210,6 @@ router.post('/checkout', async (c) => {
     return c.json({ error: 'Cart is empty', code: 'cart_empty' }, 400)
   }
 
-  const snapshot = await cartSnapshot(c.env.DB, userId)
-  if (!snapshot.items.length) {
-    const existing = await findCheckout(c.env.DB, userId, key)
-    if (existing) return checkoutResponse(c, existing, 200)
-    return c.json({ error: 'The cart changed. Review it and try again.', code: 'cart_changed' }, 409)
-  }
-  items.splice(0, items.length, ...snapshot.items)
   for (const it of items) {
     // A cart freezes its displayed unit price. Refuse stale artwork pricing
     // before writing any order so its designer share cannot use a newer price.
@@ -236,6 +229,15 @@ router.post('/checkout', async (c) => {
         }, 409)
       }
     }
+  }
+  const snapshot = await cartSnapshot(c.env.DB, userId)
+  if (!snapshot.items.length) {
+    const existing = await findCheckout(c.env.DB, userId, key)
+    if (existing) return checkoutResponse(c, existing, 200)
+    return c.json({ error: 'The cart changed. Review it and try again.', code: 'cart_changed' }, 409)
+  }
+  items.splice(0, items.length, ...snapshot.items)
+  for (const it of items) {
     const variant = await checkVariant(c.env.DB, it.product_id ?? null, it.design_json, it)
     if ('code' in variant) return c.json({ ...variant, itemId: it.id }, 409)
     it.design_json = variant.designJson // the order item records the colour as sold (LOOM-220)

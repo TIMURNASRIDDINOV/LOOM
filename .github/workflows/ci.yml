@@ -52,6 +52,9 @@ jobs:
       - name: Artwork metadata and category routes (local D1)
         run: node backend/scripts/artwork-categories-test.mjs
 
+      - name: Configurator funnel routes (local D1)
+        run: node backend/scripts/funnel-test.mjs
+
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
 
