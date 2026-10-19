@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { api, uploadDataUrl } from '../api/client'
 import type { Mockups } from '../lib/mockup-html'
+import { tStatic } from '../i18n'
 
 // The backend cart (`/api/cart`) is account-bound and auth-only, but the design
 // lets you build a garment and reach the cart before signing in. So the app
@@ -81,17 +82,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clear = useCallback(() => setItems([]), [])
 
   const sync = useCallback(async () => {
+    // Legacy custom carts may predate mockup capture. Never turn them into a
+    // new order with missing previews; plain catalogue purchases need none.
+    for (const it of items) {
+      const hasMockups = (['front', 'back'] as const).every((side) => it.mockupKeys?.[side] || it.mockups?.[side])
+      if (!JSON.parse(it.designJson).plain && !hasMockups) {
+        throw new Error(tStatic('co.errMockups'))
+      }
+    }
     // Replace the server cart wholesale — the local one is authoritative.
     await api('/api/cart', { method: 'DELETE', auth: true })
     const uploaded: Record<string, Mockups> = {}
     for (const it of items) {
-      // Uploads need the session, which only exists from checkout on. A failed
-      // one is not fatal: the order still goes through, the admin shows no mockup.
+      // Uploads need the checkout session. A failed upload must stop checkout
+      // so the order cannot silently lose either preview; the local cart stays.
       const up = async (side: 'front' | 'back') => {
         const done = it.mockupKeys?.[side]
         const data = it.mockups?.[side]
         if (done || !data) return done ?? null
-        return uploadDataUrl(data, `${side}-mockup.jpg`).catch(() => null)
+        return uploadDataUrl(data, `${side}-mockup.jpg`)
       }
       const [front, back] = await Promise.all([up('front'), up('back')])
       uploaded[it.id] = { front, back }

@@ -128,16 +128,23 @@ export default function Studio() {
 
       // Front and back mockups for the admin, drawn like the flat stage. The page
       // can only draw local files once they are inlined as data: URIs.
-      await Promise.all(
-        [snapshot.front.art, snapshot.back.art].map((a) =>
-          a?.uri && !a.pattern ? toDisplayableSrc(a.uri, a.mime ?? 'image/png').catch(() => null) : null,
-        ),
-      )
-      const mockups = (await mockupRef.current?.render({
-        design: toSceneDesign(snapshot, cachedSrc),
-        rect: flatRect(MOCKUP_PX, config.printArea),
-        size: MOCKUP_PX,
-      })) ?? null
+      let mockups
+      try {
+        await Promise.all(
+          [snapshot.front.art, snapshot.back.art].map((a) =>
+            a?.uri && !a.pattern ? toDisplayableSrc(a.uri, a.mime ?? 'image/png') : null,
+          ),
+        )
+        if (!mockupRef.current) throw new Error('mockup_unavailable')
+        mockups = await mockupRef.current.render({
+          design: toSceneDesign(snapshot, cachedSrc),
+          rect: flatRect(MOCKUP_PX, config.printArea),
+          size: MOCKUP_PX,
+        })
+      } catch {
+        flash(t('st.errMockups'))
+        return
+      }
 
       const swatch = config.colors.find((c) => c.hex === s.color.toUpperCase())
       const meta = [

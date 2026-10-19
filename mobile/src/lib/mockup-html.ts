@@ -21,15 +21,8 @@ export type MockupRequest = {
   size: number
 }
 
-/** JPEG data URLs, or null for a side that could not be drawn. */
+/** Stored JPEG data URLs; legacy cart entries may have a missing side. */
 export type Mockups = { front: string | null; back: string | null }
-
-export const NO_MOCKUPS: Mockups = { front: null, back: null }
-
-/** Never let a stuck page hold up add-to-cart: past `ms`, go on without mockups. */
-export function withTimeout(p: Promise<Mockups>, ms = 6000): Promise<Mockups> {
-  return Promise.race([p, new Promise<Mockups>((resolve) => setTimeout(() => resolve(NO_MOCKUPS), ms))])
-}
 
 export function buildMockupHtml(): string {
   return (
@@ -56,15 +49,20 @@ const MOCKUP_JS = String.raw`
     else if (window.parent && window.parent !== window) window.parent.postMessage(s, '*');
   }
   function load(src) {
-    return new Promise(function (res) {
+    return new Promise(function (res, reject) {
       var i = new Image();
       if (!/^data:/.test(src)) i.crossOrigin = 'anonymous';
       i.onload = function () { res(i); };
-      i.onerror = function () { res(null); };
+      i.onerror = function () { reject(new Error('mockup_image_failed')); };
       i.src = src;
     });
   }
-  var garment = load(CFG.GARMENT_URL);
+  var garment;
+  function garmentArt() {
+    // Preload without an unhandled rejection; a later attempt retries failure.
+    return garment || (garment = load(CFG.GARMENT_URL).catch(function () { garment = null; return null; }));
+  }
+  garmentArt();
 
   ${DRAW_ELEMENT_JS}
 
@@ -91,9 +89,14 @@ const MOCKUP_JS = String.raw`
 
   window.__loomRender = function (req) {
     var d = req.design, els = (d.front || []).concat(d.back || []);
-    var waits = [garment];
+    var waits = [garmentArt().then(function (art) {
+      if (!art) throw new Error('mockup_image_failed');
+      return art;
+    })];
     els.forEach(function (el) {
-      if (el.type === 'image' && el.src) waits.push(load(el.src).then(function (i) { if (i) images[el.src] = i; }));
+      if (el.type === 'image') waits.push(el.src
+        ? load(el.src).then(function (i) { images[el.src] = i; })
+        : Promise.reject(new Error('mockup_image_missing')));
       if (el.type === 'text' && document.fonts) waits.push(document.fonts.load('bold 40px "' + el.font + '"').catch(function () {}));
     });
     Promise.all(waits).then(function (r) {
@@ -113,22 +116,34 @@ const MOCKUP_JS = String.raw`
 })();
 `
 
-/** What the studio holds: one call per add-to-cart. */
+/** One call per add-to-cart; rejects unless both sides were rendered. */
 export type MockupRendererHandle = { render: (req: MockupRequest) => Promise<Mockups> }
 
 /** Shared reply bookkeeping for the native and web hosts. */
 export function mockupBridge() {
-  const pending = new Map<number, (m: Mockups) => void>()
+  const pending = new Map<number, { send: () => void; fail: (error: Error) => void; resolve: (m: Mockups) => void }>()
   let seq = 0
   return {
     ready: false,
     /** Queue a request; `send` delivers it to the page. */
     request(req: MockupRequest, send: (msg: string) => void): Promise<Mockups> {
-      if (!this.ready) return Promise.resolve(NO_MOCKUPS)
       const id = ++seq
-      const p = new Promise<Mockups>((resolve) => pending.set(id, resolve))
-      send(JSON.stringify({ ...req, type: 'render', id }))
-      return withTimeout(p)
+      return new Promise<Mockups>((resolve, reject) => {
+        const finish = () => { clearTimeout(timer); pending.delete(id) }
+        const fail = (error: Error) => { finish(); reject(error) }
+        // Readiness and painting share one deadline, below the 10s G5 budget.
+        const timer = setTimeout(() => fail(new Error('mockup_timeout')), 6000)
+        const job = {
+          send: () => {
+            try { send(JSON.stringify({ ...req, type: 'render', id })) }
+            catch { fail(new Error('mockup_send_failed')) }
+          },
+          fail,
+          resolve: (m: Mockups) => { finish(); resolve(m) },
+        }
+        pending.set(id, job)
+        if (this.ready) job.send()
+      })
     },
     /** Handle a message from the page. */
     receive(data: unknown) {
@@ -138,11 +153,21 @@ export function mockupBridge() {
       } catch {
         return
       }
-      if (m?.type === 'ready') this.ready = true
-      if (m?.type === 'mockups' && typeof m.id === 'number') {
-        pending.get(m.id)?.({ front: m.front ?? null, back: m.back ?? null })
-        pending.delete(m.id)
+      if (m?.type === 'ready' && !this.ready) {
+        this.ready = true
+        pending.forEach((job) => job.send())
       }
+      if (m?.type === 'mockups' && typeof m.id === 'number') {
+        const job = pending.get(m.id)
+        if (typeof m.front === 'string' && m.front.startsWith('data:image/jpeg;base64,') &&
+            typeof m.back === 'string' && m.back.startsWith('data:image/jpeg;base64,')) {
+          job?.resolve({ front: m.front, back: m.back })
+        } else job?.fail(new Error('mockup_render_failed'))
+      }
+    },
+    dispose() {
+      this.ready = false
+      pending.forEach((job) => job.fail(new Error('mockup_unavailable')))
     },
   }
 }
