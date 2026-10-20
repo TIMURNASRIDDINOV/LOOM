@@ -51,6 +51,12 @@
     .breakdown-bar-wrap { flex: 1; height: 6px; background: var(--hover-bg); border-radius: 3px; overflow: hidden; }
     .breakdown-bar { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.5s ease; }
     .breakdown-count { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-muted); width: 3.5rem; text-align: right; }
+    .funnel-filters { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: end; margin-bottom: var(--sp-4); }
+    .funnel-filters label { display: grid; gap: var(--sp-1); }
+    .funnel-table { min-width: 760px; }
+    .funnel-table th { white-space: normal; }
+    .funnel-table td { white-space: nowrap; }
+    .funnel-rate { display: block; color: var(--text-muted); font-size: var(--fs-sm); }
   </style>
 </head>
 <body>
@@ -92,6 +98,7 @@
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" id="tab-orders" aria-selected="true" aria-controls="panel-orders">Заказы</button>
       <button class="tab" role="tab" id="tab-visitors" aria-selected="false" aria-controls="panel-visitors">Посетители</button>
+      <button class="tab" role="tab" id="tab-funnel" aria-selected="false" aria-controls="panel-funnel" data-funnel-i18n="title">Воронка</button>
     </div>
 
     <!-- ── Orders panel ─────────────────────────────────── -->
@@ -167,12 +174,42 @@
       </div>
       <p class="field-hint" style="margin-top:var(--sp-3)" id="vis-year-note"></p>
     </section>
+    <section id="panel-funnel" role="tabpanel" aria-labelledby="tab-funnel" hidden>
+      <div class="card">
+        <div class="card-head"><div>
+          <h3 class="card-title" data-funnel-i18n="heading">Воронка конфигуратора</h3>
+          <p class="card-sub" data-funnel-i18n="definition">Сессии по дню первого открытия в выбранном периоде (UTC). Каждый шаг требует предыдущего; процент — от предыдущего шага.</p>
+        </div></div>
+        <form id="funnel-filters" class="funnel-filters">
+          <label class="field-label"><span data-funnel-i18n="from">С</span><input class="input" id="funnel-from" type="date" required /></label>
+          <label class="field-label"><span data-funnel-i18n="to">По</span><input class="input" id="funnel-to" type="date" required /></label>
+          <label class="field-label"><span data-funnel-i18n="platform">Платформа</span><select class="select" id="funnel-platform">
+            <option value="all" data-funnel-i18n="all">Все</option><option value="web" data-funnel-i18n="web">Сайт</option><option value="app" data-funnel-i18n="app">Приложение</option>
+          </select></label>
+          <button class="btn" id="funnel-apply" type="submit" data-funnel-i18n="apply">Показать</button>
+        </form>
+        <p class="field-hint" id="funnel-message" role="status" aria-live="polite"></p>
+        <div id="funnel-results" hidden>
+          <h4 data-funnel-i18n="summary">За период</h4>
+          <div class="table-wrap"><table class="table funnel-table">
+            <thead><tr><th data-funnel-i18n="platform">Платформа</th><th data-funnel-i18n="opens">Открыли</th><th data-funnel-i18n="carts">В корзину</th><th data-funnel-i18n="checkouts">Отправили заказ</th><th data-funnel-i18n="placed">Оформили заказ</th><th data-funnel-i18n="orders">Заказы</th></tr></thead>
+            <tbody id="funnel-summary"></tbody>
+          </table></div>
+          <h4 data-funnel-i18n="daily">По дням</h4>
+          <div class="table-wrap"><table class="table funnel-table">
+            <thead><tr><th data-funnel-i18n="day">День (UTC)</th><th data-funnel-i18n="platform">Платформа</th><th data-funnel-i18n="opens">Открыли</th><th data-funnel-i18n="carts">В корзину</th><th data-funnel-i18n="checkouts">Отправили заказ</th><th data-funnel-i18n="placed">Оформили заказ</th><th data-funnel-i18n="orders">Заказы</th></tr></thead>
+            <tbody id="funnel-daily"></tbody>
+          </table></div>
+        </div>
+        <p class="field-hint" data-funnel-i18n="note">Оформление подтверждается сервером. Заказы без отменённых и известного тестового №54; одна сессия может оформить несколько заказов.</p>
+      </div>
+    </section>
   </main>
 
   <script src="assets/app.js?v=31"></script>
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=30"></script>
   <script>LOOM_LAYOUT.init('dashboard')</script>
-  <script src="assets/dashboard.js?v=30"></script>
+  <script src="assets/dashboard.js?v=31"></script>
 </body>
 </html>

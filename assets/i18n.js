@@ -28,6 +28,7 @@
 
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
+    'co.priceChanged': { uz: 'Narxlar o‘zgardi. Yangi summani tekshirib, buyurtmani qayta tasdiqlang.', ru: 'Цены изменились. Проверьте новую сумму и подтвердите заказ ещё раз.', en: 'Prices changed. Review the new total and place the order again.' },
     "artwork_price_changed": {"uz": "Dizayn narxi o‘zgardi. Yangi narxni ko‘rish uchun mahsulotni savatchadan o‘chirib, qayta qo‘shing.", "ru": "Цена дизайна изменилась. Удалите эту вещь из корзины и добавьте её заново, чтобы увидеть новую цену.", "en": "This design’s price changed. Remove this item from your cart and add it again to see the new price."},
     "artwork_price_changed_title": {"uz": "«{title}» dizayni narxi o‘zgardi. Yangi narxni ko‘rish uchun shu dizayndagi mahsulotni savatchadan o‘chirib, qayta qo‘shing.", "ru": "Цена дизайна «{title}» изменилась. Удалите вещь с этим дизайном из корзины и добавьте её заново, чтобы увидеть новую цену.", "en": "The price of the design “{title}” changed. Remove the item with this design from your cart and add it again to see the new price."},
     "cat.label": { uz: "Kategoriya", ru: "Категория", en: "Category" },

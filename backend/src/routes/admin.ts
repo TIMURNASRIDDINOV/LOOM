@@ -28,6 +28,7 @@ import {
   revokeAdminTokens,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
+import { funnelRange, getFunnelStats } from '../db/funnel'
 import { signToken, verifyToken } from '../lib/jwt'
 import { serveObject } from '../lib/r2'
 import { clientIp, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
@@ -552,6 +553,13 @@ admin.post('/refresh', requireAdmin, async (c) => {
 admin.get('/analytics/visitors', requireAdmin, requireCap('analytics.view'), async (c) => {
   const stats = await getVisitorStats(c.env.DB)
   return c.json(stats)
+})
+
+admin.get('/analytics/funnel', requireAdmin, requireCap('analytics.view'), async (c) => {
+  c.header('Cache-Control', 'no-store')
+  const range = funnelRange(c.req.query('from'), c.req.query('to'))
+  if (!range) return c.json({ error: 'Choose valid UTC dates, up to 366 days.', code: 'funnel_range' }, 400)
+  return c.json(await getFunnelStats(c.env.DB, range))
 })
 
 export { setupRouter }

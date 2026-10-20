@@ -46,7 +46,7 @@ app.use('*', (c, next) => {
   return cors({
     origin: (origin) => (allowed.includes(origin) ? origin : PROD_ORIGINS[0]),
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
     credentials: true,
     maxAge: 86400,
   })(c, next)
@@ -56,7 +56,7 @@ app.use('*', (c, next) => {
 
 app.route('/api/cart', cartRoutes)            // GET/POST/PATCH/DELETE /api/cart, POST /api/cart/checkout
 app.route('/api/payments', paymentsRoutes)    // POST /api/payments/{payme,click,uzum}/webhook
-app.route('/api', publicRoutes)               // GET /api/products, POST /api/orders, etc.
+app.route('/api', publicRoutes)               // GET /api/products, uploads and order history
 app.route('/api/auth', authRoutes)            // POST /api/auth/register, /login, GET /api/auth/me, PATCH /profile etc.
 app.route('/api/admin', adminRoutes)          // /api/admin/* (orders, auth, media, analytics)
 app.route('/api/admin', setupRouter)          // POST /api/admin/setup (no auth required)
