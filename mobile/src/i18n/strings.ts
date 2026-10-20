@@ -4,6 +4,21 @@
 // terminology follows the web ("Savatcha", "Katalog", "Kirish", "so‘m").
 //
 // Interpolation: `{name}` placeholders, filled by `t(key, { name })`.
+//
+// App v2 (PRD-210): new keys go in the screen group's module under ./groups —
+// start, shop, studio, lab, account, market — each typed by `Group`, so a key
+// missing from uz or en fails `tsc` there. The modules are spread in at the
+// end of each dictionary below.
+
+import { account } from './groups/account'
+import { lab } from './groups/lab'
+import { market } from './groups/market'
+import { shop } from './groups/shop'
+import { start } from './groups/start'
+import { studio } from './groups/studio'
+
+/** One screen group's strings: uz and en must carry exactly ru's keys. */
+export type Group<R> = { ru: R; uz: Record<keyof R, string>; en: Record<keyof R, string> }
 
 export const ru = {
   "artwork_price_changed": "Цена дизайна изменилась. Удалите эту вещь из корзины и добавьте её заново, чтобы увидеть новую цену.",
@@ -38,6 +53,10 @@ export const ru = {
   'common.itemsN': '{n} позиции',
   'common.uploadFailed': 'Не удалось загрузить файл',
   'common.photoFailed': 'Не удалось загрузить фото',
+  'common.close': 'Закрыть',
+  'common.cart': 'Корзина',
+  'common.decrease': 'Уменьшить',
+  'common.increase': 'Увеличить',
   'st.defaultProduct': 'Классическая футболка',
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
@@ -45,6 +64,7 @@ export const ru = {
   'tab.catalog': 'Каталог',
   'tab.orders': 'Заказы',
   'tab.account': 'Профиль',
+  'tab.studio': 'Студия',
 
   // ── App bar titles ────────────────────────────────────────────────────────
   'bar.catalog': 'КАТАЛОГ',
@@ -424,6 +444,13 @@ export const ru = {
   'err.title': 'Что-то пошло не так',
   'err.body': 'Экран не смог отрисоваться. Ваша корзина и дизайн сохранены — попробуйте ещё раз.',
   'err.retry': 'Попробовать снова',
+
+  ...start.ru,
+  ...shop.ru,
+  ...studio.ru,
+  ...lab.ru,
+  ...account.ru,
+  ...market.ru,
 } as const
 
 export type StringKey = keyof typeof ru
@@ -461,12 +488,17 @@ export const uz: Dictionary = {
   'common.itemsN': '{n} ta mahsulot',
   'common.uploadFailed': 'Faylni yuklab bo‘lmadi',
   'common.photoFailed': 'Rasmni yuklab bo‘lmadi',
+  'common.close': 'Yopish',
+  'common.cart': 'Savatcha',
+  'common.decrease': 'Kamaytirish',
+  'common.increase': 'Ko‘paytirish',
   'st.defaultProduct': 'Klassik futbolka',
 
   'tab.home': 'Bosh sahifa',
   'tab.catalog': 'Katalog',
   'tab.orders': 'Buyurtmalar',
   'tab.account': 'Profil',
+  'tab.studio': 'Studiya',
 
   'bar.catalog': 'KATALOG',
   'bar.orders': 'BUYURTMALAR',
@@ -826,6 +858,13 @@ export const uz: Dictionary = {
   'err.title': 'Nimadir xato ketdi',
   'err.body': 'Ekran chizilmadi. Savat va dizayningiz saqlangan — qayta urinib ko‘ring.',
   'err.retry': 'Qayta urinish',
+
+  ...start.uz,
+  ...shop.uz,
+  ...studio.uz,
+  ...lab.uz,
+  ...account.uz,
+  ...market.uz,
 }
 
 export const en: Dictionary = {
@@ -860,12 +899,17 @@ export const en: Dictionary = {
   'common.itemsN': '{n} items',
   'common.uploadFailed': 'Couldn’t upload the file',
   'common.photoFailed': 'Couldn’t upload the photo',
+  'common.close': 'Close',
+  'common.cart': 'Cart',
+  'common.decrease': 'Decrease',
+  'common.increase': 'Increase',
   'st.defaultProduct': 'Classic T-shirt',
 
   'tab.home': 'Home',
   'tab.catalog': 'Catalog',
   'tab.orders': 'Orders',
   'tab.account': 'Profile',
+  'tab.studio': 'Studio',
 
   'bar.catalog': 'CATALOG',
   'bar.orders': 'ORDERS',
@@ -1225,4 +1269,11 @@ export const en: Dictionary = {
   'err.title': 'Something went wrong',
   'err.body': 'The screen couldn’t render. Your cart and design are saved — try again.',
   'err.retry': 'Try again',
+
+  ...start.en,
+  ...shop.en,
+  ...studio.en,
+  ...lab.en,
+  ...account.en,
+  ...market.en,
 }

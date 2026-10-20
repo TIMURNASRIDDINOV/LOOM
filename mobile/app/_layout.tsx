@@ -74,6 +74,10 @@ export default function RootLayout() {
                   <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
                   <Stack.Screen name="login" options={{ animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="studio" options={{ animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="language" />
+                  <Stack.Screen name="lab/index" options={{ animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="lab/history" />
+                  <Stack.Screen name="dev-gallery" />
                 </Stack>
               </ToastProvider>
             </StudioProvider>
