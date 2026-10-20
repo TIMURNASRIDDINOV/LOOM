@@ -1,33 +1,43 @@
-import React, { useCallback, useState } from 'react'
-import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import React, { useCallback, useRef, useState } from 'react'
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 
-import { C, RULE, fmt, noShadow, offset } from '../../src/theme/tokens'
-import { body, disp, kicker, label as labelType, mono, monoSemi } from '../../src/theme/type'
-import { AppBar } from '../../src/components/AppBar'
-import { ArtworkCategories } from '../../src/components/ArtworkCategories'
-import { Hatch } from '../../src/components/ArtPattern'
-import { ChevronLeft } from '../../src/components/icons'
-import { Button, Panel, T, Tap } from '../../src/components/ui'
-import { uploadFile } from '../../src/api/client'
-import { fetchArtworkCategories, fetchDesignerStats, fetchMyArtworks, submitArtwork, useAsync, useRefreshOnFocus } from '../../src/api/catalog'
-import type { MyArtwork } from '../../src/api/types'
+import { C, RULE, fmt, offset } from '../../src/theme/tokens'
+import { body, disp, kicker, mono, monoBold, monoSemi } from '../../src/theme/type'
+import { BackHeader } from '../../src/components/AppBar'
+import { Check, Upload } from '../../src/components/icons'
+import { BottomBar, CloseBar, StepMeter } from '../../src/components/market/bars'
+import { AffixField, CategoryPicker } from '../../src/components/market/fields'
+import { ClockIcon, ShieldIcon } from '../../src/components/market/glyphs'
+import { Note, SectionLabel, StatGrid, StatusChip, Thumb, WorkRow } from '../../src/components/market/works'
+import { Button, Input, OfflineState, Panel, Skeleton, T, isOffline } from '../../src/components/ui'
+import { ApiError, uploadFile } from '../../src/api/client'
+import {
+  fetchArtworkCategories,
+  fetchDesignerStats,
+  fetchMyArtworks,
+  fetchProducts,
+  submitArtwork,
+  useAsync,
+  useRefreshOnFocus,
+} from '../../src/api/catalog'
+import { productName, statusLabel, useI18n, useT } from '../../src/i18n'
+import { goBack } from '../../src/lib/nav'
 import { useAuth } from '../../src/state/auth'
 import { useToast } from '../../src/state/toast'
-import { statusLabel, useT } from '../../src/i18n'
 
-const MARKUPS = [15000, 25000, 35000]
+const HANDLE_RULE = /^[a-z0-9_.]{3,24}$/i
+/** Largest markup the server accepts (backend `artworkDetails`). */
+const MAX_MARKUP = 200000
+const DEFAULT_MARKUP = 20000
 
-const MOD_LABEL: Record<MyArtwork['status'], { key: 'mod.pending' | 'mod.approved' | 'mod.rejected'; c: string }> = {
-  pending: { key: 'mod.pending', c: C.amber },
-  approved: { key: 'mod.approved', c: '#22c55e' },
-  rejected: { key: 'mod.rejected', c: C.deep },
-}
+/** Designer share of a markup, from the commission the server reports. */
+const designerShare = (markup: number, commissionPct: number) => Math.round((markup * (100 - commissionPct)) / 100)
 
 /**
- * Designer publishing. Three gates, in order: signed in → designer account →
- * upload. The home screen only advertises this; the flow itself lives here.
+ * Designer publishing (W40–W44). Three gates, in order: signed in → designer
+ * account → upload. The home screen only advertises this; the flow itself lives here.
  */
 export default function Publish() {
   const { signedIn, isDesigner, user } = useAuth()
@@ -37,141 +47,188 @@ export default function Publish() {
   return <DesignerHome handle={user?.designer_handle ?? null} />
 }
 
+/** Header, scrolling body and an optional pinned bottom action; lifts above the keyboard. */
+function Screen({
+  header,
+  bottom,
+  children,
+}: {
+  header: React.ReactNode
+  bottom?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: C.paper }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {header}
+      <ScrollView
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {children}
+      </ScrollView>
+      {bottom}
+    </KeyboardAvoidingView>
+  )
+}
+
 // ─── Gate 1: not signed in ───────────────────────────────────────────────────
 
 function SignInGate() {
   const router = useRouter()
   const t = useT()
   return (
-    <View style={{ flex: 1 }}>
-      <AppBar title={t('bar.design')} />
-      <ScrollView contentContainerStyle={styles.page}>
-        <T style={kicker()}>{t('pub.kicker')}</T>
-        <T style={[disp(30, 0.98, { ls: -0.035 }), { marginTop: 10, marginBottom: 10 }]}>
-          {t('pub.gateTitle')}
-        </T>
-        <T style={[body(14, 1.6, { color: C.i55 }), { marginBottom: 24 }]}>
-          {t('pub.gateBody')}
-        </T>
-        <Button title={t('common.signIn')} variant="ink" size={12.5} vPad={16} onPress={() => router.push('/login')} />
-      </ScrollView>
-    </View>
+    <Screen
+      header={<BackHeader onBack={() => goBack(router, '/market')} />}
+      bottom={
+        <BottomBar>
+          <Button title={t('common.signIn')} onPress={() => router.push('/login')} />
+        </BottomBar>
+      }
+    >
+      <View style={{ gap: 8 }}>
+        <T style={kicker(12)}>{t('pub.kicker')}</T>
+        <T style={disp(32, 1, { ls: -0.035 })}>{t('pub.gateTitle')}</T>
+        <T style={body(15, 22 / 15, { color: C.i70 })}>{t('pub.gateBody')}</T>
+      </View>
+    </Screen>
   )
 }
 
-// ─── Gate 2: signed in, but not a designer yet ───────────────────────────────
+// ─── Gate 2: signed in, but not a designer yet (W40) ─────────────────────────
 
 function DesignerGate() {
+  const router = useRouter()
   const { applyAsDesigner } = useAuth()
   const { flash } = useToast()
   const t = useT()
   const [handle, setHandle] = useState('')
   const [bio, setBio] = useState('')
   const [busy, setBusy] = useState(false)
+  const [tried, setTried] = useState(false)
+  // The server's own refusal — "handle taken" — stays under the field it concerns.
+  const [refused, setRefused] = useState<string | null>(null)
+
+  const clean = handle.trim().replace(/^@/, '')
+  const invalid = tried && !HANDLE_RULE.test(clean)
 
   const apply = async () => {
-    const clean = handle.trim().replace(/^@/, '')
-    if (!/^[a-z0-9_.]{3,24}$/i.test(clean)) {
-      flash(t('pub.errHandle'))
-      return
-    }
+    setTried(true)
+    // The rule is checked here first: a bad handle never costs a request.
+    if (!HANDLE_RULE.test(clean)) return
     setBusy(true)
     try {
       await applyAsDesigner(clean, bio.trim() || undefined)
       flash(t('pub.profileCreated'))
     } catch (e) {
-      flash((e as Error).message)
+      if (e instanceof ApiError && e.status === 409) setRefused(e.message)
+      else flash((e as Error).message)
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <AppBar title={t('bar.design')} />
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <T style={kicker()}>{t('pub.kicker')}</T>
-        <T style={[disp(30, 0.98, { ls: -0.035 }), { marginTop: 10, marginBottom: 10 }]}>
-          {t('pub.becomeTitle')}
-        </T>
-        <T style={[body(14, 1.6, { color: C.i55 }), { marginBottom: 22 }]}>
-          {t('pub.becomeBody')}
-        </T>
+    <Screen
+      header={<BackHeader onBack={() => goBack(router, '/market')} />}
+      bottom={
+        <BottomBar>
+          <Button title={t('pub.createProfile')} loading={busy} onPress={apply} />
+        </BottomBar>
+      }
+    >
+      <View style={{ gap: 8 }}>
+        <T style={kicker(12)}>{t('pub.kicker')}</T>
+        <T style={disp(32, 1, { ls: -0.035 })}>{t('pub.becomeTitle')}</T>
+        <T style={body(15, 22 / 15, { color: C.i70 })}>{t('pub.becomeBody')}</T>
+      </View>
 
-        <View style={{ marginBottom: 11 }}>
-          <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{t('pub.handle')}</T>
-          <View style={styles.handleField}>
-            <View style={styles.at}>
-              <T style={{ fontFamily: 'IBMPlexMono_500Medium', fontSize: 16, color: C.i55 }}>@</T>
-            </View>
-            <TextInput
-              value={handle}
-              onChangeText={setHandle}
-              placeholder="ozod"
-              placeholderTextColor={C.i38}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.handleInput}
-              allowFontScaling={false}
-              maxLength={24}
-            />
+      <View style={styles.how}>
+        {(['pub.how1', 'pub.how2', 'pub.how3'] as const).map((k, i) => (
+          <View key={k} style={styles.howRow}>
+            <T style={[monoBold(12, 18 / 12, { color: C.deep }), { width: 22 }]}>{`0${i + 1}`}</T>
+            <T style={[body(13, 18 / 13), { flex: 1 }]}>{t(k)}</T>
           </View>
-        </View>
+        ))}
+      </View>
 
-        <Field label={t('pub.bio')} value={bio} onChange={setBio} placeholder={t('pub.bioPh')} />
+      <AffixField
+        label={t('pub.handle')}
+        prefix="@"
+        value={handle}
+        onChangeText={(v) => {
+          setHandle(v)
+          setRefused(null)
+        }}
+        placeholder="ozod"
+        autoCapitalize="none"
+        autoCorrect={false}
+        maxLength={25}
+        hint={t('pub.errHandle')}
+        error={invalid ? t('pub.errHandle') : refused}
+      />
 
-        <Button
-          title={t('pub.createProfile')}
-          size={15}
-          vPad={17}
-          loading={busy}
-          style={{ marginTop: 6 }}
-          onPress={apply}
-        />
-        <T style={[body(11, 1.5, { color: C.i38, align: 'center' }), { marginTop: 12 }]}>
-          {t('pub.moderationNote')}
-        </T>
-      </ScrollView>
-    </View>
+      <Input
+        label={t('pub.bio')}
+        value={bio}
+        onChangeText={setBio}
+        placeholder={t('pub.bioPh')}
+        multiline
+        numberOfLines={2}
+        maxLength={280}
+        style={{ height: 72, paddingTop: 12, textAlignVertical: 'top' }}
+      />
+
+      <View style={styles.assure}>
+        <ShieldIcon />
+        <T style={[body(12, 16 / 12, { color: C.i70 }), { flex: 1 }]}>{t('pub.moderationNote')}</T>
+      </View>
+    </Screen>
   )
 }
 
-// ─── Gate 3: a designer — their works, and the upload flow ───────────────────
+// ─── Gate 3: a designer — their cabinet, and the upload flow ─────────────────
+
+type Picked = { uri: string; name: string; mime: string; w: number; h: number; size: number }
 
 function DesignerHome({ handle }: { handle: string | null }) {
   const router = useRouter()
   const { flash } = useToast()
-  const t = useT()
-  const { data, loading, reload } = useAsync(fetchMyArtworks, [])
+  const { lang, t } = useI18n()
+  const works = useAsync(fetchMyArtworks, [])
   const stats = useAsync(fetchDesignerStats, [])
   const categories = useAsync(fetchArtworkCategories, [])
-  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const products = useAsync(() => fetchProducts(), [])
   useRefreshOnFocus(categories.reload)
   // Moderation happens elsewhere; coming back to this tab must show the verdict.
   const refreshAll = useCallback(() => {
-    reload()
+    works.reload()
     stats.reload()
-  }, [reload, stats.reload])
+  }, [works.reload, stats.reload])
   useRefreshOnFocus(refreshAll)
 
+  // 0 cabinet · 1 file (W42) · 2 details (W43) · 3 sent (W44)
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0)
-  const [file, setFile] = useState<{
-    uri: string
-    name: string
-    mime: string
-    w: number
-    h: number
-    size: number
-  } | null>(null)
+  const [file, setFile] = useState<Picked | null>(null)
   const [key, setKey] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [title, setTitle] = useState('')
   const [tags, setTags] = useState('')
-  const [markup, setMarkup] = useState(25000)
+  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [markupText, setMarkupText] = useState(String(DEFAULT_MARKUP))
+  const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState(false)
+  const upload = useRef(0)
 
-  const works = data ?? []
+  const markup = Number(markupText || 0)
+  const markupBad = markup > MAX_MARKUP
+  const titleBad = tried && (!title.trim() || title.trim().length > 80)
   const chosen = !!categories.data?.some((cat) => cat.id === categoryId && cat.active)
+  const pct = stats.data?.commission_pct
+  const product = products.data?.[0]
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -187,7 +244,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
       return
     }
 
-    const picked = {
+    const picked: Picked = {
       uri: a.uri,
       name: a.fileName ?? 'artwork.png',
       mime: a.mimeType ?? 'image/png',
@@ -197,29 +254,29 @@ function DesignerHome({ handle }: { handle: string | null }) {
     }
     setFile(picked)
     setTitle(picked.name.replace(/\.[^.]+$/, '').slice(0, 80))
-    setStep(2)
 
-    // Upload straight away so the details step never waits on the network.
+    // Upload straight away so the details step never waits on the network. Only
+    // the newest pick may set the key, whatever order the uploads settle in.
+    const id = ++upload.current
     setUploading(true)
+    setKey(null)
     try {
-      setKey(await uploadFile(picked.uri, picked.name, picked.mime))
+      const k = await uploadFile(picked.uri, picked.name, picked.mime)
+      if (id === upload.current) setKey(k)
     } catch (e) {
-      flash((e as Error).message)
-      setKey(null)
+      if (id === upload.current) flash((e as Error).message)
     } finally {
-      setUploading(false)
+      if (id === upload.current) setUploading(false)
     }
   }
 
   const submit = async () => {
+    setTried(true)
     if (!key) {
       flash(t('pub.errNotUploaded'))
       return
     }
-    if (!title.trim() || title.trim().length > 80) {
-      flash(t('artwork_title'))
-      return
-    }
+    if (!title.trim() || title.trim().length > 80 || markupBad) return
     if (!categoryId || !chosen) {
       flash(t('artwork_category'))
       categories.reload()
@@ -237,8 +294,7 @@ function DesignerHome({ handle }: { handle: string | null }) {
         markup,
       })
       setStep(3)
-      flash(t('pub.sent'))
-      reload()
+      works.reload()
       stats.reload()
     } catch (e) {
       flash((e as Error).message)
@@ -248,376 +304,333 @@ function DesignerHome({ handle }: { handle: string | null }) {
   }
 
   const reset = () => {
+    upload.current++
     setFile(null)
     setKey(null)
+    setUploading(false)
     setTitle('')
     setTags('')
     setCategoryId(null)
+    setMarkupText(String(DEFAULT_MARKUP))
+    setTried(false)
     setStep(0)
   }
 
-  return (
-    <View style={{ flex: 1 }}>
-      <AppBar title={t('bar.design')} />
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <Tap
-          style={styles.back}
-          onPress={() => (step > 0 ? reset() : router.push('/market'))}
-        >
-          <ChevronLeft size={13} width={2.4} color={C.i55} />
-          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>{t('common.back')}</T>
-        </Tap>
+  const status = uploading ? t('pub.uploadingFile') : key ? t('pub.fileOk') : t('pub.fileFail')
+  const statusColor = uploading ? C.i70 : key ? C.ink : C.deep
+  const size = file && file.size ? ` · ${(file.size / 1024 / 1024).toFixed(1)} MB` : ''
 
-        <T style={kicker()}>{handle ?? t('pub.kicker')}</T>
-        <T style={[disp(30, 0.98, { ls: -0.035 }), { marginTop: 10, marginBottom: 8 }]}>
-          {step === 3 ? t('pub.onModeration') : step === 0 ? t('pub.cabinet') : t('pub.publish')}
-        </T>
-
-        {/* Earnings — the promise behind the whole flow, backed by artwork_sales. */}
-        {step === 0 && stats.data ? (
-          <>
-            <View style={styles.statsRow}>
-              <Stat label={t('pub.earned')} value={`${fmt(stats.data.earned)} ${t('common.sum')}`} accent />
-              <Stat label={t('pub.payable')} value={`${fmt(stats.data.earned_settled)} ${t('common.sum')}`} />
+  // ── W44 — sent ─────────────────────────────────────────────────────────────
+  if (step === 3 && file) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.paper }}>
+        <CloseBar onClose={reset} />
+        <ScrollView contentContainerStyle={[styles.page, { paddingTop: 30 }]} showsVerticalScrollIndicator={false}>
+          <View style={[styles.done, offset(3)]}>
+            <Check size={44} width={2.6} color={C.ink} />
+          </View>
+          <View style={{ gap: 12 }}>
+            <View style={styles.reviewChip}>
+              <ClockIcon />
+              <T style={monoSemi(12, 4 / 3)}>{t('pub.reviewTime')}</T>
             </View>
-            <View style={styles.statsRow}>
-              <Stat label={t('dz.sold')} value={t('pub.soldUnits', { n: stats.data.units_sold })} />
-              <Stat label={t('pub.inCatalog')} value={t('pub.ofTotal', { a: stats.data.works_approved, b: stats.data.works_total })} />
-            </View>
-            <T style={[body(10.5, 1.5, { color: C.i38 }), { marginTop: 8 }]}>
-              {t('pub.shareNote', { pct: 100 - stats.data.commission_pct })}
-            </T>
-            {stats.data.sales.length ? (
-              <View style={{ marginTop: 14 }}>
-                <T style={[labelType(), { marginBottom: 8 }]}>{t('pub.recentSales')}</T>
-                {stats.data.sales.slice(0, 5).map((sale) => {
-                  return (
-                    <View key={sale.id} style={styles.saleRow}>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <T style={disp(13, 1.15)} numberOfLines={1}>
-                          {sale.artwork_title}
-                        </T>
-                        <T style={[mono(9.5, 1.3, { color: C.i55 }), { marginTop: 2 }]}>
-                          {t('pub.saleMeta', { id: sale.order_id, n: sale.quantity, status: statusLabel(sale.order_status, t) })}
-                        </T>
-                      </View>
-                      <T style={monoSemi(12, 1, { color: C.ink })}>{`+${fmt(sale.designer_share)}`}</T>
-                    </View>
-                  )
-                })}
+            <T style={disp(32, 1.02, { ls: -0.035 })}>{t('pub.sent')}</T>
+            <T style={body(15, 22 / 15, { color: C.i70 })}>{t('pub.sentBody')}</T>
+          </View>
+          <View style={{ gap: 8 }}>
+            <SectionLabel>{t('pub.yourWork')}</SectionLabel>
+            <Panel style={styles.sentRow}>
+              <Thumb uri={file.uri} size={60} />
+              <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                <T style={disp(15, 1.2)} numberOfLines={1}>
+                  {title}
+                </T>
+                <T style={mono(12, 4 / 3, { color: C.i70 })}>{t('mk.plus', { price: fmt(markup) })}</T>
               </View>
-            ) : null}
-          </>
+              <StatusChip status="pending" />
+            </Panel>
+          </View>
+        </ScrollView>
+        <BottomBar rule={false}>
+          <Button title={t('pub.cabinet')} onPress={reset} />
+          <Button
+            title={t('pub.uploadAnother')}
+            variant="outline"
+            onPress={() => {
+              reset()
+              setStep(1)
+            }}
+          />
+        </BottomBar>
+      </View>
+    )
+  }
+
+  // ── W42 — file ─────────────────────────────────────────────────────────────
+  if (step === 1) {
+    return (
+      <Screen
+        header={<BackHeader title={t('pub.publish')} right={<StepMeter step={1} />} onBack={reset} />}
+        bottom={
+          <BottomBar>
+            <Button title={`${t('pub.next')} →`} disabled={!file} onPress={() => setStep(2)} />
+          </BottomBar>
+        }
+      >
+        <T style={body(15, 22 / 15, { color: C.i70 })}>{t('pub.step1Body')}</T>
+
+        {file ? (
+          <Panel raised raisedColor={C.coral} style={styles.fileCard}>
+            <Thumb uri={file.uri} size={64} checker />
+            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+              <T style={monoSemi(14, 18 / 14)} numberOfLines={1}>
+                {file.name}
+              </T>
+              <T style={mono(12, 4 / 3, { color: C.i70 })}>{`${file.w} × ${file.h} px${size}`}</T>
+              <T style={monoBold(12, 4 / 3, { color: statusColor })}>{status}</T>
+            </View>
+          </Panel>
         ) : null}
 
-        {step > 0 ? (
-          <View style={styles.progress}>
-            {[1, 2, 3].map((n) => (
-              <View
-                key={n}
-                style={{
-                  width: 22,
-                  height: 4,
-                  backgroundColor: step >= n ? C.coral : 'rgba(19,19,17,.16)',
-                }}
-              />
-            ))}
+        <View style={{ gap: 6 }}>
+          <Button
+            title={t('pub.pickFile')}
+            variant="outline"
+            icon={<Upload size={18} color={C.ink} width={2.4} />}
+            onPress={pick}
+          />
+          <T style={mono(12, 4 / 3, { color: C.i70 })}>{t('pub.fileSpec')}</T>
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <SectionLabel>{t('pub.reqs')}</SectionLabel>
+          {([t('pub.req1'), t('pub.req2'), t('pub.req3')] as const).map((r) => (
+            <View key={r} style={styles.req}>
+              <View style={styles.reqDot} />
+              <T style={[body(14, 20 / 14), { flex: 1 }]}>{r}</T>
+            </View>
+          ))}
+        </View>
+      </Screen>
+    )
+  }
+
+  // ── W43 — details ──────────────────────────────────────────────────────────
+  if (step === 2 && file) {
+    return (
+      <Screen
+        header={<BackHeader title={t('pub.publish')} right={<StepMeter step={2} />} onBack={() => setStep(1)} />}
+      >
+        <View style={styles.fileHead}>
+          <Thumb uri={file.uri} size={84} checker lifted />
+          <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+            <T style={monoSemi(14, 18 / 14)} numberOfLines={1}>
+              {file.name}
+            </T>
+            <T style={monoBold(12, 4 / 3, { color: statusColor })}>{status}</T>
+          </View>
+        </View>
+
+        <Input
+          label={t('pub.titleField')}
+          value={title}
+          onChangeText={setTitle}
+          placeholder={t('pub.titlePh')}
+          maxLength={80}
+          error={titleBad ? t('artwork_title') : null}
+        />
+        <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} />
+        <Input label={t('pub.tags')} value={tags} onChangeText={setTags} placeholder={t('pub.tagsPh')} maxLength={200} />
+
+        <View style={{ gap: 8 }}>
+          <AffixField
+            label={t('pub.markup')}
+            suffix={t('common.sum')}
+            value={markupText ? fmt(markup) : ''}
+            onChangeText={(v) => setMarkupText(v.replace(/\D/g, '').slice(0, 7))}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            error={markupBad ? t('artwork_markup') : null}
+          />
+          <T style={body(13, 18 / 13, { color: C.i70 })}>
+            {pct === undefined
+              ? t('pub.markupBuyer', { markup: fmt(markup) })
+              : t('pub.markupNote', { markup: fmt(markup), share: fmt(designerShare(markup, pct)), pct })}
+          </T>
+        </View>
+
+        {product ? (
+          <View style={styles.preview}>
+            <T style={mono(12, 4 / 3, { ls: 0.14, upper: true, color: C.i70 })}>{productName(product, lang)}</T>
+            <T style={mono(15, 22 / 15)}>
+              {`${fmt(product.price)} + `}
+              <T style={{ backgroundColor: C.coral }}>{` ${fmt(markup)} `}</T>
+              {' = '}
+              <T style={monoBold(15, 22 / 15)}>{`${fmt(product.price + markup)} ${t('common.sum')}`}</T>
+            </T>
           </View>
         ) : null}
 
-        {/* Step 0 — the designer's portfolio and moderation status. */}
-        {step === 0 ? (
-          <>
-            <Button
-              title={t('pub.upload')}
-              size={15}
-              vPad={17}
-              style={{ marginTop: 12, marginBottom: 20 }}
-              onPress={() => setStep(1)}
-            />
-            {loading ? (
-              <ActivityIndicator color={C.coral} />
-            ) : works.length === 0 ? (
-              <T style={body(13.5, 1.6, { color: C.i55 })}>
-                {t('pub.noWorks')}
-              </T>
-            ) : (
-              works.map((w) => {
-                const st = MOD_LABEL[w.status]
-                return (
-                  <Panel key={w.id} style={styles.workRow}>
-                    <Image source={{ uri: w.image_url }} style={styles.workThumb} resizeMode="cover" />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <T style={disp(14, 1.15)} numberOfLines={1}>
-                        {w.title}
-                      </T>
-                      <T style={[mono(10, 1.3, { color: C.i55 }), { marginTop: 3 }]}>
-                        {`${t('mk.plus', { price: fmt(w.markup) })}${w.sold ? ` · ${t('pub.soldTag', { n: w.sold })}` : ''}`}
-                      </T>
-                      <View style={[styles.statusChip, { borderColor: st.c }]}>
-                        <T style={monoSemi(9, 1, { ls: 0.12, upper: true, color: st.c })}>{t(st.key)}</T>
-                      </View>
-                      {w.status === 'rejected' && w.reject_note ? (
-                        <T style={[body(11, 1.5, { color: C.i55 }), { marginTop: 6 }]}>
-                          {w.reject_note}
-                        </T>
-                      ) : null}
-                    </View>
-                  </Panel>
-                )
-              })
-            )}
-          </>
-        ) : null}
+        <View style={styles.assure}>
+          <ShieldIcon />
+          <T style={[body(12, 16 / 12, { color: C.i70 }), { flex: 1 }]}>{t('pub.moderationNote')}</T>
+        </View>
 
-        {/* Step 1 — choose a file. */}
-        {step === 1 ? (
-          <>
-            <T style={[body(13.5, 1.6, { color: C.i55 }), { marginBottom: 16 }]}>
-              {t('pub.step1Body')}
-            </T>
-            <Tap onPress={pick}>
-              <Hatch style={styles.dropzone}>
-                <View style={styles.dropPlus}>
-                  <T style={{ fontSize: 24, lineHeight: 30, color: C.white }}>+</T>
+        <Button title={t('pub.submit')} loading={busy} disabled={uploading || !key || markupBad} onPress={submit} />
+      </Screen>
+    )
+  }
+
+  // ── W41 — cabinet ──────────────────────────────────────────────────────────
+  const failed = works.error ?? stats.error
+  const list = works.data ?? []
+  return (
+    <Screen
+      header={<BackHeader title={t('pub.cabinet')} onBack={() => goBack(router, '/market')} />}
+      bottom={
+        <BottomBar>
+          <Button
+            title={t('pub.upload')}
+            icon={<Upload size={18} color={C.ink} width={2.4} />}
+            onPress={() => setStep(1)}
+          />
+        </BottomBar>
+      }
+    >
+      <View style={styles.handleChip}>
+        <T style={monoSemi(12, 4 / 3, { ls: 0.06 })}>{t('pub.designerChip', { handle: handle ?? '' })}</T>
+      </View>
+
+      {failed && !works.data ? (
+        isOffline(failed) ? (
+          <OfflineState onRetry={refreshAll} />
+        ) : (
+          <View style={{ gap: 16 }}>
+            <T style={body(14, 1.6, { color: C.i70 })}>{failed.message}</T>
+            <Button title={t('common.retry')} variant="ink" onPress={refreshAll} />
+          </View>
+        )
+      ) : (
+        <>
+          {stats.data ? (
+            <>
+              <StatGrid
+                items={[
+                  { label: t('pub.earned'), value: `${fmt(stats.data.earned)} ${t('common.sum')}` },
+                  { label: t('pub.payable'), value: `${fmt(stats.data.earned_settled)} ${t('common.sum')}` },
+                  { label: t('dz.sold'), value: t('pub.soldUnits', { n: stats.data.units_sold }) },
+                  {
+                    label: t('pub.inCatalog'),
+                    value: t('pub.ofTotal', { a: stats.data.works_approved, b: stats.data.works_total }),
+                  },
+                ]}
+              />
+              <Note>{t('pub.shareNote', { pct: 100 - stats.data.commission_pct })}</Note>
+            </>
+          ) : stats.loading ? (
+            <Skeleton height={96} lines={[]} />
+          ) : null}
+
+          <View style={{ gap: 8 }}>
+            <SectionLabel>{t('dz.works')}</SectionLabel>
+            {!works.data ? (
+              <Skeleton height={60} lines={['50%']} />
+            ) : list.length === 0 ? (
+              <T style={body(14, 20 / 14, { color: C.i70 })}>{t('pub.noWorks')}</T>
+            ) : (
+              list.map((w) => (
+                <WorkRow
+                  key={w.id}
+                  work={w}
+                  meta={`${t('mk.plus', { price: fmt(w.markup) })}${w.sold ? ` · ${t('pub.soldTag', { n: w.sold })}` : ''}`}
+                />
+              ))
+            )}
+          </View>
+
+          {stats.data?.sales.length ? (
+            <View style={{ gap: 8 }}>
+              <SectionLabel>{t('pub.recentSales')}</SectionLabel>
+              {stats.data.sales.slice(0, 5).map((sale) => (
+                <View key={sale.id} style={styles.sale}>
+                  <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    <T style={disp(15, 1.2)} numberOfLines={1}>
+                      {sale.artwork_title}
+                    </T>
+                    <T style={mono(12, 4 / 3, { color: C.i70 })}>
+                      {t('pub.saleMeta', { id: sale.order_id, n: sale.quantity, status: statusLabel(sale.order_status, t) })}
+                    </T>
+                  </View>
+                  <T style={monoBold(14, 1.3)}>{`+${fmt(sale.designer_share)}`}</T>
                 </View>
-                <T style={disp(14, 1, { ls: 0.06, upper: true })}>{t('pub.pickFile')}</T>
-                <T style={mono(10, 1.4, { ls: 0.1, upper: true, color: C.i38 })}>
-                  {t('pub.fileSpec')}
-                </T>
-              </Hatch>
-            </Tap>
-            <View style={styles.reqs}>
-              <T style={[labelType(), { marginBottom: 8 }]}>{t('pub.reqs')}</T>
-              {[
-                t('pub.req1'),
-                t('pub.req2'),
-                t('pub.req3'),
-              ].map((t) => (
-                <T key={t} style={[body(11.5, 1.5, { color: C.i70 }), { marginBottom: 5 }]}>
-                  {`— ${t}`}
-                </T>
               ))}
             </View>
-          </>
-        ) : null}
-
-        {/* Step 2 — title, tags, markup. */}
-        {step === 2 && file ? (
-          <>
-            <Panel style={styles.fileCard}>
-              <Image source={{ uri: file.uri }} style={styles.filePreview} resizeMode="cover" />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <T style={disp(13, 1.2)} numberOfLines={1}>
-                  {file.name}
-                </T>
-                <T style={[mono(10.5, 1.4, { color: C.i55 }), { marginTop: 3 }]}>
-                  {`${file.w}×${file.h} · ${(file.size / 1024 / 1024).toFixed(1)} MB`}
-                </T>
-                <T
-                  style={[
-                    monoSemi(9.5, 1, {
-                      ls: 0.1,
-                      upper: true,
-                      color: uploading ? C.amber : key ? C.green : C.deep,
-                    }),
-                    { marginTop: 4 },
-                  ]}
-                >
-                  {uploading ? t('pub.uploadingFile') : key ? t('pub.fileOk') : t('pub.fileFail')}
-                </T>
-              </View>
-            </Panel>
-
-            <Field label={t('pub.titleField')} value={title} onChange={setTitle} placeholder={t('pub.titlePh')} />
-            <Field label={t('pub.tags')} value={tags} onChange={setTags} placeholder={t('pub.tagsPh')} />
-
-            <ArtworkCategories categories={categories} value={categoryId} onChange={setCategoryId} />
-            <View style={{ marginBottom: 11 }}>
-              <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{t('pub.markup')}</T>
-              <View style={{ flexDirection: 'row', gap: 7 }}>
-                {MARKUPS.map((v) => {
-                  const on = v === markup
-                  return (
-                    <Tap
-                      key={v}
-                      onPress={() => setMarkup(v)}
-                      style={[
-                        styles.markup,
-                        { backgroundColor: on ? C.ink : C.white },
-                        on ? offset(2, C.coral) : noShadow,
-                      ]}
-                    >
-                      <T
-                        style={{
-                          ...mono(12, 1, { color: on ? C.paper : C.i70 }),
-                          fontFamily: 'IBMPlexMono_600SemiBold',
-                        }}
-                      >
-                        {fmt(v)}
-                      </T>
-                    </Tap>
-                  )
-                })}
-              </View>
-              <T style={[body(10.5, 1.5, { color: C.i38 }), { marginTop: 8 }]}>
-                {t('pub.markupNote', { markup: fmt(markup), share: fmt(Math.round(markup * 0.7)) })}
-              </T>
-            </View>
-
-            <Button
-              title={t('pub.submit')}
-              size={16}
-              vPad={17}
-              loading={busy}
-              disabled={uploading || !key || !chosen || !!categories.error}
-              onPress={submit}
-            />
-          </>
-        ) : null}
-
-        {/* Step 3 — submitted. */}
-        {step === 3 ? (
-          <>
-            <Panel raised raisedColor={C.coral} style={{ padding: 18, marginBottom: 16 }}>
-              <T style={[monoSemi(10, 1, { ls: 0.2, upper: true, color: C.amber }), { marginBottom: 8 }]}>
-                {t('pub.reviewTime')}
-              </T>
-              <T style={[disp(20, 1.1, { ls: -0.02 }), { marginBottom: 6 }]}>{title || t('pub.yourWork')}</T>
-              <T style={body(12.5, 1.6, { color: C.i55 })}>
-                {t('pub.sentBody')}
-              </T>
-            </Panel>
-            <Button title={t('pub.uploadAnother')} variant="outline" size={12.5} vPad={15} onPress={reset} />
-          </>
-        ) : null}
-      </ScrollView>
-    </View>
-  )
-}
-
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <View style={[styles.stat, accent && { backgroundColor: C.ink }]}>
-      <T style={monoSemi(9, 1, { ls: 0.16, upper: true, color: accent ? C.onInk55 : C.i55 })}>{label}</T>
-      <T style={[disp(17, 1, { ls: -0.02, color: accent ? C.paper : C.ink }), { marginTop: 5 }]} numberOfLines={1}>
-        {value}
-      </T>
-    </View>
-  )
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder: string
-}) {
-  return (
-    <View style={{ marginBottom: 11 }}>
-      <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{label}</T>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={C.i38}
-        style={styles.input}
-        allowFontScaling={false}
-      />
-    </View>
+          ) : null}
+        </>
+      )}
+    </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 24 },
-  back: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingBottom: 14 },
-  progress: { flexDirection: 'row', gap: 5, marginTop: 16, marginBottom: 20 },
-  statsRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  stat: { flex: 1, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white, padding: 11 },
-  saleRow: {
+  page: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, gap: 14 },
+  how: { borderTopWidth: 1, borderTopColor: C.line },
+  howRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 9,
+    gap: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: C.line,
   },
-  dropzone: {
-    aspectRatio: 4 / 3,
+  assure: { flexDirection: 'row', gap: 8 },
+  handleChip: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     borderWidth: RULE,
-    borderStyle: 'dashed',
     borderColor: C.ink,
     backgroundColor: C.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 14,
   },
-  dropPlus: {
-    width: 44,
-    height: 44,
+  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10 },
+  fileHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  req: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reqDot: { width: 8, height: 8, backgroundColor: C.coral },
+  preview: {
+    gap: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: RULE,
+    borderColor: C.ink,
+    backgroundColor: C.white,
+  },
+  done: {
+    width: 84,
+    height: 84,
     borderWidth: RULE,
     borderColor: C.ink,
     backgroundColor: C.coral,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 3,
   },
-  reqs: { borderWidth: 1, borderColor: C.line, backgroundColor: C.white, padding: 13 },
-  fileCard: { flexDirection: 'row', gap: 12, padding: 11, marginBottom: 16 },
-  filePreview: { width: 68, height: 68, borderWidth: 1, borderColor: C.ink },
-  workRow: { flexDirection: 'row', gap: 12, padding: 11, marginBottom: 10 },
-  workThumb: { width: 64, height: 64, borderWidth: 1, borderColor: C.line },
-  statusChip: {
+  reviewChip: {
     alignSelf: 'flex-start',
-    borderWidth: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    marginTop: 6,
-  },
-  handleField: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    borderWidth: RULE,
-    borderColor: C.ink,
-    backgroundColor: C.white,
-  },
-  at: {
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-    borderRightWidth: RULE,
-    borderRightColor: C.ink,
-    backgroundColor: C.paper,
-  },
-  handleInput: {
-    flex: 1,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: C.ink,
-  },
-  input: {
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    borderWidth: RULE,
-    borderColor: C.ink,
-    backgroundColor: C.white,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: C.ink,
-  },
-  markup: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderWidth: RULE,
-    borderColor: C.ink,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderWidth: RULE,
+    borderColor: C.ink,
+    backgroundColor: C.white,
+  },
+  sentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10 },
+  sale: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.line,
   },
 })
