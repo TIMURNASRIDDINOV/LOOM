@@ -173,7 +173,7 @@ export const ru = {
   'product.readyChip': 'готовый дизайн',
   'product.colors': 'Цвета',
   'product.size': 'Размер',
-  'product.addToCart': 'В корзину · {price}',
+  'product.addToCart': 'В корзину · {price} сум',
   'product.added': 'Добавлено в корзину',
 
   // ── Cart ──────────────────────────────────────────────────────────────────
@@ -601,7 +601,7 @@ export const uz: Dictionary = {
   'product.readyChip': 'tayyor dizayn',
   'product.colors': 'Ranglar',
   'product.size': 'O‘lcham',
-  'product.addToCart': 'Savatga · {price}',
+  'product.addToCart': 'Savatga · {price} so‘m',
   'product.added': 'Savatga qo‘shildi',
 
   'cart.title': 'Savatcha',
@@ -1012,7 +1012,7 @@ export const en: Dictionary = {
   'product.readyChip': 'ready design',
   'product.colors': 'Colours',
   'product.size': 'Size',
-  'product.addToCart': 'Add to cart · {price}',
+  'product.addToCart': 'Add to cart · {price} UZS',
   'product.added': 'Added to cart',
 
   'cart.title': 'Cart',
