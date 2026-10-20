@@ -170,18 +170,18 @@ bot's menu button at the Mini App URL (`APP_URL`, default
 > section in the same PR.
 
 A customer describes a print in words. The Worker draws it with an AI model,
-removes the background and returns a few variants that the customer can put on
-a garment.
+removes the background and returns one image that the customer can put on a
+garment.
 
-**Set by the founder in LOOM-254, not here:** the number of variants per run,
-the model, and the server wait limit behind `timeout` (60 s unless the founder
-changes it). The examples use 4 variants. The app must render any variant count
-from 1 to 4.
+**One run returns exactly one image** (founder decision, 2026-10-20).
+`variants` stays an array, but it always has length 1, so the response shape
+and the report call `{ runId, variant }` stay stable; `variant` is always `0`.
+The server wait limit behind `timeout` is 60 s. The model is set in LOOM-254.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/lab/status` | optional | Server switch, sign-in state and the caller's balance |
-| POST | `/api/lab/generate` | Bearer | `{ prompt, style }` — one run; returns its variants |
+| POST | `/api/lab/generate` | Bearer | `{ prompt, style }` — one run; returns its one variant |
 | GET | `/api/lab/history` | Bearer | The caller's successful runs, newest first |
 | POST | `/api/lab/report` | Bearer | `{ runId, variant, reason? }` — report one variant |
 
@@ -198,8 +198,8 @@ Founder decision, 2026-10-20.
   `delivered`. Each order adds its bonus once, even if the status leaves
   `delivered` and comes back. Orders placed anywhere else (the website) add
   nothing. LOOM-254 defines how an order is marked as placed from the app.
-- A run spends 1 when `POST /api/lab/generate` returns `200`, whatever the
-  number of variants. "Qayta chizish" (regenerate) is a new run.
+- A run spends 1 when `POST /api/lab/generate` returns `200`. "Qayta chizish"
+  (regenerate) is a new run and spends 1.
 - Any other response spends nothing: every refusal and every failure in the
   error table below. The app labels refused and failed runs "Limitdan
   hisoblanmadi" (not counted).
@@ -248,8 +248,8 @@ Auth: Bearer.
 
 The call is synchronous: the Worker answers when the run is done, at most the
 server wait limit later (then `timeout`). Set the app's request timeout above
-that limit, for example 90 s. If some images fail but at least one variant is
-ready, the run succeeds with fewer variants and counts.
+that limit, for example 90 s. If the image or its cutout fails, the run fails
+and spends nothing.
 
 Response `200`:
 
@@ -260,10 +260,7 @@ Response `200`:
   "prompt": "so‘zana uslubidagi anor naqshi",
   "style": "minimal",
   "variants": [
-    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/0.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/0.png", "width": 3500, "height": 4700, "lowQuality": false },
-    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/1.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/1.png", "width": 3500, "height": 4700, "lowQuality": false },
-    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/2.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/2.png", "width": 1024, "height": 1024, "lowQuality": true },
-    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/3.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/3.png", "width": 3500, "height": 4700, "lowQuality": false }
+    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/0.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/0.png", "width": 3500, "height": 4700, "lowQuality": false }
   ],
   "remaining": 2
 }
@@ -274,10 +271,10 @@ Response `200`:
 | `url` | Absolute URL of the PNG, transparent background. It is `GET /api/uploads/:key`, so it needs the caller's token (React Native: `<Image source={{ uri, headers }}>`). |
 | `uploadKey` | The caller's own upload key. Use it wherever a key from `POST /api/uploads` is accepted (studio art, `POST /api/cart`, checkout). "Kiyimga qo‘yish" calls `setArt({ uri: url, uploadKey, price: 0 })`. Treat the value as opaque. |
 | `width`, `height` | Pixel size of that PNG. |
-| `lowQuality` | `true` when the PNG is below the print-size target (about 3500 × 4700 px for a full front print; LOOM-256 sets it). The variant can still go on a garment; the app shows the "past sifat" badge. Until LOOM-256 ships, expect `true` on most variants. |
+| `lowQuality` | `true` when the PNG is below the print-size target (about 3500 × 4700 px for a full front print; LOOM-256 sets it). The variant can still go on a garment; the app shows the "past sifat" badge. Until LOOM-256 ships, expect `true`. |
 
-A variant is addressed by its 0-based position in `variants`. History returns
-the same order.
+A variant is addressed by its 0-based position in `variants`, which is always
+`0`.
 
 ### GET /api/lab/history
 
@@ -312,7 +309,7 @@ does not check `LAB_ENABLED`.
 }
 ```
 
-Each run has the shape of the generate response without `remaining`. The first example is shortened to one variant. No runs:
+Each run has the shape of the generate response without `remaining`. No runs:
 `{ "runs": [], "page": 1, "hasMore": false }`.
 
 ### POST /api/lab/report
@@ -321,13 +318,13 @@ Auth: Bearer. Ships with LOOM-255, which also stores the reports and shows them
 in admin.
 
 ```json
-{ "runId": "3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42", "variant": 2, "reason": "Boshqa brendning logotipi" }
+{ "runId": "3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42", "variant": 0, "reason": "Boshqa brendning logotipi" }
 ```
 
 | Field | Rule |
 |-------|------|
 | `runId` | Required. A run of the caller. |
-| `variant` | Required integer, the 0-based position in that run's `variants`. |
+| `variant` | Required integer, the 0-based position in that run's `variants` (always `0`). |
 | `reason` | Optional string, at most 500 characters. |
 
 Response `201`: `{ "ok": true }`. Reporting the same variant again also returns
