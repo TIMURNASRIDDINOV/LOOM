@@ -2,8 +2,8 @@ import React from 'react'
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg'
 import { C } from '../theme/tokens'
 
-// Every path here is transcribed from the prototype's inline SVGs so the icon
-// silhouettes match the design exactly. Feather-style: 24×24 box, round caps.
+// Every path here is transcribed from the design's inline SVGs so the icon
+// silhouettes match exactly. 24×24 box; v2 draws square caps and mitred joins.
 
 type P = { size?: number; color?: string; width?: number }
 
@@ -17,8 +17,8 @@ const base = (size: number) => ({
 const stroke = (color: string, width: number) => ({
   stroke: color,
   strokeWidth: width,
-  strokeLinecap: 'round' as const,
-  strokeLinejoin: 'round' as const,
+  strokeLinecap: 'square' as const,
+  strokeLinejoin: 'miter' as const,
 })
 
 export function ChevronLeft({ size = 19, color = C.ink, width = 2 }: P) {
@@ -46,24 +46,12 @@ export function Close({ size = 22, color = C.ink, width = 1.8 }: P) {
   )
 }
 
-export function Search({ size = 17, color = C.ink, width = 2 }: P) {
+/** The v2 bag — the cart button on every app bar. */
+export function Cart({ size = 22, color = C.ink, width = 2 }: P) {
   return (
     <Svg {...base(size)}>
-      <Circle cx="11" cy="11" r="7" {...stroke(color, width)} />
-      <Line x1="21" y1="21" x2="16.5" y2="16.5" {...stroke(color, width)} />
-    </Svg>
-  )
-}
-
-export function Cart({ size = 17, color = C.ink, width = 1.7 }: P) {
-  return (
-    <Svg {...base(size)}>
-      <Circle cx="9" cy="21" r="1" {...stroke(color, width)} />
-      <Circle cx="20" cy="21" r="1" {...stroke(color, width)} />
-      <Path
-        d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
-        {...stroke(color, width)}
-      />
+      <Path d="M4 8h16l-1.5 12h-13z" {...stroke(color, width)} />
+      <Path d="M9 8V6a3 3 0 0 1 6 0v2" {...stroke(color, width)} />
     </Svg>
   )
 }
@@ -149,44 +137,129 @@ export function Telegram({ size = 18, color = C.white }: P) {
 }
 
 // ─── Tab bar ─────────────────────────────────────────────────────────────────
-// The first cut labelled the tabs in 9px mono at 38% opacity with no glyph,
-// which read as disabled text rather than navigation. These give each tab a
-// silhouette that survives at thumb distance.
+// Transcribed from the TabBar artboard: 24px, 2px stroke.
 
-export function HomeIcon({ size = 20, color = C.ink, width = 1.8 }: P) {
+export function HomeIcon({ size = 24, color = C.ink, width = 2 }: P) {
   return (
     <Svg {...base(size)}>
-      <Path d="M3 10.5 12 3l9 7.5" {...stroke(color, width)} />
-      <Path d="M5.5 9.5V20h13V9.5" {...stroke(color, width)} />
+      <Path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z" {...stroke(color, width)} />
     </Svg>
   )
 }
 
-export function GridIcon({ size = 20, color = C.ink, width = 1.8 }: P) {
+export function GridIcon({ size = 24, color = C.ink, width = 2 }: P) {
   return (
     <Svg {...base(size)}>
-      <Rect x="3.5" y="3.5" width="7" height="7" {...stroke(color, width)} />
-      <Rect x="13.5" y="3.5" width="7" height="7" {...stroke(color, width)} />
-      <Rect x="3.5" y="13.5" width="7" height="7" {...stroke(color, width)} />
-      <Rect x="13.5" y="13.5" width="7" height="7" {...stroke(color, width)} />
+      <Rect x="4" y="4" width="6.5" height="6.5" {...stroke(color, width)} />
+      <Rect x="13.5" y="4" width="6.5" height="6.5" {...stroke(color, width)} />
+      <Rect x="4" y="13.5" width="6.5" height="6.5" {...stroke(color, width)} />
+      <Rect x="13.5" y="13.5" width="6.5" height="6.5" {...stroke(color, width)} />
     </Svg>
   )
 }
 
-export function BoxIcon({ size = 20, color = C.ink, width = 1.8 }: P) {
+export function BoxIcon({ size = 24, color = C.ink, width = 2 }: P) {
   return (
     <Svg {...base(size)}>
-      <Path d="M3.5 7.5 12 3.5l8.5 4v9L12 20.5l-8.5-4z" {...stroke(color, width)} />
-      <Path d="M3.5 7.5 12 11.5l8.5-4M12 11.5v9" {...stroke(color, width)} />
+      <Path d="M20 8 12 4 4 8v8l8 4 8-4z" {...stroke(color, width)} />
+      <Path d="M4 8l8 4 8-4M12 12v8" {...stroke(color, width)} />
     </Svg>
   )
 }
 
-export function UserIcon({ size = 20, color = C.ink, width = 1.8 }: P) {
+export function UserIcon({ size = 24, color = C.ink, width = 2 }: P) {
   return (
     <Svg {...base(size)}>
-      <Circle cx="12" cy="8" r="4" {...stroke(color, width)} />
-      <Path d="M4.5 20.5c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5" {...stroke(color, width)} />
+      <Circle cx="12" cy="8.5" r="3.5" {...stroke(color, width)} />
+      <Path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+// ─── v2 actions ──────────────────────────────────────────────────────────────
+
+/** The back arrow in every v2 header (W13, W14, W18…). */
+export function ArrowLeft({ size = 20, color = C.ink, width = 2.4 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M19 12H5M11 6l-6 6 6 6" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+export function Plus({ size = 16, color = C.ink, width = 2.6 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M12 5v14M5 12h14" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+export function Minus({ size = 16, color = C.ink, width = 2.6 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M5 12h14" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+export function Trash({ size = 20, color = C.ink, width = 2 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+/** Map pin — delivery address (W16), account address row (W33). */
+export function Pin({ size = 20, color = C.ink, width = 2.4 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M12 21s-6-6.2-6-11a6 6 0 0 1 12 0c0 4.8-6 11-6 11z" {...stroke(color, width)} />
+      <Circle cx="12" cy="10" r="2.2" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+/** Flag — the Report action on every Lab result (W25). */
+export function Flag({ size = 18, color = C.inactive, width = 2.2 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M5 21V4M5 4h12l-2 4 2 4H5" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+export const Report = Flag
+
+/** Circular arrow — retry and regenerate (W12, W25, W31). */
+export function Refresh({ size = 18, color = C.ink, width = 2.4 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" {...stroke(color, width)} />
+    </Svg>
+  )
+}
+
+/** Struck-through signal — the offline state (W12). */
+export function WifiOff({ size = 28, color = C.ink, width = 2.2 }: P) {
+  return (
+    <Svg {...base(size)}>
+      <Path
+        d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 4-2.3M19 12.5a10 10 0 0 0-3.2-2M2 8.5a15 15 0 0 1 4.5-2.8M22 8.5A15 15 0 0 0 11 5M12 20h.01"
+        {...stroke(color, width)}
+      />
+    </Svg>
+  )
+}
+
+/** Apple logo, filled — Sign in with Apple (W06). */
+export function Apple({ size = 18, color = C.ink }: P) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill={color}
+        d="M12.15 6.9c-.95 0-2.42-1.08-3.96-1.04-2.04.03-3.91 1.18-4.96 3.01-2.12 3.68-.55 9.1 1.52 12.09 1.01 1.45 2.2 3.09 3.79 3.04 1.52-.07 2.09-.99 3.93-.99 1.83 0 2.35.99 3.96.95 1.64-.03 2.68-1.48 3.68-2.95 1.16-1.69 1.64-3.33 1.66-3.42-.04-.01-3.18-1.22-3.22-4.86-.03-3.04 2.48-4.49 2.6-4.56-1.43-2.09-3.62-2.32-4.39-2.38-2-.16-3.68 1.09-4.61 1.09zm3.38-3.07c.84-1.01 1.4-2.43 1.25-3.83-1.21.05-2.66.8-3.53 1.82-.78.9-1.46 2.34-1.27 3.71 1.34.1 2.71-.69 3.55-1.7z"
+      />
     </Svg>
   )
 }

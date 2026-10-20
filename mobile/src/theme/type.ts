@@ -37,12 +37,12 @@ export const monoSemi = (size: number, lh = 1.4, o: Opts = {}) => make(F.monoSem
 export const monoBold = (size: number, lh = 1.2, o: Opts = {}) => make(F.monoBold, size, lh, o)
 
 /**
- * The recurring eyebrow: uppercase mono, wide tracking, muted.
- * `font:600 10.5px/1.4 mono; letter-spacing:.26em; text-transform:uppercase`
+ * The recurring eyebrow: uppercase mono, wide tracking, accent-deep.
+ * `font:600 12px/16px mono; letter-spacing:.26em; text-transform:uppercase`
  */
-export const kicker = (size = 10.5, o: Opts = {}) =>
-  monoSemi(size, 1.4, { ls: 0.26, upper: true, color: C.deep, ...o })
+export const kicker = (size = 12, o: Opts = {}) =>
+  monoSemi(size, 4 / 3, { ls: 0.26, upper: true, color: C.deep, ...o })
 
-/** Field/section label: `600 9.5px mono, .14em, uppercase, i55`. */
-export const label = (size = 9.5, o: Opts = {}) =>
-  monoSemi(size, 1, { ls: 0.14, upper: true, color: C.i55, ...o })
+/** Field/section label: `600 12px/16px mono, .14em, uppercase, ink-70`. */
+export const label = (size = 12, o: Opts = {}) =>
+  monoSemi(size, 4 / 3, { ls: 0.14, upper: true, color: C.i70, ...o })
