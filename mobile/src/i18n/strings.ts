@@ -132,10 +132,6 @@ export const ru = {
   'login.expired': 'Сессия истекла — попробуйте ещё раз',
 
   // ── Home ──────────────────────────────────────────────────────────────────
-  'home.kicker': 'Ташкент · доставка 2–4 дня',
-  'home.hero1': 'Носи',
-  'home.hero2': 'то, что ты',
-  'home.hero3': 'придумал.',
   'home.resume': 'Продолжить',
   'home.blank': 'чистый холст',
   'home.layer1': '{n} слой',
@@ -162,15 +158,10 @@ export const ru = {
   'catalog.readySection': 'Готовые дизайны',
   'catalog.readyNote': 'выберите размер',
   'catalog.empty': 'Каталог пока пуст.',
-  'catalog.readyChip': 'готовый',
-  'catalog.customize': 'Настроить',
-  'catalog.toCart': 'В корзину',
   'catalog.readyDesign': 'Готовый дизайн',
-  'catalog.addedSize': '{name} · {size} — в корзине',
 
   // ── Product ───────────────────────────────────────────────────────────────
   'product.toCatalog': 'В каталог',
-  'product.readyChip': 'готовый дизайн',
   'product.colors': 'Цвета',
   'product.size': 'Размер',
   'product.addToCart': 'В корзину · {price} сум',
@@ -220,8 +211,6 @@ export const ru = {
   'co.errEmpty': 'Корзина пуста',
   'co.errVerify': 'Подтвердите номер через Telegram',
   'co.errPayOpen': 'Не удалось открыть оплату',
-  'co.summaryName': 'Имя',
-  'co.summaryAddress': 'Адрес',
 
   // ── Orders ────────────────────────────────────────────────────────────────
   'orders.title': 'Заказы',
@@ -562,10 +551,6 @@ export const uz: Dictionary = {
   'login.created': 'Hisob yaratildi',
   'login.expired': 'Sessiya muddati tugadi — qayta urinib ko‘ring',
 
-  'home.kicker': 'Toshkent · 2–4 kunda yetkazish',
-  'home.hero1': 'Tasavvurni',
-  'home.hero2': 'kiyimga',
-  'home.hero3': 'aylantiring.',
   'home.resume': 'Davom etish',
   'home.blank': 'bo‘sh asos',
   'home.layer1': '{n} qatlam',
@@ -591,14 +576,9 @@ export const uz: Dictionary = {
   'catalog.readySection': 'Tayyor dizaynlar',
   'catalog.readyNote': 'o‘lchamni tanlang',
   'catalog.empty': 'Katalog hozircha bo‘sh.',
-  'catalog.readyChip': 'tayyor',
-  'catalog.customize': 'Sozlash',
-  'catalog.toCart': 'Savatga',
   'catalog.readyDesign': 'Tayyor dizayn',
-  'catalog.addedSize': '{name} · {size} — savatda',
 
   'product.toCatalog': 'Katalogga',
-  'product.readyChip': 'tayyor dizayn',
   'product.colors': 'Ranglar',
   'product.size': 'O‘lcham',
   'product.addToCart': 'Savatga · {price} so‘m',
@@ -646,8 +626,6 @@ export const uz: Dictionary = {
   'co.errEmpty': 'Savat bo‘sh',
   'co.errVerify': 'Raqamni Telegram orqali tasdiqlang',
   'co.errPayOpen': 'To‘lovni ochib bo‘lmadi',
-  'co.summaryName': 'Ism',
-  'co.summaryAddress': 'Manzil',
 
   'orders.title': 'Buyurtmalar',
   'orders.signIn': 'Buyurtmalaringizni ko‘rish va ishlab chiqarishni kuzatish uchun kiring.',
@@ -973,10 +951,6 @@ export const en: Dictionary = {
   'login.created': 'Account created',
   'login.expired': 'Session expired — try again',
 
-  'home.kicker': 'Tashkent · delivery in 2–4 days',
-  'home.hero1': 'Wear',
-  'home.hero2': 'what you',
-  'home.hero3': 'imagine.',
   'home.resume': 'Continue',
   'home.blank': 'blank canvas',
   'home.layer1': '{n} layer',
@@ -1002,14 +976,9 @@ export const en: Dictionary = {
   'catalog.readySection': 'Ready designs',
   'catalog.readyNote': 'pick a size',
   'catalog.empty': 'The catalog is empty for now.',
-  'catalog.readyChip': 'ready',
-  'catalog.customize': 'Customise',
-  'catalog.toCart': 'Add to cart',
   'catalog.readyDesign': 'Ready design',
-  'catalog.addedSize': '{name} · {size} — in your cart',
 
   'product.toCatalog': 'To the catalog',
-  'product.readyChip': 'ready design',
   'product.colors': 'Colours',
   'product.size': 'Size',
   'product.addToCart': 'Add to cart · {price} UZS',
@@ -1057,8 +1026,6 @@ export const en: Dictionary = {
   'co.errEmpty': 'Your cart is empty',
   'co.errVerify': 'Verify your number via Telegram',
   'co.errPayOpen': 'Couldn’t open the payment page',
-  'co.summaryName': 'Name',
-  'co.summaryAddress': 'Address',
 
   'orders.title': 'Orders',
   'orders.signIn': 'Sign in to see your orders and track production.',
