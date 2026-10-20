@@ -4,7 +4,9 @@
   window.LOOM_CONFIG = {
     API_BASE: (h === 'localhost' || h === '127.0.0.1')
       ? 'http://localhost:8787'
-      : 'https://api.loomdesign.uz',
+      : /^[a-z0-9-]+\.loom-site-d94\.pages\.dev$/.test(h)
+        ? 'https://loom-backend-staging.timurnasriddinov56.workers.dev'
+        : 'https://api.loomdesign.uz',
   }
 
   // Feature flags. `lab` is the customer-facing LOOM Lab (AI print generation):

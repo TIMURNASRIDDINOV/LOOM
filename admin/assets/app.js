@@ -5,6 +5,9 @@
 const API_BASE = (() => {
   const h = window.location.hostname
   if (h === 'localhost' || h === '127.0.0.1') return 'http://localhost:8787'
+  if (/^[a-z0-9-]+\.loom-site-d94\.pages\.dev$/.test(h)) {
+    return 'https://loom-backend-staging.timurnasriddinov56.workers.dev'
+  }
   return 'https://api.loomdesign.uz'
 })()
 

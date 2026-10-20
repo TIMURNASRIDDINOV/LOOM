@@ -44,7 +44,11 @@ app.use('*', (c, next) => {
   const allowed =
     c.env.ENVIRONMENT === 'production' ? PROD_ORIGINS : [...PROD_ORIGINS, ...DEV_ORIGINS]
   return cors({
-    origin: (origin) => (allowed.includes(origin) ? origin : PROD_ORIGINS[0]),
+    origin: (origin) => (
+      allowed.includes(origin) || (
+        c.env.ENVIRONMENT === 'staging' && /^https:\/\/[a-z0-9-]+\.loom-site-d94\.pages\.dev$/.test(origin)
+      ) ? origin : PROD_ORIGINS[0]
+    ),
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
