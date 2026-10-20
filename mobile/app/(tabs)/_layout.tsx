@@ -49,7 +49,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
         haptic
         accessibilityRole="tab"
         accessibilityLabel={t(tab.label)}
-        accessibilityState={{ selected: focused }}
+        aria-selected={focused}
         style={styles.tab}
         onPress={() => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true })

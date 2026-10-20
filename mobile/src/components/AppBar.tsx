@@ -122,7 +122,7 @@ export function StepHeader({
             key={s}
             disabled={!onStep}
             accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
+            aria-selected={on}
             onPress={() => onStep?.(i)}
             style={[styles.step, i > 0 && styles.stepRule]}
           >
