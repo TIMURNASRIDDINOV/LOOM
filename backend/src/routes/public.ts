@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono'
 import {
   getActiveProducts, createOrder, getProductById, getProductBySlug, getOrdersByUserId,
+  getOrderById, getOrderItemsByOrderId, getOrderStatusLog,
   getUserNotifications, recordUpload, isOwnUpload, firstForeignKey,
 } from '../db/queries'
 import { validateUpload, generateLogoKey, serveObject } from '../lib/r2'
@@ -261,6 +262,20 @@ meRouter.get('/orders', requireAuth, async (c) => {
   const limit = 20
   const { orders, total } = await getOrdersByUserId(c.env.DB, c.get('userId'), page, limit)
   return c.json({ orders, page, limit, total })
+})
+
+// One order of the caller: the row, its line items and its status history.
+// Someone else's order and a missing order both answer 404, so an id never
+// reveals whether another customer's order exists.
+meRouter.get('/orders/:id{[0-9]+}', requireAuth, async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  const order = await getOrderById(c.env.DB, id)
+  if (!order || order.user_id !== c.get('userId')) return c.json({ error: 'Not found' }, 404)
+  const [items, log] = await Promise.all([getOrderItemsByOrderId(c.env.DB, id), getOrderStatusLog(c.env.DB, id)])
+  // The log's `changed_by` is an admin id and stays on the server; `note` is the
+  // text the customer already got in Telegram with the status change.
+  const status_log = log.map(({ old_status, new_status, changed_at, note }) => ({ old_status, new_status, changed_at, note }))
+  return c.json({ order, items, status_log })
 })
 
 meRouter.get('/notifications', requireAuth, async (c) => {
