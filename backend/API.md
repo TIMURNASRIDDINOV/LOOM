@@ -161,6 +161,218 @@ bot's menu button at the Mini App URL (`APP_URL`, default
 
 ---
 
+## LOOM Lab (customer)
+
+> **Status: contract.** None of these routes exist on the Worker yet. They
+> return `404` until LOOM-254 ships status, generate and history, and LOOM-255
+> ships report and `prompt_refused`. The app (LOOM-250) and the Worker build
+> against this section. If the implementation must change it, change this
+> section in the same PR.
+
+A customer describes a print in words. The Worker draws it with an AI model,
+removes the background and returns a few variants that the customer can put on
+a garment.
+
+**Set by the founder in LOOM-254, not here:** the per-customer daily limit
+(`limit`), the number of variants per run, the model, and the server wait limit
+behind `timeout` (60 s unless the founder changes it). The examples use a limit
+of 5 and 4 variants. The app must render any variant count from 1 to 4.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/lab/status` | optional | Server switch, sign-in state and today's quota |
+| POST | `/api/lab/generate` | Bearer | `{ prompt, style }` — one run; returns its variants |
+| GET | `/api/lab/history` | Bearer | The caller's successful runs, newest first |
+| POST | `/api/lab/report` | Bearer | `{ runId, variant, reason? }` — report one variant |
+
+"Bearer" means `Authorization: Bearer <token>` or the `user_token` cookie, as
+for `/api/me/orders`. Times are epoch ms (UTC), as in the rest of the API.
+
+### Daily limit
+
+- A customer can complete `limit` runs per day. The day resets at 00:00 UTC
+  (05:00 in Tashkent). `resetsAt` is that instant; the app shows it in local time
+  and relies only on `resetsAt`, so LOOM-254 can move the reset.
+- A run counts once when `POST /api/lab/generate` returns `200`, whatever the
+  number of variants. "Qayta chizish" (regenerate) is a new run.
+- Any other response does not count: every refusal and every failure in the
+  error table below. The app labels refused and failed runs "Limitdan
+  hisoblanmadi" (not counted).
+- If the app stops waiting (Cancel on the generating screen, or a lost
+  connection), the Worker still finishes the run. A run that succeeds counts
+  and appears in `GET /api/lab/history`.
+- `lab_global_cap` is the shared daily AI budget of all customers
+  (`DAILY_NEURON_CAP`, `DAILY_USD_CAP` in `src/lib/ai-models.ts`). It is
+  separate from the customer's own limit and resets at the same time.
+
+### GET /api/lab/status
+
+Auth optional. A missing or invalid token means signed out; this route never
+returns `401`.
+
+```json
+{ "enabled": true, "signedIn": true, "remainingToday": 3, "limit": 5, "resetsAt": 1792540800000 }
+```
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `enabled` | boolean | The caller can generate now. `false` while the Worker var `LAB_ENABLED` is off; accounts the founder allows for testing still get `true`. |
+| `signedIn` | boolean | A valid user token came with the request. |
+| `remainingToday` | integer \| null | Runs left today, `0` … `limit`. `null` when signed out. |
+| `limit` | integer | Runs per customer per day. |
+| `resetsAt` | integer | Epoch ms of the next reset (00:00 UTC). |
+
+Signed out: `{ "enabled": true, "signedIn": false, "remainingToday": null, "limit": 5, "resetsAt": 1792540800000 }`.
+Switch off: `{ "enabled": false, "signedIn": true, "remainingToday": 5, "limit": 5, "resetsAt": 1792540800000 }`.
+
+The quota chip ("Bugun 3 / 5 bepul") takes `remainingToday` and `limit`; runs
+used today = `limit − remainingToday`. With `enabled: false` the app hides
+every Lab entry. With `signedIn: false`, "Chizish" opens `/login`.
+
+### POST /api/lab/generate
+
+Auth: Bearer.
+
+```json
+{ "prompt": "so‘zana uslubidagi anor naqshi", "style": "minimal" }
+```
+
+| Field | Rule |
+|-------|------|
+| `prompt` | Required string, 1–500 characters after trimming. Any language (uz, ru, en). |
+| `style` | Required. One of `minimal` (Minimal chiziq), `uzbek` (O‘zbek naqshi), `street` (Ko‘cha uslubi), `retro` (Retro), `3d` (3D). |
+
+The call is synchronous: the Worker answers when the run is done, at most the
+server wait limit later (then `timeout`). Set the app's request timeout above
+that limit, for example 90 s. If some images fail but at least one variant is
+ready, the run succeeds with fewer variants and counts.
+
+Response `200`:
+
+```json
+{
+  "runId": "3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42",
+  "createdAt": 1792489200000,
+  "prompt": "so‘zana uslubidagi anor naqshi",
+  "style": "minimal",
+  "variants": [
+    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/0.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/0.png", "width": 3500, "height": 4700, "lowQuality": false },
+    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/1.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/1.png", "width": 3500, "height": 4700, "lowQuality": false },
+    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/2.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/2.png", "width": 1024, "height": 1024, "lowQuality": true },
+    { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/3.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/3.png", "width": 3500, "height": 4700, "lowQuality": false }
+  ],
+  "remainingToday": 2,
+  "limit": 5,
+  "resetsAt": 1792540800000
+}
+```
+
+| Variant field | Meaning |
+|---------------|---------|
+| `url` | Absolute URL of the PNG, transparent background. It is `GET /api/uploads/:key`, so it needs the caller's token (React Native: `<Image source={{ uri, headers }}>`). |
+| `uploadKey` | The caller's own upload key. Use it wherever a key from `POST /api/uploads` is accepted (studio art, `POST /api/cart`, checkout). "Kiyimga qo‘yish" calls `setArt({ uri: url, uploadKey, price: 0 })`. Treat the value as opaque. |
+| `width`, `height` | Pixel size of that PNG. |
+| `lowQuality` | `true` when the PNG is below the print-size target (about 3500 × 4700 px for a full front print; LOOM-256 sets it). The variant can still go on a garment; the app shows the "past sifat" badge. Until LOOM-256 ships, expect `true` on most variants. |
+
+A variant is addressed by its 0-based position in `variants`. History returns
+the same order.
+
+### GET /api/lab/history
+
+Auth: Bearer. Query `?page=1` (20 runs per page). Lists the caller's runs that
+returned `200`, newest first. Refused and failed runs are not listed. This route
+does not check `LAB_ENABLED`.
+
+```json
+{
+  "runs": [
+    {
+      "runId": "3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42",
+      "createdAt": 1792489200000,
+      "prompt": "so‘zana uslubidagi anor naqshi",
+      "style": "minimal",
+      "variants": [
+        { "url": "https://api.loomdesign.uz/api/uploads/lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/0.png", "uploadKey": "lab/3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42/0.png", "width": 3500, "height": 4700, "lowQuality": false }
+      ]
+    },
+    {
+      "runId": "9b7d1e20-5a43-4c8e-8f61-0e2c4d6a8b13",
+      "createdAt": 1792249500000,
+      "prompt": "ingichka chiziqlarda Toshkent xaritasi",
+      "style": "minimal",
+      "variants": [
+        { "url": "https://api.loomdesign.uz/api/uploads/lab/9b7d1e20-5a43-4c8e-8f61-0e2c4d6a8b13/0.png", "uploadKey": "lab/9b7d1e20-5a43-4c8e-8f61-0e2c4d6a8b13/0.png", "width": 1024, "height": 1024, "lowQuality": true }
+      ]
+    }
+  ],
+  "page": 1,
+  "hasMore": false
+}
+```
+
+Each run has the shape of the generate response without `remainingToday`,
+`limit` and `resetsAt`. The first example is shortened to one variant. No runs:
+`{ "runs": [], "page": 1, "hasMore": false }`.
+
+### POST /api/lab/report
+
+Auth: Bearer. Ships with LOOM-255, which also stores the reports and shows them
+in admin.
+
+```json
+{ "runId": "3f2c9a4e-6b1d-4f0a-9c55-2d8e7a1b0c42", "variant": 2, "reason": "Boshqa brendning logotipi" }
+```
+
+| Field | Rule |
+|-------|------|
+| `runId` | Required. A run of the caller. |
+| `variant` | Required integer, the 0-based position in that run's `variants`. |
+| `reason` | Optional string, at most 500 characters. |
+
+Response `201`: `{ "ok": true }`. Reporting the same variant again also returns
+`{ "ok": true }`. A report never changes `remainingToday`. This route does not
+check `LAB_ENABLED`.
+
+### Errors
+
+Every Lab error has the body `{ error, code }` plus the extra fields in the
+table. `code` is stable; the app maps it to its own uz / ru / en copy. `error`
+is English text for logs, not for display.
+
+```json
+{ "error": "Daily Lab limit reached", "code": "lab_limit_reached", "limit": 5, "remainingToday": 0, "resetsAt": 1792540800000 }
+```
+
+```json
+{ "error": "Prompt refused", "code": "prompt_refused" }
+```
+
+| Code | HTTP | Route | Extra fields | Counted | App screen |
+|------|------|-------|--------------|---------|------------|
+| `invalid_request` | 400 | generate, report | — | no | inline message (bad `prompt`, `style`, `variant` or `reason`) |
+| `sign_in_required` | 401 | generate, history, report | — | no | `/login` |
+| `not_found` | 404 | report | — | no | error toast; the variant stays |
+| `prompt_refused` | 422 | generate | — | no | W28 Refused |
+| `lab_limit_reached` | 429 | generate | `limit`, `remainingToday` (`0`), `resetsAt` | no | W27 Limit, reset time in local time |
+| `lab_global_cap` | 429 | generate | `resetsAt` | no | no artboard yet; W27 layout with its own copy |
+| `generation_failed` | 502 | generate | — | no | W29 Failed, retry |
+| `cutout_failed` | 502 | generate | — | no | W29 Failed, retry |
+| `lab_disabled` | 503 | generate | — | no | hide the Lab |
+| `timeout` | 504 | generate | — | no | W29 Failed, retry |
+
+- `generate` checks in this order: sign-in, `LAB_ENABLED`, request body, the
+  customer's limit, the global cap, the prompt policy, then the image model.
+  A refusal at any earlier step calls no image model.
+- On generate, history and report a missing or invalid token gives
+  `sign_in_required`. The
+  account codes of the shared sign-in check (`account_deleted`,
+  `session_revoked`, `account_banned`) can still appear. Treat every `401` as
+  signed out.
+- A `5xx` response without a JSON `code` (for example a gateway `502` page) is
+  handled as `generation_failed`. No response at all is the app's offline state.
+
+---
+
 ## Admin
 
 All endpoints require `admin_token` cookie (set by `/api/admin/login`).
@@ -241,7 +453,7 @@ payout ledger sits below the moderation queue on the same page.
 
 ## Error Responses
 
-All error responses use `{ error: string }` shape **except** `POST /api/admin/products` which uses `{ ok: false, error: { code, message, field? } }`.
+All error responses use `{ error: string }` shape **except** `POST /api/admin/products` which uses `{ ok: false, error: { code, message, field? } }`, and the LOOM Lab routes (`/api/lab/*`), which always add a stable `code` and sometimes extra fields — see [LOOM Lab → Errors](#errors).
 
 Common HTTP status codes:
 - `400` Bad request / validation error
