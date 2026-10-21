@@ -1,57 +1,32 @@
 import React from 'react'
-import { StyleSheet, View } from 'react-native'
+import { View } from 'react-native'
 import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { C, RULE, noShadow, offset } from '../src/theme/tokens'
-import { disp, label } from '../src/theme/type'
+import { C } from '../src/theme/tokens'
 import { BackHeader } from '../src/components/AppBar'
-import { T, Tap } from '../src/components/ui'
-import { LANGS, useI18n } from '../src/i18n'
+import { LanguageChoice } from '../src/components/start/LanguageChoice'
+import { Button } from '../src/components/ui'
+import { useT } from '../src/i18n'
 import { goBack } from '../src/lib/nav'
 
-// W02 language choice. LOOM-246 stub: a working picker, reached from Account.
-// LOOM-247 builds the designed screen and the onboarding step around it.
+// W02 from Account → Til. The first-launch version of this screen is step 0 of
+// onboarding (app/onboarding.tsx); both render `LanguageChoice`, which applies
+// and stores the pick on tap, so Save only closes.
 export default function Language() {
   const router = useRouter()
-  const { lang, setLang, t } = useI18n()
+  const insets = useSafeAreaInsets()
+  const t = useT()
 
   return (
     <View style={{ flex: 1, backgroundColor: C.paper }}>
-      <BackHeader title={t('acc.language')} />
-      <View style={styles.list}>
-        {LANGS.map((l) => {
-          const on = l.id === lang
-          return (
-            <Tap
-              key={l.id}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
-              onPress={() => {
-                setLang(l.id)
-                goBack(router)
-              }}
-              style={[styles.row, on ? offset(3, C.coral) : noShadow]}
-            >
-              <T style={[disp(20, 1.2, { ls: -0.02 }), { flex: 1 }]}>{l.label}</T>
-              <T style={label()}>{l.short}</T>
-            </Tap>
-          )
-        })}
+      <BackHeader />
+      <View style={{ flex: 1, padding: 16, paddingTop: 28 }}>
+        <LanguageChoice />
+      </View>
+      <View style={{ paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 24) }}>
+        <Button title={t('common.save')} onPress={() => goBack(router)} />
       </View>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  list: { padding: 16, gap: 12 },
-  row: {
-    minHeight: 68,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 16,
-    borderWidth: RULE,
-    borderColor: C.ink,
-    backgroundColor: C.white,
-  },
-})
