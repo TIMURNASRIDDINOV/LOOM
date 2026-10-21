@@ -1,12 +1,13 @@
 import React from 'react'
-import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native'
+import { Image, ScrollView, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 
-import { C, RULE, fmt } from '../../src/theme/tokens'
-import { body, disp, kicker, mono, monoSemi } from '../../src/theme/type'
+import { C, RULE, fmt, offset } from '../../src/theme/tokens'
+import { body, disp, dispExtra, kicker } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
-import { ChevronLeft } from '../../src/components/icons'
-import { Button, T, Tap } from '../../src/components/ui'
+import { StatStrip } from '../../src/components/market/works'
+import { ArtworkCard, Button, EmptyState, OfflineState, Skeleton, T, isOffline } from '../../src/components/ui'
+import { ApiError } from '../../src/api/client'
 import { fetchDesigner, useAsync } from '../../src/api/catalog'
 import type { Artwork } from '../../src/api/types'
 import { useT } from '../../src/i18n'
@@ -14,14 +15,14 @@ import { goBack } from '../../src/lib/nav'
 import { useStudio } from '../../src/state/studio'
 import { useToast } from '../../src/state/toast'
 
-/** A designer's public page — bio, sales, and every approved work. */
+/** A designer's public page (W39) — bio, sales, and every approved work. */
 export default function DesignerScreen() {
   const router = useRouter()
   const t = useT()
   const { handle } = useLocalSearchParams<{ handle?: string }>()
   const { setArt } = useStudio()
   const { flash } = useToast()
-  const { data, loading, error, reload } = useAsync(
+  const { data: loaded, loading, error, reload } = useAsync(
     () => (handle ? fetchDesigner(handle) : Promise.reject(new Error(t('dz.notGiven')))),
     [handle],
   )
@@ -40,75 +41,75 @@ export default function DesignerScreen() {
     router.push('/studio')
   }
 
+  // The tab stays mounted, so a different handle must not show the last designer.
+  const data = loaded && handle && loaded.handle.toLowerCase() === `@${handle.replace(/^@/, '').toLowerCase()}` ? loaded : null
   const since = data ? new Date(data.since).getFullYear() : null
+  // An unknown handle is a 404, not a failure to retry.
+  const missing = !handle || (error instanceof ApiError && error.status === 404)
 
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title={t('bar.design')} />
+      <AppBar title="" onBack={() => goBack(router, '/market')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <Tap style={styles.back} onPress={() => goBack(router, '/market')}>
-          <ChevronLeft size={13} width={2.4} color={C.i55} />
-          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>{t('common.back')}</T>
-        </Tap>
-
-        {loading ? (
-          <ActivityIndicator color={C.coral} style={{ marginTop: 40 }} />
-        ) : error || !data ? (
-          <View style={{ gap: 16 }}>
-            <T style={body(14, 1.6, { color: C.i55 })}>{error?.message ?? t('dz.notFound')}</T>
-            <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={reload} />
+        {loading && !data ? (
+          <View style={styles.grid}>
+            {[0, 1].map((i) => (
+              <Skeleton key={i} style={styles.cell} height={124} lines={['70%', '50%']} />
+            ))}
           </View>
+        ) : missing ? (
+          <EmptyState title={t('dz.notFound')} action={t('common.back')} onAction={() => goBack(router, '/market')} />
+        ) : error || !data ? (
+          isOffline(error) ? (
+            <OfflineState onRetry={reload} />
+          ) : (
+            <View style={{ gap: 16 }}>
+              <T style={body(14, 1.6, { color: C.i70 })}>{error?.message ?? t('dz.notFound')}</T>
+              <Button title={t('common.retry')} variant="ink" onPress={reload} />
+            </View>
+          )
         ) : (
           <>
-            <View style={styles.identity}>
-              <View style={styles.avatar}>
-                {data.avatar_url ? (
-                  <Image source={{ uri: data.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                ) : (
-                  <T style={{ fontFamily: 'InterTight_800ExtraBold', fontSize: 22, color: C.white }}>
-                    {(data.name ?? data.handle.replace('@', '')).charAt(0).toUpperCase()}
+            <View style={{ gap: 10 }}>
+              <T style={kicker(12)}>{t('dz.kicker')}</T>
+              <View style={styles.identity}>
+                <View style={[styles.avatar, offset(3, C.coral)]}>
+                  {data.avatar_url ? (
+                    <Image source={{ uri: data.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  ) : (
+                    <T style={dispExtra(30, 1)}>
+                      {(data.name ?? data.handle.replace('@', '')).charAt(0).toUpperCase()}
+                      <T style={{ color: C.coral }}>/</T>
+                    </T>
+                  )}
+                </View>
+                <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                  <T style={disp(28, 1, { ls: -0.03 })} numberOfLines={1}>
+                    {data.handle}
                   </T>
-                )}
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <T style={kicker(10)}>{t('dz.kicker')}</T>
-                <T style={[disp(24, 1.05, { ls: -0.03 }), { marginTop: 4 }]} numberOfLines={1}>
-                  {data.handle}
-                </T>
-                {data.name ? (
-                  <T style={[mono(11, 1.3, { color: C.i55 }), { marginTop: 2 }]} numberOfLines={1}>
-                    {data.name}
-                  </T>
-                ) : null}
+                  {data.bio || data.name ? (
+                    <T style={body(14, 20 / 14, { color: C.i70 })} numberOfLines={3}>
+                      {data.bio ?? data.name}
+                    </T>
+                  ) : null}
+                </View>
               </View>
             </View>
 
-            {data.bio ? <T style={[body(14, 1.6, { color: C.i70 }), { marginBottom: 16 }]}>{data.bio}</T> : null}
-
-            <View style={styles.stats}>
-              <Stat label={t('dz.works')} value={String(data.works.length)} />
-              <Stat label={t('dz.sold')} value={String(data.units_sold)} />
-              <Stat label={t('dz.since')} value={since ? String(since) : '—'} />
-            </View>
+            <StatStrip
+              items={[
+                { label: t('dz.works'), value: String(data.works.length) },
+                { label: t('dz.sold'), value: String(data.units_sold) },
+                { label: t('dz.since'), value: since ? String(since) : '—' },
+              ]}
+            />
 
             {data.works.length === 0 ? (
-              <T style={body(13.5, 1.6, { color: C.i55 })}>{t('dz.noWorks')}</T>
+              <EmptyState title={t('dz.noWorks')} />
             ) : (
               <View style={styles.grid}>
                 {data.works.map((a) => (
-                  <Tap key={a.id} style={styles.card} onPress={() => apply(a)}>
-                    <Image source={{ uri: a.image_url }} style={styles.swatch} resizeMode="cover" />
-                    <View style={{ paddingHorizontal: 10, paddingVertical: 9 }}>
-                      <T style={disp(13.5, 1.15)} numberOfLines={1}>
-                        {a.title}
-                      </T>
-                      <View style={[styles.priceChip, { marginTop: 7 }]}>
-                        <T style={{ ...monoSemi(10, 1, { ls: 0.08, color: C.white }) }}>
-                          {a.markup > 0 ? t('mk.plus', { price: fmt(a.markup) }) : t('common.free')}
-                        </T>
-                      </View>
-                    </View>
-                  </Tap>
+                  <ArtworkCard key={a.id} artwork={a} style={styles.cell} onPress={() => apply(a)} />
                 ))}
               </View>
             )}
@@ -119,33 +120,19 @@ export default function DesignerScreen() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.stat}>
-      <T style={monoSemi(9, 1, { ls: 0.16, upper: true, color: C.i55 })}>{label}</T>
-      <T style={[disp(20, 1, { ls: -0.03 }), { marginTop: 4 }]}>{value}</T>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 24 },
-  back: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingBottom: 14 },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
+  page: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, gap: 16 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatar: {
-    width: 60,
-    height: 60,
+    width: 72,
+    height: 72,
     borderWidth: RULE,
     borderColor: C.ink,
-    backgroundColor: C.coral,
+    backgroundColor: C.white,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  stats: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  stat: { flex: 1, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white, padding: 11 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 },
-  card: { width: '47.6%', flexGrow: 1, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white },
-  swatch: { width: '100%', aspectRatio: 1, borderBottomWidth: RULE, borderBottomColor: C.ink },
-  priceChip: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 5, backgroundColor: C.coral },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 },
+  cell: { width: '48%' },
 })
