@@ -1,44 +1,81 @@
-import React, { useState } from 'react'
-import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native'
+import React, { useMemo, useState } from 'react'
+import { Image, ScrollView, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { C, RULE, fmt, noShadow, offset, type Size } from '../../src/theme/tokens'
-import { productConfig, swatchName } from '../../src/lib/product-config'
-import { body, disp, kicker, label as labelType, mono } from '../../src/theme/type'
-import { AppBar } from '../../src/components/AppBar'
-import { ChevronLeft } from '../../src/components/icons'
-import { Button, T, Tap } from '../../src/components/ui'
+import { C, RULE, fmt, type Size } from '../../src/theme/tokens'
+import { body, disp, label as labelType, mono, monoSemi } from '../../src/theme/type'
+import { BackHeader } from '../../src/components/AppBar'
+import { Button, EmptyState, OfflineState, Skeleton, SizePicker, Swatch, T, isOffline } from '../../src/components/ui'
+import { Heading } from '../../src/components/shop/Heading'
+import { CartButton } from '../../src/components/shop/CartButton'
+import { sizeLine } from '../../src/components/shop/sizes'
+import { Model3D } from '../../src/components/Model3D'
 import { fetchProducts, productImage, useAsync } from '../../src/api/catalog'
 import { buildPlainDesignJson } from '../../src/api/design'
-import { productName, useI18n } from '../../src/i18n'
+import { track } from '../../src/api/track'
+import { colorName, productName, useI18n } from '../../src/i18n'
+import { goBack } from '../../src/lib/nav'
+import { productConfig, swatchName } from '../../src/lib/product-config'
 import { useCart } from '../../src/state/cart'
 import { useToast } from '../../src/state/toast'
-import { goBack } from '../../src/lib/nav'
 
-/**
- * A ready-made design is bought as-is: pick a size and a colour, no studio.
- * The catalog's "готовый" chip routes here instead of into the editor.
- */
+// W13. A product from the live catalogue: the 3D stage (the product's own
+// `glb_url`, else its photo), colour and size, and two actions — design it in
+// the studio, or put the plain garment in the cart. Price and colours are the
+// server's; the size line is the web configurator's size guide.
+
 export default function ProductScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { id } = useLocalSearchParams<{ id?: string }>()
   const cart = useCart()
   const { flash } = useToast()
-  const [picked, setSize] = useState<Size | null>(null)
   const { t, lang } = useI18n()
+  const [pickedSize, setSize] = useState<Size | null>(null)
+  const [pickedColor, setColor] = useState<string | null>(null)
 
-  const { data: products, loading } = useAsync(fetchProducts, [])
+  const { data: products, loading, error, reload } = useAsync(fetchProducts, [])
   const product = products?.find((p) => String(p.id) === String(id))
   // Sizes and colours from the product's config (LOOM-166).
   const cfg = productConfig(product)
-  const size = picked ?? (cfg.sizes.includes('L') ? 'L' : cfg.sizes[0])
-  const sellColor = cfg.colors.find((c) => c.available)?.hex ?? '#FFFFFF'
+  const size = pickedSize ?? (cfg.sizes.includes('L') ? 'L' : cfg.sizes[0])
+  const color = pickedColor ?? cfg.colors.find((c) => c.available)?.hex ?? '#FFFFFF'
+  const swatch = cfg.colors.find((c) => c.hex === color)
+  const colorLabel = swatch ? swatchName(swatch, lang, t) : colorName(color, t)
+  const line = sizeLine(size, t('product.cm'))
+  const design = useMemo(() => ({ shirtColor: color, front: [], back: [] }), [color])
 
-  if (loading) {
+  const header = (
+    <BackHeader
+      title={t('product.toCatalog')}
+      onBack={() => goBack(router, '/catalog')}
+      right={<CartButton />}
+    />
+  )
+
+  if (error && !products) {
     return (
       <View style={{ flex: 1 }}>
-        <AppBar title={t('bar.catalog')} />
-        <ActivityIndicator color={C.coral} style={{ marginTop: 60 }} />
+        {header}
+        <View style={styles.pad}>
+          {isOffline(error) ? (
+            <OfflineState onRetry={reload} />
+          ) : (
+            <EmptyState title={t('catalog.loadFailed')} action={t('common.retry')} onAction={reload} />
+          )}
+        </View>
+      </View>
+    )
+  }
+
+  if (loading && !products) {
+    return (
+      <View style={{ flex: 1 }}>
+        {header}
+        <View style={styles.pad}>
+          <Skeleton height={280} lines={['40%', '70%', '30%']} />
+        </View>
       </View>
     )
   }
@@ -46,127 +83,127 @@ export default function ProductScreen() {
   if (!product) {
     return (
       <View style={{ flex: 1 }}>
-        <AppBar title={t('bar.catalog')} />
-        <View style={{ padding: 18, gap: 16 }}>
-          <T style={body(14, 1.6, { color: C.i55 })}>{t('st.productUnavailable')}</T>
-          <Button title={t('product.toCatalog')} variant="ink" size={12.5} vPad={14} onPress={() => router.push('/catalog')} />
+        {header}
+        <View style={styles.pad}>
+          <EmptyState
+            title={t('st.productUnavailable')}
+            action={t('product.toCatalog')}
+            onAction={() => router.replace('/catalog')}
+          />
         </View>
       </View>
     )
   }
 
+  const type = product.product_type ?? 'custom'
+  const name = productName(product, lang)
+  const price = `${fmt(product.price)} ${t('common.sum')}`
+  const index = (products?.indexOf(product) ?? 0) + 1
+
+  const addPlain = () => {
+    cart.add({
+      productId: product.id,
+      name,
+      image: product.thumbnail_url,
+      unitPrice: product.price,
+      designJson: buildPlainDesignJson(size, color),
+      meta: [colorLabel, size, type === 'ready' ? t('catalog.readyDesign') : t('common.noPrint')].join(' · '),
+      logoKey: null,
+    })
+    track('cfg_cart')
+    flash(t('product.added'))
+    router.push('/cart')
+  }
+
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title={t('bar.catalog')} />
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <Tap style={styles.back} onPress={() => goBack(router, '/catalog')}>
-          <ChevronLeft size={13} width={2.4} color={C.i55} />
-          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>{t('common.back')}</T>
-        </Tap>
+      {header}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.stage}>
+          {product.glb_url ? (
+            <>
+              <Model3D glbUrl={product.glb_url} printArea={cfg.printArea} design={design} view="front" />
+              <T style={[mono(12, 16 / 12, { ls: 0.14, upper: true, color: C.i70 }), styles.caption]}>3D · 360°</T>
+            </>
+          ) : (
+            <Image source={productImage(product)} style={styles.photo} resizeMode="contain" />
+          )}
+        </View>
 
-        <View style={styles.hero}>
-          <Image source={productImage(product)} style={styles.heroImg} resizeMode="cover" />
-          <View style={styles.readyChip}>
-            <T style={mono(8, 1.3, { ls: 0.14, upper: true })}>{t('product.readyChip')}</T>
+        <View style={styles.body}>
+          <View style={{ gap: 4 }}>
+            <T style={mono(12, 16 / 12, { ls: 0.14, upper: true, color: C.i70 })}>{`Apparel · ${String(index).padStart(2, '0')}`}</T>
+            <Heading style={disp(28, 1.05, { ls: -0.03 })}>
+              {name}
+            </Heading>
+            <T style={monoSemi(17, 22 / 17)}>{price}</T>
+          </View>
+
+          {product.description_ru ? <T style={body(14, 21 / 14, { color: C.i70 })}>{product.description_ru}</T> : null}
+
+          <View style={{ gap: 8 }}>
+            <T style={labelType()}>
+              {`${t('product.colors')} · `}
+              <T style={{ color: C.ink }}>{colorLabel}</T>
+            </T>
+            <View style={styles.swatches} accessibilityRole="radiogroup">
+              {cfg.colors.map((c) => (
+                <Swatch
+                  key={c.hex}
+                  hex={c.hex}
+                  label={c.available ? swatchName(c, lang, t) : `${swatchName(c, lang, t)}, ${t('st.unavailable')}`}
+                  selected={c.hex === color}
+                  disabled={!c.available}
+                  onPress={() => setColor(c.hex)}
+                />
+              ))}
+            </View>
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <T style={labelType()}>{t('product.size')}</T>
+            <SizePicker sizes={cfg.sizes} value={size} onChange={setSize} />
+            {line ? <T style={mono(12, 16 / 12, { color: C.i70 })}>{line}</T> : null}
           </View>
         </View>
+      </ScrollView>
 
-        <T style={[kicker(10), { marginTop: 18 }]}>Apparel</T>
-        <View style={styles.titleRow}>
-          <T style={[disp(27, 1.05, { ls: -0.03 }), { flex: 1 }]}>{productName(product, lang)}</T>
-          <T style={mono(13, 1, { color: C.i70 })}>{fmt(product.price)}</T>
-        </View>
-
-        {product.description_ru ? (
-          <T style={[body(13, 1.6, { color: C.i55 }), { marginTop: 8 }]}>{product.description_ru}</T>
+      <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) + 18 }]}>
+        {type === 'custom' ? (
+          <Button title={t('product.design')} onPress={() => router.push(`/studio?productId=${product.id}`)} />
         ) : null}
-
-        <View style={{ marginTop: 16 }}>
-          <T style={[labelType(), { marginBottom: 8 }]}>{t('product.colors')}</T>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {cfg.colors.map((c) => (
-              <View
-                key={c.hex}
-                accessible
-                accessibilityLabel={c.available ? swatchName(c, lang, t) : `${swatchName(c, lang, t)}, ${t('st.unavailable')}`}
-                style={[styles.colorDot, { backgroundColor: c.hex }, !c.available && { opacity: 0.3 }]}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={{ marginTop: 18 }}>
-          <T style={[labelType(), { marginBottom: 8 }]}>{t('product.size')}</T>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
-            {cfg.sizes.map((z) => {
-              const on = size === z
-              return (
-                <Tap
-                  key={z}
-                  haptic
-                  onPress={() => setSize(z)}
-                  style={[
-                    styles.sizeBtn,
-                    { backgroundColor: on ? C.ink : C.white },
-                    on ? offset(2, C.coral) : noShadow,
-                  ]}
-                >
-                  <T style={disp(13.5, 1, { color: on ? C.paper : C.i70 })}>{z}</T>
-                </Tap>
-              )
-            })}
-          </View>
-        </View>
-
         <Button
           title={t('product.addToCart', { price: fmt(product.price) })}
-          size={16}
-          vPad={17}
-          style={{ marginTop: 22 }}
-          onPress={() => {
-            cart.add({
-              productId: product.id,
-              name: productName(product, lang),
-              image: product.thumbnail_url,
-              unitPrice: product.price,
-              designJson: buildPlainDesignJson(size, sellColor),
-              meta: `${t('catalog.readyDesign')} · ${size}`,
-              logoKey: null,
-            })
-            flash(t('product.added'))
-            router.push('/cart')
-          }}
+          variant={type === 'custom' ? 'outline' : 'primary'}
+          style={type === 'custom' ? { backgroundColor: C.white } : undefined}
+          onPress={addPlain}
         />
-      </ScrollView>
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 32 },
-  back: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingBottom: 14 },
-  hero: { aspectRatio: 4 / 5, borderWidth: RULE, borderColor: C.ink, overflow: 'hidden' },
-  heroImg: { width: '100%', height: '100%' },
-  readyChip: {
-    position: 'absolute',
-    left: 0,
-    bottom: 0,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: C.paper,
-    borderTopWidth: 1,
-    borderRightWidth: 1,
-    borderColor: C.ink,
-  },
-  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 4 },
-  colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: C.line },
-  sizeBtn: {
-    minWidth: 46,
-    paddingVertical: 13,
-    paddingHorizontal: 10,
-    borderWidth: RULE,
-    borderColor: C.ink,
+  pad: { padding: 16 },
+  stage: {
+    height: 280,
+    backgroundColor: C.paper2,
+    borderBottomWidth: RULE,
+    borderBottomColor: C.ink,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  photo: { width: '100%', height: 250 },
+  caption: { position: 'absolute', left: 16, top: 14 },
+  body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20, gap: 14 },
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  bar: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 10,
+    borderTopWidth: RULE,
+    borderTopColor: C.ink,
+    backgroundColor: C.paper,
   },
 })

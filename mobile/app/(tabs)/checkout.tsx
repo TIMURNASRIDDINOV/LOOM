@@ -1,38 +1,41 @@
 import React, { useEffect, useState } from 'react'
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native'
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as WebBrowser from 'expo-web-browser'
 
-import { C, RULE, fmt, noShadow, offset } from '../../src/theme/tokens'
-import { body, disp, label as labelType, mono, monoMed, monoSemi } from '../../src/theme/type'
-import { AppBar } from '../../src/components/AppBar'
+import { C, F, HAIR, RULE, fmt, noShadow, offset } from '../../src/theme/tokens'
+import { body, disp, kicker, mono, monoBold, monoSemi } from '../../src/theme/type'
+import { BackHeader } from '../../src/components/AppBar'
 import { Check, ChevronRight } from '../../src/components/icons'
 import { MapPicker, type Pin } from '../../src/components/MapPicker'
-import { Button, Panel, SlashTitle, T, Tap } from '../../src/components/ui'
+import { Button, Input, T, Tap } from '../../src/components/ui'
+import { Heading } from '../../src/components/shop/Heading'
 import { ApiError, api } from '../../src/api/client'
-import { fetchPaymentMethods, useAsync } from '../../src/api/catalog'
+import { GARMENT_FLAT, fetchPaymentMethods, useAsync } from '../../src/api/catalog'
 import { track } from '../../src/api/track'
 import type { PaymentMethods } from '../../src/api/types'
 import { useAuth } from '../../src/state/auth'
 import { useCart } from '../../src/state/cart'
 import { useStudio } from '../../src/state/studio'
 import { useToast } from '../../src/state/toast'
-import { useT, type TFn } from '../../src/i18n'
+import { statusLabel, useT, type TFn } from '../../src/i18n'
 import type { StringKey } from '../../src/i18n/strings'
 
-type Placed = { id: number; paymentUrl: string | null; method: PayMethod } | null
-type PayMethod = keyof PaymentMethods
+// W16 checkout, W17 order placed. Three numbered sections on one page; the
+// placed state replaces the page (no tab bar). Only payment methods the Worker
+// can complete right now are listed — no "coming soon" placeholders.
 
-// Every method the checkout knows how to present. Which of them are offered is
-// decided by the Worker (`GET /api/payments/methods`) — a provider appears the
-// moment its merchant secrets are set, with no app release.
+type PayMethod = keyof PaymentMethods
+type Placed = {
+  id: number
+  paymentUrl: string | null
+  method: PayMethod
+  total: number
+  address: string
+  thumbs: (string | null)[]
+}
+
 function payLabels(t: TFn): Record<PayMethod, { title: string; sub: string }> {
   return {
     cod: { title: t('co.cod'), sub: t('co.codSub') },
@@ -53,6 +56,7 @@ const UNSOLD: Record<string, StringKey> = {
 
 export default function Checkout() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { user, signedIn, phoneVerified, updateProfile } = useAuth()
   const cart = useCart()
   const { repriceArtwork } = useStudio()
@@ -61,9 +65,9 @@ export default function Checkout() {
   const PAY_LABELS = payLabels(t)
   const { data: methods } = useAsync(fetchPaymentMethods, [])
 
-  const [step, setStep] = useState(1)
-  const [placed, setPlaced] = useState<Placed>(null)
+  const [placed, setPlaced] = useState<Placed | null>(null)
   const [busy, setBusy] = useState(false)
+  const [priceChanged, setPriceChanged] = useState(false)
   const [payMethod, setPayMethod] = useState<PayMethod>('cod')
 
   const [name, setName] = useState('')
@@ -98,33 +102,43 @@ export default function Checkout() {
     }
   }, [user])
 
+  // Offered: cash always, an online provider only once the Worker has its secrets.
+  const offered = PAY_ORDER.filter((m) => m === 'cod' || !!methods?.[m])
+
   const place = async () => {
+    if (busy) return
     if (!signedIn) {
       flash(t('co.errSignIn'))
       router.push('/login')
       return
     }
     if (!name.trim() || !phone.trim()) {
-      setStep(1)
       flash(t('co.errContacts'))
       return
     }
     if (!street.trim()) {
-      setStep(2)
       flash(t('co.errAddress'))
       return
     }
-
     if (!cart.items.length) {
       flash(t('co.errEmpty'))
       router.replace('/cart')
       return
     }
 
+    setPriceChanged(false)
     setBusy(true)
+    track('cfg_checkout_submit', '/checkout')
+    // What the placed page shows is what the shopper confirmed, taken before the cart empties.
+    const summary = { total: cart.total, thumbs: cart.items.slice(0, 4).map((i) => i.image) }
     try {
-      // The server cart is what checkout reads, so push the local one first.
-      await cart.sync()
+      // The server cart is what checkout reads: send anything still waiting on the phone.
+      try {
+        await cart.sync()
+      } catch {
+        flash(t('co.errSync'))
+        return
+      }
       const res = await api<{ id: number; paymentUrl: string | null; paymentMethod: PayMethod }>('/api/cart/checkout', {
         method: 'POST',
         auth: true,
@@ -153,22 +167,32 @@ export default function Checkout() {
         name: name.trim() || undefined,
         location_preset: { address: street.trim(), lat: pin?.lat, lng: pin?.lng },
       }).catch(() => {})
-      setPlaced({ id: res.id, paymentUrl: res.paymentUrl ?? null, method: res.paymentMethod ?? payMethod })
+      setPlaced({
+        id: res.id,
+        paymentUrl: res.paymentUrl ?? null,
+        method: res.paymentMethod ?? payMethod,
+        address: street.trim(),
+        ...summary,
+      })
       if (res.paymentUrl) WebBrowser.openBrowserAsync(res.paymentUrl).catch(() => {})
     } catch (e) {
       const err = e as ApiError
-      if (err.code === 'phone_not_verified' || err.status === 403) {
+      if (err.code === 'price_changed' || err.code === 'artwork_price_changed') {
+        // No order was made. Adding the studio design again then carries the new markup.
+        const d = err.details
+        if (typeof d?.artworkId === 'number' && typeof d.currentPrice === 'number') repriceArtwork(d.artworkId, d.currentPrice)
+        setPriceChanged(true)
+        flash(t('co.priceChanged'))
+      } else if (err.code === 'phone_not_verified' || err.status === 403) {
         flash(t('co.errVerify'))
+        router.push('/login')
+      } else if (err.status === 401) {
+        flash(t('co.errSignIn'))
         router.push('/login')
       } else if (err.code && err.code in UNSOLD) {
         // A bag item's product, size or colour was switched off (LOOM-166).
         flash(t(UNSOLD[err.code]))
       } else {
-        const d = err.details
-        if (err.code === 'artwork_price_changed' && typeof d?.artworkId === 'number' && typeof d.currentPrice === 'number') {
-          // Adding the studio design again then carries the new markup.
-          repriceArtwork(d.artworkId, d.currentPrice)
-        }
         flash(err.message)
       }
     } finally {
@@ -176,40 +200,62 @@ export default function Checkout() {
     }
   }
 
+  // W17 — order placed.
   if (placed) {
     return (
       <View style={{ flex: 1 }}>
-        <AppBar title={t('bar.checkout')} />
-        <ScrollView contentContainerStyle={styles.page}>
-          <SlashTitle size={30} style={{ marginBottom: 20 }}>
-            {t('co.title')}
-          </SlashTitle>
-          <Panel raised raisedColor={C.coral} style={{ padding: 20, marginBottom: 18 }}>
-            <T style={[monoSemi(10, 1, { ls: 0.22, upper: true, color: C.deep }), { marginBottom: 10 }]}>
+        <BackHeader close onBack={() => router.replace('/')} />
+        <ScrollView contentContainerStyle={styles.placedPage} showsVerticalScrollIndicator={false}>
+          <View style={[styles.tick, offset(3)]}>
+            <Check size={44} color={C.ink} width={2.6} />
+          </View>
+          <View style={{ gap: 10 }}>
+            <T style={kicker()}>{`#LM-${placed.id}`}</T>
+            <Heading style={disp(34, 1, { ls: -0.035 })}>
               {t('co.accepted')}
-            </T>
-            <T style={[disp(30, 1, { ls: -0.03 }), { marginBottom: 6 }]}>{`#LM-${placed.id}`}</T>
-            <T style={body(13, 1.6, { color: C.i55 })}>
+            </Heading>
+            <T style={body(16, 24 / 16, { color: C.i70 })}>
               {placed.paymentUrl
                 ? t('co.payBody', { provider: PAY_LABELS[placed.method].title })
                 : t('co.acceptedBody')}
             </T>
-          </Panel>
-          {placed.paymentUrl ? (
+          </View>
+
+          <View style={styles.sheet}>
+            <View style={styles.sheetHead}>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {placed.thumbs.map((src, i) => (
+                  <View key={i} style={styles.thumb}>
+                    <Image source={src ? { uri: src } : GARMENT_FLAT} style={{ width: 42, height: 42 }} resizeMode="contain" />
+                  </View>
+                ))}
+              </View>
+              <View style={styles.status}>
+                <View style={styles.statusDot} />
+                <T style={monoBold(12, 16 / 12, { ls: 0.1, upper: true })}>{statusLabel('new', t)}</T>
+              </View>
+            </View>
+            <View style={{ padding: 14, paddingTop: 12, gap: 8 }}>
+              <Fact label={t('cart.total')} value={`${fmt(placed.total)} ${t('common.sum')}`} strong />
+              <Fact label={t('co.payment')} value={PAY_LABELS[placed.method].title} />
+              <Fact label={t('co.address')} value={placed.address} right />
+            </View>
+          </View>
+
+          <View style={{ gap: 10 }}>
+            {placed.paymentUrl ? (
+              <Button
+                title={t('co.payBtn', { provider: PAY_LABELS[placed.method].title })}
+                onPress={() => WebBrowser.openBrowserAsync(placed.paymentUrl!).catch(() => flash(t('co.errPayOpen')))}
+              />
+            ) : null}
             <Button
-              title={t('co.payBtn', { provider: PAY_LABELS[placed.method].title })}
-              vPad={16}
-              style={{ marginBottom: 10 }}
-              onPress={() => WebBrowser.openBrowserAsync(placed.paymentUrl!).catch(() => flash(t('co.errPayOpen')))}
+              title={t('co.track')}
+              variant={placed.paymentUrl ? 'ink' : 'primary'}
+              onPress={() => router.replace(`/order?id=${placed.id}`)}
             />
-          ) : null}
-          <Button
-            title={t('co.track')}
-            variant="ink"
-            size={13}
-            vPad={16}
-            onPress={() => router.replace('/orders')}
-          />
+            <Button title={t('tab.home')} variant="outline" style={{ backgroundColor: C.white }} onPress={() => router.replace('/')} />
+          </View>
         </ScrollView>
       </View>
     )
@@ -221,49 +267,42 @@ export default function Checkout() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={80}
     >
-      <AppBar title={t('bar.checkout')} />
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <SlashTitle size={30} style={{ marginBottom: 20 }}>
+      <BackHeader title={t('bar.checkout')} onBack={() => router.replace('/cart')} />
+      <ScrollView
+        contentContainerStyle={[styles.page, { paddingBottom: Math.max(insets.bottom, 12) + 28 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Heading style={disp(34, 1, { ls: -0.035 })}>
           {t('co.title')}
-        </SlashTitle>
+        </Heading>
 
-        <Step
-          n={1}
-          title={t('co.contacts')}
-          open={step === 1}
-          summary={`${name || t('co.summaryName')} · ${phone || '+998…'}`}
-          onToggle={() => setStep(step === 1 ? 0 : 1)}
-        >
+        <Section n={1} title={t('co.contacts')}>
+          <Input label={t('co.name')} value={name} onChangeText={setName} placeholder={t('login.namePh')} />
+          <Input
+            label={t('co.phone')}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="+998 90 123 45 67"
+            keyboardType="phone-pad"
+            style={{ fontFamily: F.mono }}
+          />
           {phoneVerified ? (
             <View style={styles.verified}>
-              <Check size={14} />
-              <T style={monoMed(11.5, 1.3, { color: C.green })}>{t('co.verified')}</T>
+              <View style={styles.tickSm}>
+                <Check size={12} color={C.white} width={3.4} />
+              </View>
+              <T style={body(13, 18 / 13, { color: C.i70 })}>{t('co.verified')}</T>
             </View>
           ) : (
-            <Tap style={styles.unverified} onPress={() => router.push('/login')}>
-              <T style={monoMed(11.5, 1.3, { color: C.amber })}>
-                {t('co.unverified')}
-              </T>
+            <Tap accessibilityRole="button" style={styles.unverified} onPress={() => router.push('/login')}>
+              <T style={[mono(12, 16 / 12, { color: C.amber }), { flex: 1 }]}>{t('co.unverified')}</T>
               <ChevronRight color={C.amber} />
             </Tap>
           )}
-          <Field label={t('co.name')} value={name} onChange={setName} placeholder={t('login.namePh')} />
-          <Field
-            label={t('co.phone')}
-            value={phone}
-            onChange={setPhone}
-            placeholder="+998 90 123-45-67"
-            keyboard="phone-pad"
-          />
-        </Step>
+        </Section>
 
-        <Step
-          n={2}
-          title={t('co.delivery')}
-          open={step === 2}
-          summary={street || t('co.summaryAddress')}
-          onToggle={() => setStep(step === 2 ? 0 : 2)}
-        >
+        <Section n={2} title={t('co.delivery')}>
           <MapPicker
             value={pin}
             onChange={(next) => {
@@ -273,216 +312,161 @@ export default function Checkout() {
               if (next.address && !street.trim()) setStreet(next.address)
             }}
           />
-          <Field label={t('co.address')} value={street} onChange={setStreet} placeholder={t('co.addressPh')} />
+          <Input label={t('co.address')} value={street} onChangeText={setStreet} placeholder={t('co.addressPh')} />
           <View style={styles.grid2}>
-            <View style={{ flex: 1 }}>
-              <Field label={t('co.entrance')} value={entrance} onChange={setEntrance} placeholder="2" />
+            <View style={styles.cell}>
+              <Input label={t('co.entrance')} value={entrance} onChangeText={setEntrance} keyboardType="numeric" style={{ fontFamily: F.mono }} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Field label={t('co.flat')} value={flat} onChange={setFlat} placeholder="41" />
+            <View style={styles.cell}>
+              <Input label={t('co.flat')} value={flat} onChangeText={setFlat} keyboardType="numeric" style={{ fontFamily: F.mono }} />
+            </View>
+            <View style={styles.cell}>
+              <Input label={t('co.floor')} value={floor} onChangeText={setFloor} keyboardType="numeric" style={{ fontFamily: F.mono }} />
+            </View>
+            <View style={styles.cell}>
+              <Input label={t('co.intercom')} value={intercom} onChangeText={setIntercom} style={{ fontFamily: F.mono }} />
             </View>
           </View>
-          <View style={styles.grid2}>
-            <View style={{ flex: 1 }}>
-              <Field label={t('co.floor')} value={floor} onChange={setFloor} placeholder="5" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label={t('co.intercom')} value={intercom} onChange={setIntercom} placeholder="—" />
-            </View>
-          </View>
-        </Step>
+        </Section>
 
-        <Step
-          n={3}
-          title={t('co.payment')}
-          open={step === 3}
-          summary={PAY_LABELS[payMethod].title}
-          onToggle={() => setStep(step === 3 ? 0 : 3)}
-        >
-          <View style={{ gap: 9 }}>
-            {PAY_ORDER.map((m) => {
-              const live = m === 'cod' || !!methods?.[m]
+        <Section n={3} title={t('co.payment')}>
+          <View style={{ gap: 10 }} accessibilityRole="radiogroup">
+            {offered.map((m) => {
               const on = payMethod === m
-              // Unconfigured providers stay visible as «скоро» so the sheet does
-              // not silently shrink between deployments — same rule as sign-in.
-              if (!live && m === 'uzum') return null
               return (
                 <Tap
                   key={m}
                   haptic
-                  onPress={live ? () => setPayMethod(m) : undefined}
-                  style={[
-                    styles.payRow,
-                    on ? offset(2, C.coral) : noShadow,
-                    { borderColor: on ? C.ink : C.line, opacity: live ? 1 : 0.7 },
-                  ]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on }}
+                  onPress={() => setPayMethod(m)}
+                  style={[styles.payRow, on ? offset(3, C.coral) : noShadow, { borderColor: on ? C.ink : 'rgba(19,19,17,.24)' }]}
                 >
                   <View style={on ? styles.radioOn : styles.radioOff} />
-                  <View style={{ flex: 1 }}>
-                    <T style={disp(14, 1, { color: live ? C.ink : C.i55 })}>{PAY_LABELS[m].title}</T>
-                    <T style={[mono(9.5, 1.3, { color: C.i38 }), { marginTop: 3 }]}>{PAY_LABELS[m].sub}</T>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <T style={disp(16, 20 / 16)}>{PAY_LABELS[m].title}</T>
+                    <T style={body(13, 18 / 13, { color: C.i70 })}>{PAY_LABELS[m].sub}</T>
                   </View>
-                  {!live ? (
-                    <View style={styles.soon}>
-                      <T style={mono(9, 1, { ls: 0.14, upper: true, color: C.amber })}>{t('common.soon')}</T>
-                    </View>
-                  ) : null}
                 </Tap>
               )
             })}
           </View>
-        </Step>
+        </Section>
 
-        <View style={styles.totalBar}>
-          <View style={styles.totalRow}>
-            <T style={monoSemi(9.5, 1.4, { ls: 0.16, upper: true, color: C.i55 })}>
-              {t('co.total')}
-            </T>
-            <T style={disp(23, 1, { ls: -0.03 })}>{fmt(cart.total)} {t('common.sum')}</T>
+        <View style={{ gap: 12 }}>
+          <View style={styles.sum}>
+            <T style={mono(12, 16 / 12, { ls: 0.06, color: C.i70 })}>{t('common.itemsN', { n: cart.count })}</T>
+            <View style={styles.sumRow}>
+              <T style={[disp(16, 1.2), { flex: 1 }]}>{t('co.total')}</T>
+              <T style={monoBold(19, 1.2)}>{`${fmt(cart.total)} ${t('common.sum')}`}</T>
+            </View>
           </View>
-          <Button title={t('co.place')} vPad={17} loading={busy} onPress={place} />
-          <T style={[body(10.5, 1.5, { color: C.i38, align: 'center' }), { marginTop: 11 }]}>
-            {t('co.terms')}
-          </T>
+          {priceChanged ? (
+            <View accessibilityRole="alert" style={styles.alert}>
+              <T style={body(14, 20 / 14)}>{t('co.priceChanged')}</T>
+              <Button title={t('cart.title')} variant="outline" style={{ backgroundColor: C.white }} onPress={() => router.replace('/cart')} />
+            </View>
+          ) : null}
+          <Button title={t('co.place')} loading={busy} onPress={place} />
+          <T style={body(12, 16 / 12, { color: C.i70, align: 'center' })}>{t('co.terms')}</T>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
-function Step({
-  n,
-  title,
-  open,
-  summary,
-  onToggle,
-  children,
-}: {
-  n: number
-  title: string
-  open: boolean
-  summary: string
-  onToggle: () => void
-  children: React.ReactNode
-}) {
+function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
-    <View style={[styles.step, open ? offset(2, C.ink) : noShadow]}>
-      <Tap style={[styles.stepHead, open && styles.stepHeadOpen]} onPress={onToggle}>
-        <View style={[styles.stepNum, { backgroundColor: open ? C.coral : 'rgba(19,19,17,.1)' }]}>
-          <T style={{ ...monoSemi(9.5, 1), color: open ? C.white : C.i55, fontFamily: 'IBMPlexMono_700Bold' }}>
-            {`0${n}`}
-          </T>
-        </View>
-        <T style={[disp(14, 1.1, { ls: -0.02 }), { flex: 1 }]}>{title}</T>
-        {!open ? (
-          <T style={[mono(10, 1.3, { color: C.i38 }), { maxWidth: 116 }]} numberOfLines={1}>
-            {summary}
-          </T>
-        ) : null}
-        <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-          <ChevronRight size={14} />
-        </View>
-      </Tap>
-      {open ? <View style={{ padding: 13 }}>{children}</View> : null}
+    <View accessibilityLabel={title} style={{ gap: 14 }}>
+      <Heading style={[kicker(), styles.secHead]}>{`0${n} · ${title}`}</Heading>
+      {children}
     </View>
   )
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  keyboard,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  keyboard?: 'default' | 'phone-pad' | 'numeric'
-}) {
+function Fact({ label, value, strong, right }: { label: string; value: string; strong?: boolean; right?: boolean }) {
   return (
-    <View style={{ marginBottom: 10 }}>
-      <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{label}</T>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={C.i38}
-        keyboardType={keyboard ?? 'default'}
-        style={styles.input}
-        allowFontScaling={false}
-      />
+    <View style={styles.fact}>
+      <T style={body(14, 20 / 14, { color: C.i70 })}>{label}</T>
+      <T style={[strong ? monoBold(14, 20 / 14) : body(14, 20 / 14), { flexShrink: 1 }, right && { textAlign: 'right' }]}>{value}</T>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 32 },
+  page: { paddingHorizontal: 16, paddingTop: 18, gap: 28 },
+  secHead: { paddingBottom: 6, borderBottomWidth: HAIR, borderBottomColor: C.line },
+  grid2: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 12 },
+  cell: { width: '47%', flexGrow: 1 },
 
-  step: { borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white, marginBottom: 10 },
-  stepHead: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13 },
-  stepHeadOpen: { borderBottomWidth: RULE, borderBottomColor: C.ink, backgroundColor: C.paper },
-  stepNum: { paddingHorizontal: 5, paddingVertical: 3 },
-
-  verified: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    borderWidth: 1,
-    borderColor: 'rgba(21,128,61,.3)',
-    backgroundColor: 'rgba(21,128,61,.08)',
-  },
+  verified: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tickSm: { width: 18, height: 18, backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center' },
   unverified: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
     paddingHorizontal: 11,
-    paddingVertical: 9,
     borderWidth: 1,
     borderColor: 'rgba(161,98,7,.3)',
     backgroundColor: 'rgba(161,98,7,.08)',
   },
 
-  input: {
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    borderWidth: RULE,
-    borderColor: C.ink,
-    backgroundColor: C.white,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: C.ink,
-  },
-  grid2: { flexDirection: 'row', gap: 9 },
-
-
   payRow: {
+    minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 12,
-    paddingVertical: 13,
+    gap: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: RULE,
+    backgroundColor: C.white,
   },
-  radioOn: { width: 15, height: 15, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.coral },
-  radioOff: { width: 15, height: 15, borderWidth: RULE, borderColor: C.i38 },
-  soon: {
-    marginLeft: 'auto',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    backgroundColor: 'rgba(161,98,7,.08)',
-  },
+  radioOn: { width: 18, height: 18, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.coral },
+  radioOff: { width: 18, height: 18, borderWidth: RULE, borderColor: C.i38 },
 
-  totalBar: { borderTopWidth: RULE, borderTopColor: C.ink, marginTop: 16, paddingTop: 14 },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 12,
+  sum: { gap: 6, paddingHorizontal: 16, paddingVertical: 14, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white },
+  sumRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  alert: { gap: 12, padding: 14, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white, ...offset(3, C.coral) },
+
+  placedPage: { paddingHorizontal: 16, paddingTop: 30, paddingBottom: 34, gap: 22 },
+  tick: {
+    width: 84,
+    height: 84,
+    borderWidth: RULE,
+    borderColor: C.ink,
+    backgroundColor: C.coral,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  sheet: { borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white },
+  sheetHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    padding: 12,
+    borderBottomWidth: RULE,
+    borderBottomColor: C.ink,
+  },
+  thumb: {
+    width: 48,
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: C.ink,
+    backgroundColor: C.paper2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1.5,
+    borderColor: C.ink,
+  },
+  statusDot: { width: 8, height: 8, backgroundColor: C.coral },
+  fact: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
 })

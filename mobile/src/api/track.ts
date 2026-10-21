@@ -15,6 +15,7 @@ export type FunnelEvent =
   | 'cfg_style'
   | 'cfg_preview_3d'
   | 'cfg_cart'
+  | 'cfg_checkout_submit'
   | 'cfg_order'
 
 const SESSION_KEY = 'loom_session_id'
