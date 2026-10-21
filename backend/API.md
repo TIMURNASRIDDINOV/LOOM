@@ -21,6 +21,7 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 |--------|------|-------------|
 | POST | `/api/orders` | Place order (rate-limited 5/min/IP) |
 | GET | `/api/me/orders` | User's orders (Bearer or `user_token` cookie) |
+| GET | `/api/me/orders/:id` | One of the user's orders (Bearer or `user_token` cookie): `{ order, items[], status_log[] }`. `order` is the row as in the list; `items[]` are its line items (`product_name`, `design_json`, `unit_price`, `quantity`, mockup and print keys); `status_log[]` is `{ old_status, new_status, changed_at, note }` oldest first, epoch ms. An order is logged only when an admin changes its status, so a new order can have an empty log: use `order.created_at` for the `new` step. `401` signed out; `404` when the order does not exist or belongs to someone else (the two are not told apart). |
 
 ### Uploads
 
