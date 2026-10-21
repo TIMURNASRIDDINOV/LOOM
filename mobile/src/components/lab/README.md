@@ -29,6 +29,12 @@ viewing it needs no network. Its synthetic upload keys are for UI verification.
 Cancellation only stops waiting: a successful background run still appears in
 history and spends one credit, matching `backend/API.md`.
 
+Native results are written to PNG cache files before Studio receives their
+`file://` URIs, keeping image bytes out of the persisted draft. Web previews use
+object URLs. History loads images only for visible rows and releases browser
+image buffers when a row leaves view. Blurring during generation resets the
+prompt; Cancel keeps the request guard until that request settles.
+
 ```sh
 node mobile/scripts/lab-test.cjs
 cd mobile && npx tsc --noEmit

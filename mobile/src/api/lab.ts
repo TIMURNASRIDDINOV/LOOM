@@ -1,4 +1,5 @@
-import { api, ApiError, getToken } from './client'
+import { Platform } from 'react-native'
+import { API_BASE, api, ApiError, getToken } from './client'
 import type { StringKey } from '../i18n/strings'
 
 export const LAB_STYLES = ['minimal', 'uzbek', 'street', 'retro', '3d'] as const
@@ -75,15 +76,27 @@ export async function reportLab(runId: string): Promise<void> {
   await api('/api/lab/report', { method: 'POST', body: { runId, variant: 0 }, auth: true })
 }
 
-/** Private PNGs need Bearer auth. A data URI also lets the existing studio
- * render them on native and web without changing its image loaders. */
+async function cacheNativeImage(dataUri: string, signal: AbortSignal): Promise<string> {
+  const FS = await import('expo-file-system/legacy')
+  if (signal.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError' })
+  if (!FS.cacheDirectory) throw new Error('Image cache unavailable')
+  const uri = `${FS.cacheDirectory}lab-${Date.now()}-${Math.random().toString(36).slice(2)}.png`
+  await FS.writeAsStringAsync(uri, dataUri.slice(dataUri.indexOf(',') + 1), { encoding: 'base64' })
+  return uri
+}
+
+/** Keep PNG bytes out of the persisted draft: native uses a cache file,
+ * while the web preview displays a browser-managed object URL. */
 export async function loadLabImage(url: string, signal: AbortSignal): Promise<string> {
-  if (url.startsWith('data:image/')) return url
-  const token = await getToken()
-  const res = await fetch(url, { signal, headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (url.startsWith('data:image/') && Platform.OS !== 'web') return cacheNativeImage(url, signal)
+  // Send credentials only to the API origin.
+  const token = new URL(url).origin === new URL(API_BASE).origin ? await getToken() : null
+  const res = await fetch(url, { signal, credentials: 'omit', headers: token ? { Authorization: `Bearer ${token}` } : {} })
   if (!res.ok) throw new ApiError('', res.status)
   const blob = await res.blob()
-  return new Promise((resolve, reject) => {
+  if (signal.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError' })
+  if (Platform.OS === 'web') return URL.createObjectURL(blob)
+  const dataUri = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     const abort = () => { reader.abort(); reject(Object.assign(new Error('Cancelled'), { name: 'AbortError' })) }
     signal.addEventListener('abort', abort, { once: true })
@@ -93,4 +106,11 @@ export async function loadLabImage(url: string, signal: AbortSignal): Promise<st
     if (signal.aborted) abort()
     else reader.readAsDataURL(blob)
   })
+  return cacheNativeImage(dataUri, signal)
+}
+
+/** Off-screen history rows release their browser image buffers. The applied
+ * image stays alive for the Studio that now owns it. */
+export function releaseLabImage(uri: string): void {
+  if (Platform.OS === 'web' && uri.startsWith('blob:')) URL.revokeObjectURL(uri)
 }

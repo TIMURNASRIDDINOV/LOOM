@@ -29,6 +29,7 @@ function LabFlow() {
   const [invalid, setInvalid] = useState(false)
   const [result, setResult] = useState<LabResult | null>(null)
   const request = useRef<AbortController | null>(null)
+  const [inFlight, setInFlight] = useState(false)
   const forced = __DEV__ && process.env.EXPO_PUBLIC_LAB === '1'
   const refreshStatus = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -44,7 +45,11 @@ function LabFlow() {
   useFocusEffect(useCallback(() => {
     const ctrl = new AbortController()
     refreshStatus(ctrl.signal)
-    return () => { ctrl.abort(); request.current?.abort(); request.current = null }
+    return () => {
+      ctrl.abort()
+      request.current?.abort()
+      setScreen((current) => current === 'generating' ? 'prompt' : current)
+    }
   }, [refreshStatus]))
 
   const generate = async () => {
@@ -54,6 +59,7 @@ function LabFlow() {
     if (status?.remaining === 0) { setScreen('limit'); return }
     const ctrl = new AbortController()
     request.current = ctrl
+    setInFlight(true)
     setInvalid(false)
     setScreen('generating')
     try {
@@ -72,12 +78,14 @@ function LabFlow() {
       else setScreen(problem)
       await refreshStatus()
     } finally {
-      if (request.current === ctrl) request.current = null
+      if (request.current === ctrl) {
+        request.current = null
+        setInFlight(false)
+      }
     }
   }
   const cancel = () => {
     request.current?.abort()
-    request.current = null
     setScreen('prompt')
     refreshStatus()
   }
@@ -134,7 +142,7 @@ function LabFlow() {
       {screen === 'offline' ? <><OfflineState onRetry={generate} /><T style={body(14, 1.5)}>{t('lab.offlineNote')}</T><Button title={t('lab.history')} variant="outline" onPress={() => router.push('/lab/history')} /></> : null}
     </ScrollView>
     <View style={{ padding: 16, paddingBottom: Math.max(insets.bottom, 16), gap: 10 }}>
-      {screen === 'prompt' ? <Button title={t('lab.draw')} disabled={authLoading || (!status && signedIn) || !!statusError} onPress={generate} /> : null}
+      {screen === 'prompt' ? <Button title={t('lab.draw')} disabled={inFlight || authLoading || (!status && signedIn) || !!statusError} onPress={generate} /> : null}
       {screen === 'generating' ? <Button title={t('lab.cancel')} variant="outline" onPress={cancel} /> : null}
       {screen === 'result' ? <Button title={t('lab.redraw')} variant="outline" onPress={generate} /> : null}
       {screen === 'limit' ? <><Button title={t('lab.catalog')} onPress={() => router.push('/catalog')} /><Button title={t('lab.studio')} variant="outline" onPress={() => router.push('/studio')} /></> : null}

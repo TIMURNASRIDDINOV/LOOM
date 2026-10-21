@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import { fetchLabEnabled, useLabEnabled } from '../../lib/flags'
@@ -7,7 +7,7 @@ import { Button, Centered, Panel, T } from '../ui'
 import { C, RULE } from '../../theme/tokens'
 import { body, mono } from '../../theme/type'
 import { useI18n } from '../../i18n'
-import { labMessage, loadLabImage, reportLab, type LabRun, type LabVariant } from '../../api/lab'
+import { labMessage, loadLabImage, releaseLabImage, reportLab, type LabRun, type LabVariant } from '../../api/lab'
 import { useStudio } from '../../state/studio'
 import { useToast } from '../../state/toast'
 
@@ -50,7 +50,7 @@ export function useLabStudio() {
   }
 }
 
-export function LabRunCard({ run, compact, onApply }: { run: LabRun; compact?: boolean; onApply: (variant: LabVariant, uri: string) => void }) {
+export function LabRunCard({ run, compact, loadImage = true, onApply }: { run: LabRun; compact?: boolean; loadImage?: boolean; onApply: (variant: LabVariant, uri: string) => void }) {
   const { t, lang } = useI18n()
   const { flash } = useToast()
   const router = useRouter()
@@ -59,15 +59,23 @@ export function LabRunCard({ run, compact, onApply }: { run: LabRun; compact?: b
   const [imageFailed, setImageFailed] = useState(false)
   const [reload, setReload] = useState(0)
   const [reporting, setReporting] = useState(false)
+  const appliedUri = useRef<string | null>(null)
   useEffect(() => {
     const ctrl = new AbortController()
+    let loadedUri: string | null = null
     setUri(null)
     setImageFailed(false)
+    if (!loadImage) return
     loadLabImage(variant.url, ctrl.signal).then((value) => {
-      if (!ctrl.signal.aborted) setUri(value)
+      loadedUri = value
+      if (ctrl.signal.aborted) releaseLabImage(value)
+      else setUri(value)
     }).catch(() => { if (!ctrl.signal.aborted) setImageFailed(true) })
-    return () => ctrl.abort()
-  }, [variant.url, reload])
+    return () => {
+      ctrl.abort()
+      if (loadedUri && loadedUri !== appliedUri.current) releaseLabImage(loadedUri)
+    }
+  }, [variant.url, reload, loadImage])
   const report = async () => {
     if (reporting) return
     setReporting(true)
@@ -85,11 +93,15 @@ export function LabRunCard({ run, compact, onApply }: { run: LabRun; compact?: b
     <View style={[styles.image, { height: compact ? 180 : 260 }]}>
       {uri ? <Image source={{ uri }} resizeMode="contain" style={{ width: '100%', height: '100%' }} accessibilityLabel={t('lab.artName')} />
         : imageFailed ? <View style={{ padding: 16, gap: 12 }}><T style={body(14, 1.4)}>{t('lab.imageFailed')}</T><Button title={t('common.retry')} variant="outline" onPress={() => setReload((v) => v + 1)} /></View>
-          : <ActivityIndicator color={C.coral} />}
+          : loadImage ? <ActivityIndicator color={C.coral} /> : null}
     </View>
     {variant.lowQuality ? <View style={styles.quality}><T style={mono(12, 1.4)}>{t('lab.lowQuality')}</T></View> : null}
     <Button title={t('lab.report')} variant="outline" loading={reporting} onPress={report} />
-    <Button title={t('lab.apply')} disabled={!uri} onPress={() => uri && onApply(variant, uri)} />
+    <Button title={t('lab.apply')} disabled={!uri} onPress={() => {
+      if (!uri) return
+      appliedUri.current = uri
+      onApply(variant, uri)
+    }} />
   </Panel>
 }
 
