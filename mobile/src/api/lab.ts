@@ -76,26 +76,45 @@ export async function reportLab(runId: string): Promise<void> {
   await api('/api/lab/report', { method: 'POST', body: { runId, variant: 0 }, auth: true })
 }
 
-async function cacheNativeImage(dataUri: string, signal: AbortSignal): Promise<string> {
+const previewImages = new Set<string>()
+let draftImages = new Set<string>()
+
+async function storeNativeImage(dataUri: string, signal: AbortSignal): Promise<string> {
   const FS = await import('expo-file-system/legacy')
   if (signal.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError' })
-  if (!FS.cacheDirectory) throw new Error('Image cache unavailable')
-  const uri = `${FS.cacheDirectory}lab-${Date.now()}-${Math.random().toString(36).slice(2)}.png`
-  await FS.writeAsStringAsync(uri, dataUri.slice(dataUri.indexOf(',') + 1), { encoding: 'base64' })
-  return uri
+  if (!FS.documentDirectory) throw new Error('Image storage unavailable')
+  const folder = `${FS.documentDirectory}lab/`
+  await FS.makeDirectoryAsync(folder, { intermediates: true })
+  const uri = `${folder}lab-${Date.now()}-${Math.random().toString(36).slice(2)}.png`
+  previewImages.add(uri)
+  try {
+    if (signal.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError' })
+    await FS.writeAsStringAsync(uri, dataUri.slice(dataUri.indexOf(',') + 1), { encoding: 'base64' })
+    if (signal.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError' })
+    return uri
+  } catch (error) {
+    previewImages.delete(uri)
+    await FS.deleteAsync(uri, { idempotent: true }).catch(() => {})
+    throw error
+  }
 }
 
-/** Keep PNG bytes out of the persisted draft: native uses a cache file,
+/** Keep PNG bytes out of the persisted draft: native uses a durable file,
  * while the web preview displays a browser-managed object URL. */
 export async function loadLabImage(url: string, signal: AbortSignal): Promise<string> {
-  if (url.startsWith('data:image/') && Platform.OS !== 'web') return cacheNativeImage(url, signal)
+  if (url.startsWith('data:image/') && Platform.OS !== 'web') return storeNativeImage(url, signal)
+  const parsed = new URL(url)
   // Send credentials only to the API origin.
-  const token = new URL(url).origin === new URL(API_BASE).origin ? await getToken() : null
-  const res = await fetch(url, { signal, credentials: 'omit', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  const token = parsed.origin === new URL(API_BASE).origin ? await getToken() : null
+  const res = await fetch(parsed.href, { signal, credentials: 'omit', headers: token ? { Authorization: `Bearer ${token}` } : {} })
   if (!res.ok) throw new ApiError('', res.status)
   const blob = await res.blob()
   if (signal.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError' })
-  if (Platform.OS === 'web') return URL.createObjectURL(blob)
+  if (Platform.OS === 'web') {
+    const uri = URL.createObjectURL(blob)
+    previewImages.add(uri)
+    return uri
+  }
   const dataUri = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     const abort = () => { reader.abort(); reject(Object.assign(new Error('Cancelled'), { name: 'AbortError' })) }
@@ -106,11 +125,44 @@ export async function loadLabImage(url: string, signal: AbortSignal): Promise<st
     if (signal.aborted) abort()
     else reader.readAsDataURL(blob)
   })
-  return cacheNativeImage(dataUri, signal)
+  return storeNativeImage(dataUri, signal)
 }
 
-/** Off-screen history rows release their browser image buffers. The applied
- * image stays alive for the Studio that now owns it. */
-export function releaseLabImage(uri: string): void {
-  if (Platform.OS === 'web' && uri.startsWith('blob:')) URL.revokeObjectURL(uri)
+async function deleteUnusedLabImage(uri: string): Promise<void> {
+  if (previewImages.has(uri) || draftImages.has(uri)) return
+  if (Platform.OS === 'web') {
+    if (uri.startsWith('blob:')) URL.revokeObjectURL(uri)
+    return
+  }
+  const FS = await import('expo-file-system/legacy')
+  if (!FS.documentDirectory) return
+  const folder = `${FS.documentDirectory}lab/`
+  // Only files created by this module belong to this cleanup.
+  if (!uri.startsWith(folder) || !/^lab-[a-z0-9.-]+\.png$/.test(uri.slice(folder.length))) return
+  if (!previewImages.has(uri) && !draftImages.has(uri)) await FS.deleteAsync(uri, { idempotent: true })
+}
+
+/** Release a result/row preview; a file referenced by the draft stays alive. */
+export async function releaseLabImage(uri: string): Promise<void> {
+  previewImages.delete(uri)
+  await deleteUnusedLabImage(uri)
+}
+
+/** Transfer ownership before navigating to Studio and dropping the preview. */
+export function retainLabDraftImage(uri: string): void {
+  draftImages.add(uri)
+}
+
+/** Observe both faces while Lab is mounted behind Studio. On Lab entry, also
+ * reconcile files left by an earlier session against the hydrated draft. */
+export async function syncLabDraftImages(uris: (string | null | undefined)[]): Promise<void> {
+  const previous = draftImages
+  draftImages = new Set(uris.filter((uri): uri is string => !!uri))
+  await Promise.all([...previous].filter((uri) => !draftImages.has(uri)).map(deleteUnusedLabImage))
+  if (Platform.OS === 'web') return
+  const FS = await import('expo-file-system/legacy')
+  if (!FS.documentDirectory) return
+  const folder = `${FS.documentDirectory}lab/`
+  const names = await FS.readDirectoryAsync(folder).catch(() => [])
+  await Promise.all(names.map((name) => deleteUnusedLabImage(folder + name)))
 }

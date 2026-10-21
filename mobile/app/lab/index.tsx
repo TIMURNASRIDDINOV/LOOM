@@ -2,8 +2,9 @@ import React, { useCallback, useRef, useState } from 'react'
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { LAB_STYLES, generateLab, getLabStatus, labProblem, type LabProblem, type LabResult, type LabStatus, type LabStyle } from '../../src/api/lab'
+import { LAB_STYLES, getLabStatus, labProblem, type LabProblem, type LabResult, type LabStatus, type LabStyle } from '../../src/api/lab'
 import { LabGate, LabHeader, LabRunCard, useLabStudio } from '../../src/components/lab/LabShared'
+import { createLabGeneration } from '../../src/components/lab/generation'
 import { Button, ChipRow, Input, OfflineState, Panel, Skeleton, T, Tap, Toast } from '../../src/components/ui'
 import { C } from '../../src/theme/tokens'
 import { body, disp, dispExtra, label, mono } from '../../src/theme/type'
@@ -28,7 +29,7 @@ function LabFlow() {
   const [style, setStyle] = useState<LabStyle>('minimal')
   const [invalid, setInvalid] = useState(false)
   const [result, setResult] = useState<LabResult | null>(null)
-  const request = useRef<AbortController | null>(null)
+  const request = useRef(createLabGeneration()).current
   const [inFlight, setInFlight] = useState(false)
   const forced = __DEV__ && process.env.EXPO_PUBLIC_LAB === '1'
   const refreshStatus = useCallback(async (signal?: AbortSignal) => {
@@ -47,29 +48,29 @@ function LabFlow() {
     refreshStatus(ctrl.signal)
     return () => {
       ctrl.abort()
-      request.current?.abort()
+      request.cancel()
       setScreen((current) => current === 'generating' ? 'prompt' : current)
     }
-  }, [refreshStatus]))
+  }, [refreshStatus, request]))
 
   const generate = async () => {
-    if (authLoading || request.current) return
+    if (authLoading || request.busy) return
     if (!signedIn || status?.signedIn === false) { router.push('/login'); return }
     if (!prompt.trim() || prompt.trim().length > 500) { setInvalid(true); setScreen('prompt'); return }
     if (status?.remaining === 0) { setScreen('limit'); return }
-    const ctrl = new AbortController()
-    request.current = ctrl
+    const runRequest = request.start(prompt.trim(), style)
+    if (!runRequest) return
     setInFlight(true)
     setInvalid(false)
     setScreen('generating')
     try {
-      const run = await generateLab(prompt.trim(), style, ctrl.signal)
-      if (ctrl.signal.aborted) return
+      const run = await runRequest.result
+      if (runRequest.ignored) return
       setResult(run)
       setStatus({ enabled: true, signedIn: true, remaining: run.remaining })
       setScreen('result')
     } catch (error) {
-      if (ctrl.signal.aborted) return
+      if (runRequest.ignored) return
       const problem = labProblem(error)
       if (problem === 'limit') setStatus({ enabled: true, signedIn: true, remaining: 0 })
       if (problem === 'login') { setScreen('prompt'); router.push('/login') }
@@ -78,14 +79,12 @@ function LabFlow() {
       else setScreen(problem)
       await refreshStatus()
     } finally {
-      if (request.current === ctrl) {
-        request.current = null
-        setInFlight(false)
-      }
+      setInFlight(false)
+      if (runRequest.ignored) void refreshStatus()
     }
   }
   const cancel = () => {
-    request.current?.abort()
+    request.cancel()
     setScreen('prompt')
     refreshStatus()
   }

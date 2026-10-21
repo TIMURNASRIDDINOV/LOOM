@@ -1,13 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native'
-import { Redirect, useRouter } from 'expo-router'
+import { Redirect, useFocusEffect, useRouter } from 'expo-router'
 import { fetchLabEnabled, useLabEnabled } from '../../lib/flags'
 import { BackHeader } from '../AppBar'
 import { Button, Centered, Panel, T } from '../ui'
 import { C, RULE } from '../../theme/tokens'
 import { body, mono } from '../../theme/type'
 import { useI18n } from '../../i18n'
-import { labMessage, loadLabImage, releaseLabImage, reportLab, type LabRun, type LabVariant } from '../../api/lab'
+import { labMessage, loadLabImage, releaseLabImage, reportLab, retainLabDraftImage, syncLabDraftImages, type LabRun, type LabVariant } from '../../api/lab'
 import { useStudio } from '../../state/studio'
 import { useToast } from '../../state/toast'
 
@@ -38,8 +38,14 @@ export function useLabStudio() {
   const router = useRouter()
   const { t } = useI18n()
   const [pending, setPending] = useState<{ variant: LabVariant; uri: string } | null>(null)
+  const frontUri = studio.s.front.art?.uri
+  const backUri = studio.s.back.art?.uri
+  useEffect(() => {
+    if (studio.hydrated) void syncLabDraftImages([frontUri, backUri]).catch(() => {})
+  }, [studio.hydrated, frontUri, backUri])
   useEffect(() => {
     if (!pending || !studio.hydrated || studio.face !== 'front') return
+    retainLabDraftImage(pending.uri)
     studio.setArt({ uri: pending.uri, uploadKey: pending.variant.uploadKey, name: t('lab.artName'), price: 0 })
     setPending(null)
     router.push('/studio')
@@ -59,23 +65,28 @@ export function LabRunCard({ run, compact, loadImage = true, onApply }: { run: L
   const [imageFailed, setImageFailed] = useState(false)
   const [reload, setReload] = useState(0)
   const [reporting, setReporting] = useState(false)
-  const appliedUri = useRef<string | null>(null)
+  const [focused, setFocused] = useState(false)
+  useFocusEffect(useCallback(() => {
+    setFocused(true)
+    return () => setFocused(false)
+  }, []))
+  const visible = focused && loadImage
   useEffect(() => {
     const ctrl = new AbortController()
     let loadedUri: string | null = null
     setUri(null)
     setImageFailed(false)
-    if (!loadImage) return
+    if (!visible) return
     loadLabImage(variant.url, ctrl.signal).then((value) => {
       loadedUri = value
-      if (ctrl.signal.aborted) releaseLabImage(value)
+      if (ctrl.signal.aborted) void releaseLabImage(value).catch(() => {})
       else setUri(value)
     }).catch(() => { if (!ctrl.signal.aborted) setImageFailed(true) })
     return () => {
       ctrl.abort()
-      if (loadedUri && loadedUri !== appliedUri.current) releaseLabImage(loadedUri)
+      if (loadedUri) void releaseLabImage(loadedUri).catch(() => {})
     }
-  }, [variant.url, reload, loadImage])
+  }, [variant.url, reload, visible])
   const report = async () => {
     if (reporting) return
     setReporting(true)
@@ -93,13 +104,12 @@ export function LabRunCard({ run, compact, loadImage = true, onApply }: { run: L
     <View style={[styles.image, { height: compact ? 180 : 260 }]}>
       {uri ? <Image source={{ uri }} resizeMode="contain" style={{ width: '100%', height: '100%' }} accessibilityLabel={t('lab.artName')} />
         : imageFailed ? <View style={{ padding: 16, gap: 12 }}><T style={body(14, 1.4)}>{t('lab.imageFailed')}</T><Button title={t('common.retry')} variant="outline" onPress={() => setReload((v) => v + 1)} /></View>
-          : loadImage ? <ActivityIndicator color={C.coral} /> : null}
+          : visible ? <ActivityIndicator color={C.coral} /> : null}
     </View>
     {variant.lowQuality ? <View style={styles.quality}><T style={mono(12, 1.4)}>{t('lab.lowQuality')}</T></View> : null}
     <Button title={t('lab.report')} variant="outline" loading={reporting} onPress={report} />
     <Button title={t('lab.apply')} disabled={!uri} onPress={() => {
       if (!uri) return
-      appliedUri.current = uri
       onApply(variant, uri)
     }} />
   </Panel>

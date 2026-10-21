@@ -29,11 +29,18 @@ viewing it needs no network. Its synthetic upload keys are for UI verification.
 Cancellation only stops waiting: a successful background run still appears in
 history and spends one credit, matching `backend/API.md`.
 
-Native results are written to PNG cache files before Studio receives their
-`file://` URIs, keeping image bytes out of the persisted draft. Web previews use
-object URLs. History loads images only for visible rows and releases browser
-image buffers when a row leaves view. Blurring during generation resets the
-prompt; Cancel keeps the request guard until that request settles.
+Native results are written to `FileSystem.documentDirectory/lab/` before Studio
+receives their `file://` URIs, keeping image bytes out of the persisted draft.
+Preview cleanup preserves draft-owned images; changing or clearing draft art
+releases its previous Lab file. Lab entry also reconciles leftover files with
+the hydrated draft. An image write completed after abort is deleted.
+
+Web previews keep the object URL fallback. History loads images only for
+visible rows. Hidden rows/screens release previews on both platforms.
+Blurring during generation resets the prompt. Cancel stops displaying the
+result without aborting the request, and the guard stays active until the
+request settles or the 90-second timeout. A late successful run can still
+spend one credit and appear in history.
 
 ```sh
 node mobile/scripts/lab-test.cjs
