@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { Size } from '../theme/tokens'
+import { artworkMarkupTotal } from '../lib/markup'
 
 // The studio holds one artwork layer and one text layer per face. The web
 // configurator allows N elements per face; the app deliberately caps it at two
@@ -226,10 +227,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const layerCount = (active.art ? 1 : 0) + (active.text?.content ? 1 : 0)
 
   // Designer markup is charged once per artwork, on whichever faces carry it.
-  const total = useMemo(() => {
-    const markup = (s.front.art?.price ?? 0) + (s.back.art?.price ?? 0)
-    return s.basePrice + markup
-  }, [s])
+  const total = useMemo(() => s.basePrice + artworkMarkupTotal([s.front.art, s.back.art]), [s])
 
   const value: StudioCtx = {
     s,
