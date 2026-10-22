@@ -37,7 +37,7 @@ const arg = (k, d) => {
   return i >= 0 ? argv[i + 1] : d
 }
 const PORT = parseInt(arg('port', '8791'), 10)
-const OUT = path.resolve(arg('out', path.join(os.homedir(), '.config/loom/state/prd212/LOOM-261')))
+const OUT = path.resolve(arg('out', path.join(os.tmpdir(), 'rig-harness'))) // PNGs + results.json; pass --out to keep them
 const CHROME = arg('chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
 const SCENE_DIR = path.resolve(arg('scene-dir', path.join(MOBILE, 'src/lib')))
 const ONLY = arg('only', '')
@@ -379,7 +379,6 @@ async function measureWeb(cdp, analysis) {
       const f = res.app.front, s = res.app.settings
       checks['AC-1 white mean >= 230'] = [f.white.mean, f.white.mean >= 230]
       checks['AC-1 white clipped < 1%'] = [f.white.clippedPct, f.white.clippedPct < 1]
-      checks['AC-2 black chest mean in 25..70'] = [f.black.chestLuma, f.black.chestLuma >= 25 && f.black.chestLuma <= 70]
       const [nr, , nb] = f.navy.chestRGB
       checks['AC-2 navy chest blue - red >= 30'] = [Math.round((nb - nr) * 100) / 100, nb - nr >= 30]
       checks['AC-4 CustomToneMapping + Neutral stub patched'] = [[s.toneMappingIsCustom, s.neutralPatched], s.toneMappingIsCustom && s.neutralPatched]
@@ -396,6 +395,9 @@ async function measureWeb(cdp, analysis) {
         const d = Math.abs(res.app.front[k].mean - res.web.front[k].mean)
         checks[`AC-3 |app - web| <= 15 (${k})`] = [Math.round(d * 100) / 100, d <= 15]
       }
+      // AC-2 as amended by the PM comment on LOOM-261: the website is the reference for black.
+      const db = Math.abs(res.app.front.black.mean - res.web.front.black.mean)
+      checks['AC-2 black garment mean within 15 of the website black tee'] = [Math.round(db * 100) / 100, db <= 15]
     }
     const result = { when: new Date().toISOString(), chrome: CHROME, viewport: `${W}x${H} @${DPR}x`, sceneDir: SCENE_DIR, fabric: FABRIC, pngs, ...res, checks }
     fs.writeFileSync(path.join(OUT, `results${ONLY ? '-' + ONLY : ''}${FABRIC === 'jersey' ? '' : '-' + FABRIC}.json`), JSON.stringify(result, null, 2))

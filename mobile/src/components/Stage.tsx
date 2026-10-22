@@ -132,7 +132,7 @@ function Stage3D({
   return (
     <View style={styles.preview3d}>
       <Model3D
-        key={`${glbUrl ?? 'default'}|${JSON.stringify(printArea)}`}
+        key={`${glbUrl ?? 'default'}|${JSON.stringify(printArea)}|${fabric}`}
         glbUrl={glbUrl}
         printArea={printArea}
         fabric={fabric}
