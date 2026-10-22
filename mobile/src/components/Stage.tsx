@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
+import { Image, Platform, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
 
@@ -8,7 +8,7 @@ import { mono } from '../theme/type'
 import { GARMENT_FLAT } from '../api/catalog'
 import { cachedSrc, toDisplayableSrc } from '../lib/files'
 import { IMAGE_FRAC_AT_100, REF_RECT, toSceneDesign, type SceneDesign } from '../lib/print'
-import { DEFAULT_PRINT_AREA } from '../lib/product-config'
+import { DEFAULT_PRINT_AREA, type FlatArt } from '../lib/product-config'
 import type { FabricKey } from '../lib/scene-html'
 import type { PrintArea } from '../api/types'
 import { useStudio, type ArtLayer, type TextLayer } from '../state/studio'
@@ -32,6 +32,10 @@ export function flatRect(W: number, pa: PrintArea) {
   return { x: (W - w) / 2, y, w, h, cx: W / 2, cy: y + h / 2 }
 }
 
+// mixBlendMode needs Android 10 (API 29); iOS and web have it.
+const BLEND = Platform.OS !== 'android' || Number(Platform.Version) >= 29
+const TEE_FLAT = /\/configuratorprodutcs\/tshirt_flat_white_1200\.png$/
+
 const FONT_FAMILY: Record<string, string> = {
   'Inter Tight': 'InterTight_700Bold',
   Inter: 'Inter_600SemiBold',
@@ -42,6 +46,7 @@ export function Stage({
   glbUrl,
   printArea = DEFAULT_PRINT_AREA,
   fabric,
+  flat,
 }: {
   /** `glb_url` from the product API — drives the real 3D preview. */
   glbUrl?: string | null
@@ -49,6 +54,8 @@ export function Stage({
   printArea?: PrintArea
   /** Cloth preset for the 3D preview — `fabricForProduct(product)`. */
   fabric?: FabricKey
+  /** The product's own flat art (config.flat_art); the T-shirt flat when absent. */
+  flat?: FlatArt
 }) {
   const st = useStudio()
   const t = useT()
@@ -66,6 +73,7 @@ export function Stage({
         art={active.art}
         text={active.text}
         color={s.color}
+        flatSrc={flat ? flat[face] : undefined}
         artSelected={artSelected}
         textSelected={textSelected}
         onSelectArt={(v) => {
@@ -123,10 +131,28 @@ function Stage3D({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uris.map((a) => a.uri).join('|')])
 
+  // A colour tap re-bakes three 2048² textures. Of a burst of taps the scene
+  // bakes once, 150 ms after the last one, with the last colour (`bake` counts
+  // the bursts, so it redraws even when the colour is back where it started).
+  // The chips and the 2D stage read s.color directly and answer on the tap.
+  const [baked, setBaked] = useState({ color: s.color, n: 0 })
+  const seen = useRef(s.color)
+  useEffect(() => {
+    if (seen.current === s.color) return
+    seen.current = s.color
+    const id = setTimeout(() => setBaked((b) => ({ color: s.color, n: b.n + 1 })), 150)
+    return () => clearTimeout(id)
+  }, [s.color])
+
   // While 2D shows, hold the last design: each edit would otherwise re-bake the
   // textures in the hidden page. The current design is sent when 3D shows again.
   const shown = useRef<SceneDesign | null>(null)
-  const design = useMemo(() => (hidden && shown.current) || toSceneDesign(s, cachedSrc), [s, hidden])
+  const design = useMemo(
+    () =>
+      (hidden && shown.current) ||
+      (({ ...toSceneDesign({ ...s, color: baked.color }, cachedSrc), bake: baked.n }) as SceneDesign),
+    [s, baked, hidden],
+  )
   shown.current = design
 
   return (
@@ -149,6 +175,7 @@ function Flat({
   art,
   text,
   color,
+  flatSrc,
   artSelected,
   textSelected,
   onSelectArt,
@@ -162,6 +189,9 @@ function Flat({
   art: ArtLayer | null
   text: TextLayer | null
   color: string
+  /** Absolute URL of the product's flat for this face; null = it has none,
+   *  undefined = the catalogue has not loaded yet (both show the T-shirt flat). */
+  flatSrc: string | null | undefined
   artSelected: boolean
   textSelected: boolean
   onSelectArt: (v: boolean) => void
@@ -202,14 +232,38 @@ function Flat({
 
   const empty = !art && !text?.content
 
+  // The product's own flat; the T-shirt flat when it has none or it fails to load.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const ownFlat = flatSrc && flatSrc !== failedSrc ? flatSrc : null
+  useEffect(() => {
+    if (flatSrc !== undefined && !ownFlat) {
+      console.warn(`[Stage] no flat image for this product${flatSrc ? ' (load failed)' : ''}; using the T-shirt flat`)
+    }
+  }, [ownFlat, flatSrc])
+  // The tee's flat ships in the bundle (byte-identical to the served one): no download.
+  const flatSource = ownFlat && !TEE_FLAT.test(ownFlat) ? { uri: ownFlat } : GARMENT_FLAT
+
   return (
     <View style={styles.garmentBox} onLayout={onLayout}>
-      <Image source={GARMENT_FLAT} style={styles.garment} resizeMode="contain" />
-
-      {/* Garment colour multiplies over the flat scan. */}
-      {color.toUpperCase() !== '#FFFFFF' ? (
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color, opacity: 0.24 }]} />
-      ) : null}
+      {/* Garment colour. The flat is white with soft shading and a transparent
+          background: the bottom copy is repainted in the colour (tintColor keeps
+          only its silhouette), the top copy multiplies its shading over that.
+          Outside the garment both are transparent, so the stage stays as it was.
+          Both copies are always drawn, White included (white x shade = the flat):
+          iOS applies tint mode only when an image arrives, so tintColor must not
+          switch between undefined and a colour. Android below 10 has no
+          mixBlendMode, where the shade copy would cover the tint: it gets the
+          flat-colour silhouette alone. */}
+      <View pointerEvents="none" style={styles.garmentLayers}>
+        <Image
+          source={flatSource}
+          style={styles.garment}
+          resizeMode="contain"
+          tintColor={color}
+          onError={() => setFailedSrc(flatSrc ?? null)}
+        />
+        {BLEND ? <Image source={flatSource} style={[styles.garment, styles.garmentShade]} resizeMode="contain" /> : null}
+      </View>
 
       {W > 0 ? (
         <>
@@ -332,6 +386,9 @@ const styles = StyleSheet.create({
   // it is wide, so width is the dimension that runs out first.
   garmentBox: { width: '100%', aspectRatio: 1, maxHeight: '100%' },
   garment: { width: '100%', height: '100%' },
+  // The two flat copies blend only with each other, never with the screen behind.
+  garmentLayers: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, isolation: 'isolate' },
+  garmentShade: { position: 'absolute', left: 0, top: 0, mixBlendMode: 'multiply' },
 
   printRect: { position: 'absolute', borderWidth: 1, borderStyle: 'dashed', borderColor: C.i38 },
   printLabel: { position: 'absolute', top: -15, left: 0 },

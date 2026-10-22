@@ -16,7 +16,7 @@ import { artworkMarkupTotal } from '../lib/markup'
 // radians in design_json.
 
 export type Face = 'front' | 'back'
-export type Tool = 'text' | 'image' | 'color' | 'size' | null
+export type Tool = 'text' | 'image' | 'size' | null
 export type Surface = '2d' | '3d'
 
 export type ArtLayer = {
