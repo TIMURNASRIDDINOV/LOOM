@@ -7,11 +7,11 @@
  *
  *   node mobile/scripts/rig-harness.cjs [--out DIR] [--port 8791] [--chrome PATH]
  *                                       [--scene-dir DIR] [--only app|web]
- *                                       [--fabric jersey|heavy|fleece|pique|twill]
+ *                                       [--fabric jersey|heavy|fleece|pique|twill] [--size 320x400]
  *
  * · Default garment: assets/models/t_shirt.meshopt.glb from the working copy
  *   (the product GLBs on the API are CORS-locked to loomdesign.uz).
- * · Canvas 320x400 CSS px at DPR 2 = 640x800 drawing buffer, front view, plain
+ * · Canvas 320x400 CSS px (--size) at DPR 2 = 640x800 drawing buffer, front view, plain
  *   colour, no art. Mean = every garment pixel (alpha >= 250), sRGB 0-255,
  *   luma = 0.299R + 0.587G + 0.114B. Chest = central 20% x 20% of the canvas.
  * · No dependencies: Chrome is driven over --remote-debugging-pipe, TypeScript
@@ -43,8 +43,7 @@ const SCENE_DIR = path.resolve(arg('scene-dir', path.join(MOBILE, 'src/lib')))
 const ONLY = arg('only', '')
 const FABRIC = arg('fabric', 'jersey') // the cloth preset, as fabricForProduct() would pick it
 const ORIGIN = `http://localhost:${PORT}`
-const W = 320
-const H = 400
+const [W, H] = arg('size', '320x400').split('x').map(Number) // canvas, CSS px; the studio's 3D box is square
 const DPR = 2
 const PAPER = '#f4f2ed' // C.paper, the app's stage colour
 
