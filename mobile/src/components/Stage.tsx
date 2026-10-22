@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
@@ -7,7 +7,7 @@ import { C, RULE } from '../theme/tokens'
 import { mono } from '../theme/type'
 import { GARMENT_FLAT } from '../api/catalog'
 import { cachedSrc, toDisplayableSrc } from '../lib/files'
-import { IMAGE_FRAC_AT_100, REF_RECT, toSceneDesign } from '../lib/print'
+import { IMAGE_FRAC_AT_100, REF_RECT, toSceneDesign, type SceneDesign } from '../lib/print'
 import { DEFAULT_PRINT_AREA } from '../lib/product-config'
 import type { PrintArea } from '../api/types'
 import { useStudio, type ArtLayer, type TextLayer } from '../state/studio'
@@ -50,13 +50,15 @@ export function Stage({
   const t = useT()
   const { s, active, face, surface, artSelected, textSelected } = st
 
-  if (surface === '3d') {
-    return <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} />
-  }
+  // The 3D page is created the first time 3D is opened and then kept, hidden,
+  // while 2D shows: switching back must not reload the page, the GLB or the
+  // textures. A studio that never opens 3D never creates a WebView.
+  const opened3d = useRef(false)
+  if (surface === '3d') opened3d.current = true
 
   return (
     <View style={styles.stage}>
-      <Flat
+      {surface === '2d' ? <Flat
         art={active.art}
         text={active.text}
         color={s.color}
@@ -75,14 +77,19 @@ export function Stage({
         onEmptyTap={() => st.pickTool('image')}
         faceLabel={face === 'front' ? t('st.frontLower') : t('st.backLower')}
         printArea={printArea}
-      />
+      /> : null}
+      {opened3d.current ? (
+        <View style={[StyleSheet.absoluteFill, surface === '3d' ? null : styles.hidden]}>
+          <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} hidden={surface !== '3d'} />
+        </View>
+      ) : null}
     </View>
   )
 }
 
 // ─── 3D ──────────────────────────────────────────────────────────────────────
 
-function Stage3D({ glbUrl, printArea }: { glbUrl: string | null; printArea: PrintArea }) {
+function Stage3D({ glbUrl, printArea, hidden }: { glbUrl: string | null; printArea: PrintArea; hidden: boolean }) {
   const { s, face } = useStudio()
   // Local uploads are inlined as data: URIs for the WebView; this counter
   // re-renders once a read completes so the scene picks the bitmap up.
@@ -102,7 +109,11 @@ function Stage3D({ glbUrl, printArea }: { glbUrl: string | null; printArea: Prin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uris.map((a) => a.uri).join('|')])
 
-  const design = useMemo(() => toSceneDesign(s, cachedSrc), [s])
+  // While 2D shows, hold the last design: each edit would otherwise re-bake the
+  // textures in the hidden page. The current design is sent when 3D shows again.
+  const shown = useRef<SceneDesign | null>(null)
+  const design = useMemo(() => (hidden && shown.current) || toSceneDesign(s, cachedSrc), [s, hidden])
+  shown.current = design
 
   return (
     <View style={styles.preview3d}>
@@ -297,7 +308,10 @@ export function ArtLayerVisual({ art }: { art: ArtLayer }) {
 }
 
 const styles = StyleSheet.create({
-  stage: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
+  // The one stage box, shared by 2D and 3D so the stage does not change size
+  // when the surface changes. It is the flat garment's square (see below).
+  stage: { width: '100%', aspectRatio: 1, maxHeight: '100%' },
+  hidden: { opacity: 0, pointerEvents: 'none' },
   // The flat scan is square, so the box that carries every overlay is square
   // too. Width drives it: on a portrait phone the stage is always taller than
   // it is wide, so width is the dimension that runs out first.
@@ -334,9 +348,7 @@ const styles = StyleSheet.create({
   },
 
   preview3d: {
-    height: '100%',
-    aspectRatio: 4 / 5,
-    maxWidth: '100%',
+    flex: 1,
     borderWidth: RULE,
     borderColor: C.ink,
     backgroundColor: C.paper,

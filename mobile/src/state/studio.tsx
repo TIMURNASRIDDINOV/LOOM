@@ -262,7 +262,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
 
     loadProduct: (p) =>
       setS((prev) =>
-        prev.productId === p.id
+        prev.productId === p.id && prev.basePrice === p.price // a stored product re-reads the catalog price
           ? prev
           : { ...prev, productId: p.id, productName: p.name, basePrice: p.price },
       ),
