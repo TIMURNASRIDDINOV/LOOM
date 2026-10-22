@@ -13,7 +13,7 @@ export const MockupRenderer = forwardRef<MockupRendererHandle>(function MockupRe
       if (e.source === frame.current?.contentWindow) bridge.receive(e.data)
     }
     window.addEventListener('message', onMsg)
-    return () => window.removeEventListener('message', onMsg)
+    return () => { window.removeEventListener('message', onMsg); bridge.dispose() }
   }, [bridge])
 
   useImperativeHandle(ref, () => ({
@@ -24,6 +24,7 @@ export const MockupRenderer = forwardRef<MockupRendererHandle>(function MockupRe
     <iframe
       ref={frame}
       srcDoc={html}
+      onLoad={() => bridge.reset()}
       title="mockup"
       aria-hidden
       tabIndex={-1}

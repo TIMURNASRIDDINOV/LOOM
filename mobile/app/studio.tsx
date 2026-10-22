@@ -15,7 +15,7 @@ import { buildDesignJson, buildPlainDesignJson, designMissingUploads } from '../
 import { fetchProducts, productImage, useAsync } from '../src/api/catalog'
 import { uploadFile } from '../src/api/client'
 import { cachedSrc, toDisplayableSrc } from '../src/lib/files'
-import { MOCKUP_PX, type MockupRendererHandle } from '../src/lib/mockup-html'
+import { MOCKUP_PX, NO_MOCKUPS, withTimeout, type MockupRendererHandle } from '../src/lib/mockup-html'
 import { toSceneDesign } from '../src/lib/print'
 import { track } from '../src/api/track'
 import { useCart } from '../src/state/cart'
@@ -137,16 +137,20 @@ export default function Studio() {
 
       // Front and back mockups for the admin, drawn like the flat stage. The page
       // can only draw local files once they are inlined as data: URIs.
-      await Promise.all(
-        [snapshot.front.art, snapshot.back.art].map((a) =>
-          a?.uri && !a.pattern ? toDisplayableSrc(a.uri, a.mime ?? 'image/png').catch(() => null) : null,
-        ),
-      )
-      const mockups = (await mockupRef.current?.render({
-        design: toSceneDesign(snapshot, cachedSrc),
-        rect: flatRect(MOCKUP_PX, config.printArea),
-        size: MOCKUP_PX,
-      })) ?? null
+      const mockups = await withTimeout((async () => {
+        await Promise.all(
+          [snapshot.front.art, snapshot.back.art].map((a) =>
+            a?.uri && !a.pattern ? toDisplayableSrc(a.uri, a.mime ?? 'image/png').catch(() => null) : null,
+          ),
+        )
+        if ([snapshot.front.art, snapshot.back.art].some((a) => a?.uri && !a.pattern && !cachedSrc(a.uri))) return NO_MOCKUPS
+        return await mockupRef.current?.render({
+          design: toSceneDesign(snapshot, cachedSrc),
+          rect: flatRect(MOCKUP_PX, config.printArea),
+          size: MOCKUP_PX,
+        }) ?? NO_MOCKUPS
+      })())
+      if (!mockups.front || !mockups.back) track('cfg_mockup_miss')
 
       const swatch = config.colors.find((c) => c.hex === s.color.toUpperCase())
       const meta = [
