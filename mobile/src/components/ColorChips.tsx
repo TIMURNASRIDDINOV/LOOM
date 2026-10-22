@@ -22,6 +22,7 @@ export function ColorChips({
   chips,
   value,
   onChange,
+  disabled,
 }: {
   /** "Rang" / "Цвет" / "Colour" — the part before the chosen name. */
   label: string
@@ -29,6 +30,8 @@ export function ColorChips({
   /** The chosen colour's hex. */
   value: string
   onChange: (hex: string) => void
+  /** Shown but inert, e.g. while the product's own colours are still loading. */
+  disabled?: boolean
 }) {
   const t = useT()
   const { flash } = useToast()
@@ -48,6 +51,7 @@ export function ColorChips({
             hex={c.hex}
             label={c.available ? c.name : `${c.name}, ${t('st.unavailable')}`}
             selected={same(c.hex, value)}
+            disabled={disabled}
             unavailable={!c.available}
             onPress={() => {
               if (!c.available) flash(c.reason ?? t('st.colorUnavailable'))

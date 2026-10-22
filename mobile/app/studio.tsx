@@ -63,7 +63,7 @@ export default function Studio() {
   }, [surface])
 
   // The product (or the default garment) and its sizes, colours and print area.
-  const { product, unavailable, config } = useStudioProduct()
+  const { product, ready, unavailable, config } = useStudioProduct()
   const isBlank = product?.product_type === 'blank'
 
   // No route param: the stored product, or the default garment, is what the
@@ -278,7 +278,8 @@ export default function Studio() {
         onLayout={(e) => setDockH(e.nativeEvent.layout.height)}
       >
         <View style={styles.colorRow}>
-          <ColorChips label={t('st.color')} chips={colorChips} value={s.color} onChange={pickColor} />
+          {/* Inert until the product's own colours have loaded (until then the list is the built-in one). */}
+          <ColorChips label={t('st.color')} chips={colorChips} value={s.color} onChange={pickColor} disabled={!ready} />
         </View>
 
         <View style={styles.rail}>

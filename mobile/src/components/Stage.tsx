@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
+import { Image, Platform, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
 
@@ -31,6 +31,10 @@ export function flatRect(W: number, pa: PrintArea) {
   const y = W * (PRINT_TOP - DEFAULT_PRINT_AREA.top_frac * PRINT_W) + pa.top_frac * w
   return { x: (W - w) / 2, y, w, h, cx: W / 2, cy: y + h / 2 }
 }
+
+// mixBlendMode needs Android 10 (API 29); iOS and web have it.
+const BLEND = Platform.OS !== 'android' || Number(Platform.Version) >= 29
+const TEE_FLAT = /\/configuratorprodutcs\/tshirt_flat_white_1200\.png$/
 
 const FONT_FAMILY: Record<string, string> = {
   'Inter Tight': 'InterTight_700Bold',
@@ -236,24 +240,29 @@ function Flat({
       console.warn(`[Stage] no flat image for this product${flatSrc ? ' (load failed)' : ''}; using the T-shirt flat`)
     }
   }, [ownFlat, flatSrc])
-  const flatSource = ownFlat ? { uri: ownFlat } : GARMENT_FLAT
-  const tint = color.toUpperCase() !== '#FFFFFF' ? color : null
+  // The tee's flat ships in the bundle (byte-identical to the served one): no download.
+  const flatSource = ownFlat && !TEE_FLAT.test(ownFlat) ? { uri: ownFlat } : GARMENT_FLAT
 
   return (
     <View style={styles.garmentBox} onLayout={onLayout}>
       {/* Garment colour. The flat is white with soft shading and a transparent
           background: the bottom copy is repainted in the colour (tintColor keeps
           only its silhouette), the top copy multiplies its shading over that.
-          Outside the garment both are transparent, so the stage stays as it was. */}
+          Outside the garment both are transparent, so the stage stays as it was.
+          Both copies are always drawn, White included (white x shade = the flat):
+          iOS applies tint mode only when an image arrives, so tintColor must not
+          switch between undefined and a colour. Android below 10 has no
+          mixBlendMode, where the shade copy would cover the tint: it gets the
+          flat-colour silhouette alone. */}
       <View pointerEvents="none" style={styles.garmentLayers}>
         <Image
           source={flatSource}
           style={styles.garment}
           resizeMode="contain"
-          tintColor={tint ?? undefined}
+          tintColor={color}
           onError={() => setFailedSrc(flatSrc ?? null)}
         />
-        {tint ? <Image source={flatSource} style={[styles.garment, styles.garmentShade]} resizeMode="contain" /> : null}
+        {BLEND ? <Image source={flatSource} style={[styles.garment, styles.garmentShade]} resizeMode="contain" /> : null}
       </View>
 
       {W > 0 ? (

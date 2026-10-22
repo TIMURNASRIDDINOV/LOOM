@@ -65,6 +65,8 @@ export function useStudioProduct() {
       : products.find((p) => (p.product_type ?? 'custom') === 'custom')
   return {
     product,
+    /** The catalogue has loaded; until then `config` is the built-in lists, not the product's. */
+    ready: !!products,
     unavailable: !!products && s.productId != null && !product,
     config: productConfig(product),
   }
