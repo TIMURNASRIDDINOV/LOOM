@@ -14,6 +14,11 @@ import type { PrintArea } from '../api/types'
 //                                  print shop will receive
 //   · fitCameraToObject          — aim at the torso along the garment's own
 //                                  facing axis, 88% fill
+//   · the studio lighting rig    — Neutral tone mapping at exposure 1.2, the
+//                                  softbox environment, key/fill/rim lights that
+//                                  follow the camera, MeshPhysicalMaterial with
+//                                  per-fabric sheen and the dark-fabric lift
+//                                  (LOOM-261; configurator.js:819-938, :1071-1125)
 //
 // The page is loaded ONCE per model; every later change (colour, layers, view)
 // arrives through `window.__loom.update()` / `setView()` so the mesh, the
@@ -37,7 +42,6 @@ const VENDOR = [
   'three.min.js',
   'GLTFLoader.js',
   'OrbitControls.js',
-  'RoomEnvironment.js',
   'meshopt_decoder.js',
 ].map((f) => `${SITE_ORIGIN}/assets/vendor/${f}?v=1`)
 
@@ -48,6 +52,55 @@ export const FONTS_CSS =
 const FABRIC_NORMAL_URL = `${SITE_ORIGIN}/assets/textures/fabric-jersey-normal.jpg?v=1`
 const FABRIC_ROUGH_URL = `${SITE_ORIGIN}/assets/textures/fabric-jersey-roughness.jpg?v=1`
 
+// ── Studio rig constants (mirror of configurator.js:819-847, :1071-1125) ──────
+// three r128 has no Neutral tone mapping; the web writes Khronos PBR Neutral
+// into r128's empty CustomToneMapping stub before any material compiles, and so
+// does this page. Keep the GLSL identical to the website's.
+const STUDIO_EXPOSURE = 1.2
+const TONE_STUB = 'vec3 CustomToneMapping( vec3 color ) { return color; }'
+const NEUTRAL_TONE_MAPPING = [
+  'vec3 CustomToneMapping( vec3 color ) {',
+  '\tconst float StartCompression = 0.8 - 0.04;',
+  '\tconst float Desaturation = 0.15;',
+  '\tcolor *= toneMappingExposure;',
+  '\tfloat x = min( color.r, min( color.g, color.b ) );',
+  '\tfloat offset = x < 0.08 ? x - 6.25 * x * x : 0.04;',
+  '\tcolor -= offset;',
+  '\tfloat peak = max( color.r, max( color.g, color.b ) );',
+  '\tif ( peak < StartCompression ) return color;',
+  '\tfloat d = 1. - StartCompression;',
+  '\tfloat newPeak = 1. - d * d / ( peak + d - StartCompression );',
+  '\tcolor *= newPeak / peak;',
+  '\tfloat g = 1. - 1. / ( Desaturation * ( peak - newPeak ) + 1. );',
+  '\treturn mix( color, vec3( newPeak ), g );',
+  '}',
+].join('\n')
+
+/** Same cloth presets as the website (configurator.js FABRIC_PRESETS). */
+const FABRIC_PRESETS = {
+  jersey: { tiles: 12, normalScale: 0.9, sheen: 0.32, sheenRough: 0.75, rough: 1.0 },
+  heavy: { tiles: 9, normalScale: 1.15, sheen: 0.26, sheenRough: 0.85, rough: 1.05 },
+  fleece: { tiles: 12, normalScale: 0.6, sheen: 0.5, sheenRough: 0.95, rough: 1.1 },
+  pique: { tiles: 14, normalScale: 1.05, sheen: 0.22, sheenRough: 0.6, rough: 0.95 },
+  twill: { tiles: 16, normalScale: 0.75, sheen: 0.14, sheenRough: 0.5, rough: 0.9 },
+}
+export type FabricKey = keyof typeof FABRIC_PRESETS
+
+/** Near-black garments render on a lifted albedo (configurator.js DARK_FABRIC, LOOM-219). */
+const DARK_FABRIC = { luma: 0.12, lift: 20, sheen: 0.7, spec: 0.5, env: 0.5 }
+
+/** Which cloth a product is cut from — the website's fabricForProduct(), same patterns. */
+export function fabricForProduct(
+  p: { slug?: string | null; name_ru?: string | null; name_en?: string | null } | null | undefined,
+): FabricKey {
+  const tag = [p?.slug, p?.name_ru, p?.name_en].filter(Boolean).join(' ').toLowerCase()
+  if (/hood|худи|толстов|sweat|свитш/.test(tag)) return 'fleece'
+  if (/polo|поло/.test(tag)) return 'pique'
+  if (/cap|кепк|панам|pant|штан|шорт|short/.test(tag)) return 'twill'
+  if (/oversize|оверсайз|heavy|плотн/.test(tag)) return 'heavy'
+  return 'jersey'
+}
+
 export type SceneConfig = {
   glbUrl: string
   background: string
@@ -57,10 +110,12 @@ export type SceneConfig = {
   autoRotate: boolean
   /** The product's print area (LOOM-166); the web's defaults when absent. */
   printArea?: PrintArea
+  /** Cloth preset (sheen, weave scale); `jersey` when absent. */
+  fabric?: FabricKey
 }
 
 export function buildSceneHtml(cfg: SceneConfig): string {
-  const { printArea, ...scene } = cfg
+  const { printArea, fabric, ...scene } = cfg
   const pa = printArea ?? { platen_cm: PLATEN_CM, width_frac: 0.55, top_frac: 0.2 }
   const CONFIG = JSON.stringify({
     ...scene,
@@ -72,9 +127,12 @@ export function buildSceneHtml(cfg: SceneConfig): string {
     PLATEN_TOP_FRAC: pa.top_frac,
     FABRIC_NORMAL_URL,
     FABRIC_ROUGH_URL,
-    FABRIC_TILES: 12,
-    FABRIC_NORMAL_SCALE: 0.9,
-    FABRIC_ENV_INTENSITY: 0.7,
+    FABRIC: FABRIC_PRESETS[fabric ?? 'jersey'],
+    FABRIC_ENV_INTENSITY: 0.28, // the studio environment washes white cloth out above this
+    DARK_FABRIC,
+    STUDIO_EXPOSURE,
+    TONE_STUB,
+    NEUTRAL_TONE_MAPPING,
   })
 
   return (
@@ -150,6 +208,21 @@ const SCENE_JS = String.raw`
   function fail(why) { post({ type: 'error', message: why }); }
   if (!window.THREE || !THREE.GLTFLoader || !THREE.OrbitControls) return fail('three.js did not load');
 
+  // ── Tone mapping (configurator.js:819-847) ────────────────────────────────
+  // Khronos PBR Neutral, written into r128's CustomToneMapping stub. It has to
+  // happen before the renderer exists: the chunk is read when the first
+  // material compiles. Linear clips a white chest; Neutral leaves everything
+  // below the highlights as authored, so white cloth reads white and a hex
+  // reads as itself. ACES stays as the fallback if the build lacks the stub.
+  function useNeutralToneMapping() {
+    var chunk = THREE.ShaderChunk.tonemapping_pars_fragment || '';
+    if (chunk.indexOf(CFG.NEUTRAL_TONE_MAPPING) !== -1) return true;
+    if (chunk.indexOf(CFG.TONE_STUB) === -1) return false;
+    THREE.ShaderChunk.tonemapping_pars_fragment = chunk.replace(CFG.TONE_STUB, CFG.NEUTRAL_TONE_MAPPING);
+    return true;
+  }
+  var neutral = useNeutralToneMapping();
+
   // ── Renderer / scene ──────────────────────────────────────────────────────
   var canvas = document.getElementById('c');
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
@@ -157,21 +230,66 @@ const SCENE_JS = String.raw`
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = 0.5; // see configurator.js — white cloth clipped at 0.82
+  renderer.toneMapping = neutral ? THREE.CustomToneMapping : THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = neutral ? CFG.STUDIO_EXPOSURE : 0.95;
 
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 100);
   camera.position.set(0, 0, 3.2);
 
-  if (typeof THREE.RoomEnvironment === 'function') {
-    var pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+  // ── Studio environment (configurator.js:857-891) ──────────────────────────
+  // Five softboxes in a dark box, so the reflections on the cloth are the long
+  // vertical highlights of a studio, not a furnished room.
+  function buildStudioEnvironment(rend) {
+    if (typeof THREE.PMREMGenerator !== 'function') return null;
+    var pm = new THREE.PMREMGenerator(rend), env = new THREE.Scene();
+    var panel = function (w, h, color, x, y, z, ry) {
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide }));
+      m.position.set(x, y, z); if (ry) m.rotation.y = ry; env.add(m);
+    };
+    env.add(new THREE.Mesh(new THREE.BoxGeometry(14, 10, 14), new THREE.MeshBasicMaterial({ color: 0x14130f, side: THREE.BackSide })));
+    panel(7, 7, 0xffffff, -3.4, 1.6, 4.2, 0.5);     // key softbox, front-left
+    panel(4, 4, 0x8d959f, 4.4, 0.6, 3.0, -0.6);     // cool fill, front-right
+    panel(9, 1.8, 0xf2ece2, 0, 4.4, 0, 0);          // overhead strip
+    panel(1.8, 6, 0xc9d2dd, -5.2, 0.4, -2.4, 1.2);  // rim strip, back-left
+    panel(1.8, 6, 0xc9d2dd, 5.2, 0.4, -2.4, -1.2);  // rim strip, back-right
+    var envTex = pm.fromScene(env, 0.04).texture;
+    env.traverse(function (o) { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+    pm.dispose();
+    return envTex;
   }
-  scene.add(new THREE.AmbientLight(0xffffff, 0.08));
-  var hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 0.12); hemi.position.set(0, 1, 0); scene.add(hemi);
-  var key = new THREE.DirectionalLight(0xffffff, 0.45); key.position.set(2.5, 3.5, 3); scene.add(key);
-  var fill = new THREE.DirectionalLight(0xffffff, 0.12); fill.position.set(-3, 1.5, 2); scene.add(fill);
+  scene.environment = buildStudioEnvironment(renderer);
+
+  // ── Lighting rig (configurator.js:893-975, :981-987) ──────────────────────
+  // Ambient and hemisphere only lift the deepest shadow off black. Key (a
+  // positional SpotLight, whose falloff IS the modelling), fill and two rims
+  // live in a group that follows the camera's azimuth, so the back of the
+  // garment is lit like the front. No shadow map: the app leaves it out for
+  // frame rate (LOOM-261 follow-up).
+  scene.add(new THREE.AmbientLight(0xffffff, 0.05));
+  var hemi = new THREE.HemisphereLight(0xffffff, 0x33302b, 0.14); hemi.position.set(0, 1, 0); scene.add(hemi);
+  var studioRig = new THREE.Group(); scene.add(studioRig);
+  var keyLight = new THREE.SpotLight(0xffffff, 3.0, 1, 0.75, 1.0, 2.0);
+  keyLight.position.set(-0.62, 0.72, 0.66);
+  studioRig.add(keyLight); studioRig.add(keyLight.target);
+  var fillLight = new THREE.DirectionalLight(0xdde7f4, 0.28); fillLight.position.set(0.8, 0.26, 0.6); studioRig.add(fillLight);
+  var rimL = new THREE.DirectionalLight(0xffffff, 0.85); rimL.position.set(-0.8, 0.42, -0.7); studioRig.add(rimL);
+  var rimR = new THREE.DirectionalLight(0xeef4ff, 0.5); rimR.position.set(0.85, 0.3, -0.72); studioRig.add(rimR);
+
+  // Point the rig at the garment once its final size is known (after fitCamera).
+  function fitStudioToObject(object) {
+    object.updateMatrixWorld(true);
+    var box = new THREE.Box3().setFromObject(object), size = box.getSize(new THREE.Vector3());
+    var radius = Math.max(size.x, size.y, size.z) * 0.62;
+    studioRig.position.copy(box.getCenter(new THREE.Vector3()));
+    // Authored as unit directions: the key sits close, the rims far.
+    studioRig.children.forEach(function (l) { if (l.isDirectionalLight) l.position.normalize().multiplyScalar(radius * 4); });
+    keyLight.position.normalize().multiplyScalar(radius * 2.2);
+    keyLight.distance = radius * 6;
+  }
+  function updateStudioRig() {
+    studioRig.rotation.y = Math.atan2(camera.position.x - studioRig.position.x, camera.position.z - studioRig.position.z);
+  }
 
   var controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.05;
@@ -201,9 +319,38 @@ const SCENE_JS = String.raw`
   // ── Fabric surface (mirror of configurator.js) ────────────────────────────
   // Tiled into the atlas rather than repeated: r128 drives every map on a
   // material with the design canvas's UV transform, which must stay at 1×.
+  var FAB = CFG.FABRIC, DARK = CFG.DARK_FABRIC;
   var fabricNormal = null, fabricRough = null, modelUvNative = false;
+  var darkK = 0, sheenTint = [1, 1, 1]; // 0–1: how close to black the garment is; its hue for the sheen
+
+  // The 3D albedo for a garment colour (configurator.js:1100). A #000000 map has
+  // no diffuse term, so near-black renders on a lifted albedo (#141414) and
+  // sheds most of its sheen, specular and reflections. Also sets darkK/sheenTint.
+  function darkFabricFill(hex) {
+    darkK = 0; sheenTint[0] = sheenTint[1] = sheenTint[2] = 1;
+    var m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return hex;
+    var n = parseInt(m[1], 16), rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    var t = Math.min(1, (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 / DARK.luma);
+    var k = 1 - t * t * (3 - 2 * t); // smoothstep: 1 at black, 0 from the threshold up
+    if (k <= 0) return hex;
+    darkK = k;
+    var lifted = rgb.map(function (v) { return v + k * (Math.max(v, DARK.lift) - v); });
+    var top = Math.max(lifted[0], lifted[1], lifted[2]);
+    lifted.forEach(function (v, i) { sheenTint[i] = 1 + k * (v / top - 1); });
+    return 'rgb(' + lifted.map(Math.round).join(',') + ')';
+  }
+  // Sheen, specular and reflections for the current garment colour (configurator.js:1118).
+  function applyFabricTone(mat) {
+    mat.envMapIntensity = CFG.FABRIC_ENV_INTENSITY * (1 - DARK.env * darkK);
+    if ('reflectivity' in mat) mat.reflectivity = 0.5 * (1 - DARK.spec * darkK); // 0.5: three's default
+    var s = FAB.sheen * (1 - DARK.sheen * darkK);
+    if (mat.sheen && mat.sheen.isColor) mat.sheen.setRGB(s * sheenTint[0], s * sheenTint[1], s * sheenTint[2]);
+    else if (typeof mat.sheen === 'number' && mat.sheen > 0) mat.sheen = s;
+  }
+
   function tileToTexture(img) {
-    var cv = mkCanvas(), g = cv.getContext('2d'), n = CFG.FABRIC_TILES, step = TEX / n;
+    var cv = mkCanvas(), g = cv.getContext('2d'), n = FAB.tiles, step = TEX / n;
     for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) g.drawImage(img, x * step, y * step, step, step);
     var t = new THREE.CanvasTexture(cv);
     t.flipY = false; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
@@ -216,8 +363,16 @@ const SCENE_JS = String.raw`
   function applyFabric(mat) {
     if (mat.userData.ownNormalMap || !fabricNormal) return;
     mat.normalMap = fabricNormal;
-    mat.normalScale = new THREE.Vector2(CFG.FABRIC_NORMAL_SCALE, CFG.FABRIC_NORMAL_SCALE);
-    mat.roughnessMap = fabricRough; mat.roughness = 1.0;
+    mat.normalScale = new THREE.Vector2(FAB.normalScale, FAB.normalScale);
+    mat.roughnessMap = fabricRough; mat.roughness = FAB.rough;
+    // Sheen is what separates cloth from plastic. r128 takes a Color (null is
+    // off); later builds take a float plus sheenRoughness. Feed whichever this
+    // build wants — a Standard fallback material has neither.
+    if ('sheen' in mat) {
+      if (mat.sheen === null) mat.sheen = new THREE.Color();
+      else if (!mat.sheen.isColor) { mat.sheen = FAB.sheen; if ('sheenRoughness' in mat) mat.sheenRoughness = FAB.sheenRough; }
+    }
+    applyFabricTone(mat);
     mat.needsUpdate = true;
   }
   Promise.all([loadImg(CFG.FABRIC_NORMAL_URL), loadImg(CFG.FABRIC_ROUGH_URL)]).then(function (imgs) {
@@ -227,8 +382,9 @@ const SCENE_JS = String.raw`
 
   function drawPlain() {
     var g = cv.plain.getContext('2d');
-    g.clearRect(0, 0, TEX, TEX); g.fillStyle = design.shirtColor; g.fillRect(0, 0, TEX, TEX);
+    g.clearRect(0, 0, TEX, TEX); g.fillStyle = darkFabricFill(design.shirtColor); g.fillRect(0, 0, TEX, TEX);
     tex.plain.needsUpdate = true;
+    materials.forEach(applyFabricTone);
   }
 
   ${DRAW_ELEMENT_JS}
@@ -489,7 +645,9 @@ const SCENE_JS = String.raw`
       var isBack = nodeHasAnyNameInHierarchy(ch, ['body_back']);
       var isFront = nodeHasAnyNameInHierarchy(ch, ['body_front']) || (mName.indexOf('body') !== -1 && !isBack && !isSleeve && !isRib);
       var map = isFront ? tex.front : isBack ? tex.back : tex.plain;
-      var mat = new THREE.MeshStandardMaterial({ map: map, side: THREE.FrontSide, roughness: 0.7, metalness: 0, envMapIntensity: CFG.FABRIC_ENV_INTENSITY });
+      // Physical, not Standard: cotton needs sheen (see applyFabric).
+      var Fabric = THREE.MeshPhysicalMaterial || THREE.MeshStandardMaterial;
+      var mat = new Fabric({ map: map, side: THREE.FrontSide, roughness: 0.75, metalness: 0, envMapIntensity: CFG.FABRIC_ENV_INTENSITY });
       // Surface detail: an authored normal map on native UVs wins, else the tiled cotton.
       var orig = Array.isArray(ch.material) ? ch.material[0] : ch.material;
       if (modelUvNative && orig && orig.normalMap) {
@@ -500,6 +658,7 @@ const SCENE_JS = String.raw`
       } else {
         applyFabric(mat);
       }
+      applyFabricTone(mat); // also before the fabric maps arrive, and for authored maps
       ch.material = mat; materials.push(mat);
       if (isFront) frontMeshes.push(ch); else if (isBack) backMeshes.push(ch);
     });
@@ -511,6 +670,7 @@ const SCENE_JS = String.raw`
     PRINT.front = measurePrintRect(frontMeshes);
     PRINT.back = measurePrintRect(backMeshes);
     fitCamera(object);
+    fitStudioToObject(object);
     redraw();
     post({ type: 'ready', printable: frontMeshes.length > 0, front: !!PRINT.front, back: !!PRINT.back });
   }, function (xhr) {
@@ -545,6 +705,7 @@ const SCENE_JS = String.raw`
       var saved = camera.position.clone(), aspect = camera.aspect;
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
       if (zoom && zoom > 1) camera.position.lerpVectors(controls.target, saved, 1 / zoom);
+      updateStudioRig();
       renderer.render(scene, camera);
       var url = renderer.domElement.toDataURL('image/png');
       camera.position.copy(saved); camera.aspect = aspect; camera.updateProjectionMatrix();
@@ -575,6 +736,7 @@ const SCENE_JS = String.raw`
       if (t >= 1) camAnim = null;
     }
     controls.update();
+    updateStudioRig();
     renderer.render(scene, camera);
   })();
 })();

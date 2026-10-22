@@ -16,6 +16,7 @@ import { fetchProducts, productImage, useAsync } from '../src/api/catalog'
 import { uploadFile } from '../src/api/client'
 import { cachedSrc, toDisplayableSrc } from '../src/lib/files'
 import { MOCKUP_PX, type MockupRendererHandle } from '../src/lib/mockup-html'
+import { fabricForProduct } from '../src/lib/scene-html'
 import { toSceneDesign } from '../src/lib/print'
 import { track } from '../src/api/track'
 import { useCart } from '../src/state/cart'
@@ -245,7 +246,7 @@ export default function Studio() {
       </View>
 
       <View style={styles.stageWrap}>
-        <Stage glbUrl={product?.glb_url ?? null} printArea={config.printArea} />
+        <Stage glbUrl={product?.glb_url ?? null} printArea={config.printArea} fabric={fabricForProduct(product)} />
         <View style={styles.faceToggle}>
           <Segmented
             value={face}

@@ -6,7 +6,7 @@ import { C } from '../theme/tokens'
 import { body, mono } from '../theme/type'
 import type { SceneDesign } from '../lib/print'
 import type { PrintArea } from '../api/types'
-import { DEFAULT_MODEL_URL, SITE_ORIGIN, buildSceneHtml } from '../lib/scene-html'
+import { DEFAULT_MODEL_URL, SITE_ORIGIN, buildSceneHtml, type FabricKey } from '../lib/scene-html'
 import { T } from './ui'
 import { useT } from '../i18n'
 
@@ -27,6 +27,8 @@ export type Model3DProps = {
   glbUrl: string | null
   /** The product's print area (config.print_area); baked into the page. */
   printArea?: PrintArea
+  /** Cloth preset (sheen, weave scale) — `fabricForProduct(product)`; jersey when absent. */
+  fabric?: FabricKey
   design: SceneDesign
   view: 'front' | 'back'
   /** Reported once the mesh is on screen; `printable` is false for garments
@@ -36,7 +38,7 @@ export type Model3DProps = {
 
 type Status = 'loading' | 'ready' | 'error'
 
-export function Model3D({ glbUrl, printArea, design, view, onReady }: Model3DProps) {
+export function Model3D({ glbUrl, printArea, fabric, design, view, onReady }: Model3DProps) {
   const [status, setStatus] = useState<Status>('loading')
   const t = useT()
   const [pct, setPct] = useState(0)
@@ -56,9 +58,10 @@ export function Model3D({ glbUrl, printArea, design, view, onReady }: Model3DPro
         view: initialView.current,
         autoRotate: true,
         printArea,
+        fabric,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modelUrl],
+    [modelUrl, fabric],
   )
 
   const send = (js: string) => {
