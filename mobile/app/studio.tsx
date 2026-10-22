@@ -64,9 +64,18 @@ export default function Studio() {
   const { product, unavailable, config } = useStudioProduct()
   const isBlank = product?.product_type === 'blank'
 
+  // No route param: the stored product, or the default garment, is what the
+  // stage shows, so its catalog price must be what the total starts from.
+  useEffect(() => {
+    if (productId || !st.hydrated || !product) return
+    st.loadProduct({ id: product.id, name: productName(product, lang), price: product.price })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, st.hydrated, product?.id, product?.price])
+
   const addToCart = async () => {
     if (busyRef.current) return
-    if (!isBlank && layerCount === 0 && !s.back.art && !s.back.text?.content) {
+    // A design on either face counts, whichever face is showing.
+    if (!isBlank && ![s.front, s.back].some((f) => f.art || f.text?.content)) {
       flash(t('st.errEmpty'))
       return
     }
