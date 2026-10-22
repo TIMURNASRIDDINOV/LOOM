@@ -9,6 +9,7 @@ import { GARMENT_FLAT } from '../api/catalog'
 import { cachedSrc, toDisplayableSrc } from '../lib/files'
 import { IMAGE_FRAC_AT_100, REF_RECT, toSceneDesign, type SceneDesign } from '../lib/print'
 import { DEFAULT_PRINT_AREA } from '../lib/product-config'
+import type { FabricKey } from '../lib/scene-html'
 import type { PrintArea } from '../api/types'
 import { useStudio, type ArtLayer, type TextLayer } from '../state/studio'
 import { ArtPattern } from './ArtPattern'
@@ -40,11 +41,14 @@ const FONT_FAMILY: Record<string, string> = {
 export function Stage({
   glbUrl,
   printArea = DEFAULT_PRINT_AREA,
+  fabric,
 }: {
   /** `glb_url` from the product API — drives the real 3D preview. */
   glbUrl?: string | null
   /** The product's print area (config.print_area). */
   printArea?: PrintArea
+  /** Cloth preset for the 3D preview — `fabricForProduct(product)`. */
+  fabric?: FabricKey
 }) {
   const st = useStudio()
   const t = useT()
@@ -80,7 +84,7 @@ export function Stage({
       /> : null}
       {opened3d.current ? (
         <View style={[StyleSheet.absoluteFill, surface === '3d' ? null : styles.hidden]}>
-          <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} hidden={surface !== '3d'} />
+          <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} fabric={fabric} hidden={surface !== '3d'} />
         </View>
       ) : null}
     </View>
@@ -89,7 +93,17 @@ export function Stage({
 
 // ─── 3D ──────────────────────────────────────────────────────────────────────
 
-function Stage3D({ glbUrl, printArea, hidden }: { glbUrl: string | null; printArea: PrintArea; hidden: boolean }) {
+function Stage3D({
+  glbUrl,
+  printArea,
+  fabric,
+  hidden,
+}: {
+  glbUrl: string | null
+  printArea: PrintArea
+  fabric?: FabricKey
+  hidden: boolean
+}) {
   const { s, face } = useStudio()
   // Local uploads are inlined as data: URIs for the WebView; this counter
   // re-renders once a read completes so the scene picks the bitmap up.
@@ -121,6 +135,7 @@ function Stage3D({ glbUrl, printArea, hidden }: { glbUrl: string | null; printAr
         key={`${glbUrl ?? 'default'}|${JSON.stringify(printArea)}`}
         glbUrl={glbUrl}
         printArea={printArea}
+        fabric={fabric}
         design={design}
         view={face}
       />

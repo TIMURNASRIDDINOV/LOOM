@@ -13,7 +13,7 @@ import { useT } from '../i18n'
 // postMessage. Used by `expo start --web` demos and for checking the scene
 // without a device.
 
-export function Model3D({ glbUrl, printArea, design, view, onReady }: Model3DProps) {
+export function Model3D({ glbUrl, printArea, fabric, design, view, onReady }: Model3DProps) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const t = useT()
   const [pct, setPct] = useState(0)
@@ -24,9 +24,9 @@ export function Model3D({ glbUrl, printArea, design, view, onReady }: Model3DPro
 
   const modelUrl = glbUrl ?? DEFAULT_MODEL_URL
   const html = useMemo(
-    () => buildSceneHtml({ glbUrl: modelUrl, background: C.paper, view: initialView.current, autoRotate: true, printArea }),
+    () => buildSceneHtml({ glbUrl: modelUrl, background: C.paper, view: initialView.current, autoRotate: true, printArea, fabric }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modelUrl],
+    [modelUrl, fabric],
   )
 
   const designJson = JSON.stringify(design)

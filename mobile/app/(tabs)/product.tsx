@@ -16,6 +16,7 @@ import { buildPlainDesignJson } from '../../src/api/design'
 import { track } from '../../src/api/track'
 import { colorName, productName, useI18n } from '../../src/i18n'
 import { goBack } from '../../src/lib/nav'
+import { fabricForProduct } from '../../src/lib/scene-html'
 import { productConfig, swatchName } from '../../src/lib/product-config'
 import { useCart } from '../../src/state/cart'
 import { useToast } from '../../src/state/toast'
@@ -122,7 +123,7 @@ export default function ProductScreen() {
         <View style={styles.stage}>
           {product.glb_url ? (
             <>
-              <Model3D glbUrl={product.glb_url} printArea={cfg.printArea} design={design} view="front" />
+              <Model3D glbUrl={product.glb_url} printArea={cfg.printArea} fabric={fabricForProduct(product)} design={design} view="front" />
               <T style={[mono(12, 16 / 12, { ls: 0.14, upper: true, color: C.i70 }), styles.caption]}>3D · 360°</T>
             </>
           ) : (
