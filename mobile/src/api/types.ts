@@ -30,10 +30,14 @@ export type PrintArea = {
 
 export type ProductColor = { hex: string; name_uz: string; name_ru: string; name_en: string; available: boolean }
 
+/** A garment's flat art: a site-relative path (or absolute URL) per face. */
+export type FlatArtFace = { src?: string; src_small?: string }
+
 export type ProductConfig = {
   sizes: string[]
   colors: ProductColor[]
   print_area: PrintArea
+  flat_art?: { front?: FlatArtFace; back?: FlatArtFace } | null
 }
 
 export type OrderStatus = 'new' | 'confirmed' | 'producing' | 'shipped' | 'delivered' | 'cancelled'

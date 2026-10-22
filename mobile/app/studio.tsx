@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Image, ScrollView, KeyboardAvoidingView, Platform, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { C, RULE, fmt, offset } from '../src/theme/tokens'
 import { disp, mono, monoSemi } from '../src/theme/type'
+import { ColorChips } from '../src/components/ColorChips'
 import { LayerInspector } from '../src/components/LayerInspector'
 import { Stage, flatRect } from '../src/components/Stage'
 import { MockupRenderer } from '../src/components/MockupRenderer'
@@ -73,6 +74,15 @@ export default function Studio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId, st.hydrated, product?.id, product?.price])
 
+  // One colour picker for the studio and the blank form. A colour change is
+  // the funnel's "style" step (tracked once per session).
+  const colorChips = config.colors.map((c) => ({ hex: c.hex, name: swatchName(c, lang, t), available: c.available }))
+  const pickColor = (hex: string) => {
+    st.setColor(hex)
+    track('cfg_style')
+  }
+  const [dockH, setDockH] = useState(150)
+
   const addToCart = async () => {
     if (busyRef.current) return
     // A design on either face counts, whichever face is showing.
@@ -92,7 +102,6 @@ export default function Studio() {
     }
     if (!colorOk(config, s.color)) {
       flash(t('st.colorUnavailable'))
-      st.pickTool('color')
       return
     }
     busyRef.current = true
@@ -187,18 +196,7 @@ export default function Studio() {
       <ScrollView contentContainerStyle={{ padding: 18, gap: 18 }}>
         <Image source={productImage(product)} style={{ width: '100%', height: 220 }} resizeMode="contain" />
         <T style={mono(12, 1.6)}>{t('st.blankNote')}</T>
-        <T style={disp(16, 1.2)}>{t('st.color')}</T>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          {config.colors.map((color) => (
-            <Tap key={color.hex} onPress={() => { if (color.available) st.setColor(color.hex) }}
-              accessibilityRole="radio" accessibilityState={{ checked: s.color.toUpperCase() === color.hex, disabled: !color.available }}
-              accessibilityLabel={swatchName(color, lang, t)}
-              style={{ padding: 10, borderWidth: s.color.toUpperCase() === color.hex ? 3 : 1, borderColor: C.ink, opacity: color.available ? 1 : 0.35 }}>
-              <View style={{ width: 26, height: 26, backgroundColor: color.hex, borderWidth: 1, borderColor: C.i55 }} />
-              <T style={mono(11, 1.4)}>{swatchName(color, lang, t)}</T>
-            </Tap>
-          ))}
-        </View>
+        <ColorChips label={t('st.color')} chips={colorChips} value={s.color} onChange={pickColor} />
         <T style={disp(16, 1.2)}>{t('product.size')}</T>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {config.sizes.map((size) => (
@@ -217,8 +215,10 @@ export default function Studio() {
     </View>
   )
 
-  // The sheet is capped so the garment always keeps most of the stage.
-  const sheetMax = Math.min(Math.round(height * 0.34), 320)
+  // The sheet is capped so the garment always keeps most of the stage: the
+  // header, the stage's 210 pt minimum, the dock (with its colour row) and the
+  // sheet's own title bar come off the screen first.
+  const sheetMax = Math.max(140, Math.min(Math.round(height * 0.34), 320, height - insets.top - 58 - 210 - dockH - 53))
 
   return (
     <KeyboardAvoidingView
@@ -246,7 +246,12 @@ export default function Studio() {
       </View>
 
       <View style={styles.stageWrap}>
-        <Stage glbUrl={product?.glb_url ?? null} printArea={config.printArea} fabric={fabricForProduct(product)} />
+        <Stage
+          glbUrl={product?.glb_url ?? null}
+          printArea={config.printArea}
+          fabric={fabricForProduct(product)}
+          flat={product ? config.flat : undefined}
+        />
         <View style={styles.faceToggle}>
           <Segmented
             value={face}
@@ -268,7 +273,14 @@ export default function Studio() {
       <ToolSheet maxHeight={sheetMax} />
       <MockupRenderer ref={mockupRef} />
 
-      <View style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      <View
+        style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 16) }]}
+        onLayout={(e) => setDockH(e.nativeEvent.layout.height)}
+      >
+        <View style={styles.colorRow}>
+          <ColorChips label={t('st.color')} chips={colorChips} value={s.color} onChange={pickColor} />
+        </View>
+
         <View style={styles.rail}>
           <RailBtn
             label={t('st.text')}
@@ -281,19 +293,6 @@ export default function Studio() {
             active={tool === 'image'}
             onPress={() => st.pickTool('image')}
             icon={<ImageTool color={tool === 'image' ? C.paper : C.ink} />}
-          />
-          <RailBtn
-            label={t('st.color')}
-            active={tool === 'color'}
-            onPress={() => st.pickTool('color')}
-            icon={
-              <View
-                style={[
-                  styles.colorDot,
-                  { backgroundColor: s.color, borderColor: tool === 'color' ? C.paper : C.ink },
-                ]}
-              />
-            }
           />
           <RailBtn
             label={s.size}
@@ -315,7 +314,7 @@ export default function Studio() {
         </View>
       </View>
 
-      <Toast message={message} bottom={150} />
+      <Toast message={message} bottom={dockH + 12} />
     </KeyboardAvoidingView>
   )
 }
@@ -393,7 +392,7 @@ const styles = StyleSheet.create({
     borderWidth: RULE,
     borderColor: C.ink,
   },
-  colorDot: { width: 19, height: 19, borderRadius: 9.5, borderWidth: RULE },
+  colorRow: { marginBottom: 12 },
 
   checkoutRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   cta: {

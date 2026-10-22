@@ -370,6 +370,7 @@ export const ru = {
   'st.colorSize': 'Цвет и размер',
   'st.sizeUnavailable': 'Этот размер недоступен — выберите другой',
   'st.colorUnavailable': 'Этот цвет недоступен — выберите другой',
+  'st.textSameColor': 'Совпадает с цветом вещи — выберите другой',
   'st.errUpload': 'Не удалось загрузить графику. Проверьте соединение.',
   'st.added': 'Добавлено в корзину',
   'st.print': 'печать {w}×{h} см · {face}',
@@ -383,7 +384,6 @@ export const ru = {
   // ── Tool sheet ────────────────────────────────────────────────────────────
   'tool.text': 'Текст',
   'tool.image': 'Графика',
-  'tool.color': 'Цвет вещи',
   'tool.size': 'Размер',
   'tool.caption': 'Надпись',
   'tool.captionPh': 'Введите текст…',
@@ -398,7 +398,6 @@ export const ru = {
   'tool.errBig': 'Файл больше 20 МБ — сожмите его и попробуйте снова',
   'tool.placed': 'Готово — правьте размер и положение в панели слоя',
   'tool.uploadLater': 'Файл не загрузился — попробуем ещё раз при оформлении',
-  'tool.chosen': 'Выбрано: {color}',
   'tool.sizeTitle': 'Размер {size}',
   'tool.sizeHint': 'Между размерами — берите больший для свободной посадки.',
   'fit.XS': 'Обхват груди 84–88 см · длина 66 см · US XS · EU 42',
@@ -424,6 +423,7 @@ export const ru = {
   'color.grey': 'Серый',
   'color.navy': 'Тёмно-синий',
   'color.khaki': 'Хаки',
+  'color.coral': 'Коралловый',
 
   // ── Map ───────────────────────────────────────────────────────────────────
   'map.hint': 'Нажмите на карту или перетащите метку',
@@ -777,6 +777,7 @@ export const uz: Dictionary = {
   'st.colorSize': 'Rang va o‘lcham',
   'st.sizeUnavailable': 'Bu o‘lcham mavjud emas — boshqasini tanlang',
   'st.colorUnavailable': 'Bu rang mavjud emas — boshqasini tanlang',
+  'st.textSameColor': 'Kiyim rangi bilan bir xil — boshqasini tanlang',
   'st.errUpload': 'Grafikani yuklab bo‘lmadi. Aloqani tekshiring.',
   'st.added': 'Savatga qo‘shildi',
   'st.print': 'chop {w}×{h} sm · {face}',
@@ -789,7 +790,6 @@ export const uz: Dictionary = {
 
   'tool.text': 'Matn',
   'tool.image': 'Grafika',
-  'tool.color': 'Kiyim rangi',
   'tool.size': 'O‘lcham',
   'tool.caption': 'Yozuv',
   'tool.captionPh': 'Matn kiriting…',
@@ -804,7 +804,6 @@ export const uz: Dictionary = {
   'tool.errBig': 'Fayl 20 MB dan katta — siqib, qayta urinib ko‘ring',
   'tool.placed': 'Tayyor — o‘lcham va joylashuvni qatlam panelida sozlang',
   'tool.uploadLater': 'Fayl yuklanmadi — rasmiylashtirishda qayta urinamiz',
-  'tool.chosen': 'Tanlangan: {color}',
   'tool.sizeTitle': 'O‘lcham {size}',
   'tool.sizeHint': 'O‘lchamlar orasida bo‘lsangiz — bo‘shroq o‘tirishi uchun kattasini oling.',
   'fit.XS': 'Ko‘krak aylanasi 84–88 sm · uzunlik 66 sm · US XS · EU 42',
@@ -828,6 +827,7 @@ export const uz: Dictionary = {
   'color.grey': 'Kulrang',
   'color.navy': 'To‘q ko‘k',
   'color.khaki': 'Xaki',
+  'color.coral': 'Marjon',
 
   'map.hint': 'Xaritaga bosing yoki belgini suring',
 
@@ -1176,6 +1176,7 @@ export const en: Dictionary = {
   'st.colorSize': 'Colour and size',
   'st.sizeUnavailable': 'This size is unavailable — choose another',
   'st.colorUnavailable': 'This colour is unavailable — choose another',
+  'st.textSameColor': 'Same as the garment colour — choose another',
   'st.errUpload': 'Couldn’t upload the artwork. Check your connection.',
   'st.added': 'Added to cart',
   'st.print': 'print {w}×{h} cm · {face}',
@@ -1188,7 +1189,6 @@ export const en: Dictionary = {
 
   'tool.text': 'Text',
   'tool.image': 'Artwork',
-  'tool.color': 'Garment colour',
   'tool.size': 'Size',
   'tool.caption': 'Caption',
   'tool.captionPh': 'Enter text…',
@@ -1203,7 +1203,6 @@ export const en: Dictionary = {
   'tool.errBig': 'File is over 20 MB — compress it and try again',
   'tool.placed': 'Done — adjust size and position in the layer panel',
   'tool.uploadLater': 'Upload failed — we’ll retry at checkout',
-  'tool.chosen': 'Selected: {color}',
   'tool.sizeTitle': 'Size {size}',
   'tool.sizeHint': 'Between sizes? Take the larger one for a relaxed fit.',
   'fit.XS': 'Chest 84–88 cm · length 66 cm · US XS · EU 42',
@@ -1227,6 +1226,7 @@ export const en: Dictionary = {
   'color.grey': 'Grey',
   'color.navy': 'Navy',
   'color.khaki': 'Khaki',
+  'color.coral': 'Coral',
 
   'map.hint': 'Tap the map or drag the pin',
 

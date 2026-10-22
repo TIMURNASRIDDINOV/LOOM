@@ -21,7 +21,9 @@ import type { Artwork } from '../api/types'
 import { useT } from '../i18n'
 import { C, F, HAIR, RULE, fmt, noShadow, offset } from '../theme/tokens'
 import { body, disp, dispSemi, label as labelType, mono, monoBold, monoSemi } from '../theme/type'
-import { Minus, Plus, Refresh, WifiOff } from './icons'
+import Svg, { Line } from 'react-native-svg'
+import { markOn } from '../lib/color'
+import { Check, Minus, Plus, Refresh, WifiOff } from './icons'
 
 // ─── Text ────────────────────────────────────────────────────────────────────
 
@@ -431,12 +433,18 @@ export function SizePicker({
   )
 }
 
-/** Garment colour button (W13, W18): 44×44 around a 28px chip; chosen = accent shadow. */
+/**
+ * Colour chip (W13, W18, W22): 44×44 around a 28px chip. Chosen = ink border,
+ * hard coral shadow and a check mark, so the choice never rests on colour alone.
+ * `unavailable` stays tappable (the caller says why) but is struck through;
+ * `disabled` is the old dimmed, dead chip.
+ */
 export function Swatch({
   hex,
   label,
   selected,
   disabled,
+  unavailable,
   onPress,
 }: {
   hex: string
@@ -444,15 +452,19 @@ export function Swatch({
   label: string
   selected?: boolean
   disabled?: boolean
+  unavailable?: boolean
   onPress?: () => void
 }) {
   return (
     <Tap
-      haptic
+      haptic={!unavailable}
       disabled={disabled}
       accessibilityRole="radio"
       accessibilityLabel={label}
-      accessibilityState={{ checked: !!selected, disabled: !!disabled }}
+      // aria-* reach the web DOM and, on native, become accessibilityState.
+      aria-checked={!!selected}
+      aria-selected={!!selected}
+      aria-disabled={!!disabled || !!unavailable}
       onPress={onPress}
       style={[
         styles.swatch,
@@ -461,7 +473,20 @@ export function Swatch({
         disabled && styles.off,
       ]}
     >
-      <View style={[styles.swatchChip, { backgroundColor: hex }]} />
+      <View style={[styles.swatchChip, { backgroundColor: hex }, unavailable && styles.swatchChipOff]} />
+      {selected ? (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <View style={styles.swatchMark}>
+            <Check size={18} width={3.2} color={markOn(hex, C.ink, C.white)} />
+          </View>
+        </View>
+      ) : null}
+      {unavailable ? (
+        <Svg pointerEvents="none" width={40} height={40} viewBox="0 0 40 40" style={styles.swatchStrike}>
+          <Line x1={5} y1={35} x2={35} y2={5} stroke={C.white} strokeWidth={5} />
+          <Line x1={5} y1={35} x2={35} y2={5} stroke={C.ink} strokeWidth={2} />
+        </Svg>
+      ) : null}
     </Tap>
   )
 }
@@ -721,6 +746,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   swatchChip: { width: 28, height: 28, borderWidth: 1.5, borderColor: C.i38 },
+  swatchChipOff: { opacity: 0.45 },
+  swatchMark: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // The button is 44 with a 2px border, so its content box is 40.
+  swatchStrike: { position: 'absolute', left: 0, top: 0 },
   stepper: { flexDirection: 'row', alignSelf: 'flex-start', borderWidth: RULE, borderColor: C.ink },
   stepBtn: { width: 44, height: 44, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' },
   stepValue: {

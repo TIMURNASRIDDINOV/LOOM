@@ -10,16 +10,20 @@ import { useStudio } from '../state/studio'
 import { useToast } from '../state/toast'
 import { Upload } from './icons'
 import { Button, Panel, T, Tap } from './ui'
-import { useI18n, useT } from '../i18n'
-import { swatchName, useStudioProduct } from '../lib/product-config'
+import { colorName, useT } from '../i18n'
+import { sameAsGarment } from '../lib/color'
+import { useStudioProduct } from '../lib/product-config'
+import { ColorChips, type ColorChip } from './ColorChips'
 import type { StringKey } from '../i18n/strings'
 
 const TITLES: Record<string, StringKey> = {
   text: 'tool.text',
   image: 'tool.image',
-  color: 'tool.color',
   size: 'tool.size',
 }
+
+/** The text colours on offer: ink, white, brand coral, navy. */
+const TEXT_COLORS = ['#131311', '#ffffff', C.coral, '#2b3e5e']
 
 /** The on-demand sheet. It only opens when a tool is picked, so the garment
  *  keeps the stage the rest of the time. */
@@ -41,7 +45,6 @@ export function ToolSheet({ maxHeight }: { maxHeight: number }) {
       <ScrollView style={{ maxHeight }} contentContainerStyle={{ padding: 12 }}>
         {tool === 'text' ? <TextTool /> : null}
         {tool === 'image' ? <ImageTool /> : null}
-        {tool === 'color' ? <ColorTool /> : null}
         {tool === 'size' ? <SizeTool /> : null}
       </ScrollView>
     </Panel>
@@ -53,9 +56,14 @@ function Label({ children }: { children: string }) {
 }
 
 function TextTool() {
-  const { active, setText, removeText } = useStudio()
+  const { s, active, setText, removeText } = useStudio()
   const tx = active.text
   const t = useT()
+  // Text the colour of the garment cannot be read: that chip is struck through.
+  const textChips: ColorChip[] = TEXT_COLORS.map((hex) => {
+    const lost = sameAsGarment(hex, s.color)
+    return { hex, name: colorName(hex, t), available: !lost, reason: lost ? t('st.textSameColor') : undefined }
+  })
   const fonts = ['Inter Tight', 'Inter', 'IBM Plex Mono']
 
   return (
@@ -108,21 +116,12 @@ function TextTool() {
         </View>
       </View>
 
-      <View>
-        <Label>{t('tool.textColor')}</Label>
-        <View style={{ flexDirection: 'row', gap: 7 }}>
-          {['#131311', '#ffffff', C.coral, '#2b3e5e'].map((c) => {
-            const on = (tx?.color ?? '#131311').toLowerCase() === c.toLowerCase()
-            return (
-              <Tap
-                key={c}
-                onPress={() => setText({ color: c })}
-                style={[styles.swatch40, { backgroundColor: c }, on && styles.swatchOn]}
-              />
-            )
-          })}
-        </View>
-      </View>
+      <ColorChips
+        label={t('tool.textColor')}
+        chips={textChips}
+        value={tx?.color ?? TEXT_COLORS[0]}
+        onChange={(hex) => setText({ color: hex })}
+      />
     </View>
   )
 }
@@ -245,38 +244,6 @@ function DesignerGrid() {
   )
 }
 
-function ColorTool() {
-  const { s, setColor } = useStudio()
-  const { t, lang } = useI18n()
-  const { flash } = useToast()
-  const { config } = useStudioProduct()
-  const chosen = config.colors.find((c) => c.hex === s.color.toUpperCase())
-  return (
-    <View>
-      <View style={styles.colorGrid}>
-        {config.colors.map((c) => {
-          const on = s.color.toUpperCase() === c.hex
-          const name = swatchName(c, lang, t)
-          return (
-            <Tap
-              key={c.hex}
-              // A colour switched off in admin stays visible, dimmed, and says why.
-              onPress={() => (c.available ? setColor(c.hex) : flash(t('st.colorUnavailable')))}
-              accessibilityLabel={c.available ? name : `${name}, ${t('st.unavailable')}`}
-              accessibilityState={{ selected: on, disabled: !c.available }}
-              style={[styles.colorSwatch, { backgroundColor: c.hex }, on && styles.swatchOn, !c.available && styles.swatchOff]}
-            />
-          )
-        })}
-      </View>
-      <T style={[mono(11.5, 1.4, { ls: 0.06, color: C.i70 }), { marginTop: 12 }]}>
-        {t('tool.chosen', { color: chosen ? swatchName(chosen, lang, t) : s.color })}
-        {chosen?.available ? '' : ` · ${t('st.unavailable')}`}
-      </T>
-    </View>
-  )
-}
-
 function SizeTool() {
   const { s, setSize } = useStudio()
   const t = useT()
@@ -355,9 +322,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  swatch40: { width: 40, height: 40, borderWidth: RULE, borderColor: C.ink },
-  swatchOn: { borderColor: C.coral, borderWidth: 3.5 },
-  swatchOff: { opacity: 0.3, borderStyle: 'dashed' },
   artGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   artCard: {
     width: '47.5%',
@@ -367,8 +331,6 @@ const styles = StyleSheet.create({
     backgroundColor: C.white,
   },
   artThumb: { width: '100%', aspectRatio: 1, borderBottomWidth: RULE, borderBottomColor: C.ink },
-  colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  colorSwatch: { width: '14.5%', aspectRatio: 1, borderWidth: RULE, borderColor: C.ink },
   sizeBtn: {
     minWidth: 46,
     paddingVertical: 13,

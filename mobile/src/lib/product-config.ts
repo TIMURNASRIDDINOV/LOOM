@@ -4,6 +4,7 @@ import { colorName, type Lang, type TFn } from '../i18n'
 import { useStudio } from '../state/studio'
 import { COLORS, SIZES } from '../theme/tokens'
 import { PLATEN_CM } from './print'
+import { SITE_ORIGIN } from './scene-html'
 
 // LOOM-166: swatches, sizes and the print area come from the product's
 // `config` (GET /api/products, LOOM-165), like on the web. A product without
@@ -11,10 +12,19 @@ import { PLATEN_CM } from './print'
 
 export type Swatch = { hex: string; names?: Record<Lang, string>; available: boolean }
 
-export type Config = { sizes: string[]; colors: Swatch[]; printArea: PrintArea }
+/** The product's own flat art per face, as absolute URLs; null = none set. */
+export type FlatArt = { front: string | null; back: string | null }
+
+export type Config = { sizes: string[]; colors: Swatch[]; printArea: PrintArea; flat: FlatArt }
 
 /** The values the web configurator and migration 0022 default to. */
 export const DEFAULT_PRINT_AREA: PrintArea = { platen_cm: PLATEN_CM, width_frac: 0.55, top_frac: 0.2 }
+
+function flatUrl(f?: { src?: string }): string | null {
+  const src = f?.src
+  if (!src) return null
+  return /^https?:/i.test(src) ? src : `${SITE_ORIGIN}/${src.replace(/^\//, '')}`
+}
 
 export function productConfig(p?: Product | null): Config {
   const c = p?.config
@@ -28,6 +38,7 @@ export function productConfig(p?: Product | null): Config {
         }))
       : COLORS.map((x) => ({ hex: x.hex.toUpperCase(), available: true })),
     printArea: c?.print_area ?? DEFAULT_PRINT_AREA,
+    flat: { front: flatUrl(c?.flat_art?.front), back: flatUrl(c?.flat_art?.back) },
   }
 }
 

@@ -95,6 +95,8 @@ const COLOR_KEYS: Record<string, StringKey> = {
   '#9BA3AF': 'color.grey',
   '#2B3E5E': 'color.navy',
   '#4D6642': 'color.khaki',
+  '#131311': 'color.black', // the ink text colour of the Text tool
+  '#FC5044': 'color.coral', // the brand coral text colour
 }
 
 /** Garment colour name for a hex, in the current language. */
