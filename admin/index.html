@@ -19,7 +19,9 @@
         const res = await fetch(
           (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
             ? 'http://localhost:8787'
-            : 'https://api.loomdesign.uz') + '/api/admin/me',
+            : /^[a-z0-9-]+\.loom-site-d94\.pages\.dev$/.test(location.hostname)
+              ? 'https://loom-backend-staging.timurnasriddinov56.workers.dev'
+              : 'https://api.loomdesign.uz') + '/api/admin/me',
           { credentials: 'include' }
         )
         location.href = res.ok ? 'dashboard.html' : 'login.html'
