@@ -2394,3 +2394,110 @@ export async function updateArtworkDetails(db: D1Database, id: number, value: {
     return result.meta.changes > 0
   })
 }
+
+// ─── Instagram posts (migration 0024, PRD-213) ───────────────────────────────
+// Rules (caption limits, which status may move where) live in lib/instagram.ts.
+// Every write carries its expected status in the WHERE clause, so an admin
+// edit and the publishing cron claiming the same row cannot both win.
+
+export interface IgPost {
+  id: number
+  caption_uz: string
+  caption_ru: string
+  caption_en: string
+  langs: string
+  media_key: string | null
+  media_url: string | null
+  publish_at: string | null
+  status: string
+  source: string
+  attempts: number
+  error: string | null
+  ig_container_id: string | null
+  ig_media_id: string | null
+  permalink: string | null
+  created_by: number | null
+  approved_by: number | null
+  approved_at: string | null
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type IgPostContent = Pick<IgPost, 'caption_uz' | 'caption_ru' | 'caption_en' | 'langs' | 'media_key' | 'media_url' | 'publish_at'>
+
+export async function listIgPosts(db: D1Database, status: string | null): Promise<IgPost[]> {
+  return safeQuery('listIgPosts', async () => {
+    // ponytail: newest 200, no paging; add page/limit when the list outgrows it.
+    const where = status ? 'WHERE status = ?' : ''
+    const stmt = db.prepare(`SELECT * FROM ig_posts ${where} ORDER BY COALESCE(publish_at, created_at) DESC, id DESC LIMIT 200`)
+    return (await (status ? stmt.bind(status) : stmt).all<IgPost>()).results
+  })
+}
+
+export async function getIgPost(db: D1Database, id: number): Promise<IgPost | null> {
+  return safeQuery('getIgPost', () => db.prepare('SELECT * FROM ig_posts WHERE id = ?').bind(id).first<IgPost>())
+}
+
+export async function insertIgPost(db: D1Database, value: IgPostContent, adminId: number, now: string): Promise<number> {
+  return safeQuery('insertIgPost', async () => {
+    const result = await db.prepare(`INSERT INTO ig_posts
+      (caption_uz, caption_ru, caption_en, langs, media_key, media_url, publish_at, status, source, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'manual', ?, ?, ?)`)
+      .bind(value.caption_uz, value.caption_ru, value.caption_en, value.langs, value.media_key, value.media_url, value.publish_at, adminId, now, now)
+      .run()
+    return Number(result.meta.last_row_id)
+  })
+}
+
+/** Save new content. `changed` sends an approved post back to draft (R-1). False when the status moved meanwhile. */
+export async function updateIgPostContent(
+  db: D1Database, id: number, value: IgPostContent, changed: boolean, editable: readonly string[], now: string,
+): Promise<boolean> {
+  return safeQuery('updateIgPostContent', async () => {
+    const back = changed ? "status = 'approved'" : '0'
+    const result = await db.prepare(`UPDATE ig_posts SET
+      caption_uz = ?, caption_ru = ?, caption_en = ?, langs = ?, media_key = ?, media_url = ?, publish_at = ?,
+      approved_by = CASE WHEN ${back} THEN NULL ELSE approved_by END,
+      approved_at = CASE WHEN ${back} THEN NULL ELSE approved_at END,
+      status = CASE WHEN ${back} THEN 'draft' ELSE status END,
+      updated_at = ?
+      WHERE id = ? AND status IN (${editable.map(() => '?').join(', ')})`)
+      .bind(value.caption_uz, value.caption_ru, value.caption_en, value.langs, value.media_key, value.media_url, value.publish_at, now, id, ...editable)
+      .run()
+    return result.meta.changes > 0
+  })
+}
+
+/**
+ * Move a post between statuses. Approval records who and when; any other move
+ * clears it. Back to draft also resets the publishing attempt state.
+ * `updatedAt`, when given, must still match: the content that was checked is
+ * the content that gets approved.
+ */
+export async function moveIgPost(
+  db: D1Database, id: number, from: readonly string[], to: string, adminId: number, now: string, updatedAt?: string,
+): Promise<boolean> {
+  return safeQuery('moveIgPost', async () => {
+    const approved = to === 'approved'
+    const reset = to === 'draft' ? ', attempts = 0, error = NULL, ig_container_id = NULL' : ''
+    const result = await db.prepare(`UPDATE ig_posts SET status = ?, approved_by = ?, approved_at = ?, updated_at = ?${reset}
+      WHERE id = ? AND status IN (${from.map(() => '?').join(', ')})${updatedAt ? ' AND updated_at = ?' : ''}`)
+      .bind(to, approved ? adminId : null, approved ? now : null, now, id, ...from, ...(updatedAt ? [updatedAt] : []))
+      .run()
+    return result.meta.changes > 0
+  })
+}
+
+export async function getIgSetting(db: D1Database, key: string): Promise<{ value: string; updated_by: number | null; updated_at: string } | null> {
+  return safeQuery('getIgSetting', () =>
+    db.prepare('SELECT value, updated_by, updated_at FROM ig_settings WHERE key = ?').bind(key).first())
+}
+
+export async function setIgSetting(db: D1Database, key: string, value: string, adminId: number, now: string): Promise<void> {
+  return safeQuery('setIgSetting', async () => {
+    await db.prepare(`INSERT INTO ig_settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
+      .bind(key, value, adminId, now).run()
+  })
+}

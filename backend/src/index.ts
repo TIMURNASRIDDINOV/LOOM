@@ -8,6 +8,7 @@ import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
 import adminAiRoutes from './routes/admin-ai'
 import adminArtworkRoutes from './routes/admin-artworks'
+import adminInstagramRoutes from './routes/admin-instagram'
 import aiCutoutRoutes from './routes/ai-cutout'
 import cartRoutes from './routes/cart'
 import paymentsRoutes from './routes/payments'
@@ -64,6 +65,7 @@ app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/adm
 app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
 app.route('/api/admin', adminAiRoutes)        // /api/admin/ai/{models,budget,runs,generate}
 app.route('/api/admin', adminArtworkRoutes)   // /api/admin/artworks, /api/admin/artworks/:id/review
+app.route('/api/admin', adminInstagramRoutes) // /api/admin/instagram/{posts,media,settings}
 app.route('/api/ai', aiCutoutRoutes)          // GET /api/ai/cutout/* (admin-only)
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 app.route('/api/auth', userProfile)

@@ -38,6 +38,7 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 |--------|------|-------------|
 | GET | `/api/files/models/:key` | Serve GLB/thumbnail (public, immutable cache, `Access-Control-Allow-Origin: *`) |
 | GET | `/api/files/artwork/:key` | Serve designer artwork from `loom-uploads` (public, immutable, CORS `*`). Only keys that belong to an artwork row. |
+| GET | `/api/files/instagram/:name` | Serve an Instagram post image (`instagram/<uuid>.jpg` in `loom-uploads`; public, immutable). Meta fetches it from this URL at publish time. |
 | GET | `/api/files/avatars/:key` | Serve a user avatar (public, 24 h cache) |
 | POST | `/api/files/track` | Funnel analytics event (`session_id`, `page`, `event`, device fields). Allow-listed events only. |
 
@@ -430,6 +431,33 @@ artwork on that order with the credited designer and their frozen share.
 
 The admin page is `admin/artworks.html` («Каталог → Работы дизайнеров»); the
 payout ledger sits below the moderation queue on the same page.
+
+### Instagram posts (PRD-213)
+
+Capabilities: `instagram.edit` (create, edit, upload, reject, back to draft) and
+`instagram.approve` (approve, retry, kill switch). The owner has both, the
+manager preset has `instagram.edit` only, staff have neither. Nothing here
+calls Meta; the publishing cron (LOOM-271) takes only `approved` posts, and
+only while `publish_paused` is false.
+
+Statuses: `draft` → `approved` → `publishing` → `published` | `failed`, plus
+`rejected`. `publishing` and `published` belong to the cron and are never
+edited (409 `ig_locked`). Times are UTC ISO 8601.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/instagram/posts` | `?status=` — newest 200 posts. Each item has `langs` as an array and `caption`, the composed text Instagram gets (uz, blank line, ru, blank line, en; switched-off or empty languages skipped). |
+| POST | `/api/admin/instagram/posts` | `{ caption_uz?, caption_ru?, caption_en?, langs?: ['uz','ru','en'], media_key?, publish_at? }` — always created as `draft`, `source = 'manual'`. 201 `{ post }`. |
+| PATCH | `/api/admin/instagram/posts/:id` | Same fields, any subset. Changing the content of an `approved` post sends it back to `draft` and clears `approved_by`. 400 `ig_caption_input` / `ig_langs` / `ig_media_key` / `ig_publish_at`. |
+| POST | `/api/admin/instagram/posts/:id/approve` | `draft` → `approved`, records `approved_by` / `approved_at`. 422 with `code`: `ig_no_media`, `ig_publish_at_past`, `ig_no_language`, `ig_caption_too_long` (> 2,200 characters composed), `ig_too_many_hashtags` (> 30), `ig_too_many_mentions` (> 20). |
+| POST | `/api/admin/instagram/posts/:id/retry` | `failed` → `draft`; resets attempts, error and container id. Needs `instagram.approve`. |
+| POST | `/api/admin/instagram/posts/:id/reject` | `draft` / `approved` / `failed` → `rejected`. |
+| POST | `/api/admin/instagram/posts/:id/draft` | `approved` / `rejected` → `draft`. |
+| POST | `/api/admin/instagram/media` | multipart `file`: JPEG up to 8 MB (by content, not name). Stored as `instagram/<uuid>.jpg`. 201 `{ key, url }`; 413 `ig_media_too_large`; 415 `ig_media_type`. |
+| GET | `/api/admin/instagram/settings` | `{ publish_paused, updated_by, updated_at, token_configured }`. `token_configured` is a boolean only — the token never leaves the Worker. |
+| PUT | `/api/admin/instagram/settings` | `{ publish_paused: boolean }` — the kill switch; defaults to paused after migration 0024. Needs `instagram.approve`. |
+
+A move whose starting status no longer holds answers 409 `ig_bad_status`.
 
 ### Products
 

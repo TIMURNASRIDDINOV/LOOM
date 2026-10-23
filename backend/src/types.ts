@@ -61,6 +61,10 @@ export type Bindings = {
   // Google models are refused by the budget guard and disabled in the admin UI.
   // Set via: wrangler secret put GEMINI_API_KEY
   GEMINI_API_KEY?: string
+  // Instagram publishing (PRD-213), Worker secrets only. The admin API reports
+  // whether both are set, never their values; LOOM-271 is the only reader.
+  IG_ACCESS_TOKEN?: string
+  IG_USER_ID?: string
 }
 
 // Used by user-auth middleware and routes
