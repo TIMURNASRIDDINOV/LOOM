@@ -169,6 +169,17 @@ try {
   eq((await get('?days=91')).status, 400)
   eq((await get('?days=30', adminToken(2))).status, 403)
 
+  // LOOM-274: suggested times read the same stored reach (ranking itself: instagram-times-test.mjs).
+  const times = async (token = owner) => {
+    const res = await mf.dispatchFetch('http://localhost/api/admin/instagram/suggested-times', { headers: { Cookie: `admin_token=${token}` } })
+    return { status: res.status, body: await res.json() }
+  }
+  r = await times()
+  eq(r.status, 200, JSON.stringify(r.body))
+  eq([r.body.basis, r.body.posts, r.body.slots.map((x) => [x.weekday, x.hour])], ['default', 2, [[2, 19], [4, 19], [6, 19]]])
+  ok(r.body.slots.every((x) => Date.parse(x.next_at) > Date.now()), 'next_at in the future')
+  eq((await times(adminToken(2))).status, 403)
+
   console.log(`instagram insights pull: ${checks} checks passed`)
 } finally {
   await mf.dispose()

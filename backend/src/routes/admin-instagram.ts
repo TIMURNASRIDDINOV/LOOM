@@ -12,6 +12,7 @@ import {
   parseLangs,
 } from '../lib/instagram'
 import { IG_MEDIA_METRICS } from '../lib/instagram-insights'
+import { suggestTimes } from '../lib/instagram-times'
 import { sniffType } from '../lib/r2'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
@@ -205,6 +206,17 @@ router.get('/instagram/insights', requireAdmin, requireCap('instagram.edit'), as
     posts.set(r.id, post)
   }
   return c.json({ days, metrics: IG_MEDIA_METRICS, posts: [...posts.values()] })
+})
+
+// ─── GET /api/admin/instagram/suggested-times  (LOOM-274) ────────────────────
+// The 3 best (weekday, hour) Tashkent slots by mean reach per post over the
+// last 90 days; Tue/Thu/Sat 19:00 with basis 'default' below 8 posts with data.
+
+router.get('/instagram/suggested-times', requireAdmin, requireCap('instagram.edit'), async (c) => {
+  const now = Date.now()
+  const rows = await listIgPostInsights(c.env.DB, new Date(now - 90 * 86_400_000).toISOString())
+  const posts = rows.filter((r) => r.metric === 'reach' && r.value !== null).map((r) => ({ published_at: r.published_at, reach: r.value! }))
+  return c.json(suggestTimes(posts, now))
 })
 
 export default router

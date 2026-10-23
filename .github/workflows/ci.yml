@@ -61,6 +61,9 @@ jobs:
       - name: Instagram insights pull (local D1, Meta stubbed)
         run: node backend/scripts/instagram-insights-test.mjs
 
+      - name: Instagram suggested posting times
+        run: node backend/scripts/instagram-times-test.mjs
+
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
 
