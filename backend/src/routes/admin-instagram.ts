@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { getIgPost, getIgSetting, insertIgPost, listIgPosts, moveIgPost, setIgSetting, updateIgPostContent } from '../db/queries'
+import { getIgPost, getIgSetting, insertIgPost, listIgPostInsights, listIgPosts, moveIgPost, setIgSetting, updateIgPostContent } from '../db/queries'
 import type { IgPost, IgPostContent } from '../db/queries'
 import {
   IG_ACTIONS,
@@ -12,6 +12,8 @@ import {
   parseLangs,
 } from '../lib/instagram'
 import { ADS_CAP_MAX_USD, adsConfigured, createIgAd, listIgAdsWithSpend, parseTargeting } from '../lib/instagram-ads'
+import { IG_MEDIA_METRICS } from '../lib/instagram-insights'
+import { reachPosts, suggestTimes } from '../lib/instagram-times'
 import { sniffType } from '../lib/r2'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
@@ -168,12 +170,15 @@ router.post('/instagram/media', requireAdmin, requireCap('instagram.edit'), asyn
 
 router.get('/instagram/settings', requireAdmin, requireCap('instagram.edit'), async (c) => {
   const paused = await getIgSetting(c.env.DB, 'publish_paused')
+  const batch = await getIgSetting(c.env.DB, 'ai_batch')
   return c.json({
     // Missing row reads as paused: publishing is opt-in (R-2).
     publish_paused: paused?.value !== '0',
     updated_by: paused?.updated_by ?? null,
     updated_at: paused?.updated_at ?? null,
     token_configured: Boolean(c.env.IG_ACCESS_TOKEN && c.env.IG_USER_ID),
+    // Last weekly AI batch (LOOM-272): { week, status, message, created, failed, at } or null.
+    ai_batch: batch ? { ...JSON.parse(batch.value), at: batch.updated_at } : null,
     ads_configured: adsConfigured(c.env),
     // Stored targeting, so the admin Ads tab can edit it before Meta is connected.
     ads_targeting: parseTargeting((await getIgSetting(c.env.DB, 'ads_targeting'))?.value),
@@ -187,6 +192,27 @@ router.put('/instagram/settings', requireAdmin, requireCap('instagram.approve'),
   }
   await setIgSetting(c.env.DB, 'publish_paused', body.publish_paused ? '1' : '0', c.get('adminId'), nowIso())
   return c.json({ ok: true, publish_paused: body.publish_paused })
+})
+
+// ─── GET /api/admin/instagram/insights  (LOOM-273) ───────────────────────────
+// Totals per post published in the last `days` days (1–90, default 30), from
+// the weekly pull. A metric Meta returned no data for is absent, not 0.
+
+router.get('/instagram/insights', requireAdmin, requireCap('instagram.edit'), async (c) => {
+  const raw = c.req.query('days')
+  const days = raw === undefined ? 30 : Number(raw)
+  if (!Number.isInteger(days) || days < 1 || days > 90) {
+    return c.json({ error: 'days — целое число от 1 до 90.', code: 'ig_days' }, 400)
+  }
+  const rows = await listIgPostInsights(c.env.DB, new Date(Date.now() - days * 86_400_000).toISOString())
+  const posts = new Map<number, { id: number; ig_media_id: string; permalink: string | null; published_at: string; fetched_at: string | null; metrics: Record<string, number> }>()
+  for (const r of rows) {
+    const post = posts.get(r.id) ?? { id: r.id, ig_media_id: r.ig_media_id, permalink: r.permalink, published_at: r.published_at, fetched_at: null, metrics: {} }
+    if (r.metric !== null && r.value !== null) post.metrics[r.metric] = r.value
+    if (r.fetched_at && (!post.fetched_at || r.fetched_at > post.fetched_at)) post.fetched_at = r.fetched_at
+    posts.set(r.id, post)
+  }
+  return c.json({ days, metrics: IG_MEDIA_METRICS, posts: [...posts.values()] })
 })
 
 // ─── Ads (LOOM-276): always created paused, capped per month ────────────────
@@ -223,6 +249,16 @@ router.put('/instagram/ads/settings', requireAdmin, requireCap('instagram.approv
   }
   for (const [key, value] of writes) await setIgSetting(c.env.DB, key, value, c.get('adminId'), nowIso())
   return c.json({ ok: true })
+})
+
+// ─── GET /api/admin/instagram/suggested-times  (LOOM-274) ────────────────────
+// The 3 best (weekday, hour) Tashkent slots by mean reach per post over the
+// last 90 days; Tue/Thu/Sat 19:00 with basis 'default' below 8 posts with data.
+
+router.get('/instagram/suggested-times', requireAdmin, requireCap('instagram.edit'), async (c) => {
+  const now = Date.now()
+  const rows = await listIgPostInsights(c.env.DB, new Date(now - 90 * 86_400_000).toISOString())
+  return c.json(suggestTimes(reachPosts(rows), now))
 })
 
 export default router

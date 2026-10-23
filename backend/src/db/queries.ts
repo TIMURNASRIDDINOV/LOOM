@@ -2541,6 +2541,57 @@ export async function pauseIgPublishing(db: D1Database, now: string): Promise<bo
     WHERE key = 'publish_paused' AND value = '0'`).bind(now).run()).meta.changes > 0)
 }
 
+// ─── Instagram insights (LOOM-273, migration 0026) ───────────────────────────
+
+export interface IgInsight {
+  scope: 'account' | 'media'
+  ig_media_id: string | null
+  metric: string
+  period: string
+  end_time: string | null
+  value: number
+}
+
+/** Media ids of posts this system published since `since` (ISO). */
+export async function listPublishedIgMediaIds(db: D1Database, since: string): Promise<string[]> {
+  return safeQuery('listPublishedIgMediaIds', async () => (await db.prepare(`SELECT ig_media_id FROM ig_posts
+    WHERE status = 'published' AND ig_media_id IS NOT NULL AND published_at >= ?
+    ORDER BY published_at DESC`).bind(since).all<{ ig_media_id: string }>()).results.map((r) => r.ig_media_id))
+}
+
+/** Insert or refresh rows on the unique key, so a second pull adds no duplicates. */
+export async function upsertIgInsights(db: D1Database, rows: IgInsight[], fetchedAt: string): Promise<void> {
+  if (!rows.length) return
+  return safeQuery('upsertIgInsights', async () => {
+    const stmt = db.prepare(`INSERT INTO ig_insights (scope, ig_media_id, metric, period, end_time, value, fetched_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (scope, COALESCE(ig_media_id, ''), metric, period, COALESCE(end_time, ''))
+      DO UPDATE SET value = excluded.value, fetched_at = excluded.fetched_at`)
+    await db.batch(rows.map((r) => stmt.bind(r.scope, r.ig_media_id, r.metric, r.period, r.end_time, r.value, fetchedAt)))
+  })
+}
+
+export interface IgPostInsightRow {
+  id: number
+  ig_media_id: string
+  permalink: string | null
+  published_at: string
+  metric: string | null
+  value: number | null
+  fetched_at: string | null
+}
+
+/** Published posts since `since` with their summed media metrics (one row per post and metric). */
+export async function listIgPostInsights(db: D1Database, since: string): Promise<IgPostInsightRow[]> {
+  return safeQuery('listIgPostInsights', async () => (await db.prepare(`SELECT p.id, p.ig_media_id, p.permalink, p.published_at,
+      i.metric, SUM(i.value) AS value, MAX(i.fetched_at) AS fetched_at
+    FROM ig_posts p
+    LEFT JOIN ig_insights i ON i.scope = 'media' AND i.ig_media_id = p.ig_media_id
+    WHERE p.status = 'published' AND p.ig_media_id IS NOT NULL AND p.published_at >= ?
+    GROUP BY p.id, i.metric
+    ORDER BY p.published_at DESC, p.id DESC`).bind(since).all<IgPostInsightRow>()).results)
+}
+
 // ─── Instagram ads (migration 0027, LOOM-276) ────────────────────────────────
 
 export interface IgAd {
