@@ -461,6 +461,16 @@ A move whose starting status no longer holds answers 409 `ig_bad_status`.
 
 Publishing is the Worker cron (`*/5 * * * *`, `lib/instagram-publish.ts`), not a route. While `publish_paused` is on it makes no Meta request. Otherwise it takes up to 5 `approved` posts with `approved_by` set and `publish_at <= now`, moves each to `publishing`, then sets `published` (`ig_media_id`, `permalink`, `published_at`) or, on a 4xx / `ERROR` / `EXPIRED` / third failed attempt, `failed` with `error` and one Telegram message. 5xx, timeouts and rate limits return the post to `approved` with `attempts + 1`. A token error (code 190) switches `publish_paused` on and leaves the post `approved`.
 
+#### Ads (LOOM-276)
+
+All three need `instagram.approve`. Ads promote a `published` post: campaign → ad set (lifetime budget, targeting from `ads_targeting`, Instagram placements) → ad using the post itself, **every one created with `status: PAUSED`**. Nothing in the code switches an ad on; the owner does that in Ads Manager. Without the Worker secrets `META_AD_ACCOUNT_ID`, `META_ADS_ACCESS_TOKEN`, `META_PAGE_ID` (and `IG_USER_ID`) the ads routes answer 503 `ig_ads_not_configured`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/instagram/ads` | Newest 50 ads: each row plus `status_seen` (Meta's `effective_status`, refreshed on read), `spend_usd` to date, `budget_usd`. `month: { spent_usd, committed_usd, cap_usd, cap_max_usd }`, `targeting`, and `meta_error` when Meta could not be read (rows still listed). |
+| POST | `/api/admin/instagram/ads` | `{ post_id, budget_usd, days }` — `budget_usd` ≥ 1 (lifetime), `days` 1–30. 201 `{ ad }`. 423 `ig_ads_paused` while `publish_paused` is on (no Meta call). 422 `ig_ads_over_cap` when this month's spend (Meta insights) + budgets of ads not yet ended + the new budget would exceed the cap (no create call); 422 `ig_ads_currency` unless the ad account is in USD; 409 `ig_ads_post_not_published`. 502 `ig_ads_meta` when a create fails: the row keeps the ids made so far and `error`, everything made stays paused, and one Telegram message is sent. |
+| PUT | `/api/admin/instagram/ads/settings` | `{ ads_monthly_cap_usd?, ads_targeting? }`. The cap is 0–60 USD; above 60 is refused (the ceiling is `ADS_CAP_MAX_USD` in `lib/instagram-ads.ts`, a stored value above it still counts as 60). `ads_targeting`: `{ countries: ['UZ'], age_min: 18–65, age_max, genders: [] \| [1] \| [2], interests: [{ id, name }] }`. |
+
 ### Products
 
 | Method | Path | Description |
