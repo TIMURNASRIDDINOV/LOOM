@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Image, Platform, StyleSheet, View, type LayoutChangeEvent } from 'react-native'
+import { Image, Platform, StyleSheet, View, type ImageSourcePropType, type LayoutChangeEvent } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
 
@@ -67,6 +67,10 @@ export function Stage({
   const opened3d = useRef(false)
   if (surface === '3d') opened3d.current = true
 
+  // What the 3D box shows when 3D is not available: the product's own flat (as in 2D).
+  const flatSrc = flat ? flat[face] : undefined
+  const photo = flatSrc && !TEE_FLAT.test(flatSrc) ? { uri: flatSrc } : GARMENT_FLAT
+
   return (
     <View style={styles.stage}>
       {surface === '2d' ? <Flat
@@ -92,7 +96,7 @@ export function Stage({
       /> : null}
       {opened3d.current ? (
         <View style={[StyleSheet.absoluteFill, surface === '3d' ? null : styles.hidden]}>
-          <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} fabric={fabric} hidden={surface !== '3d'} />
+          <Stage3D glbUrl={glbUrl ?? null} printArea={printArea} fabric={fabric} photo={photo} hidden={surface !== '3d'} />
         </View>
       ) : null}
     </View>
@@ -105,11 +109,13 @@ function Stage3D({
   glbUrl,
   printArea,
   fabric,
+  photo,
   hidden,
 }: {
   glbUrl: string | null
   printArea: PrintArea
   fabric?: FabricKey
+  photo: ImageSourcePropType
   hidden: boolean
 }) {
   const { s, face } = useStudio()
@@ -164,6 +170,8 @@ function Stage3D({
         fabric={fabric}
         design={design}
         view={face}
+        paused={hidden}
+        photo={photo}
       />
     </View>
   )
@@ -348,7 +356,7 @@ function Flat({
               <View style={styles.plus}>
                 <T style={{ fontSize: 20, lineHeight: 24, color: C.i55 }}>+</T>
               </View>
-              <T style={[mono(9.5, 1.3, { ls: 0.12, upper: true, color: C.i55, align: 'center' })]}>{t('st.addDesign')}</T>
+              <T style={[mono(12, 1.3, { ls: 0.12, upper: true, color: C.i55, align: 'center' })]}>{t('st.addDesign')}</T>
             </Tap>
           ) : null}
         </>

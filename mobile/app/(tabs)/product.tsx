@@ -122,10 +122,9 @@ export default function ProductScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.stage}>
           {product.glb_url ? (
-            <>
-              <Model3D glbUrl={product.glb_url} printArea={cfg.printArea} fabric={fabricForProduct(product)} design={design} view="front" />
-              <T style={[mono(12, 16 / 12, { ls: 0.14, upper: true, color: C.i70 }), styles.caption]}>3D · 360°</T>
-            </>
+            // In a ScrollView: a vertical swipe on the model scrolls the page. The "3D · 360°"
+            // caption and the diagnostics behind its long press are Model3D's.
+            <Model3D glbUrl={product.glb_url} printArea={cfg.printArea} fabric={fabricForProduct(product)} design={design} view="front" inScroll photo={productImage(product)} />
           ) : (
             <Image source={productImage(product)} style={styles.photo} resizeMode="contain" />
           )}
@@ -196,7 +195,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   photo: { width: '100%', height: 250 },
-  caption: { position: 'absolute', left: 16, top: 14 },
   body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20, gap: 14 },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   bar: {

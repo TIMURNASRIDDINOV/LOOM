@@ -1,14 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import React, { useEffect, useMemo, useRef } from 'react'
+import { StyleSheet, View, type ImageSourcePropType } from 'react-native'
+import { useIsFocused } from 'expo-router'
 import { WebView } from 'react-native-webview'
 
 import { C } from '../theme/tokens'
-import { body, mono } from '../theme/type'
 import type { SceneDesign } from '../lib/print'
 import type { PrintArea } from '../api/types'
+import { parsePageMessage } from '../lib/scene3d'
 import { DEFAULT_MODEL_URL, SITE_ORIGIN, buildSceneHtml, type FabricKey } from '../lib/scene-html'
-import { T } from './ui'
-import { useT } from '../i18n'
+import { Scene3DChrome, useScene3D } from './Scene3DChrome'
 
 // Real 3D preview, rendered by the same three.js pipeline the website uses.
 //
@@ -21,6 +21,12 @@ import { useT } from '../i18n'
 //
 // The page loads once per model. Colour, layers and the front/back flip are
 // pushed with injectJavaScript, so nothing is re-downloaded on a keystroke.
+//
+// Failure handling (LOOM-262): the page reports its own failures; the host adds
+// a 20 s watchdog, HTTP errors and a lost render process. Every one of them ends
+// in the same state (picture, message, Retry) and is written to the diagnostics
+// the long-press overlay shows. The WebView is unmounted when the screen loses
+// focus, and the page's render loop is paused while the layer is hidden.
 
 export type Model3DProps = {
   /** `glb_url` from the product API. Falls back to the web's default garment. */
@@ -31,18 +37,23 @@ export type Model3DProps = {
   fabric?: FabricKey
   design: SceneDesign
   view: 'front' | 'back'
+  /** The layer is hidden behind another view: the page stops drawing frames. */
+  paused?: boolean
+  /** The stage sits inside a vertical scroller: a vertical swipe scrolls it, only a horizontal drag rotates. */
+  inScroll?: boolean
+  /** Shown in the error state, instead of an empty box. */
+  photo?: ImageSourcePropType
   /** Reported once the mesh is on screen; `printable` is false for garments
    *  whose mesh has no Body_Front/Body_Back nodes (the design cannot be shown). */
   onReady?: (info: { printable: boolean }) => void
 }
 
-type Status = 'loading' | 'ready' | 'error'
+/** chrome://inspect works for dev builds and the EAS preview profile (eas.json), never for production. */
+const WEBVIEW_DEBUGGING = __DEV__ || process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview'
 
-export function Model3D({ glbUrl, printArea, fabric, design, view, onReady }: Model3DProps) {
-  const [status, setStatus] = useState<Status>('loading')
-  const t = useT()
-  const [pct, setPct] = useState(0)
-  const [printable, setPrintable] = useState(true)
+export function Model3D({ glbUrl, printArea, fabric, design, view, paused, inScroll, photo, onReady }: Model3DProps) {
+  const focused = useIsFocused()
+  const [scene, dispatch] = useScene3D(focused)
   const webRef = useRef<WebView>(null)
   const readyRef = useRef(false)
   const initialView = useRef(view)
@@ -59,9 +70,10 @@ export function Model3D({ glbUrl, printArea, fabric, design, view, onReady }: Mo
         autoRotate: true,
         printArea,
         fabric,
+        inScroll,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modelUrl, fabric],
+    [modelUrl, fabric, inScroll],
   )
 
   const send = (js: string) => {
@@ -73,79 +85,78 @@ export function Model3D({ glbUrl, printArea, fabric, design, view, onReady }: Mo
   const designJson = JSON.stringify(design)
   useEffect(() => {
     send(`window.__loom && window.__loom.update(${designJson})`)
-  }, [designJson, status])
+  }, [designJson, scene.status])
 
   useEffect(() => {
     send(`window.__loom && window.__loom.setView(${JSON.stringify(view)})`)
   }, [view])
 
+  useEffect(() => {
+    send(`window.__loom && window.__loom.${paused ? 'pause' : 'resume'}()`)
+  }, [paused])
+
+  const fail = (reason: string, kind: 'load' | 'unavailable' = 'load') => {
+    readyRef.current = false
+    dispatch({ type: 'fail', reason, kind })
+  }
+  const retry = () => {
+    readyRef.current = false
+    dispatch({ type: 'retry' })
+  }
+  // The WebView is gone while the screen is unfocused: nothing to talk to.
+  useEffect(() => {
+    if (!focused) readyRef.current = false
+  }, [focused])
+
   return (
     <View style={styles.wrap}>
-      <WebView
-        ref={webRef}
-        // The base URL gives the document loomdesign.uz as its origin, so the
-        // vendored three.js loads from our own edge and the model/artwork
-        // fetches carry an Origin the API allows.
-        source={{ html, baseUrl: SITE_ORIGIN }}
-        style={styles.web}
-        containerStyle={{ backgroundColor: C.paper }}
-        originWhitelist={['*']}
-        javaScriptEnabled
-        domStorageEnabled={false}
-        allowsInlineMediaPlayback
-        scrollEnabled={false}
-        bounces={false}
-        overScrollMode="never"
-        setSupportMultipleWindows={false}
-        mixedContentMode="always"
-        onMessage={(e) => {
-          let msg: { type: string; pct?: number; printable?: boolean; message?: string }
-          try {
-            msg = JSON.parse(e.nativeEvent.data)
-          } catch {
-            return // not our protocol
-          }
-          if (msg.type === 'progress' && typeof msg.pct === 'number') setPct(msg.pct)
-          if (msg.type === 'ready') {
-            readyRef.current = true
-            setStatus('ready')
-            setPrintable(msg.printable !== false)
-            onReady?.({ printable: msg.printable !== false })
-            // The page had no design when it booted — hand it the current one.
-            webRef.current?.injectJavaScript(`window.__loom.update(${designJson}); true;`)
-          }
-          if (msg.type === 'error') {
-            setStatus('error')
-            if (__DEV__) console.warn('[Model3D]', msg.message)
-          }
-        }}
-        onError={() => setStatus('error')}
-      />
-
-      {status === 'loading' ? (
-        <View style={styles.overlay} pointerEvents="none">
-          <ActivityIndicator color={C.coral} />
-          <T style={[mono(9.5, 1.4, { ls: 0.16, upper: true, color: C.i38 }), { marginTop: 10 }]}>
-            {pct > 0 && pct < 100 ? t('st.loading3dPct', { pct }) : t('st.loading3d')}
-          </T>
-        </View>
+      {focused && scene.status !== 'error' ? (
+        <WebView
+          key={scene.attempt}
+          ref={webRef}
+          // The base URL gives the document loomdesign.uz as its origin, so the
+          // vendored three.js loads from our own edge and the model/artwork
+          // fetches carry an Origin the API allows.
+          source={{ html, baseUrl: SITE_ORIGIN }}
+          style={styles.web}
+          containerStyle={{ backgroundColor: C.paper }}
+          originWhitelist={['*']}
+          javaScriptEnabled
+          domStorageEnabled={false}
+          allowsInlineMediaPlayback
+          scrollEnabled={false}
+          bounces={false}
+          overScrollMode="never"
+          nestedScrollEnabled={!!inScroll}
+          setSupportMultipleWindows={false}
+          mixedContentMode="always"
+          webviewDebuggingEnabled={WEBVIEW_DEBUGGING}
+          onMessage={(e) => {
+            const msg = parsePageMessage(e.nativeEvent.data)
+            if (!msg) return // not our protocol
+            dispatch({ type: 'page', msg })
+            if (msg.type === 'ready') {
+              readyRef.current = true
+              const printable = (msg as { printable?: boolean }).printable !== false
+              onReady?.({ printable })
+              // The page had no design when it booted — hand it the current one, and
+              // the pause it missed if the layer was hidden while it loaded.
+              webRef.current?.injectJavaScript(`window.__loom.update(${designJson}); ${paused ? 'window.__loom.pause();' : ''} true;`)
+            }
+            if (msg.type === 'error' && __DEV__) console.warn('[Model3D]', (msg as { message?: string }).message)
+          }}
+          onError={(e) => fail(`load: ${e.nativeEvent.description || 'error'}`)}
+          // A 4xx/5xx for the page itself. (On Android the page's own GLB and script
+          // requests are reported by the page; see scene-html.ts.)
+          onHttpError={(e) => fail(`HTTP ${e.nativeEvent.statusCode} ${e.nativeEvent.url}`)}
+          // The renderer process died (killed for memory, or crashed). Android reports it
+          // here, iOS as "content process terminated". Without a handler the view stays blank.
+          onRenderProcessGone={(e) => fail(e.nativeEvent.didCrash ? 'render process crashed' : 'render process killed (low memory)', 'unavailable')}
+          onContentProcessDidTerminate={() => fail('content process terminated', 'unavailable')}
+        />
       ) : null}
 
-      {status === 'error' ? (
-        <View style={styles.overlay} pointerEvents="none">
-          <T style={body(12.5, 1.6, { color: C.i55, align: 'center' })}>
-            {t('st.err3d')}
-          </T>
-        </View>
-      ) : null}
-
-      {status === 'ready' && !printable ? (
-        <View style={styles.note} pointerEvents="none">
-          <T style={mono(8.5, 1.3, { ls: 0.14, upper: true, color: C.i55 })}>
-            {t('st.noPrint3d')}
-          </T>
-        </View>
-      ) : null}
+      <Scene3DChrome s={scene} photo={photo} onRetry={retry} />
     </View>
   )
 }
@@ -153,25 +164,4 @@ export function Model3D({ glbUrl, printArea, fabric, design, view, onReady }: Mo
 const styles = StyleSheet.create({
   wrap: { flex: 1, width: '100%', overflow: 'hidden' },
   web: { flex: 1, backgroundColor: 'transparent' },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: C.paper,
-  },
-  note: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(244,242,237,.92)',
-    borderWidth: 1,
-    borderColor: C.line,
-  },
 })
