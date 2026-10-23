@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { trackPageVisit, isArtworkKey } from '../db/queries'
 import { serveObject, LEGACY_AVATAR_KEY } from '../lib/r2'
+import { IG_MEDIA_KEY } from '../lib/instagram'
 import type { BaseEnv } from '../types'
 
 const files = new Hono<BaseEnv>()
@@ -25,6 +26,19 @@ files.get('/models/:key{.+}', async (c) => {
 files.get('/artwork/:key{.+}', async (c) => {
   const key = c.req.param('key')
   if (!(await isArtworkKey(c.env.DB, key, true))) return c.json({ error: 'Not found' }, 404)
+  const object = await c.env.LOOM_UPLOADS.get(key)
+  if (!object) return c.json({ error: 'Not found' }, 404)
+  return serveObject(object, key, 'public, max-age=31536000, immutable')
+})
+
+// ─── GET /api/files/instagram/:name  (public, long-cached) ───────────────────
+// Images uploaded for Instagram posts (LOOM-269). Meta fetches them from this
+// URL at publish time, so they are public by design; keys are random UUIDs
+// and only the instagram/<uuid>.jpg shape is served.
+
+files.get('/instagram/:name', async (c) => {
+  const key = `instagram/${c.req.param('name')}`
+  if (!IG_MEDIA_KEY.test(key)) return c.json({ error: 'Not found' }, 404)
   const object = await c.env.LOOM_UPLOADS.get(key)
   if (!object) return c.json({ error: 'Not found' }, 404)
   return serveObject(object, key, 'public, max-age=31536000, immutable')
