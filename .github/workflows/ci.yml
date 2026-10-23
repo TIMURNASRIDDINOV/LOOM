@@ -58,6 +58,9 @@ jobs:
       - name: Instagram publishing cron (local D1, Meta stubbed)
         run: node backend/scripts/instagram-publish-test.mjs
 
+      - name: Instagram insights pull (local D1, Meta stubbed)
+        run: node backend/scripts/instagram-insights-test.mjs
+
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
 

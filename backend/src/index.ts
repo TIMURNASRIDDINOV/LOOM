@@ -17,6 +17,7 @@ import userProfile from './routes/user-profile'
 import oauthRoutes from './routes/oauth'
 import designerRoutes from './routes/designers'
 import { publishDuePosts } from './lib/instagram-publish'
+import { pullInsights } from './lib/instagram-insights'
 import type { BaseEnv, Bindings } from './types'
 
 const PROD_ORIGINS = [
@@ -66,7 +67,7 @@ app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/adm
 app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
 app.route('/api/admin', adminAiRoutes)        // /api/admin/ai/{models,budget,runs,generate}
 app.route('/api/admin', adminArtworkRoutes)   // /api/admin/artworks, /api/admin/artworks/:id/review
-app.route('/api/admin', adminInstagramRoutes) // /api/admin/instagram/{posts,media,settings}
+app.route('/api/admin', adminInstagramRoutes) // /api/admin/instagram/{posts,media,settings,insights}
 app.route('/api/ai', aiCutoutRoutes)          // GET /api/ai/cutout/* (admin-only)
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 app.route('/api/auth', userProfile)
@@ -104,9 +105,12 @@ app.onError((err, c) => {
 
 // ─── Cron (wrangler.toml [triggers]) ──────────────────────────────────────────
 // */5 * * * *: publish due approved Instagram posts (LOOM-271).
+// 0 3 * * 1:   weekly Instagram insights pull, Monday 08:00 Tashkent (LOOM-273).
 
-async function scheduled(_event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
-  ctx.waitUntil(publishDuePosts(env))
+const INSIGHTS_CRON = '0 3 * * 1'
+
+async function scheduled(event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+  ctx.waitUntil(event.cron === INSIGHTS_CRON ? pullInsights(env) : publishDuePosts(env))
 }
 
 export default { fetch: app.fetch, scheduled }

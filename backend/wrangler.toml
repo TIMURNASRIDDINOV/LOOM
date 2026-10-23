@@ -48,8 +48,10 @@ binding = "IMAGES"
 
 # Cron: publish due approved Instagram posts (LOOM-271, lib/instagram-publish.ts).
 # Does nothing while the admin kill switch (ig_settings.publish_paused) is on.
+# "0 3 * * 1": weekly read-only insights pull (LOOM-273, lib/instagram-insights.ts);
+# src/index.ts routes on this exact string (INSIGHTS_CRON).
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/5 * * * *", "0 3 * * 1"]
 
 # Secrets (set via: wrangler secret put <NAME>):
 #   JWT_SECRET               — 64+ char random string for signing JWTs
