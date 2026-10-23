@@ -41,13 +41,44 @@ export interface PublishDeps {
   notify: (html: string) => Promise<unknown>
 }
 
-class GraphError extends Error {
+export class GraphError extends Error {
   constructor(message: string, readonly kind: 'retry' | 'fail' | 'token') {
     super(message)
   }
 }
 
 type Json = Record<string, any>
+
+/**
+ * One Graph API call: the token goes in the Authorization header, and every
+ * error is a GraphError whose text never contains the token. Shared by the
+ * publishing cron and the insights pull (LOOM-273).
+ */
+export function graphClient(token: string, fetchFn: typeof fetch) {
+  return async function graph(method: 'GET' | 'POST', path: string, params?: Record<string, string>): Promise<Json> {
+    let res: Response
+    try {
+      res = await fetchFn(`${IG_GRAPH}/${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+        body: params ? new URLSearchParams(params) : undefined,
+        signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+      })
+    } catch (err) {
+      throw new GraphError(`Meta не ответил: ${err instanceof Error ? err.name : 'error'}`, 'retry')
+    }
+    const data = (await res.json().catch(() => null)) as Json | null
+    const error = data?.error as Json | undefined
+    if (res.ok && data && !error) return data
+    const code = Number(error?.code)
+    // Meta's text, minus anything that could carry the token.
+    const text = String(error?.error_user_msg || error?.message || `HTTP ${res.status}`).split(token).join('***').slice(0, 500)
+    const message = Number.isNaN(code) ? text : `${text} (code ${code})`
+    if (code === 190) throw new GraphError(message, 'token')
+    if (res.status >= 500 || res.status === 429 || RETRY_CODES.has(code) || error?.is_transient === true) throw new GraphError(message, 'retry')
+    throw new GraphError(message, 'fail')
+  }
+}
 
 export async function publishDuePosts(env: Env, overrides: Partial<PublishDeps> = {}): Promise<void> {
   const deps: PublishDeps = {
@@ -68,29 +99,7 @@ export async function publishDuePosts(env: Env, overrides: Partial<PublishDeps> 
   const start = deps.now()
   const iso = (ms = deps.now()) => new Date(ms).toISOString()
 
-  async function graph(method: 'GET' | 'POST', path: string, params?: Record<string, string>): Promise<Json> {
-    let res: Response
-    try {
-      res = await deps.fetch(`${IG_GRAPH}/${path}`, {
-        method,
-        headers: { Authorization: `Bearer ${token}` },
-        body: params ? new URLSearchParams(params) : undefined,
-        signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
-      })
-    } catch (err) {
-      throw new GraphError(`Meta не ответил: ${err instanceof Error ? err.name : 'error'}`, 'retry')
-    }
-    const data = (await res.json().catch(() => null)) as Json | null
-    const error = data?.error as Json | undefined
-    if (res.ok && data && !error) return data
-    const code = Number(error?.code)
-    // Meta's text, minus anything that could carry the token.
-    const text = String(error?.error_user_msg || error?.message || `HTTP ${res.status}`).split(token!).join('***').slice(0, 500)
-    const message = Number.isNaN(code) ? text : `${text} (code ${code})`
-    if (code === 190) throw new GraphError(message, 'token')
-    if (res.status >= 500 || res.status === 429 || RETRY_CODES.has(code) || error?.is_transient === true) throw new GraphError(message, 'retry')
-    throw new GraphError(message, 'fail')
-  }
+  const graph = graphClient(token, deps.fetch)
 
   async function tokenRejected(message: string) {
     if (await pauseIgPublishing(db, iso())) {

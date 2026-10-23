@@ -34,7 +34,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -55,8 +55,14 @@ jobs:
       - name: Instagram posts admin API (local D1)
         run: node backend/scripts/instagram-test.mjs
 
+      - name: Instagram weekly AI drafts (local D1, AI stubbed)
+        run: node backend/scripts/instagram-drafter-test.mjs
+
       - name: Instagram publishing cron (local D1, Meta stubbed)
         run: node backend/scripts/instagram-publish-test.mjs
+
+      - name: Instagram insights pull (local D1, Meta stubbed)
+        run: node backend/scripts/instagram-insights-test.mjs
 
       - name: Instagram ads, always paused and capped (local D1, Marketing API stubbed)
         run: node backend/scripts/instagram-ads-test.mjs
