@@ -104,13 +104,15 @@ app.onError((err, c) => {
 })
 
 // ─── Cron (wrangler.toml [triggers]) ──────────────────────────────────────────
+// Dispatch on the exact cron string; any other cron does nothing.
 // */5 * * * *: publish due approved Instagram posts (LOOM-271).
 // 0 3 * * 1:   weekly Instagram insights pull, Monday 08:00 Tashkent (LOOM-273).
-
+const PUBLISH_CRON = '*/5 * * * *'
 const INSIGHTS_CRON = '0 3 * * 1'
 
 async function scheduled(event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
-  ctx.waitUntil(event.cron === INSIGHTS_CRON ? pullInsights(env) : publishDuePosts(env))
+  if (event.cron === PUBLISH_CRON) ctx.waitUntil(publishDuePosts(env))
+  else if (event.cron === INSIGHTS_CRON) ctx.waitUntil(pullInsights(env))
 }
 
 export default { fetch: app.fetch, scheduled }
