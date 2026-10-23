@@ -31,7 +31,13 @@ let checks = 0
 async function call(path, { method = 'GET', body, form, admin = OWNER, status = 200 } = {}) {
   const headers = admin ? { Cookie: `admin_token=${token(admin)}` } : {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  const res = await mf.dispatchFetch(`http://localhost${path}`, { method, headers, body: form ?? (body === undefined ? undefined : JSON.stringify(body)) })
+  let payload = body === undefined ? undefined : JSON.stringify(body)
+  if (form) { // Miniflare 4 does not serialise a Node FormData: encode the multipart body here.
+    const encoded = new Response(form)
+    headers['Content-Type'] = encoded.headers.get('content-type')
+    payload = Buffer.from(await encoded.arrayBuffer())
+  }
+  const res = await mf.dispatchFetch(`http://localhost${path}`, { method, headers, body: payload })
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : res
   assert.equal(res.status, status, `${method} ${path}: ${JSON.stringify(data)}`)
   checks++
