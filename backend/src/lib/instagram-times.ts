@@ -73,3 +73,25 @@ export function suggestTimes(posts: { published_at: string; reach: number }[], n
   }
   return { basis: 'insights', posts: recent.length, slots: ranked.map((s) => ({ ...s, next_at: nextSlotAt(s.weekday, s.hour, now) })) }
 }
+
+/**
+ * `n` publish times (UTC ISO, ascending) for the AI drafter (LOOM-272): the
+ * suggested slots first, then the best slot's hour on the other days of the
+ * coming week, so a batch of up to 7 gets one post per day at most.
+ */
+export function publishTimes(posts: { published_at: string; reach: number }[], now: number, n: number): string[] {
+  const { slots } = suggestTimes(posts, now)
+  const times = slots.map((s) => s.next_at)
+  const day = (iso: string) => Math.floor((Date.parse(iso) + TASHKENT_MS) / DAY_MS)
+  const today = new Date(now + TASHKENT_MS).getUTCDay()
+  for (let d = 0; d < 7 && times.length < n; d++) {
+    const at = nextSlotAt((today + d) % 7, slots[0].hour, now)
+    if (!times.some((t) => day(t) === day(at))) times.push(at)
+  }
+  return times.slice(0, n).sort()
+}
+
+/** Reach per published post from listIgPostInsights rows (one row per post and metric). */
+export function reachPosts(rows: { metric: string | null; value: number | null; published_at: string }[]): { published_at: string; reach: number }[] {
+  return rows.filter((r) => r.metric === 'reach' && r.value !== null).map((r) => ({ published_at: r.published_at, reach: r.value as number }))
+}

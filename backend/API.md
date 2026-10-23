@@ -454,16 +454,35 @@ edited (409 `ig_locked`). Times are UTC ISO 8601.
 | POST | `/api/admin/instagram/posts/:id/reject` | `draft` / `approved` / `failed` → `rejected`. |
 | POST | `/api/admin/instagram/posts/:id/draft` | `approved` / `rejected` → `draft`. |
 | POST | `/api/admin/instagram/media` | multipart `file`: JPEG up to 8 MB (by content, not name). Stored as `instagram/<uuid>.jpg`. 201 `{ key, url }`; 413 `ig_media_too_large`; 415 `ig_media_type`. |
-| GET | `/api/admin/instagram/settings` | `{ publish_paused, updated_by, updated_at, token_configured }`. `token_configured` is a boolean only — the token never leaves the Worker. |
+| GET | `/api/admin/instagram/settings` | `{ publish_paused, updated_by, updated_at, token_configured, ai_batch }`. `token_configured` is a boolean only — the token never leaves the Worker. `ai_batch` is the last weekly AI batch, `{ week, status: running/done/stopped_budget/failed, message, created, failed, at }` or `null`; show `message` (for example "AI batch stopped: budget"). |
 | GET | `/api/admin/instagram/insights` | `?days=` (1–90, default 30) — `{ days, metrics, posts[] }`: each post published in that window with `id`, `ig_media_id`, `permalink`, `published_at`, `fetched_at` and `metrics` (`reach`, `views`, `likes`, `comments`, `shares`, `saved`, `total_interactions`, lifetime totals from the weekly pull). A metric Meta had no data for is absent, not 0. 400 `ig_days`. |
 | GET | `/api/admin/instagram/suggested-times` | `{ basis, posts, slots[] }` — the 3 best `(weekday, hour)` slots in Tashkent time (`weekday` 0 = Sunday) ranked by mean `reach` per post published in that slot in the last 90 days, each with `mean_reach`, `posts` and `next_at` (the next such time, UTC ISO). With fewer than 8 posts with reach data: Tue, Thu, Sat 19:00 and `basis: 'default'`. One implementation, `lib/instagram-times.ts`. |
 | PUT | `/api/admin/instagram/settings` | `{ publish_paused: boolean }` — the kill switch; defaults to paused after migration 0024. Needs `instagram.approve`. |
 
 A move whose starting status no longer holds answers 409 `ig_bad_status`.
 
+Weekly AI drafts (LOOM-272, `lib/instagram-drafter.ts`): cron `0 1 * * 1`
+(Monday 06:00 Tashkent) writes `ai_batch_size` (default 5, 1–7) posts with
+`source = 'ai'`, `status = 'draft'`, all three captions and a 19:00 Tashkent
+`publish_at` over the next 7 days, from active products (price and link from
+D1). Never approved. One batch per Tashkent week; it stops early when the
+drafter's daily neuron cap (`ai_neuron_cap`, default 2,000) or the shared Workers
+AI cap would be passed. Failures send one Telegram message. Both settings are
+`ig_settings` rows; caption rules are `IG_CAPTION_RULES`.
+
 Publishing is the Worker cron (`*/5 * * * *`, `lib/instagram-publish.ts`), not a route. While `publish_paused` is on it makes no Meta request. Otherwise it takes up to 5 `approved` posts with `approved_by` set and `publish_at <= now`, moves each to `publishing`, then sets `published` (`ig_media_id`, `permalink`, `published_at`) or, on a 4xx / `ERROR` / `EXPIRED` / third failed attempt, `failed` with `error` and one Telegram message. 5xx, timeouts and rate limits return the post to `approved` with `attempts + 1`. A token error (code 190) switches `publish_paused` on and leaves the post `approved`.
 
 Insights are a second cron (`0 3 * * 1`, `lib/instagram-insights.ts`, table `ig_insights`, migration 0026). It is read-only and runs even while `publish_paused` is on. It stores lifetime media metrics for every post published by this system in the last 90 days and daily account `reach` / `follower_count` for the last 7 days, upserting on `(scope, ig_media_id, metric, period, end_time)`. Empty data from Meta is no row. A metric request Meta refuses is skipped until next week; a token error (code 190) stops the pull with one Telegram message.
+
+#### Ads (LOOM-276)
+
+All three need `instagram.approve`. Ads promote a `published` post: campaign → ad set (lifetime budget, targeting from `ads_targeting`, Instagram placements) → ad using the post itself, **every one created with `status: PAUSED`**. Nothing in the code switches an ad on; the owner does that in Ads Manager. Without the Worker secrets `META_AD_ACCOUNT_ID`, `META_ADS_ACCESS_TOKEN`, `META_PAGE_ID` (and `IG_USER_ID`) the ads routes answer 503 `ig_ads_not_configured`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/instagram/ads` | Newest 50 ads: each row plus `status_seen` (Meta's `effective_status`, refreshed on read), `spend_usd` to date, `budget_usd`. `month: { spent_usd, committed_usd, cap_usd, cap_max_usd }`, `targeting`, and `meta_error` when Meta could not be read (rows still listed). |
+| POST | `/api/admin/instagram/ads` | `{ post_id, budget_usd, days }` — `budget_usd` ≥ 1 (lifetime), `days` 1–30. 201 `{ ad }`. 423 `ig_ads_paused` while `publish_paused` is on (no Meta call). 422 `ig_ads_over_cap` when this month's spend (Meta insights) + budgets of ads not yet ended + the new budget would exceed the cap (no create call); 422 `ig_ads_currency` unless the ad account is in USD; 409 `ig_ads_post_not_published`. 502 `ig_ads_meta` when a create fails: the row keeps the ids made so far and `error`, everything made stays paused, and one Telegram message is sent. |
+| PUT | `/api/admin/instagram/ads/settings` | `{ ads_monthly_cap_usd?, ads_targeting? }`. The cap is 0–60 USD; above 60 is refused (the ceiling is `ADS_CAP_MAX_USD` in `lib/instagram-ads.ts`, a stored value above it still counts as 60). `ads_targeting`: `{ countries: ['UZ'], age_min: 18–65, age_max, genders: [] \| [1] \| [2], interests: [{ id, name }] }`. |
 
 ### Products
 

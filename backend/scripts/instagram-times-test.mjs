@@ -11,7 +11,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const { build } = createRequire(join(root, 'package.json'))('esbuild')
 const scratch = await mkdtemp(join(tmpdir(), 'loom-274-'))
 await build({ bundle: true, format: 'esm', platform: 'neutral', target: 'es2022', entryPoints: [join(root, 'src/lib/instagram-times.ts')], outfile: join(scratch, 'times.mjs') })
-const { suggestTimes, nextSlotAt } = await import(pathToFileURL(join(scratch, 'times.mjs')).href)
+const { suggestTimes, nextSlotAt, publishTimes } = await import(pathToFileURL(join(scratch, 'times.mjs')).href)
 
 // Now: Wednesday 2026-10-21 12:00 Tashkent (07:00 UTC).
 const now = Date.parse('2026-10-21T07:00:00Z')
@@ -58,3 +58,13 @@ assert.equal(nextSlotAt(3, 12, now), '2026-10-28T07:00:00.000Z')
 assert.equal(nextSlotAt(3, 11, now), '2026-10-28T06:00:00.000Z')
 
 console.log('instagram-times-test: ok')
+
+// LOOM-272/274: the drafter's publish times come from the same slots.
+const monday = Date.parse('2026-11-02T01:00:00.000Z') // drafter cron: Monday 06:00 Tashkent
+assert.deepEqual(publishTimes([], monday, 3), ['03', '05', '07'].map((d) => `2026-11-${d}T14:00:00.000Z`)) // Tue, Thu, Sat 19:00
+const five = publishTimes([], monday, 5)
+assert.deepEqual(five, ['02', '03', '04', '05', '07'].map((d) => `2026-11-${d}T14:00:00.000Z`)) // + other days at 19:00
+assert.equal(publishTimes([], monday, 7).length, 7)
+assert.equal(new Set(publishTimes([], monday, 7).map((t) => t.slice(0, 10))).size, 7, 'one post per day')
+assert.deepEqual(publishTimes(ten, now, 3), suggestTimes(ten, now).slots.map((s) => s.next_at).sort())
+console.log('publishTimes ok')

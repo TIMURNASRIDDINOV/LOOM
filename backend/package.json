@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "wrangler dev",
@@ -24,8 +24,9 @@
     "jose": "^5.6.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240718.0",
+    "@cloudflare/workers-types": "^5.20261023.1",
+    "miniflare": "^4.20260730.0",
     "typescript": "^5.5.0",
-    "wrangler": "^3.67.0"
+    "wrangler": "^4.152.0"
   }
 }
