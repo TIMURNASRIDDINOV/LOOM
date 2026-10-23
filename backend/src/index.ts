@@ -16,6 +16,7 @@ import filesRoutes from './routes/files'
 import userProfile from './routes/user-profile'
 import oauthRoutes from './routes/oauth'
 import designerRoutes from './routes/designers'
+import { IG_DRAFTER_CRON, draftWeeklyPosts } from './lib/instagram-drafter'
 import { publishDuePosts } from './lib/instagram-publish'
 import { pullInsights } from './lib/instagram-insights'
 import type { BaseEnv, Bindings } from './types'
@@ -107,12 +108,14 @@ app.onError((err, c) => {
 // Dispatch on the exact cron string; any other cron does nothing.
 // */5 * * * *: publish due approved Instagram posts (LOOM-271).
 // 0 3 * * 1:   weekly Instagram insights pull, Monday 08:00 Tashkent (LOOM-273).
+// 0 1 * * 1:   weekly AI batch of Instagram drafts, Monday 06:00 Tashkent (LOOM-272, IG_DRAFTER_CRON).
 const PUBLISH_CRON = '*/5 * * * *'
 const INSIGHTS_CRON = '0 3 * * 1'
 
 async function scheduled(event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
   if (event.cron === PUBLISH_CRON) ctx.waitUntil(publishDuePosts(env))
   else if (event.cron === INSIGHTS_CRON) ctx.waitUntil(pullInsights(env))
+  else if (event.cron === IG_DRAFTER_CRON) ctx.waitUntil(draftWeeklyPosts(env))
 }
 
 export default { fetch: app.fetch, scheduled }
