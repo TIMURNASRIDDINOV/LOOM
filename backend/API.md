@@ -455,6 +455,7 @@ edited (409 `ig_locked`). Times are UTC ISO 8601.
 | POST | `/api/admin/instagram/posts/:id/draft` | `approved` / `rejected` → `draft`. |
 | POST | `/api/admin/instagram/media` | multipart `file`: JPEG up to 8 MB (by content, not name). Stored as `instagram/<uuid>.jpg`. 201 `{ key, url }`; 413 `ig_media_too_large`; 415 `ig_media_type`. |
 | GET | `/api/admin/instagram/settings` | `{ publish_paused, updated_by, updated_at, token_configured, ai_batch }`. `token_configured` is a boolean only — the token never leaves the Worker. `ai_batch` is the last weekly AI batch, `{ week, status: running/done/stopped_budget/failed, message, created, failed, at }` or `null`; show `message` (for example "AI batch stopped: budget"). |
+| GET | `/api/admin/instagram/insights` | `?days=` (1–90, default 30) — `{ days, metrics, posts[] }`: each post published in that window with `id`, `ig_media_id`, `permalink`, `published_at`, `fetched_at` and `metrics` (`reach`, `views`, `likes`, `comments`, `shares`, `saved`, `total_interactions`, lifetime totals from the weekly pull). A metric Meta had no data for is absent, not 0. 400 `ig_days`. |
 | PUT | `/api/admin/instagram/settings` | `{ publish_paused: boolean }` — the kill switch; defaults to paused after migration 0024. Needs `instagram.approve`. |
 
 A move whose starting status no longer holds answers 409 `ig_bad_status`.
@@ -467,6 +468,10 @@ D1). Never approved. One batch per Tashkent week; it stops early when the
 drafter's daily neuron cap (`ai_neuron_cap`, default 2,000) or the shared Workers
 AI cap would be passed. Failures send one Telegram message. Both settings are
 `ig_settings` rows; caption rules are `IG_CAPTION_RULES`.
+
+Publishing is the Worker cron (`*/5 * * * *`, `lib/instagram-publish.ts`), not a route. While `publish_paused` is on it makes no Meta request. Otherwise it takes up to 5 `approved` posts with `approved_by` set and `publish_at <= now`, moves each to `publishing`, then sets `published` (`ig_media_id`, `permalink`, `published_at`) or, on a 4xx / `ERROR` / `EXPIRED` / third failed attempt, `failed` with `error` and one Telegram message. 5xx, timeouts and rate limits return the post to `approved` with `attempts + 1`. A token error (code 190) switches `publish_paused` on and leaves the post `approved`.
+
+Insights are a second cron (`0 3 * * 1`, `lib/instagram-insights.ts`, table `ig_insights`, migration 0026). It is read-only and runs even while `publish_paused` is on. It stores lifetime media metrics for every post published by this system in the last 90 days and daily account `reach` / `follower_count` for the last 7 days, upserting on `(scope, ig_media_id, metric, period, end_time)`. Empty data from Meta is no row. A metric request Meta refuses is skipped until next week; a token error (code 190) stops the pull with one Telegram message.
 
 ### Products
 

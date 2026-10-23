@@ -34,7 +34,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -57,6 +57,12 @@ jobs:
 
       - name: Instagram weekly AI drafts (local D1, AI stubbed)
         run: node backend/scripts/instagram-drafter-test.mjs
+
+      - name: Instagram publishing cron (local D1, Meta stubbed)
+        run: node backend/scripts/instagram-publish-test.mjs
+
+      - name: Instagram insights pull (local D1, Meta stubbed)
+        run: node backend/scripts/instagram-insights-test.mjs
 
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"

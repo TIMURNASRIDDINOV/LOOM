@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { getIgPost, getIgSetting, insertIgPost, listIgPosts, moveIgPost, setIgSetting, updateIgPostContent } from '../db/queries'
+import { getIgPost, getIgSetting, insertIgPost, listIgPostInsights, listIgPosts, moveIgPost, setIgSetting, updateIgPostContent } from '../db/queries'
 import type { IgPost, IgPostContent } from '../db/queries'
 import {
   IG_ACTIONS,
@@ -11,6 +11,7 @@ import {
   composeCaption,
   parseLangs,
 } from '../lib/instagram'
+import { IG_MEDIA_METRICS } from '../lib/instagram-insights'
 import { sniffType } from '../lib/r2'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
@@ -186,6 +187,27 @@ router.put('/instagram/settings', requireAdmin, requireCap('instagram.approve'),
   }
   await setIgSetting(c.env.DB, 'publish_paused', body.publish_paused ? '1' : '0', c.get('adminId'), nowIso())
   return c.json({ ok: true, publish_paused: body.publish_paused })
+})
+
+// ─── GET /api/admin/instagram/insights  (LOOM-273) ───────────────────────────
+// Totals per post published in the last `days` days (1–90, default 30), from
+// the weekly pull. A metric Meta returned no data for is absent, not 0.
+
+router.get('/instagram/insights', requireAdmin, requireCap('instagram.edit'), async (c) => {
+  const raw = c.req.query('days')
+  const days = raw === undefined ? 30 : Number(raw)
+  if (!Number.isInteger(days) || days < 1 || days > 90) {
+    return c.json({ error: 'days — целое число от 1 до 90.', code: 'ig_days' }, 400)
+  }
+  const rows = await listIgPostInsights(c.env.DB, new Date(Date.now() - days * 86_400_000).toISOString())
+  const posts = new Map<number, { id: number; ig_media_id: string; permalink: string | null; published_at: string; fetched_at: string | null; metrics: Record<string, number> }>()
+  for (const r of rows) {
+    const post = posts.get(r.id) ?? { id: r.id, ig_media_id: r.ig_media_id, permalink: r.permalink, published_at: r.published_at, fetched_at: null, metrics: {} }
+    if (r.metric !== null && r.value !== null) post.metrics[r.metric] = r.value
+    if (r.fetched_at && (!post.fetched_at || r.fetched_at > post.fetched_at)) post.fetched_at = r.fetched_at
+    posts.set(r.id, post)
+  }
+  return c.json({ days, metrics: IG_MEDIA_METRICS, posts: [...posts.values()] })
 })
 
 export default router
