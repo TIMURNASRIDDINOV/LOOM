@@ -13,6 +13,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_BUILD_PROFILE": "preview"
+      },
       "android": {
         "buildType": "apk"
       },

@@ -1,32 +1,31 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import React, { useEffect, useMemo, useRef } from 'react'
+import { StyleSheet, View } from 'react-native'
+import { useIsFocused } from 'expo-router'
 
 import { C } from '../theme/tokens'
-import { body, mono } from '../theme/type'
+import { parsePageMessage } from '../lib/scene3d'
 import { DEFAULT_MODEL_URL, buildSceneHtml } from '../lib/scene-html'
 import type { Model3DProps } from './Model3D'
-import { T } from './ui'
-import { useT } from '../i18n'
+import { Scene3DChrome, useScene3D } from './Scene3DChrome'
 
 // Web build of the 3D preview: react-native-webview has no browser
 // implementation, so the same scene page runs in an <iframe> and talks over
 // postMessage. Used by `expo start --web` demos and for checking the scene
-// without a device.
+// without a device. State, watchdog, error view and diagnostics are the same
+// code as the native host (Scene3DChrome, lib/scene3d).
 
-export function Model3D({ glbUrl, printArea, fabric, design, view, onReady }: Model3DProps) {
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const t = useT()
-  const [pct, setPct] = useState(0)
-  const [printable, setPrintable] = useState(true)
+export function Model3D({ glbUrl, printArea, fabric, design, view, paused, inScroll, photo, onReady }: Model3DProps) {
+  const focused = useIsFocused()
+  const [scene, dispatch] = useScene3D(focused)
   const frame = useRef<HTMLIFrameElement>(null)
   const readyRef = useRef(false)
   const initialView = useRef(view)
 
   const modelUrl = glbUrl ?? DEFAULT_MODEL_URL
   const html = useMemo(
-    () => buildSceneHtml({ glbUrl: modelUrl, background: C.paper, view: initialView.current, autoRotate: true, printArea, fabric }),
+    () => buildSceneHtml({ glbUrl: modelUrl, background: C.paper, view: initialView.current, autoRotate: true, printArea, fabric, inScroll }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modelUrl, fabric],
+    [modelUrl, fabric, inScroll],
   )
 
   const designJson = JSON.stringify(design)
@@ -34,85 +33,59 @@ export function Model3D({ glbUrl, printArea, fabric, design, view, onReady }: Mo
     if (!readyRef.current) return
     frame.current?.contentWindow?.postMessage(JSON.stringify(m), '*')
   }
-  useEffect(() => post({ type: 'update', design }), [designJson, status])
+  useEffect(() => post({ type: 'update', design }), [designJson, scene.status])
   useEffect(() => post({ type: 'view', view }), [view])
+  useEffect(() => post({ type: paused ? 'pause' : 'resume' }), [paused])
+  useEffect(() => {
+    if (!focused) readyRef.current = false
+  }, [focused])
 
+  // The listener outlives frame remounts (Retry, refocus); it reads the latest closure through a ref.
+  const latest = useRef({ designJson, paused, onReady })
+  latest.current = { designJson, paused, onReady }
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return
-      let msg: { type: string; pct?: number; printable?: boolean }
-      try {
-        msg = JSON.parse(e.data)
-      } catch {
-        return
-      }
-      if (msg.type === 'progress' && typeof msg.pct === 'number') setPct(msg.pct)
+      const msg = parsePageMessage(e.data)
+      if (!msg) return
+      dispatch({ type: 'page', msg })
       if (msg.type === 'ready') {
         readyRef.current = true
-        setStatus('ready')
-        setPrintable(msg.printable !== false)
-        onReady?.({ printable: msg.printable !== false })
-        frame.current?.contentWindow?.postMessage(JSON.stringify({ type: 'update', design }), '*')
+        const printable = (msg as { printable?: boolean }).printable !== false
+        latest.current.onReady?.({ printable })
+        const w = frame.current?.contentWindow
+        w?.postMessage(JSON.stringify({ type: 'update', design: JSON.parse(latest.current.designJson) }), '*')
+        if (latest.current.paused) w?.postMessage(JSON.stringify({ type: 'pause' }), '*')
       }
-      if (msg.type === 'error') setStatus('error')
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [dispatch])
 
   return (
     <View style={styles.wrap}>
-      <iframe
-        ref={frame}
-        srcDoc={html}
-        title="3D preview"
-        style={{ border: 0, width: '100%', height: '100%', background: C.paper, display: 'block' }}
-        sandbox="allow-scripts allow-same-origin"
+      {focused && scene.status !== 'error' ? (
+        <iframe
+          key={scene.attempt}
+          ref={frame}
+          srcDoc={html}
+          title="3D preview"
+          style={{ border: 0, width: '100%', height: '100%', background: C.paper, display: 'block' }}
+          sandbox="allow-scripts allow-same-origin"
+        />
+      ) : null}
+      <Scene3DChrome
+        s={scene}
+        photo={photo}
+        onRetry={() => {
+          readyRef.current = false
+          dispatch({ type: 'retry' })
+        }}
       />
-      {status === 'loading' ? (
-        <View style={styles.overlay} pointerEvents="none">
-          <ActivityIndicator color={C.coral} />
-          <T style={[mono(9.5, 1.4, { ls: 0.16, upper: true, color: C.i38 }), { marginTop: 10 }]}>
-            {pct > 0 && pct < 100 ? t('st.loading3dPct', { pct }) : t('st.loading3d')}
-          </T>
-        </View>
-      ) : null}
-      {status === 'error' ? (
-        <View style={styles.overlay} pointerEvents="none">
-          <T style={body(12.5, 1.6, { color: C.i55, align: 'center' })}>{t('st.err3d')}</T>
-        </View>
-      ) : null}
-      {status === 'ready' && !printable ? (
-        <View style={styles.note} pointerEvents="none">
-          <T style={mono(8.5, 1.3, { ls: 0.14, upper: true, color: C.i55 })}>{t('st.noPrint3d')}</T>
-        </View>
-      ) : null}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, width: '100%', overflow: 'hidden' },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: C.paper,
-  },
-  note: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(244,242,237,.92)',
-    borderWidth: 1,
-    borderColor: C.line,
-  },
 })
