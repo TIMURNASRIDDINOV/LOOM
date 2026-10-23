@@ -46,9 +46,14 @@ const SIZE = [360, 360] // the studio's square stage, CSS px
 const PAPER = '#f4f2ed'
 
 // ── Scene HTML from the TypeScript source ───────────────────────────────────
+const TMP_DIRS = [] // hard-scene-* dirs, removed on every exit path (pass, fail, crash, Ctrl-C)
+process.on('exit', () => TMP_DIRS.forEach((d) => fs.rmSync(d, { recursive: true, force: true })))
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(130))
+
 function loadScene(dir) {
   const ts = require(require.resolve('typescript', { paths: [MOBILE] }))
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hard-scene-'))
+  TMP_DIRS.push(tmp)
   for (const f of ['scene-html.ts', 'print.ts']) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8')
     const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
@@ -373,6 +378,9 @@ function cases(ctx) {
       const { page, rec } = await open({ name: 'pause', html: sceneHtml(mod) })
       await rec.waitMsg('ready')
       const frames = async (ms) => { const a = await page.eval('window.__frames'); await sleep(ms); return (await page.eval('window.__frames')) - a }
+      // Count render-loop callbacks against distinct animation frames: two loops would run two
+      // callbacks per frame. The ratio does not depend on how slow software GL is under load.
+      await page.eval('(function(){var o=window.requestAnimationFrame;window.__cb=0;window.__ticks=new Set();window.requestAnimationFrame=function(f){return o.call(window,function(t){__cb++;__ticks.add(t);f(t)})}})(); true')
       const running = await frames(1500)
       await page.eval('__loom.pause(); true'); await sleep(100)
       const paused = await frames(800)
@@ -380,14 +388,15 @@ function cases(ctx) {
       const resumed = await frames(1500)
       await page.eval("window.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'pause'})})); true"); await sleep(100)
       const pausedByMsg = await frames(800)
-      await page.eval('__loom.resume(); __loom.resume(); true')
+      await page.eval('window.__cb = 0; window.__ticks.clear(); __loom.resume(); __loom.resume(); true')
       const again = await frames(1500)
+      const { cb, ticks } = await page.eval('({ cb: __cb, ticks: __ticks.size })')
       record('PM note: pause/resume of the render loop', [
-        ['renders while running (frames in 1.5 s, software GL)', running >= 3, running],
+        ['renders while running (frames in 1.5 s, software GL)', running > 0, running],
         ['no frames while paused (800 ms)', paused === 0, paused],
-        ["'resume' message restarts it", resumed >= 3, resumed],
+        ["'resume' message restarts it", resumed > 0, resumed],
         ["'pause' message stops it", pausedByMsg === 0, pausedByMsg],
-        ['a second resume() does not start a second loop (frames stay near the first run)', again >= 3 && again < running * 1.6 + 1, again],
+        ['a second resume() does not start a second loop (one callback per animation frame)', again > 0 && cb <= ticks * 1.1 + 1, `frames ${again}, callbacks ${cb}, animation frames ${ticks}`],
       ])
       await rec.close()
     },

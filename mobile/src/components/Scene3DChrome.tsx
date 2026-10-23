@@ -12,6 +12,9 @@ import { useT } from '../i18n'
 // state, the error state (product picture, message, Retry), the "no print yet"
 // note, the "3D · 360°" caption and the diagnostics overlay behind its long press.
 
+/** The diagnostics overlay and chrome://inspect exist in dev builds and the EAS `preview` profile (eas.json), never in production. */
+export const SHOW_DIAG = __DEV__ || process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview'
+
 /** The scene state machine plus its 20 s watchdog. `active` is false while the screen is unfocused. */
 export function useScene3D(active: boolean): [SceneState, (a: SceneAction) => void] {
   const [s, dispatch] = useReducer(sceneReducer, INITIAL_SCENE)
@@ -62,12 +65,12 @@ export function Scene3DChrome({ s, photo, onRetry }: { s: SceneState; photo?: Im
         </View>
       ) : null}
 
-      {/* A long press (800 ms) opens the diagnostics; a short tap does nothing. */}
-      <Pressable style={styles.caption} hitSlop={12} delayLongPress={800} onLongPress={() => setDiagOpen(true)}>
+      {/* A long press (800 ms) opens the diagnostics (preview builds only); a short tap does nothing. */}
+      <Pressable style={styles.caption} hitSlop={12} delayLongPress={800} onLongPress={SHOW_DIAG ? () => setDiagOpen(true) : undefined}>
         <T style={mono(12, 16 / 12, { ls: 0.14, upper: true, color: C.i70 })}>3D · 360°</T>
       </Pressable>
 
-      {diagOpen ? <DiagOverlay s={s} onClose={() => setDiagOpen(false)} /> : null}
+      {SHOW_DIAG && diagOpen ? <DiagOverlay s={s} onClose={() => setDiagOpen(false)} /> : null}
     </>
   )
 }

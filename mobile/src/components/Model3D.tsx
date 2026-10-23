@@ -8,7 +8,7 @@ import type { SceneDesign } from '../lib/print'
 import type { PrintArea } from '../api/types'
 import { parsePageMessage } from '../lib/scene3d'
 import { DEFAULT_MODEL_URL, SITE_ORIGIN, buildSceneHtml, type FabricKey } from '../lib/scene-html'
-import { Scene3DChrome, useScene3D } from './Scene3DChrome'
+import { SHOW_DIAG, Scene3DChrome, useScene3D } from './Scene3DChrome'
 
 // Real 3D preview, rendered by the same three.js pipeline the website uses.
 //
@@ -47,9 +47,6 @@ export type Model3DProps = {
    *  whose mesh has no Body_Front/Body_Back nodes (the design cannot be shown). */
   onReady?: (info: { printable: boolean }) => void
 }
-
-/** chrome://inspect works for dev builds and the EAS preview profile (eas.json), never for production. */
-const WEBVIEW_DEBUGGING = __DEV__ || process.env.EXPO_PUBLIC_BUILD_PROFILE === 'preview'
 
 export function Model3D({ glbUrl, printArea, fabric, design, view, paused, inScroll, photo, onReady }: Model3DProps) {
   const focused = useIsFocused()
@@ -127,10 +124,9 @@ export function Model3D({ glbUrl, printArea, fabric, design, view, paused, inScr
           scrollEnabled={false}
           bounces={false}
           overScrollMode="never"
-          nestedScrollEnabled={!!inScroll}
           setSupportMultipleWindows={false}
           mixedContentMode="always"
-          webviewDebuggingEnabled={WEBVIEW_DEBUGGING}
+          webviewDebuggingEnabled={SHOW_DIAG}
           onMessage={(e) => {
             const msg = parsePageMessage(e.nativeEvent.data)
             if (!msg) return // not our protocol
