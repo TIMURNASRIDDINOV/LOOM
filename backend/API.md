@@ -459,6 +459,8 @@ edited (409 `ig_locked`). Times are UTC ISO 8601.
 
 A move whose starting status no longer holds answers 409 `ig_bad_status`.
 
+Publishing is the Worker cron (`*/5 * * * *`, `lib/instagram-publish.ts`), not a route. While `publish_paused` is on it makes no Meta request. Otherwise it takes up to 5 `approved` posts with `approved_by` set and `publish_at <= now`, moves each to `publishing`, then sets `published` (`ig_media_id`, `permalink`, `published_at`) or, on a 4xx / `ERROR` / `EXPIRED` / third failed attempt, `failed` with `error` and one Telegram message. 5xx, timeouts and rate limits return the post to `approved` with `attempts + 1`. A token error (code 190) switches `publish_paused` on and leaves the post `approved`.
+
 ### Products
 
 | Method | Path | Description |

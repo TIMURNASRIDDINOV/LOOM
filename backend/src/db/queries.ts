@@ -2501,3 +2501,42 @@ export async function setIgSetting(db: D1Database, key: string, value: string, a
       .bind(key, value, adminId, now).run()
   })
 }
+
+// ─── Instagram publishing cron (LOOM-271) ────────────────────────────────────
+
+/**
+ * Posts the cron may take: approved and due, or left in publishing by a run
+ * that stopped before `staleBefore` (a container still processing, or a crash).
+ */
+export async function listDueIgPosts(db: D1Database, now: string, staleBefore: string, limit: number): Promise<IgPost[]> {
+  return safeQuery('listDueIgPosts', async () => (await db.prepare(`SELECT * FROM ig_posts
+    WHERE approved_by IS NOT NULL
+      AND ((status = 'approved' AND publish_at <= ?) OR (status = 'publishing' AND updated_at < ?))
+    ORDER BY publish_at, id LIMIT ?`).bind(now, staleBefore, limit).all<IgPost>()).results)
+}
+
+/** Take a post for this run. False when another run or an admin edit got there first. */
+export async function claimIgPost(db: D1Database, post: Pick<IgPost, 'id' | 'status' | 'updated_at'>, now: string): Promise<boolean> {
+  return safeQuery('claimIgPost', async () => (await db.prepare(`UPDATE ig_posts SET status = 'publishing', updated_at = ?
+    WHERE id = ? AND status = ? AND updated_at = ? AND approved_by IS NOT NULL`)
+    .bind(now, post.id, post.status, post.updated_at).run()).meta.changes > 0)
+}
+
+export type IgPublishFields = Partial<Pick<IgPost, 'status' | 'attempts' | 'error' | 'ig_container_id' | 'ig_media_id' | 'permalink' | 'published_at'>>
+
+/** Write the cron's result on a post it holds (status publishing). False when it no longer holds it. */
+export async function settleIgPost(db: D1Database, id: number, fields: IgPublishFields, now: string): Promise<boolean> {
+  return safeQuery('settleIgPost', async () => {
+    // Column names come from the IgPublishFields keys only, never from input.
+    const keys = Object.keys(fields) as (keyof IgPublishFields)[]
+    const result = await db.prepare(`UPDATE ig_posts SET ${keys.map((k) => `${k} = ?, `).join('')}updated_at = ?
+      WHERE id = ? AND status = 'publishing'`).bind(...keys.map((k) => fields[k] ?? null), now, id).run()
+    return result.meta.changes > 0
+  })
+}
+
+/** Switch the kill switch on from the cron. True only for the call that switched it. */
+export async function pauseIgPublishing(db: D1Database, now: string): Promise<boolean> {
+  return safeQuery('pauseIgPublishing', async () => (await db.prepare(`UPDATE ig_settings SET value = '1', updated_by = NULL, updated_at = ?
+    WHERE key = 'publish_paused' AND value = '0'`).bind(now).run()).meta.changes > 0)
+}

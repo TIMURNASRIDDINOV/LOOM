@@ -16,7 +16,8 @@ import filesRoutes from './routes/files'
 import userProfile from './routes/user-profile'
 import oauthRoutes from './routes/oauth'
 import designerRoutes from './routes/designers'
-import type { BaseEnv } from './types'
+import { publishDuePosts } from './lib/instagram-publish'
+import type { BaseEnv, Bindings } from './types'
 
 const PROD_ORIGINS = [
   'https://loomdesign.uz',
@@ -101,4 +102,11 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500)
 })
 
-export default app
+// ─── Cron (wrangler.toml [triggers]) ──────────────────────────────────────────
+// */5 * * * *: publish due approved Instagram posts (LOOM-271).
+
+async function scheduled(_event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+  ctx.waitUntil(publishDuePosts(env))
+}
+
+export default { fetch: app.fetch, scheduled }

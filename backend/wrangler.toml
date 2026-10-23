@@ -46,6 +46,11 @@ binding = "AI"
 [images]
 binding = "IMAGES"
 
+# Cron: publish due approved Instagram posts (LOOM-271, lib/instagram-publish.ts).
+# Does nothing while the admin kill switch (ig_settings.publish_paused) is on.
+[triggers]
+crons = ["*/5 * * * *"]
+
 # Secrets (set via: wrangler secret put <NAME>):
 #   JWT_SECRET               — 64+ char random string for signing JWTs
 #   TELEGRAM_BOT_TOKEN       — from BotFather
@@ -61,6 +66,10 @@ binding = "IMAGES"
 [env.staging]
 routes = []
 workers_dev = true
+
+# Triggers are inherited from the top level: staging runs no cron.
+[env.staging.triggers]
+crons = []
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
