@@ -180,6 +180,8 @@ router.get('/instagram/settings', requireAdmin, requireCap('instagram.edit'), as
     // Last weekly AI batch (LOOM-272): { week, status, message, created, failed, at } or null.
     ai_batch: batch ? { ...JSON.parse(batch.value), at: batch.updated_at } : null,
     ads_configured: adsConfigured(c.env),
+    // Stored targeting, so the admin Ads tab can edit it before Meta is connected.
+    ads_targeting: parseTargeting((await getIgSetting(c.env.DB, 'ads_targeting'))?.value),
   })
 })
 
