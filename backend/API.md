@@ -454,10 +454,19 @@ edited (409 `ig_locked`). Times are UTC ISO 8601.
 | POST | `/api/admin/instagram/posts/:id/reject` | `draft` / `approved` / `failed` → `rejected`. |
 | POST | `/api/admin/instagram/posts/:id/draft` | `approved` / `rejected` → `draft`. |
 | POST | `/api/admin/instagram/media` | multipart `file`: JPEG up to 8 MB (by content, not name). Stored as `instagram/<uuid>.jpg`. 201 `{ key, url }`; 413 `ig_media_too_large`; 415 `ig_media_type`. |
-| GET | `/api/admin/instagram/settings` | `{ publish_paused, updated_by, updated_at, token_configured }`. `token_configured` is a boolean only — the token never leaves the Worker. |
+| GET | `/api/admin/instagram/settings` | `{ publish_paused, updated_by, updated_at, token_configured, ai_batch }`. `token_configured` is a boolean only — the token never leaves the Worker. `ai_batch` is the last weekly AI batch, `{ week, status: running/done/stopped_budget/failed, message, created, failed, at }` or `null`; show `message` (for example "AI batch stopped: budget"). |
 | PUT | `/api/admin/instagram/settings` | `{ publish_paused: boolean }` — the kill switch; defaults to paused after migration 0024. Needs `instagram.approve`. |
 
 A move whose starting status no longer holds answers 409 `ig_bad_status`.
+
+Weekly AI drafts (LOOM-272, `lib/instagram-drafter.ts`): cron `0 1 * * 1`
+(Monday 06:00 Tashkent) writes `ai_batch_size` (default 5, 1–7) posts with
+`source = 'ai'`, `status = 'draft'`, all three captions and a 19:00 Tashkent
+`publish_at` over the next 7 days, from active products (price and link from
+D1). Never approved. One batch per Tashkent week; it stops early when the
+drafter's daily neuron cap (`ai_neuron_cap`, default 2,000) or the shared Workers
+AI cap would be passed. Failures send one Telegram message. Both settings are
+`ig_settings` rows; caption rules are `IG_CAPTION_RULES`.
 
 ### Products
 

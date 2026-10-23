@@ -167,12 +167,15 @@ router.post('/instagram/media', requireAdmin, requireCap('instagram.edit'), asyn
 
 router.get('/instagram/settings', requireAdmin, requireCap('instagram.edit'), async (c) => {
   const paused = await getIgSetting(c.env.DB, 'publish_paused')
+  const batch = await getIgSetting(c.env.DB, 'ai_batch')
   return c.json({
     // Missing row reads as paused: publishing is opt-in (R-2).
     publish_paused: paused?.value !== '0',
     updated_by: paused?.updated_by ?? null,
     updated_at: paused?.updated_at ?? null,
     token_configured: Boolean(c.env.IG_ACCESS_TOKEN && c.env.IG_USER_ID),
+    // Last weekly AI batch (LOOM-272): { week, status, message, created, failed, at } or null.
+    ai_batch: batch ? { ...JSON.parse(batch.value), at: batch.updated_at } : null,
   })
 })
 

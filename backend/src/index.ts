@@ -16,7 +16,8 @@ import filesRoutes from './routes/files'
 import userProfile from './routes/user-profile'
 import oauthRoutes from './routes/oauth'
 import designerRoutes from './routes/designers'
-import type { BaseEnv } from './types'
+import { IG_DRAFTER_CRON, draftWeeklyPosts } from './lib/instagram-drafter'
+import type { BaseEnv, Bindings } from './types'
 
 const PROD_ORIGINS = [
   'https://loomdesign.uz',
@@ -101,4 +102,11 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500)
 })
 
-export default app
+// ─── Cron (wrangler.toml [triggers]) ──────────────────────────────────────────
+// 0 1 * * 1 (Monday 06:00 Tashkent): weekly AI batch of Instagram drafts (LOOM-272).
+
+async function scheduled(event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+  if (event.cron === IG_DRAFTER_CRON) ctx.waitUntil(draftWeeklyPosts(env))
+}
+
+export default { fetch: app.fetch, scheduled }
