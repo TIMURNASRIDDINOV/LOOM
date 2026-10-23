@@ -175,6 +175,8 @@ router.get('/instagram/settings', requireAdmin, requireCap('instagram.edit'), as
     updated_at: paused?.updated_at ?? null,
     token_configured: Boolean(c.env.IG_ACCESS_TOKEN && c.env.IG_USER_ID),
     ads_configured: adsConfigured(c.env),
+    // Stored targeting, so the admin Ads tab can edit it before Meta is connected.
+    ads_targeting: parseTargeting((await getIgSetting(c.env.DB, 'ads_targeting'))?.value),
   })
 })
 

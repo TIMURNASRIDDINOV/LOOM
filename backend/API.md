@@ -454,7 +454,7 @@ edited (409 `ig_locked`). Times are UTC ISO 8601.
 | POST | `/api/admin/instagram/posts/:id/reject` | `draft` / `approved` / `failed` → `rejected`. |
 | POST | `/api/admin/instagram/posts/:id/draft` | `approved` / `rejected` → `draft`. |
 | POST | `/api/admin/instagram/media` | multipart `file`: JPEG up to 8 MB (by content, not name). Stored as `instagram/<uuid>.jpg`. 201 `{ key, url }`; 413 `ig_media_too_large`; 415 `ig_media_type`. |
-| GET | `/api/admin/instagram/settings` | `{ publish_paused, updated_by, updated_at, token_configured }`. `token_configured` is a boolean only — the token never leaves the Worker. |
+| GET | `/api/admin/instagram/settings` | `{ publish_paused, updated_by, updated_at, token_configured, ads_configured, ads_targeting }`. `token_configured` and `ads_configured` are booleans only — tokens never leave the Worker. `ads_targeting` is the stored ad targeting (or `null`), readable before Meta is connected. |
 | PUT | `/api/admin/instagram/settings` | `{ publish_paused: boolean }` — the kill switch; defaults to paused after migration 0024. Needs `instagram.approve`. |
 
 A move whose starting status no longer holds answers 409 `ig_bad_status`.

@@ -124,6 +124,8 @@ try {
   await call('/api/admin/instagram/ads/settings', { method: 'PUT', body: { ads_monthly_cap_usd: 60, ads_targeting: { countries: ['UZ', 'KZ'], age_min: 18, age_max: 30, genders: [2], interests: [{ id: '6003', name: 'Fashion' }] } } })
   await call('/api/admin/instagram/ads/settings', { method: 'PUT', body: { ads_targeting: { countries: ['uz'], age_min: 18, age_max: 30 } }, status: 400 })
   await call('/api/admin/instagram/ads/settings', { method: 'PUT', body: { ads_targeting: { countries: ['UZ'], age_min: 13, age_max: 30 } }, status: 400 })
+  // LOOM-277: the admin Ads tab reads stored targeting from settings, even before Meta is connected.
+  eq((await call('/api/admin/instagram/settings')).ads_targeting, { countries: ['UZ', 'KZ'], age_min: 18, age_max: 30, genders: [2], interests: [{ id: '6003', name: 'Fashion' }] })
 
   // AC-4: kill switch (the migration default) → 423 and no call.
   let s = stub()

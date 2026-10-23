@@ -45,6 +45,12 @@
     .ig-editor .textarea { min-height: 84px; }
     .ig-counter { display: flex; gap: var(--sp-4); flex-wrap: wrap; font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-secondary); margin-bottom: var(--sp-4); }
     .ig-counter .is-over { color: var(--danger); font-weight: 600; }
+    .ig-ads-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
+    .ig-spend { font-family: var(--mono); font-size: var(--fs-md); font-weight: 600; margin: var(--sp-2) 0 0; }
+    .ig-spend.is-over { color: var(--danger); }
+    .ig-ads-form { margin-bottom: var(--sp-6); }
+    .ig-ads-form .textarea { min-height: 84px; font-family: var(--mono); }
+    .ig-ads-form .ig-note, .ig-promote .ig-note { margin-top: var(--sp-3); }
     .ig-preview { max-width: 200px; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--hairline); border-radius: var(--radius-sm); display: block; margin-top: var(--sp-2); }
   </style>
 </head>
@@ -69,19 +75,66 @@
       </label>
     </div>
 
-    <div class="toolbar">
-      <span class="page-info" id="page-info"></span>
-      <div class="toolbar-spacer"></div>
-      <button class="btn btn--sm" id="refresh-btn">Обновить</button>
+    <div class="tabs" role="tablist" id="ig-tabs" data-cap="instagram.approve">
+      <button type="button" class="tab" role="tab" data-tab="posts" aria-selected="true">Посты</button>
+      <button type="button" class="tab" role="tab" data-tab="ads" aria-selected="false">Реклама</button>
     </div>
 
-    <div id="ig-groups"><div class="state">Загрузка…</div></div>
+    <div id="tab-posts">
+      <div class="toolbar">
+        <span class="page-info" id="page-info"></span>
+        <div class="toolbar-spacer"></div>
+        <button class="btn btn--sm" id="refresh-btn">Обновить</button>
+      </div>
+
+      <div id="ig-groups"><div class="state">Загрузка…</div></div>
+    </div>
+
+    <!-- LOOM-277 (PRD-213 R-11, R-12). There is deliberately no control here
+         that switches an ad on: ads are created paused and Tim turns them on
+         in Meta Ads Manager. -->
+    <div id="tab-ads" data-cap="instagram.approve" hidden>
+      <div class="notice notice--warning ig-ads-head">
+        <div>
+          <p class="ig-switch-title">Реклама создаётся только на паузе</p>
+          <p class="ig-switch-sub">Отсюда нельзя включить показ. Созданную рекламу Тимур проверяет и включает сам в Meta Ads Manager.</p>
+          <p class="ig-spend" id="ads-spend">Загрузка расходов…</p>
+        </div>
+        <button class="btn btn--sm" id="ads-refresh-btn">Обновить</button>
+      </div>
+
+      <form class="card ig-ads-form" id="ads-form" novalidate>
+        <h3 class="ig-group-title">Таргетинг новых объявлений</h3>
+        <div class="field-row">
+          <div class="field"><label class="field-label" for="ads-countries">Страны (коды ISO через запятую)</label>
+            <input class="input" id="ads-countries" name="countries" value="UZ" autocomplete="off" /></div>
+          <div class="field"><label class="field-label" for="ads-genders">Пол</label>
+            <select class="select" id="ads-genders" name="genders">
+              <option value="">Все</option><option value="1">Мужчины</option><option value="2">Женщины</option>
+            </select></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label class="field-label" for="ads-age-min">Возраст от</label>
+            <input class="input" type="number" id="ads-age-min" name="age_min" min="18" max="65" step="1" value="18" /></div>
+          <div class="field"><label class="field-label" for="ads-age-max">Возраст до</label>
+            <input class="input" type="number" id="ads-age-max" name="age_max" min="18" max="65" step="1" value="65" /></div>
+        </div>
+        <div class="field"><label class="field-label" for="ads-interests">Интересы</label>
+          <textarea class="textarea" id="ads-interests" name="interests" placeholder="6003139266461 Мода"></textarea>
+          <span class="field-hint">Один интерес на строку: id из поиска интересов Meta, пробел, название. Пусто — без интересов. Проверяет сервер.</span></div>
+        <button type="submit" class="btn btn--primary">Сохранить таргетинг</button>
+        <p class="ig-note" role="alert" hidden></p>
+      </form>
+
+      <h3 class="ig-group-title">Объявления</h3>
+      <div id="ads-list"><div class="state">Загрузка…</div></div>
+    </div>
   </main>
 
   <script src="assets/app.js?v=31"></script>
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=31"></script>
   <script>LOOM_LAYOUT.init('instagram')</script>
-  <script src="assets/instagram.js?v=1"></script>
+  <script src="assets/instagram.js?v=2"></script>
 </body>
 </html>
