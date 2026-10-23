@@ -142,6 +142,20 @@ export const CAPABILITIES = [
     label: 'Пользоваться AI-лабораторией',
     description: 'Генерация изображений. Расходует общий платный бюджет.',
   },
+
+  // ── Instagram ───────────────────────────────────────────────────────────
+  {
+    id: 'instagram.edit',
+    group: 'instagram',
+    label: 'Готовить посты Instagram',
+    description: 'Создавать и редактировать черновики, загружать изображения, отклонять посты.',
+  },
+  {
+    id: 'instagram.approve',
+    group: 'instagram',
+    label: 'Утверждать посты Instagram',
+    description: 'Одобрять пост к публикации, возвращать неудачный в черновик и включать или ставить на паузу публикацию.',
+  },
 ] as const
 
 export type Capability = (typeof CAPABILITIES)[number]['id']
@@ -155,6 +169,7 @@ export const CAPABILITY_GROUPS = [
   { id: 'notifications', label: 'Уведомления' },
   { id: 'analytics', label: 'Аналитика' },
   { id: 'ai', label: 'AI' },
+  { id: 'instagram', label: 'Instagram' },
 ] as const
 
 export const ALL_CAPABILITIES: Capability[] = CAPABILITIES.map((c) => c.id)
@@ -162,14 +177,16 @@ export const ALL_CAPABILITIES: Capability[] = CAPABILITIES.map((c) => c.id)
 // ── Role presets ────────────────────────────────────────────────────────────
 // These reproduce the behaviour that shipped before migration 0015, so applying
 // the migration changes nobody's access until the owner actually flips a switch.
-//   manager — everything except users.role, which was owner-only.
+//   manager — everything except users.role, which was owner-only, and
+//             instagram.approve: only the owner approves what goes out on
+//             Instagram (PRD-213 Q-3) unless they grant it to someone.
 //   staff   — everything that used to be plain requireAdmin, i.e. read access
 //             plus order status (which had no role gate at all) and ai.use
 //             (routes/admin-ai.ts was requireAdmin only). The owner can now
 //             revoke either with one toggle — that is the point of the change.
 export const ROLE_PRESETS: Record<AdminRole, Capability[]> = {
   owner: ALL_CAPABILITIES,
-  manager: ALL_CAPABILITIES.filter((c) => c !== 'users.role'),
+  manager: ALL_CAPABILITIES.filter((c) => c !== 'users.role' && c !== 'instagram.approve'),
   staff: [
     'orders.view',
     'orders.status',
