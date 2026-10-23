@@ -5,9 +5,10 @@
 // approved, approved_by or publishing — every post still needs a human
 // approval in admin (R-1). Prices and links come from D1, never from the model.
 
-import { insertAiUsage } from '../db/queries'
+import { insertAiUsage, listIgPostInsights } from '../db/queries'
 import { DAILY_NEURON_CAP, utcDayStart } from './ai-models'
 import { captionError, composeCaption } from './instagram'
+import { publishTimes, reachPosts } from './instagram-times'
 import { escapeHtml, sendTelegramMessage } from './telegram'
 import type { AiBinding, Bindings } from '../types'
 
@@ -41,8 +42,6 @@ export const IG_CAPTION_RULES = {
   cta: { uz: "O'z dizayningni yarat: {link}", ru: 'Создай свой дизайн: {link}', en: 'Design yours: {link}' },
   // At most 30 per post (Instagram); appended once, to the English caption.
   hashtags: ['#loom', '#loomdesign', '#loomuz', '#tashkent', '#uzbekistan', '#streetwear', '#customprint'],
-  // 19:00 Asia/Tashkent (UTC+5, no DST) until insights exist (PRD-213 Q-2; LOOM-274 replaces suggestPublishTimes).
-  publishHourTashkent: 19,
 }
 
 const SITE = 'https://loomdesign.uz'
@@ -81,17 +80,6 @@ export function weekKey(now: number): string {
   const local = new Date(now + TASHKENT_MS)
   const back = (local.getUTCDay() + 6) % 7
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() - back)).toISOString().slice(0, 10)
-}
-
-/**
- * n publish times over the next 7 days at 19:00 Tashkent, spread evenly, the
- * first being the next 19:00 after `now`. LOOM-274 swaps this for insights.
- */
-export function suggestPublishTimes(now: number, n: number): string[] {
-  const local = now + TASHKENT_MS
-  let first = Math.floor(local / DAY_MS) * DAY_MS + IG_CAPTION_RULES.publishHourTashkent * 3_600_000
-  if (first <= local) first += DAY_MS
-  return Array.from({ length: n }, (_, i) => new Date(first + Math.floor((i * 7) / n) * DAY_MS - TASHKENT_MS).toISOString())
 }
 
 const fill = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (_, k) => values[k] ?? '')
@@ -191,7 +179,8 @@ export async function draftWeeklyPosts(env: Env, overrides: Partial<DrafterDeps>
     const cap = intSetting(await setting(db, 'ai_neuron_cap'), IG_DRAFTER_DAILY_NEURONS, 0, DAILY_NEURON_CAP)
     const products = (await db.prepare('SELECT slug, name_ru, name_en, price FROM products WHERE active = 1 ORDER BY display_order, id')
       .all<CatalogueProduct>()).results
-    const times = suggestPublishTimes(start, size)
+    // LOOM-274: the same slots the admin screen suggests (defaults until insights exist).
+    const times = publishTimes(reachPosts(await listIgPostInsights(db, new Date(start - 90 * DAY_MS).toISOString())), start, size)
     const offset = Math.floor(Date.parse(week) / (7 * DAY_MS)) * size // a different product mix each week
     const errors: string[] = []
     const dayStart = utcDayStart(start)

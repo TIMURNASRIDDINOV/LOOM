@@ -45,6 +45,30 @@
     return value ? new Date(value + ':00+05:00').toISOString() : null
   }
 
+  // Suggested slots (LOOM-274): ranked on the server from stored insights.
+  const WEEKDAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+  async function suggestions(box, input) {
+    try {
+      const s = await apiJSON('/api/admin/instagram/suggested-times')
+      const n = s.posts
+      box.innerHTML = s.slots.map((slot) =>
+        '<button type="button" class="btn btn--sm" data-at="' + esc(slot.next_at) + '"' +
+          (slot.mean_reach != null ? ' title="Средний охват: ' + esc(slot.mean_reach) + '"' : '') + '>' +
+          WEEKDAYS[slot.weekday] + ' ' + String(slot.hour).padStart(2, '0') + ':00</button>').join('') +
+        '<span class="ig-meta">' + (s.basis === 'default' ? 'по умолчанию'
+          : 'по данным ' + n + (n % 10 === 1 && n % 100 !== 11 ? ' поста' : ' постов')) + '</span>'
+      box.hidden = false
+      box.addEventListener('click', (e) => {
+        const chip = e.target.closest('button[data-at]')
+        if (!chip) return
+        input.value = toTashkentInput(chip.dataset.at)
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    } catch {
+      // Suggestions are a convenience; the time picker works without them.
+    }
+  }
+
   // ── List ──────────────────────────────────────────────────────────────
   function button(act, id, label, kind) {
     return '<button type="button" class="btn btn--sm' + (kind ? ' btn--' + kind : '') + '" data-act="' + act + '" data-id="' + id + '">' + label + '</button>'
@@ -192,7 +216,8 @@
           '<input type="file" class="input" name="file" accept="image/jpeg" />' +
           '<img class="ig-preview" alt="Предпросмотр"' + (p.media_url ? ' src="' + esc(p.media_url) + '"' : ' hidden') + ' /></div>' +
         '<div class="field"><label class="field-label" for="ig-ed-at">Время публикации (Ташкент)</label>' +
-          '<input type="datetime-local" class="input" id="ig-ed-at" name="publish_at" value="' + esc(toTashkentInput(p.publish_at)) + '" /></div>' +
+          '<input type="datetime-local" class="input" id="ig-ed-at" name="publish_at" value="' + esc(toTashkentInput(p.publish_at)) + '" />' +
+          '<div class="ig-slots" aria-label="Рекомендуемое время" hidden></div></div>' +
         '<p class="ig-note" role="alert" hidden></p>' +
         '<div class="dialog-actions"><button type="button" class="btn" data-cancel>Отмена</button>' +
         '<button type="submit" class="btn btn--primary">Сохранить</button></div>' +
@@ -235,6 +260,7 @@
     form.querySelector('[data-cancel]').addEventListener('click', close)
     form.addEventListener('input', count)
     count()
+    suggestions(form.querySelector('.ig-slots'), form.elements.publish_at)
     form.elements.caption_uz.focus()
 
     form.elements.file.addEventListener('change', async (e) => {

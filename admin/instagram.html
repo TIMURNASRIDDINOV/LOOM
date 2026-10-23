@@ -45,6 +45,8 @@
     .ig-editor .textarea { min-height: 84px; }
     .ig-counter { display: flex; gap: var(--sp-4); flex-wrap: wrap; font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-secondary); margin-bottom: var(--sp-4); }
     .ig-counter .is-over { color: var(--danger); font-weight: 600; }
+    .ig-slots { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .ig-slots[hidden] { display: none; }
     .ig-preview { max-width: 200px; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--hairline); border-radius: var(--radius-sm); display: block; margin-top: var(--sp-2); }
   </style>
 </head>
@@ -82,6 +84,6 @@
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=31"></script>
   <script>LOOM_LAYOUT.init('instagram')</script>
-  <script src="assets/instagram.js?v=1"></script>
+  <script src="assets/instagram.js?v=2"></script>
 </body>
 </html>

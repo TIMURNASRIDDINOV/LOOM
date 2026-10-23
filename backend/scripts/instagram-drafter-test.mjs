@@ -17,6 +17,8 @@ const opts = { bundle: true, format: 'esm', platform: 'browser', target: 'es2022
 await build({ ...opts, entryPoints: [join(root, 'src/index.ts')], outfile: join(scratch, 'worker.mjs') })
 await build({ ...opts, entryPoints: [join(root, 'src/lib/instagram-drafter.ts')], outfile: join(scratch, 'drafter.mjs') })
 const D = await import(pathToFileURL(join(scratch, 'drafter.mjs')).href)
+await build({ ...opts, entryPoints: [join(root, 'src/lib/instagram-times.ts')], outfile: join(scratch, 'times.mjs') })
+const T = await import(pathToFileURL(join(scratch, 'times.mjs')).href)
 
 const secret = 'local-drafter-test-only-not-a-production-secret'
 let outbound = 0
@@ -64,8 +66,6 @@ try {
   eq(D.weekKey(monday), '2026-11-02')
   eq(D.weekKey(Date.parse('2026-11-08T18:59:00.000Z')), '2026-11-02') // Sunday 23:59 Tashkent
   eq(D.weekKey(Date.parse('2026-11-08T19:00:00.000Z')), '2026-11-09') // Monday 00:00 Tashkent
-  eq(D.suggestPublishTimes(monday, 5), ['02', '03', '04', '06', '07'].map((d) => `2026-11-${d}T14:00:00.000Z`))
-  eq(D.suggestPublishTimes(Date.parse('2026-11-02T14:00:00.000Z'), 1), ['2026-11-03T14:00:00.000Z'])
 
   // AC-3: facts from D1 only; a made-up price or "вы" is refused.
   const hoodie = { slug: 't272-hoodie', name_ru: 'Худи', name_en: 'Hoodie', price: 249000 }
@@ -96,7 +96,7 @@ try {
   await run(ai)
   const rows = await posts()
   eq(rows.length, 5)
-  eq(rows.map((r) => r.publish_at), D.suggestPublishTimes(now, 5))
+  eq(rows.map((r) => r.publish_at), T.publishTimes([], now, 5)) // LOOM-274: no insights yet, so the default slots
   for (const r of rows) {
     eq([r.status, r.source, r.approved_by, r.approved_at, r.created_by, r.langs], ['draft', 'ai', null, null, null, 'uz,ru,en'])
     ok(r.caption_uz && r.caption_ru && r.caption_en, 'all three captions')
