@@ -11,6 +11,7 @@ import {
   composeCaption,
   parseLangs,
 } from '../lib/instagram'
+import { ADS_CAP_MAX_USD, adsConfigured, createIgAd, listIgAdsWithSpend, parseTargeting } from '../lib/instagram-ads'
 import { IG_MEDIA_METRICS } from '../lib/instagram-insights'
 import { sniffType } from '../lib/r2'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
@@ -18,7 +19,7 @@ import type { AdminEnv } from '../types'
 
 // Instagram posts (PRD-213, LOOM-269): drafts, approval and the kill switch.
 //
-// Nothing here calls Meta. The publishing cron (LOOM-271) only takes posts in
+// Only the ads routes at the end call Meta (lib/instagram-ads.ts). The publishing cron (LOOM-271) only takes posts in
 // `approved` with approved_by set, and only while publish_paused is '0'.
 // instagram.edit prepares posts; instagram.approve (owner-only by default)
 // decides what goes out. The access token is never read here beyond "is it set".
@@ -177,6 +178,7 @@ router.get('/instagram/settings', requireAdmin, requireCap('instagram.edit'), as
     token_configured: Boolean(c.env.IG_ACCESS_TOKEN && c.env.IG_USER_ID),
     // Last weekly AI batch (LOOM-272): { week, status, message, created, failed, at } or null.
     ai_batch: batch ? { ...JSON.parse(batch.value), at: batch.updated_at } : null,
+    ads_configured: adsConfigured(c.env),
   })
 })
 
@@ -208,6 +210,42 @@ router.get('/instagram/insights', requireAdmin, requireCap('instagram.edit'), as
     posts.set(r.id, post)
   }
   return c.json({ days, metrics: IG_MEDIA_METRICS, posts: [...posts.values()] })
+})
+
+// ─── Ads (LOOM-276): always created paused, capped per month ────────────────
+// Spending money is the owner's decision, so all of it needs instagram.approve.
+
+router.get('/instagram/ads', requireAdmin, requireCap('instagram.approve'), async (c) => {
+  const result = await listIgAdsWithSpend(c.env)
+  return c.json(result.body, result.status)
+})
+
+router.post('/instagram/ads', requireAdmin, requireCap('instagram.approve'), async (c) => {
+  const body = await readBody(c)
+  if (!body) return c.json({ error: 'Invalid JSON', code: 'invalid_json' }, 400)
+  const result = await createIgAd(c.env, body, c.get('adminId'))
+  return c.json(result.body, result.status)
+})
+
+// { ads_monthly_cap_usd?, ads_targeting? } — the cap can go down, never above ADS_CAP_MAX_USD.
+router.put('/instagram/ads/settings', requireAdmin, requireCap('instagram.approve'), async (c) => {
+  const body = await readBody(c)
+  if (!body) return c.json({ error: 'Invalid JSON', code: 'invalid_json' }, 400)
+  const writes: [string, string][] = []
+  if ('ads_monthly_cap_usd' in body) {
+    const cap = body.ads_monthly_cap_usd
+    if (typeof cap !== 'number' || !Number.isFinite(cap) || cap < 0 || cap > ADS_CAP_MAX_USD) {
+      return c.json({ error: `Лимит — число от 0 до ${ADS_CAP_MAX_USD} USD.`, code: 'ig_ads_cap' }, 400)
+    }
+    writes.push(['ads_monthly_cap_usd', String(Math.round(cap * 100) / 100)])
+  }
+  if ('ads_targeting' in body) {
+    const targeting = parseTargeting(body.ads_targeting)
+    if (!targeting) return c.json({ error: 'Таргетинг: страны (коды ISO), возраст 18–65, пол 1/2, интересы {id, name}.', code: 'ig_ads_targeting' }, 400)
+    writes.push(['ads_targeting', JSON.stringify(targeting)])
+  }
+  for (const [key, value] of writes) await setIgSetting(c.env.DB, key, value, c.get('adminId'), nowIso())
+  return c.json({ ok: true })
 })
 
 export default router

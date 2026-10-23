@@ -2591,3 +2591,57 @@ export async function listIgPostInsights(db: D1Database, since: string): Promise
     GROUP BY p.id, i.metric
     ORDER BY p.published_at DESC, p.id DESC`).bind(since).all<IgPostInsightRow>()).results)
 }
+
+// ─── Instagram ads (migration 0027, LOOM-276) ────────────────────────────────
+
+export interface IgAd {
+  id: number
+  ig_post_id: number
+  campaign_id: string | null
+  adset_id: string | null
+  ad_id: string | null
+  budget_usd_cents: number
+  budget_type: string
+  start_at: string
+  end_at: string
+  status_seen: string | null
+  created_by: number | null
+  created_at: string
+  error: string | null
+}
+
+export type IgAdFields = Partial<Pick<IgAd, 'campaign_id' | 'adset_id' | 'ad_id' | 'status_seen' | 'error'>>
+
+export async function listIgAds(db: D1Database): Promise<IgAd[]> {
+  // ponytail: newest 50, no paging; at about one ad a week that is a year.
+  return safeQuery('listIgAds', async () => (await db.prepare('SELECT * FROM ig_ads ORDER BY id DESC LIMIT 50').all<IgAd>()).results)
+}
+
+export async function getIgAd(db: D1Database, id: number): Promise<IgAd | null> {
+  return safeQuery('getIgAd', () => db.prepare('SELECT * FROM ig_ads WHERE id = ?').bind(id).first<IgAd>())
+}
+
+export async function insertIgAd(
+  db: D1Database, value: Pick<IgAd, 'ig_post_id' | 'budget_usd_cents' | 'start_at' | 'end_at'>, adminId: number, now: string,
+): Promise<number> {
+  return safeQuery('insertIgAd', async () => Number((await db.prepare(`INSERT INTO ig_ads
+    (ig_post_id, budget_usd_cents, budget_type, start_at, end_at, created_by, created_at) VALUES (?, ?, 'lifetime', ?, ?, ?, ?)`)
+    .bind(value.ig_post_id, value.budget_usd_cents, value.start_at, value.end_at, adminId, now).run()).meta.last_row_id))
+}
+
+export async function updateIgAd(db: D1Database, id: number, fields: IgAdFields): Promise<void> {
+  return safeQuery('updateIgAd', async () => {
+    // Column names come from the IgAdFields keys only, never from input.
+    const keys = Object.keys(fields) as (keyof IgAdFields)[]
+    if (!keys.length) return
+    await db.prepare(`UPDATE ig_ads SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
+      .bind(...keys.map((k) => fields[k] ?? null), id).run()
+  })
+}
+
+/** Budgets that can still be spent: ads with an ad set (the budget lives there) that have not ended. */
+export async function committedIgAdCents(db: D1Database, now: string): Promise<number> {
+  return safeQuery('committedIgAdCents', async () => Number((await db.prepare(
+    'SELECT COALESCE(SUM(budget_usd_cents), 0) AS cents FROM ig_ads WHERE adset_id IS NOT NULL AND end_at > ?',
+  ).bind(now).first<{ cents: number }>())?.cents ?? 0))
+}

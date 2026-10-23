@@ -65,6 +65,12 @@ export type Bindings = {
   // whether both are set, never their values; LOOM-271 is the only reader.
   IG_ACCESS_TOKEN?: string
   IG_USER_ID?: string
+  // Instagram ads (PRD-213 Phase 3, LOOM-276), Worker secrets only. The ad
+  // account id (with or without act_), a token with ads_management + ads_read
+  // on it, and the Facebook Page linked to the Instagram account.
+  META_AD_ACCOUNT_ID?: string
+  META_ADS_ACCESS_TOKEN?: string
+  META_PAGE_ID?: string
 }
 
 // Used by user-auth middleware and routes
