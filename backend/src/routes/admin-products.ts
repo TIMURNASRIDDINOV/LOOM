@@ -11,6 +11,7 @@ import {
 } from '../db/queries'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
+import { inspectGarmentGlb, MAX_MODEL_BYTES } from '../../../assets/glb-contract.mjs'
 
 // Product writes require manager or owner (staff is read-only here).
 
@@ -44,14 +45,15 @@ function getFileField(formData: FormData, key: string): FileField | null {
   return f as unknown as FileField
 }
 
-function validateGlb(f: FileField): string | null {
+async function validateGlb(f: FileField): Promise<string | null> {
   const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
-  const allowedExts = new Set(['glb', 'gltf'])
   // Accept any content-type when the extension is valid — browsers often send
   // application/octet-stream or empty string for .glb files.
-  if (!allowedExts.has(ext)) return 'GLB file must have .glb or .gltf extension'
-  if (f.size > 20 * 1024 * 1024) return 'GLB file must be ≤ 20 MB'
+  if (ext !== 'glb') return 'Model must have .glb extension (binary glTF 2.0)'
+  if (f.size > MAX_MODEL_BYTES) return 'Model must be at most 3 MB'
   if (f.size <= 0) return 'Invalid GLB file size'
+  try { inspectGarmentGlb(await f.arrayBuffer()) }
+  catch (err) { return err instanceof Error ? err.message : 'Invalid model' }
   return null
 }
 
@@ -293,7 +295,7 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
     return c.json({ ok: false, error: { code: 'REQUIRED', message: 'glb file is required', field: 'glb' } }, 400)
   }
   if (glbFile) {
-    const glbError = validateGlb(glbFile)
+    const glbError = await validateGlb(glbFile)
     if (glbError) return c.json({ ok: false, error: { code: 'INVALID', message: glbError, field: 'glb' } }, 400)
   }
 
@@ -415,7 +417,7 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
   // New GLB
   const glbFile = getFileField(formData, 'glb')
   if (glbFile) {
-    const glbError = validateGlb(glbFile)
+    const glbError = await validateGlb(glbFile)
     if (glbError) return c.json({ error: glbError }, 400)
     const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
     const glb_key = newAssetKey('glb', effectiveSlug, glbExt)
