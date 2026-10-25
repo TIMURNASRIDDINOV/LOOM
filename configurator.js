@@ -5982,6 +5982,19 @@ function bindTextControls() {
 
   if (!textIn) return;
 
+  // Cancel the tap's focus transfer before Android dismisses the keyboard.
+  // Click still applies the style; other controls keep their normal focus.
+  [btnBold, btnItal, document.getElementById("btn-center-text")].forEach((btn) => {
+    if (!btn) return;
+    btn.addEventListener("pointerdown", (e) => {
+      if (e.isPrimary && e.button === 0 && _isSheetLayout() &&
+          matchMedia("(pointer: coarse)").matches &&
+          document.body.classList.contains("kb-open") && document.activeElement === textIn) {
+        e.preventDefault();
+      }
+    });
+  });
+
   // The selected TEXT element, or null when a logo (or nothing) is selected.
   const getTxt = () => {
     const el = selectedElement();
