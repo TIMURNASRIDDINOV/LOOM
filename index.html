@@ -83,7 +83,7 @@
   <script defer src="assets/vendor/lenis.min.js?v=1"></script>
   <script defer src="assets/config.js?v=4"></script>
   <script defer src="assets/layout.js?v=5"></script>
-  <script defer src="assets/i18n.js?v=39"></script>
+  <script defer src="assets/i18n.js?v=41"></script>
   <script defer src="assets/auth.js?v=5"></script>
   <script defer src="assets/tma.js?v=3"></script>
   <script defer src="assets/nav.js?v=2"></script>
@@ -186,6 +186,7 @@
     }
     @media (max-width: 960px) { .product-grid3 { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 620px) { .product-grid3 { grid-template-columns: 1fr; } }
+    .pcard[hidden] { display: none; }
 
     /* ── Spotlight ─────────────────────────────────────────── */
     .spotlight__grid {
@@ -529,7 +530,7 @@
 
       <div class="product-grid3" data-stagger>
 
-        <a href="configurator.html" class="pcard">
+        <a href="configurator.html" class="pcard" data-slug="tshirt-regular">
           <div class="pcard__media">
             <img src="products/tshirt_regular_white_001.jpg" alt="Классическая футболка" loading="lazy" decoding="async" />
             <div class="pcard__media-alt" aria-hidden="true">
@@ -544,7 +545,7 @@
           <h3 class="pcard__name" data-i18n="prod.t1.name">Классическая футболка</h3>
           <p class="pcard__desc" data-i18n="prod.t1.desc">100% премиальный хлопок, унисекс крой, свободный фасон. Идеальный холст для вашего дизайна.</p>
           <div class="pcard__foot">
-            <span class="pcard__price" data-price="150000">150 000 сум</span>
+            <span class="pcard__price" data-price="265000">265 000 сум</span>
             <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
@@ -555,7 +556,7 @@
           </div>
         </a>
 
-        <a href="configurator.html" class="pcard">
+        <a href="configurator.html" class="pcard" data-slug="hoodie-regular" hidden>
           <div class="pcard__media">
             <img src="products/hoodie_regular_white_001.jpg" alt="Тёплое худи" loading="lazy" decoding="async" />
             <div class="pcard__media-alt" aria-hidden="true">
@@ -569,7 +570,7 @@
           <h3 class="pcard__name" data-i18n="prod.t2.name">Тёплое худи</h3>
           <p class="pcard__desc" data-i18n="prod.t2.desc">Премиальная ткань с начёсом, двухслойный капюшон, свободный силуэт на все сезоны.</p>
           <div class="pcard__foot">
-            <span class="pcard__price" data-price="280000">280 000 сум</span>
+            <span class="pcard__price"></span>
             <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
@@ -579,7 +580,7 @@
           </div>
         </a>
 
-        <a href="configurator.html" class="pcard">
+        <a href="configurator.html" class="pcard" data-slug="polo-regular" hidden>
           <div class="pcard__media">
             <img src="products/polo_regular_white_001.jpg" alt="Поло" loading="lazy" decoding="async" />
             <div class="pcard__media-alt" aria-hidden="true">
@@ -593,7 +594,7 @@
           <h3 class="pcard__name" data-i18n="prod.t3.name">Поло</h3>
           <p class="pcard__desc" data-i18n="prod.t3.desc">Хлопок пике, структурированный воротник, чистые линии. Smart casual без усилий.</p>
           <div class="pcard__foot">
-            <span class="pcard__price" data-price="180000">180 000 сум</span>
+            <span class="pcard__price"></span>
             <span class="color-dots">
               <span class="color-dot" style="background:#fff"></span>
               <span class="color-dot" style="background:#1c1c1c"></span>
@@ -623,7 +624,7 @@
         </h2>
         <div class="spotlight__details" data-reveal data-delay="0.1">
           <p class="spotlight__detail" data-i18n-html="spot.d1"><strong>100% хлопок</strong> · Унисекс крой</p>
-          <p class="spotlight__detail" data-i18n-html="spot.d2"><strong>5 базовых цветов</strong> · от 89 000 сум</p>
+          <p class="spotlight__detail"><span data-i18n-html="spot.d2"><strong>5 базовых цветов</strong></span> · <span data-slug="tshirt-regular" data-price="265000">265 000 сум</span></p>
         </div>
         <a href="configurator.html" class="btn btn--outline" data-reveal data-delay="0.2" data-i18n="spot.customize">Настроить эту</a>
       </div>
@@ -750,18 +751,39 @@
        for that queue to drain, hence DOMContentLoaded.
   ============================================================ -->
   <script>document.addEventListener('DOMContentLoaded',function(){window.LOOM_AUTH&&window.LOOM_AUTH.renderAuthNav()})</script>
-  <!-- Featured-product prices: format like the catalog (grouped + localized
-       currency) and re-format when the language changes. -->
+  <!-- Featured-product prices come from GET /api/products, the same rows the
+       catalog renders and the Worker charges (backend/src/lib/pricing.ts).
+       The numbers in the markup are only the no-JS/offline fallback. A card
+       whose slug the API does not return is not on sale: it stays hidden. -->
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       function fmtPrices() {
         if (!window.LOOM_I18N) return;
-        document.querySelectorAll('.pcard__price[data-price]').forEach(function (el) {
+        document.querySelectorAll('[data-price]').forEach(function (el) {
           el.textContent = window.LOOM_I18N.formatPrice(el.getAttribute('data-price'));
         });
       }
       fmtPrices();
       window.addEventListener('loom:langchange', fmtPrices);
+      var api = (window.LOOM_CONFIG && window.LOOM_CONFIG.API_BASE) || 'https://api.loomdesign.uz';
+      fetch(api + '/api/products').then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function (data) {
+        var price = {};
+        (data.products || []).forEach(function (p) { if (p.active) price[p.slug] = p.price; });
+        document.querySelectorAll('.pcard[data-slug]').forEach(function (card) {
+          var on = price[card.getAttribute('data-slug')] != null;
+          card.hidden = !on;
+          var el = card.querySelector('.pcard__price');
+          if (on) el.setAttribute('data-price', price[card.getAttribute('data-slug')]);
+        });
+        document.querySelectorAll('[data-price][data-slug]').forEach(function (el) {
+          var v = price[el.getAttribute('data-slug')];
+          if (v != null) el.setAttribute('data-price', v);
+        });
+        fmtPrices();
+      }).catch(function () { /* keep the fallback prices */ });
     });
   </script>
 </body>
