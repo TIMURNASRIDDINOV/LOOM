@@ -100,6 +100,13 @@
     // ===== Footer =====
     'footer.contact':  { uz: 'Aloqa',  ru: 'Контакты',  en: 'Contact' },
     'footer.location': { uz: 'Toshkent, O‘zbekiston', ru: 'Ташкент, Узбекистан', en: 'Tashkent, Uzbekistan' },
+    'footer.privacy':  { uz: 'Maxfiylik va cookie', ru: 'Конфиденциальность и cookie', en: 'Privacy and cookies' },
+
+    // ===== Analytics consent banner (assets/analytics.js, LOOM-283) =====
+    'consent.text':    { uz: 'Sayt qanday ishlatilishini tushunish uchun Google Analytics va Microsoft Clarity’dan foydalanamiz. Ular faqat roziligingiz bilan yoqiladi.', ru: 'Мы используем Google Analytics и Microsoft Clarity, чтобы понимать, как люди пользуются сайтом. Они включаются только с вашего согласия.', en: 'We use Google Analytics and Microsoft Clarity to understand how people use the site. They run only if you agree.' },
+    'consent.accept':  { uz: 'Roziman', ru: 'Принять', en: 'Accept' },
+    'consent.decline': { uz: 'Rad etish', ru: 'Отказаться', en: 'Decline' },
+    'consent.more':    { uz: 'Batafsil', ru: 'Подробнее', en: 'Learn more' },
     'footer.navTitle':    { uz: 'Sahifalar', ru: 'Навигация', en: 'Navigate' },
     'footer.designersTitle': { uz: 'Dizaynerlarga', ru: 'Дизайнерам', en: 'For designers' },
     'footer.becomeDesigner': { uz: 'Dizayner bo‘lish', ru: 'Стать дизайнером', en: 'Become a designer' },
