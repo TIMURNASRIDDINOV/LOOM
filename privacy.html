@@ -15,6 +15,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/theme.css?v=12" />
   <script src="assets/boot.js?v=9"></script>
+  <script defer src="assets/i18n.js?v=42"></script>
+  <script defer src="assets/analytics.js?v=1"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: var(--font-body, Inter, sans-serif); background: var(--paper, #f4f2ed); color: var(--ink, #131311); -webkit-font-smoothing: antialiased; }
@@ -68,17 +70,18 @@
   </style>
 </head>
 <body>
-  <main class="legal">
+  <main class="legal" lang="ru">
     <div class="legal-top">
       <a href="index.html" class="legal-back">← Вернуться на сайт</a>
       <a href="index.html" class="legal-logo">LOOM<span class="slash">/</span></a>
     </div>
 
     <h1>Условия и конфиденциальность</h1>
-    <p class="meta">Редакция от 5 сентября 2026 · loomdesign.uz и приложение LOOM</p>
+    <p class="meta">Редакция от 26 октября 2026 · loomdesign.uz и приложение LOOM</p>
 
     <nav class="toc" aria-label="Разделы">
       <a href="#privacy">Конфиденциальность</a>
+      <a href="#analytics">Аналитика и cookie</a>
       <a href="#terms">Условия заказа</a>
       <a href="#delivery">Доставка и оплата</a>
       <a href="#designers">Дизайнерам</a>
@@ -112,8 +115,19 @@
       <li><strong>Курьерской службе</strong> — имя, телефон и адрес доставки.</li>
       <li><strong>Платёжным провайдерам</strong> (Payme, Click, Uzum Bank) — номер и сумму заказа при онлайн-оплате. Данные карты обрабатывает провайдер; LOOM их не получает и не хранит.</li>
       <li><strong>Telegram</strong> — для подтверждения номера и уведомлений о заказе, если вы вошли через Telegram.</li>
+      <li><strong>Google и Microsoft</strong> — данные о том, как вы пользуетесь сайтом, только если вы согласились на аналитику (см. «Аналитика и cookie» ниже).</li>
     </ul>
     <p>Мы не продаём и не передаём данные третьим лицам в рекламных целях.</p>
+
+    <h3 id="analytics">Аналитика и cookie</h3>
+    <p>Чтобы понимать, куда посетители нажимают, как далеко прокручивают страницы и на каком шаге уходят, сайт использует два сервиса. Они включаются <strong>только после того, как вы нажали «Принять»</strong> в баннере. До этого и после отказа сайт их не загружает и ничего им не передаёт.</p>
+    <ul>
+      <li><strong>Google Analytics 4</strong> (Google LLC): просмотры страниц, адрес страницы вместе с метками рекламных кампаний (utm), откуда вы пришли, нажатия на ссылки и кнопки (идентификатор и короткий текст кнопки), глубина прокрутки, шаги конструктора, тип устройства и браузера, примерное местоположение (страна, город), определённое по IP-адресу. Сохраняет cookie <code>_ga</code> и <code>_ga_*</code> на срок до 2 лет. Рекламные функции Google выключены.</li>
+      <li><strong>Microsoft Clarity</strong> (Microsoft Corporation): движения мыши, нажатия и прокрутка — для тепловых карт и записей сеансов. Поля форм, а также данные на страницах оформления заказа, входа, регистрации и в личном кабинете скрываются ещё на вашем устройстве. Сохраняет cookie <code>_clck</code> (до 1 года) и <code>_clsk</code> (1 день).</li>
+    </ul>
+    <p>Мы не передаём этим сервисам имя, телефон, email, адрес или содержимое заказа. Данные обрабатываются на серверах Google и Microsoft, в том числе за пределами Узбекистана.</p>
+    <p><strong>Как отозвать согласие:</strong> нажмите кнопку ниже и выберите «Отказаться». Сайт удалит cookie этих сервисов и перестанет их загружать. Ссылка на этот раздел есть в подвале сайта.</p>
+    <p><button type="button" class="btn btn--outline" data-consent-open>Изменить выбор</button></p>
 
     <h3>Где и сколько хранятся данные</h3>
     <p>Данные хранятся в инфраструктуре Cloudflare (база данных D1 и хранилище R2) с шифрованием при передаче и хранении. Данные аккаунта хранятся, пока существует аккаунт. Записи о заказах хранятся в обезличенном виде и после удаления аккаунта — этого требует бухгалтерский учёт.</p>
