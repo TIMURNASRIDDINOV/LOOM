@@ -60,6 +60,8 @@ crons = ["*/5 * * * *", "0 3 * * 1", "0 1 * * 1"]
 #   TELEGRAM_BOT_TOKEN       — from BotFather
 #   TELEGRAM_CHAT_ID         — admin chat ID for order notifications
 #   TELEGRAM_WEBHOOK_SECRET  — 32+ char random string, set via set-telegram-webhook.ts
+#   GA4_PROPERTY_ID          — optional, numeric GA4 property id (admin GA4 tab, lib/ga4.ts)
+#   GA4_SA_KEY               — optional, whole service-account JSON key (Viewer on that property)
 
 # ─── Staging ────────────────────────────────────────────────────────────────
 # Deploy: npm run deploy -- --env staging   (the gate + rebuild steps: scripts/staging-setup.md)

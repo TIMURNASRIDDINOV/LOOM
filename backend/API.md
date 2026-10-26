@@ -395,6 +395,32 @@ All endpoints require `admin_token` cookie (set by `/api/admin/login`).
 
 Response includes: `ordersByStatus`, `revenueLast30Days`, `ordersLast7Days`, `topProducts`, `ordersPerDay`, `recentOrders`, `totalUsers`, `newUsersLast7Days`, `newUsersLast30Days`
 
+### GA4 readout
+
+GET `/api/admin/analytics/ga4?days=7|28` (default 28) requires an admin session
+and `analytics.view`. Responses use `Cache-Control: no-store`; any other `days`
+returns 400 with code `ga4_days`. The Worker reads the GA4 Data API with a
+read-only service account (secrets `GA4_PROPERTY_ID`, `GA4_SA_KEY`; see
+`src/lib/ga4.ts`): one `batchRunReports` call with five aggregate reports for the
+last `days` days including today, in the property's time zone. The result is
+cached for 10 minutes per `days` value; `cached` says whether this answer came
+from that cache. GA4 only sees visitors who accepted the consent banner
+(LOOM-283), so its counts are below the first-party numbers on the Visitors tab.
+
+- Not configured: `{ configured: false, missing: [secret names] }`.
+- Success: `configured: true`, `days`, `propertyId`, `fetchedAt` (ISO), `cached`,
+  and row arrays `pages` (`path`, `views`, `users`), `clicks` (`ui_click` by
+  `elementId`, `text`, `section`, `path`, with `count`), `sources` (`source`,
+  `medium`, `campaign`, `sessions`, `users`), `devices` (`device`, `sessions`,
+  `users`) and `events` (`scroll` and `cfg_*` by `event`, `path`, `count`).
+- Google failure: 502 `{ configured: true, error, code }`, not cached. Codes:
+  `ga4_key_invalid`, `ga4_property_invalid`, `ga4_auth_failed`,
+  `ga4_forbidden` (Data API disabled or no Viewer access), `ga4_rate_limited`,
+  `ga4_custom_dimensions_missing` (`element_id`, `element_text`, `section` not
+  registered yet), `ga4_request_failed`.
+
+Tests: `node backend/scripts/ga4-test.mjs` (Google stubbed, runs in CI).
+
 ### Orders
 
 | Method | Path | Description |
