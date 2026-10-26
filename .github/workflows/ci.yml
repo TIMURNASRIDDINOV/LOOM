@@ -73,6 +73,9 @@ jobs:
       - name: GA4 admin readout route (local D1, Google stubbed)
         run: node backend/scripts/ga4-test.mjs
 
+      - name: Clarity snapshot cron and admin route (local D1, Clarity stubbed)
+        run: node backend/scripts/clarity-test.mjs
+
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
 

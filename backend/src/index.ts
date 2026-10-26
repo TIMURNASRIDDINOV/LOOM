@@ -19,6 +19,7 @@ import designerRoutes from './routes/designers'
 import { IG_DRAFTER_CRON, draftWeeklyPosts } from './lib/instagram-drafter'
 import { publishDuePosts } from './lib/instagram-publish'
 import { pullInsights } from './lib/instagram-insights'
+import { CLARITY_CRON, pullClarity } from './lib/clarity'
 import type { BaseEnv, Bindings } from './types'
 
 const PROD_ORIGINS = [
@@ -109,6 +110,7 @@ app.onError((err, c) => {
 // */5 * * * *: publish due approved Instagram posts (LOOM-271).
 // 0 3 * * 1:   weekly Instagram insights pull, Monday 08:00 Tashkent (LOOM-273).
 // 0 1 * * 1:   weekly AI batch of Instagram drafts, Monday 06:00 Tashkent (LOOM-272, IG_DRAFTER_CRON).
+// 0 2 * * *:   daily Clarity snapshots, 07:00 Tashkent (LOOM-286, CLARITY_CRON).
 const PUBLISH_CRON = '*/5 * * * *'
 const INSIGHTS_CRON = '0 3 * * 1'
 
@@ -116,6 +118,7 @@ async function scheduled(event: ScheduledController, env: Bindings, ctx: Executi
   if (event.cron === PUBLISH_CRON) ctx.waitUntil(publishDuePosts(env))
   else if (event.cron === INSIGHTS_CRON) ctx.waitUntil(pullInsights(env))
   else if (event.cron === IG_DRAFTER_CRON) ctx.waitUntil(draftWeeklyPosts(env))
+  else if (event.cron === CLARITY_CRON) ctx.waitUntil(pullClarity(env))
 }
 
 export default { fetch: app.fetch, scheduled }

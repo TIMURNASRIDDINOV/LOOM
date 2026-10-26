@@ -421,6 +421,37 @@ from that cache. GA4 only sees visitors who accepted the consent banner
 
 Tests: `node backend/scripts/ga4-test.mjs` (Google stubbed, runs in CI).
 
+### Clarity readout
+
+GET `/api/admin/analytics/clarity` requires an admin session and
+`analytics.view`, uses `Cache-Control: no-store` and reads D1 only: the admin
+page never calls Clarity. A daily cron (`0 2 * * *`, 07:00 Tashkent) makes 4
+Clarity Data Export requests with `numOfDays=1` (secret `CLARITY_API_TOKEN`;
+see `src/lib/clarity.ts`): no dimension, `URL`, `Device`, and `Source`,
+`Medium`, `Campaign`. That is 4 of Clarity's 10 requests per project per day.
+Each answer is stored in `clarity_snapshots` (migration 0028) with every URL
+reduced to its path, no query string or fragment. A 401, 403 or 429 stops the
+run without a retry; any failed run sends one Telegram message, and earlier
+snapshots stay. Clarity only sees visitors who accepted the consent banner
+(LOOM-283). Heatmaps and recordings are not available through any Clarity API;
+the response links to them instead.
+
+- Not configured: `{ configured: false, missing: ['CLARITY_API_TOKEN'] }`.
+- Configured: `configured: true`, `project`, `links` (`dashboard`, `heatmaps`),
+  `latest` with `totals`, `url`, `device` and `source`, each `null` until its
+  first good snapshot or `{ fetchedAt, numDays, metrics }`, where `metrics` maps
+  a normalized metric name (lower case, no spaces: `rageclickcount`,
+  `deadclickcount`, `scrolldepth`, `traffic`, `popularpages`, ...) to Clarity's
+  rows, numeric strings as numbers. The fields inside a row are Clarity's own
+  and undocumented, so they pass through as returned.
+- `trend`: up to 30 points `{ fetchedAt, rageClicks, deadClicks }`, oldest first,
+  from the newest 30 totals snapshots; `null` where Clarity sent no count.
+- `lastError`: the newest failed request `{ fetchedAt, request, status }`
+  (`status` 0 means no answer), or `null`.
+
+Tests: `node backend/scripts/clarity-test.mjs` (Clarity and Telegram stubbed,
+runs in CI).
+
 ### Orders
 
 | Method | Path | Description |
