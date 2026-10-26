@@ -78,7 +78,7 @@
     'spot.t1':       { uz: 'Klassik',      ru: 'Классическая',   en: 'Classic' },
     'spot.t2':       { uz: 'futbolka.',    ru: 'футболка.',      en: 'T-shirt.' },
     'spot.d1':       { uz: '<strong>100% paxta</strong> · Uniseks bichim', ru: '<strong>100% хлопок</strong> · Унисекс крой', en: '<strong>100% cotton</strong> · Unisex cut' },
-    'spot.d2':       { uz: '<strong>5 ta asosiy rang</strong> · 89 000 so‘mdan', ru: '<strong>5 базовых цветов</strong> · от 89 000 сум', en: '<strong>5 base colors</strong> · From 89,000 UZS' },
+    'spot.d2':       { uz: '<strong>5 ta asosiy rang</strong>', ru: '<strong>5 базовых цветов</strong>', en: '<strong>5 base colors</strong>' },
     'spot.customize':{ uz: 'Buni sozlash', ru: 'Настроить эту', en: 'Customize this' },
 
     // ===== Home — products grid (static cards) =====
