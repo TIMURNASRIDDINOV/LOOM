@@ -29,6 +29,7 @@ import {
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { Ga4Error, ga4Days, ga4Report } from '../lib/ga4'
+import { clarityReadout } from '../lib/clarity'
 import { signToken, verifyToken } from '../lib/jwt'
 import { serveObject } from '../lib/r2'
 import { clientIp, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
@@ -568,6 +569,13 @@ admin.get('/analytics/ga4', requireAdmin, requireCap('analytics.view'), async (c
     const known = error instanceof Ga4Error ? error : new Ga4Error('ga4_request_failed')
     return c.json({ configured: true, error: 'GA4 request failed.', code: known.code, lastFetchedAt: known.lastFetchedAt }, 502)
   }
+})
+
+// Clarity readout from the daily D1 snapshots (lib/clarity.ts). Never calls
+// Clarity: its quota is 10 requests a day and the cron spends 4.
+admin.get('/analytics/clarity', requireAdmin, requireCap('analytics.view'), async (c) => {
+  c.header('Cache-Control', 'no-store')
+  return c.json(await clarityReadout(c.env))
 })
 
 export { setupRouter }

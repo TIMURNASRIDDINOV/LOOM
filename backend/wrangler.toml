@@ -51,9 +51,11 @@ binding = "IMAGES"
 # "0 3 * * 1": weekly read-only insights pull (LOOM-273, lib/instagram-insights.ts);
 # "0 1 * * 1": weekly AI batch of Instagram drafts, Monday 06:00 Tashkent
 # (LOOM-272, lib/instagram-drafter.ts IG_DRAFTER_CRON). Drafts only, never approved.
+# "0 2 * * *": daily Clarity snapshots, 07:00 Tashkent (LOOM-286, lib/clarity.ts CLARITY_CRON).
 # src/index.ts routes on these exact strings; any other cron does nothing.
+# Workers Free allows 5 cron triggers per account.
 [triggers]
-crons = ["*/5 * * * *", "0 3 * * 1", "0 1 * * 1"]
+crons = ["*/5 * * * *", "0 3 * * 1", "0 1 * * 1", "0 2 * * *"]
 
 # Secrets (set via: wrangler secret put <NAME>):
 #   JWT_SECRET               — 64+ char random string for signing JWTs
@@ -62,6 +64,7 @@ crons = ["*/5 * * * *", "0 3 * * 1", "0 1 * * 1"]
 #   TELEGRAM_WEBHOOK_SECRET  — 32+ char random string, set via set-telegram-webhook.ts
 #   GA4_PROPERTY_ID          — optional, numeric GA4 property id (admin GA4 tab, lib/ga4.ts)
 #   GA4_SA_KEY               — optional, whole service-account JSON key (Viewer on that property)
+#   CLARITY_API_TOKEN        — optional, Clarity Data Export token (Settings > Data Export; lib/clarity.ts)
 
 # ─── Staging ────────────────────────────────────────────────────────────────
 # Deploy: npm run deploy -- --env staging   (the gate + rebuild steps: scripts/staging-setup.md)

@@ -77,6 +77,11 @@ export type Bindings = {
   //   wrangler secret put GA4_SA_KEY < key.json     (service-account JSON key)
   GA4_PROPERTY_ID?: string
   GA4_SA_KEY?: string
+  // Clarity Data Export token for the daily snapshot cron (lib/clarity.ts).
+  // Optional: when unset, the cron does nothing and
+  // GET /api/admin/analytics/clarity answers { configured: false }.
+  //   wrangler secret put CLARITY_API_TOKEN   (Clarity, Settings, Data Export)
+  CLARITY_API_TOKEN?: string
 }
 
 // Used by user-auth middleware and routes
