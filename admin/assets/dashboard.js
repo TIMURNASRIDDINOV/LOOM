@@ -9,6 +9,121 @@
 
   const el = (id) => document.getElementById(id)
 
+  // ── GA4 tab (LOOM-285): GET /api/admin/analytics/ga4, loaded on first open ──
+  const ga4Translations = {
+    ru: {
+      consent: 'Только посетители с согласием: меньше, чем во внутренней воронке', open: 'Открыть GA4 ↗',
+      period: 'Период', days28: '28 дней', days7: '7 дней', loading: 'Загрузка…', empty: 'Нет данных за этот период.',
+      fetched: 'Получено', cached: 'из кэша', lastGood: 'Последние данные', code: 'Код',
+      pages: 'Популярные страницы', clicks: 'Клики (ui_click)', sources: 'Источники трафика', devices: 'Устройства',
+      events: 'Прокрутка и события конфигуратора',
+      page: 'Страница', views: 'Просмотры', users: 'Пользователи', text: 'Текст', id: 'ID', section: 'Секция', count: 'Кол-во',
+      source: 'Источник', medium: 'Канал', campaign: 'Кампания', sessions: 'Сеансы', device: 'Устройство', event: 'Событие',
+      setupTitle: 'GA4 не подключён',
+      setup: 'Не заданы секреты Worker: {missing}. Настройка: сервисный аккаунт Google с ролью Viewer в ресурсе GA4, числовой Property ID, затем npx wrangler secret put для каждого секрета. Пошагово — в задаче LOOM-284.',
+      failed: 'Не удалось загрузить данные GA4. Повторите попытку.',
+      ga4_rate_limited: 'Квота Google Analytics исчерпана. Повторите позже.',
+      ga4_forbidden: 'Google отказал в доступе: включите Google Analytics Data API и дайте сервисному аккаунту роль Viewer в ресурсе GA4.',
+      ga4_custom_dimensions_missing: 'В GA4 не зарегистрированы параметры element_id, element_text и section (данные появляются через 24–48 ч).',
+      ga4_auth_failed: 'Ключ сервисного аккаунта не принят. Загрузите GA4_SA_KEY заново.',
+      ga4_property_invalid: 'GA4_PROPERTY_ID должен быть числовым Property ID (не G-…).',
+    },
+    uz: {
+      consent: 'Faqat rozilik bergan tashrifchilar: ichki voronkadan kamroq', open: 'GA4 ni ochish ↗',
+      period: 'Davr', days28: '28 kun', days7: '7 kun', loading: 'Yuklanmoqda…', empty: 'Bu davr uchun maʼlumot yo‘q.',
+      fetched: 'Olingan', cached: 'keshdan', lastGood: 'Oxirgi maʼlumot', code: 'Kod',
+      pages: 'Mashhur sahifalar', clicks: 'Bosishlar (ui_click)', sources: 'Trafik manbalari', devices: 'Qurilmalar',
+      events: 'Aylantirish va konfigurator hodisalari',
+      page: 'Sahifa', views: 'Ko‘rishlar', users: 'Foydalanuvchilar', text: 'Matn', id: 'ID', section: 'Bo‘lim', count: 'Soni',
+      source: 'Manba', medium: 'Kanal', campaign: 'Kampaniya', sessions: 'Seanslar', device: 'Qurilma', event: 'Hodisa',
+      setupTitle: 'GA4 ulanmagan',
+      setup: 'Worker sirlari berilmagan: {missing}. Sozlash: GA4 resursida Viewer roli bor Google xizmat hisobi, raqamli Property ID, so‘ng har bir sir uchun npx wrangler secret put. Batafsil — LOOM-284 vazifasida.',
+      failed: 'GA4 maʼlumotlarini yuklab bo‘lmadi. Qayta urinib ko‘ring.',
+      ga4_rate_limited: 'Google Analytics kvotasi tugadi. Keyinroq urinib ko‘ring.',
+      ga4_forbidden: 'Google ruxsat bermadi: Google Analytics Data API ni yoqing va xizmat hisobiga GA4 resursida Viewer rolini bering.',
+      ga4_custom_dimensions_missing: 'GA4 da element_id, element_text va section parametrlari ro‘yxatdan o‘tmagan (maʼlumot 24–48 soatdan keyin chiqadi).',
+      ga4_auth_failed: 'Xizmat hisobi kaliti qabul qilinmadi. GA4_SA_KEY ni qayta yuklang.',
+      ga4_property_invalid: 'GA4_PROPERTY_ID raqamli Property ID bo‘lishi kerak (G-… emas).',
+    },
+    en: {
+      consent: 'Consented visitors only: lower than the first-party funnel', open: 'Open GA4 ↗',
+      period: 'Period', days28: '28 days', days7: '7 days', loading: 'Loading…', empty: 'No data for this period.',
+      fetched: 'Fetched', cached: 'from cache', lastGood: 'Last good fetch', code: 'Code',
+      pages: 'Top pages', clicks: 'Clicks (ui_click)', sources: 'Traffic sources', devices: 'Devices',
+      events: 'Scroll and configurator events',
+      page: 'Page', views: 'Views', users: 'Users', text: 'Text', id: 'ID', section: 'Section', count: 'Count',
+      source: 'Source', medium: 'Medium', campaign: 'Campaign', sessions: 'Sessions', device: 'Device', event: 'Event',
+      setupTitle: 'GA4 is not connected',
+      setup: 'Missing Worker secrets: {missing}. Setup: a Google service account with the Viewer role on the GA4 property, the numeric Property ID, then npx wrangler secret put for each secret. Step by step in LOOM-284.',
+      failed: 'Could not load GA4 data. Please try again.',
+      ga4_rate_limited: 'Google Analytics quota reached. Try again later.',
+      ga4_forbidden: 'Google refused access: enable the Google Analytics Data API and give the service account the Viewer role on the GA4 property.',
+      ga4_custom_dimensions_missing: 'GA4 has no custom dimensions element_id, element_text and section yet (data appears 24–48 h after registering them).',
+      ga4_auth_failed: 'The service-account key was rejected. Upload GA4_SA_KEY again.',
+      ga4_property_invalid: 'GA4_PROPERTY_ID must be the numeric Property ID (not G-…).',
+    },
+  }
+  const gt = ga4Translations[document.documentElement.lang.split('-')[0]] || ga4Translations.ru
+  gt.ga4_key_invalid = gt.ga4_auth_failed
+
+  // [response key, columns as [row key, label key, numeric?]]
+  const GA4_CARDS = [
+    ['pages', [['path', 'page'], ['views', 'views', 1], ['users', 'users', 1]]],
+    ['clicks', [['text', 'text'], ['elementId', 'id'], ['section', 'section'], ['path', 'page'], ['count', 'count', 1]]],
+    ['sources', [['source', 'source'], ['medium', 'medium'], ['campaign', 'campaign'], ['sessions', 'sessions', 1], ['users', 'users', 1]]],
+    ['devices', [['device', 'device'], ['sessions', 'sessions', 1], ['users', 'users', 1]]],
+    ['events', [['event', 'event'], ['path', 'page'], ['count', 'count', 1]]],
+  ]
+  let ga4Opened = false
+
+  function ga4Notice(kind, title, body) {
+    return '<div class="notice notice--' + kind + '"><div><strong>' + esc(title) + '</strong>' +
+      (body ? '<div>' + esc(body) + '</div>' : '') + '</div></div>'
+  }
+
+  function ga4Card(key, cols, rows, sub) {
+    const head = cols.map(([, label, num]) => '<th' + (num ? ' class="right"' : '') + '>' + esc(gt[label]) + '</th>').join('')
+    const body = rows.length
+      ? rows.map((r) => '<tr>' + cols.map(([k, , num]) => num
+        ? '<td class="num right">' + Number(r[k] || 0).toLocaleString('ru-RU') + '</td>'
+        : '<td>' + esc(r[k]) + '</td>').join('') + '</tr>').join('')
+      : '<tr><td colspan="' + cols.length + '"><div class="state">' + esc(gt.empty) + '</div></td></tr>'
+    return '<div class="card"><div class="card-head"><div><h3 class="card-title">' + esc(gt[key]) + '</h3>' +
+      '<p class="card-sub">' + esc(sub) + '</p></div></div>' +
+      '<div class="table-wrap"><table class="table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div></div>'
+  }
+
+  async function loadGa4() {
+    ga4Opened = true
+    const state = el('ga4-state'), results = el('ga4-results')
+    el('ga4-days').disabled = true
+    results.hidden = true
+    state.innerHTML = '<p class="field-hint">' + esc(gt.loading) + '</p>'
+    try {
+      const data = await apiJSON('/api/admin/analytics/ga4?days=' + el('ga4-days').value)
+      if (!data.configured) {
+        state.innerHTML = ga4Notice('warning', gt.setupTitle, gt.setup.replace('{missing}', (data.missing || []).join(', ')))
+        return
+      }
+      el('ga4-link').href = 'https://analytics.google.com/analytics/web/#/p' + encodeURIComponent(data.propertyId) + '/reports/intelligenthome'
+      const sub = gt.consent + ' · ' + gt.fetched + ' ' + formatDate(data.fetchedAt) + (data.cached ? ' (' + gt.cached + ')' : '')
+      results.innerHTML = GA4_CARDS.map(([key, cols]) => ga4Card(key, cols, data[key] || [], sub)).join('')
+      state.innerHTML = ''
+      results.hidden = false
+    } catch (error) {
+      const d = error.data || {}
+      const detail = [d.code ? gt.code + ': ' + d.code : '', d.lastFetchedAt ? gt.lastGood + ': ' + formatDate(d.lastFetchedAt) : '']
+      state.innerHTML = ga4Notice('danger', gt[d.code] || gt.failed, detail.filter(Boolean).join(' · '))
+    } finally {
+      el('ga4-days').disabled = false
+    }
+  }
+
+  function wireGa4() {
+    document.querySelectorAll('[data-ga4-i18n]').forEach((node) => { node.textContent = gt[node.dataset.ga4I18n] })
+    el('ga4-days').addEventListener('change', loadGa4)
+  }
+
   // Russian needs three forms; "2 заказа(ов)" is not something you ship to a
   // person who reads this screen every morning.
   function plural(n, one, few, many) {
@@ -181,6 +296,7 @@
     const tabs = [
       { tab: el('tab-orders'), panel: el('panel-orders') },
       { tab: el('tab-visitors'), panel: el('panel-visitors') },
+      { tab: el('tab-ga4'), panel: el('panel-ga4') },
     ]
     tabs.forEach(({ tab }, i) => {
       tab.addEventListener('click', () => {
@@ -191,6 +307,8 @@
         // Chart.js sizes to a hidden container as 0×0; rebuild on reveal.
         const d = lastChartData['visitors-chart']
         if (i === 1 && d) whenChart(() => makeChart(d.kind, 'visitors-chart', d.labels, d.data))
+        // GA4 costs Data API quota, so it loads only when someone opens the tab.
+        if (tab.id === 'tab-ga4' && !ga4Opened) loadGa4()
       })
     })
   }
@@ -230,6 +348,7 @@
 
   window.LOOM_LAYOUT.onReady(() => {
     wireTabs()
+    wireGa4()
     load()
   })
 })()

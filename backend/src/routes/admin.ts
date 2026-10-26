@@ -28,6 +28,7 @@ import {
   revokeAdminTokens,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
+import { Ga4Error, ga4Days, ga4Report } from '../lib/ga4'
 import { signToken, verifyToken } from '../lib/jwt'
 import { serveObject } from '../lib/r2'
 import { clientIp, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
@@ -552,6 +553,21 @@ admin.post('/refresh', requireAdmin, async (c) => {
 admin.get('/analytics/visitors', requireAdmin, requireCap('analytics.view'), async (c) => {
   const stats = await getVisitorStats(c.env.DB)
   return c.json(stats)
+})
+
+// GA4 Data API readout (lib/ga4.ts). Google failures are 502 with a stable
+// code, never 401/403, so the admin client does not read them as a lost session.
+admin.get('/analytics/ga4', requireAdmin, requireCap('analytics.view'), async (c) => {
+  c.header('Cache-Control', 'no-store')
+  const days = ga4Days(c.req.query('days'))
+  if (!days) return c.json({ error: 'days must be 7 or 28.', code: 'ga4_days' }, 400)
+  try {
+    return c.json(await ga4Report(c.env, days, c.req.url))
+  } catch (error) {
+    if (!(error instanceof Ga4Error)) console.error('ga4', error)
+    const known = error instanceof Ga4Error ? error : new Ga4Error('ga4_request_failed')
+    return c.json({ configured: true, error: 'GA4 request failed.', code: known.code, lastFetchedAt: known.lastFetchedAt }, 502)
+  }
 })
 
 export { setupRouter }

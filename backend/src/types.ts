@@ -71,6 +71,12 @@ export type Bindings = {
   META_AD_ACCOUNT_ID?: string
   META_ADS_ACCESS_TOKEN?: string
   META_PAGE_ID?: string
+  // GA4 Data API readout for the admin Overview (lib/ga4.ts). Optional: when
+  // unset, GET /api/admin/analytics/ga4 answers { configured: false }.
+  //   wrangler secret put GA4_PROPERTY_ID           (numeric property id)
+  //   wrangler secret put GA4_SA_KEY < key.json     (service-account JSON key)
+  GA4_PROPERTY_ID?: string
+  GA4_SA_KEY?: string
 }
 
 // Used by user-auth middleware and routes

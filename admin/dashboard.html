@@ -51,6 +51,11 @@
     .breakdown-bar-wrap { flex: 1; height: 6px; background: var(--hover-bg); border-radius: 3px; overflow: hidden; }
     .breakdown-bar { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.5s ease; }
     .breakdown-count { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-muted); width: 3.5rem; text-align: right; }
+    .analytics-filters { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: end; margin-bottom: var(--sp-4); }
+    .analytics-filters label { display: grid; gap: var(--sp-1); }
+    .ga4-grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); align-items: start; }
+    /* All tabs fit a 375px phone only with tighter padding. */
+    @media (max-width: 420px) { .tabs .tab { padding-inline: var(--sp-3); } }
   </style>
 </head>
 <body>
@@ -92,6 +97,7 @@
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" id="tab-orders" aria-selected="true" aria-controls="panel-orders">Заказы</button>
       <button class="tab" role="tab" id="tab-visitors" aria-selected="false" aria-controls="panel-visitors">Посетители</button>
+      <button class="tab" role="tab" id="tab-ga4" aria-selected="false" aria-controls="panel-ga4">GA4</button>
     </div>
 
     <!-- ── Orders panel ─────────────────────────────────── -->
@@ -167,12 +173,31 @@
       </div>
       <p class="field-hint" style="margin-top:var(--sp-3)" id="vis-year-note"></p>
     </section>
+    <!-- ── GA4 panel: loaded on first open (lib/ga4.ts, cached 10 min) ── -->
+    <section id="panel-ga4" role="tabpanel" aria-labelledby="tab-ga4" hidden>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3 class="card-title">Google Analytics 4</h3>
+            <p class="card-sub" data-ga4-i18n="consent">Только посетители с согласием: меньше, чем во внутренней воронке</p>
+          </div>
+          <a class="btn btn--sm btn--ghost" id="ga4-link" href="https://analytics.google.com/" target="_blank" rel="noopener" data-ga4-i18n="open">Открыть GA4 ↗</a>
+        </div>
+        <div class="analytics-filters">
+          <label class="field-label"><span data-ga4-i18n="period">Период</span><select class="select" id="ga4-days">
+            <option value="28" data-ga4-i18n="days28">28 дней</option><option value="7" data-ga4-i18n="days7">7 дней</option>
+          </select></label>
+        </div>
+        <div id="ga4-state" role="status" aria-live="polite"></div>
+      </div>
+      <div id="ga4-results" class="ga4-grid" hidden></div>
+    </section>
   </main>
 
   <script src="assets/app.js?v=31"></script>
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=31"></script>
   <script>LOOM_LAYOUT.init('dashboard')</script>
-  <script src="assets/dashboard.js?v=30"></script>
+  <script src="assets/dashboard.js?v=32"></script>
 </body>
 </html>
