@@ -52,7 +52,7 @@
           cartBtn +
           themeDots +
           '<div class="lang-switcher-mount"></div>' +
-          '<div class="auth-nav-slot" data-clarity-mask="true"></div>' + /* shows the user's name */
+          '<div class="auth-nav-slot ym-hide-content" data-clarity-mask="true"></div>' + /* shows the user's name */
           '<button class="nav-hamburger" id="menuToggle" aria-label="Menu" aria-expanded="false">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>' +
           '</button>' +
@@ -76,7 +76,7 @@
         '<a href="account.html" class="mobile-menu-link' + act('account') + '" id="mobile-account-link" data-i18n="nav.account">Личный кабинет</a>' +
         '<a href="configurator.html" class="mobile-menu-link mobile-menu-link--cta" data-i18n="nav.start">Создать дизайн</a>' +
       '</div>' +
-      '<div class="mobile-auth-slot" data-clarity-mask="true"></div>' + /* login state / logout — filled by auth.js */
+      '<div class="mobile-auth-slot ym-hide-content" data-clarity-mask="true"></div>' + /* login state / logout — filled by auth.js */
       '<div class="mobile-theme">' +
         '<span class="mobile-theme-label" data-i18n="nav.theme">Тема</span>' +
         themeDots +

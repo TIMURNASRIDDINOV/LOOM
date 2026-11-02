@@ -1,5 +1,6 @@
 /* ================================================================
-   LOOM — Google Analytics 4 + Microsoft Clarity behind consent (LOOM-283).
+   LOOM — Google Analytics 4 + Microsoft Clarity behind consent (LOOM-283)
+   and Yandex Metrika with Webvisor (LOOM-289).
 
    Loaded with defer on every customer page except auth/callback.html
    (its query string carries the OAuth code). On pages with track.js it
@@ -20,12 +21,19 @@
    - Never sends form values or personal data: click text inside
      [data-clarity-mask] areas (the auth nav slots in layout.js, the
      checkout, account, login and register forms) is dropped, and so is
-     text that looks like a phone or email. Clarity masks those areas.
+     text that looks like a phone or email. Clarity masks those areas;
+     Webvisor hides them through the matching ym-hide-content class and
+     gets ym-disable-keys on every field the visitor focuses.
+   - Yandex Metrika: set YM_ID below. While it is 0, Metrika is a no-op:
+     no tag.js, no request to Yandex. The site is multi-page (history
+     calls only tweak the query string or guard the bag drawer), so no
+     virtual hits are needed.
 ================================================================ */
 (function () {
   'use strict';
   var GA4_ID = 'G-CX2PR981YW';
   var CLARITY_ID = 'z3lrdtn5pv';
+  var YM_ID = 0; // Yandex Metrika counter number, e.g. 98765432. 0 = Metrika off.
   var KEY = 'loom_consent';
   var w = window, d = document;
 
@@ -62,6 +70,12 @@
     w.clarity = w.clarity || function () { (w.clarity.q = w.clarity.q || []).push(arguments); };
     w.clarity('consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' });
     load('https://www.clarity.ms/tag/' + CLARITY_ID);
+    if (YM_ID) {
+      w.ym = w.ym || function () { (w.ym.a = w.ym.a || []).push(arguments); };
+      w.ym.l = +new Date();
+      w.ym(YM_ID, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: true });
+      load('https://mc.yandex.ru/metrika/tag.js');
+    }
   }
 
   /* Accepted earlier, declined now: stop both, drop their first-party
@@ -72,7 +86,7 @@
     var host = location.hostname.split('.');
     d.cookie.split(';').forEach(function (c) {
       var name = c.split('=')[0].trim();
-      if (!/^(_ga|_cl)/.test(name)) return;
+      if (!/^(_ga|_cl|_ym)/.test(name)) return;
       d.cookie = name + '=; Max-Age=0; path=/';
       for (var i = 0; i < host.length - 1; i++) {
         d.cookie = name + '=; Max-Age=0; path=/; domain=' + host.slice(i).join('.');
@@ -142,6 +156,12 @@
       section: sec ? (sec.id || sec.tagName.toLowerCase()) : ''
     };
   }
+
+  /* Webvisor: never record typed values, whatever page the field is on. */
+  d.addEventListener('focusin', function (e) {
+    var el = e.target;
+    if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) el.classList.add('ym-disable-keys');
+  }, true);
 
   d.addEventListener('click', function (e) {
     var el = e.target && e.target.closest ? e.target.closest('a, button, [role="button"]') : null;
