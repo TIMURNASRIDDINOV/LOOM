@@ -74,7 +74,7 @@
       w.ym = w.ym || function () { (w.ym.a = w.ym.a || []).push(arguments); };
       w.ym.l = +new Date();
       w.ym(YM_ID, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: true });
-      load('https://mc.yandex.ru/metrika/tag.js');
+      load('https://mc.yandex.ru/metrika/tag.js?id=' + YM_ID);
     }
   }
 
