@@ -103,7 +103,7 @@
     'footer.privacy':  { uz: 'Maxfiylik va cookie', ru: 'Конфиденциальность и cookie', en: 'Privacy and cookies' },
 
     // ===== Analytics consent banner (assets/analytics.js, LOOM-283) =====
-    'consent.text':    { uz: 'Sayt qanday ishlatilishini tushunish uchun Google Analytics va Microsoft Clarity’dan foydalanamiz. Ular faqat roziligingiz bilan yoqiladi.', ru: 'Мы используем Google Analytics и Microsoft Clarity, чтобы понимать, как люди пользуются сайтом. Они включаются только с вашего согласия.', en: 'We use Google Analytics and Microsoft Clarity to understand how people use the site. They run only if you agree.' },
+    'consent.text':    { uz: 'Sayt qanday ishlatilishini tushunish uchun Google Analytics, Microsoft Clarity va Yandex Metrika’dan foydalanamiz. Ular faqat roziligingiz bilan yoqiladi.', ru: 'Мы используем Google Analytics, Microsoft Clarity и Яндекс Метрику, чтобы понимать, как люди пользуются сайтом. Они включаются только с вашего согласия.', en: 'We use Google Analytics, Microsoft Clarity and Yandex Metrica to understand how people use the site. They run only if you agree.' },
     'consent.accept':  { uz: 'Roziman', ru: 'Принять', en: 'Accept' },
     'consent.decline': { uz: 'Rad etish', ru: 'Отказаться', en: 'Decline' },
     'consent.more':    { uz: 'Batafsil', ru: 'Подробнее', en: 'Learn more' },
