@@ -33,7 +33,7 @@
   'use strict';
   var GA4_ID = 'G-CX2PR981YW';
   var CLARITY_ID = 'z3lrdtn5pv';
-  var YM_ID = 0; // Yandex Metrika counter number, e.g. 98765432. 0 = Metrika off.
+  var YM_ID = 114015332; // Yandex Metrika counter number (loomdesign.uz). 0 = Metrika off.
   var KEY = 'loom_consent';
   var w = window, d = document;
 
