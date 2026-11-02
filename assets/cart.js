@@ -103,6 +103,7 @@
     document.getElementById('cartBackdrop').addEventListener('click', function () { close(); });
     document.getElementById('cartCheckoutBtn').addEventListener('click', function () {
       if (!state.items.length) { toast(t('cfg.cartEmpty', 'Корзина пуста'), 'error'); return; }
+      if (window.LOOM_TRACK) window.LOOM_TRACK.event('cfg_checkout_submit');
       close();
       // A 3D model still being built would be lost with the page: wait for it (≤ 5 s).
       Promise.race([saving, new Promise(function (r) { setTimeout(r, 5000); })])

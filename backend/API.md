@@ -19,7 +19,7 @@ All request/response bodies are `application/json` unless noted. Admin endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/orders` | Place order (rate-limited 5/min/IP) |
+| POST | `/api/cart/checkout` | Place a cart order; requires `Idempotency-Key` and a verified user |
 | GET | `/api/me/orders` | User's orders (Bearer or `user_token` cookie) |
 | GET | `/api/me/orders/:id` | One of the user's orders (Bearer or `user_token` cookie): `{ order, items[], status_log[] }`. `order` is the row as in the list; `items[]` are its line items (`product_name`, `design_json`, `unit_price`, `quantity`, mockup and print keys); `status_log[]` is `{ old_status, new_status, changed_at, note }` oldest first, epoch ms. An order is logged only when an admin changes its status, so a new order can have an empty log: use `order.created_at` for the `new` step. `401` signed out; `404` when the order does not exist or belongs to someone else (the two are not told apart). |
 
@@ -395,6 +395,20 @@ All endpoints require `admin_token` cookie (set by `/api/admin/login`).
 
 Response includes: `ordersByStatus`, `revenueLast30Days`, `ordersLast7Days`, `topProducts`, `ordersPerDay`, `recentOrders`, `totalUsers`, `newUsersLast7Days`, `newUsersLast30Days`
 
+### Configurator funnel
+
+GET `/api/admin/analytics/funnel` requires an admin session and `analytics.view`.
+Optional `from` and `to` are inclusive UTC dates (`YYYY-MM-DD`, at most 366 days);
+the default is the last 30 calendar days including today. Invalid dates return
+400 with code `funnel_range`. Responses use `Cache-Control: no-store`.
+
+Returns `from`, `to`, `timezone`, `totals: { web, app }`, and zero-filled `daily`
+rows with `day`, `platform`, `opens`, `carts`, `checkouts`, `placed`, `orders`.
+The first four counts are distinct sessions following the steps in order,
+grouped by the session's first open day within the range. `orders` counts
+matching server-confirmed orders, excluding cancellations and known test #54.
+See [funnel QA and counting contract](scripts/funnel.md).
+
 ### GA4 readout
 
 GET `/api/admin/analytics/ga4?days=7|28` (default 28) requires an admin session
@@ -573,3 +587,9 @@ Common HTTP status codes:
 - `422` Unprocessable (e.g., user has no Telegram linked)
 - `429` Rate limited
 - `500` Internal server error
+
+## Checkout attempts
+
+`POST /api/cart/checkout` is the only order writer; `POST /api/orders` is removed. Send one `Idempotency-Key` (8–128 ASCII letters/digits, `.`, `_`, `:`, `-`) per checkout attempt and reuse it after a timeout. Keys are scoped to the signed-in user. The same key returns the original order even after the cart is cleared. A valid `sessionId` (1–64 ASCII letters/digits, `.`, `_`, `:`, `-`) is required on new orders and stored on the order. The checkout batch records `order_placed` with that session; clients send `cfg_order` only for the place-order click. `platform` is `web` (default) or `app`. Header, items, artwork attribution and removal of the submitted cart rows use one D1 batch. A changed price or cart requires review before an order is created.
+
+Apply migration `0029_atomic_checkout.sql` locally for QA. The founder must apply it before deploying this Worker and coordinate web/app clients, which now supply the required header. Existing order rows are retained.

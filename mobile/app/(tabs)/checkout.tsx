@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -13,7 +13,8 @@ import { Button, Input, T, Tap } from '../../src/components/ui'
 import { Heading } from '../../src/components/shop/Heading'
 import { ApiError, api } from '../../src/api/client'
 import { GARMENT_FLAT, fetchPaymentMethods, useAsync } from '../../src/api/catalog'
-import { track } from '../../src/api/track'
+import { track, checkoutSessionId } from '../../src/api/track'
+import { checkoutAttempt, markCheckoutSynced, clearCheckoutAttempt } from '../../src/api/checkout-attempt'
 import type { PaymentMethods } from '../../src/api/types'
 import { useAuth } from '../../src/state/auth'
 import { useCart } from '../../src/state/cart'
@@ -67,6 +68,7 @@ export default function Checkout() {
 
   const [placed, setPlaced] = useState<Placed | null>(null)
   const [busy, setBusy] = useState(false)
+  const placingRef = useRef(false)
   const [priceChanged, setPriceChanged] = useState(false)
   const [payMethod, setPayMethod] = useState<PayMethod>('cod')
 
@@ -106,7 +108,7 @@ export default function Checkout() {
   const offered = PAY_ORDER.filter((m) => m === 'cod' || !!methods?.[m])
 
   const place = async () => {
-    if (busy) return
+    if (placingRef.current) return
     if (!signedIn) {
       flash(t('co.errSignIn'))
       router.push('/login')
@@ -126,23 +128,38 @@ export default function Checkout() {
       return
     }
 
+    placingRef.current = true
     setPriceChanged(false)
     setBusy(true)
-    track('cfg_checkout_submit', '/checkout')
     // What the placed page shows is what the shopper confirmed, taken before the cart empties.
     const summary = { total: cart.total, thumbs: cart.items.slice(0, 4).map((i) => i.image) }
+    let attemptKey: string | null = null
     try {
+      const fingerprint = JSON.stringify({ user: user?.id, items: cart.items.map((item) => ({ id: item.id, productId: item.productId, quantity: item.quantity, design: item.designJson })),
+        name: name.trim(), phone: phone.trim(), street: street.trim(), pin, entrance, flat, floor, intercom, method: payMethod })
+      const attempt = await checkoutAttempt(fingerprint)
+      attemptKey = attempt.key
       // The server cart is what checkout reads: send anything still waiting on the phone.
-      try {
-        await cart.sync()
-      } catch {
-        flash(t('co.errSync'))
-        return
+      // On a retry the previous request may already have placed the order and
+      // emptied the server cart, so ask for that attempt's result instead.
+      if (!attempt.synced) {
+        try {
+          await cart.sync()
+        } catch {
+          flash(t('co.errSync'))
+          return
+        }
+        await markCheckoutSynced(attempt)
       }
+      track('cfg_checkout_submit', '/checkout')
+      track('cfg_order', '/checkout')
       const res = await api<{ id: number; paymentUrl: string | null; paymentMethod: PayMethod }>('/api/cart/checkout', {
         method: 'POST',
         auth: true,
+        idempotencyKey: attempt.key,
         body: {
+          sessionId: await checkoutSessionId(),
+          platform: 'app',
           customerName: name.trim(),
           customerPhone: phone.trim(),
           address: street.trim(),
@@ -160,7 +177,7 @@ export default function Checkout() {
         },
       })
       cart.clear()
-      track('cfg_order')
+      await clearCheckoutAttempt(attempt.key)
       // Remember the address for next time, like the web checkout does. Best
       // effort — the order is already placed.
       updateProfile({
@@ -177,6 +194,7 @@ export default function Checkout() {
       if (res.paymentUrl) WebBrowser.openBrowserAsync(res.paymentUrl).catch(() => {})
     } catch (e) {
       const err = e as ApiError
+      if (attemptKey && err.status >= 400 && err.status < 500 && err.status !== 429) await clearCheckoutAttempt(attemptKey)
       if (err.code === 'price_changed' || err.code === 'artwork_price_changed') {
         // No order was made. Adding the studio design again then carries the new markup.
         const d = err.details
@@ -196,6 +214,7 @@ export default function Checkout() {
         flash(err.message)
       }
     } finally {
+      placingRef.current = false
       setBusy(false)
     }
   }

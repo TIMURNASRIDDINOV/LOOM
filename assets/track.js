@@ -1,12 +1,15 @@
 'use strict'
 ;(function () {
   // Generate or retrieve a stable session ID for this browser session
+  let memorySession
   function getSessionId() {
-    let sid = sessionStorage.getItem('loom_sid')
+    let sid = memorySession
+    try { sid = sessionStorage.getItem('loom_sid') || sid } catch (_) {}
     if (!sid) {
       sid = 'sid_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
-      sessionStorage.setItem('loom_sid', sid)
+      try { sessionStorage.setItem('loom_sid', sid) } catch (_) {}
     }
+    memorySession = sid
     return sid
   }
 
@@ -80,12 +83,13 @@
     send(event)
   }
 
-  window.LOOM_TRACK = { event: track }
+  window.LOOM_TRACK = { event: track, getSessionId: getSessionId }
 
   // Send once per session per page load (don't re-track on SPA navigation for now)
   const trackKey = 'loom_tracked_' + window.location.pathname
-  if (!sessionStorage.getItem(trackKey)) {
-    sessionStorage.setItem(trackKey, '1')
+  let alreadyTracked = false
+  try { alreadyTracked = !!sessionStorage.getItem(trackKey); sessionStorage.setItem(trackKey, '1') } catch (_) {}
+  if (!alreadyTracked) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function () { send() })
     } else {

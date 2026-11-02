@@ -225,6 +225,7 @@
             unitPrice: product.price,
             quantity: 1,
           })
+          if (window.LOOM_TRACK) { window.LOOM_TRACK.event('cfg_cart'); window.LOOM_TRACK.event('cfg_checkout_submit'); }
           window.LOOM_CART.toast(T('cart.added', 'Добавлено в корзину') + ' · ' + sz)
           sizeRow.classList.remove('open')
           bagBtn.setAttribute('aria-expanded', 'false')
