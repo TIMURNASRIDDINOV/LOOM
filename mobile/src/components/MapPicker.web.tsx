@@ -60,7 +60,7 @@ export function MapPicker({
         </View>
       ) : null}
       <View style={styles.hint} pointerEvents="none">
-        <T style={mono(8.5, 1.3, { ls: 0.12, upper: true, color: C.i55 })}>
+        <T style={mono(12, 16 / 12, { ls: 0.06, color: C.i70 })}>
           {t('map.hint')}
         </T>
       </View>

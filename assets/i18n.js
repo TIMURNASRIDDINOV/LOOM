@@ -79,7 +79,7 @@
     'spot.t1':       { uz: 'Klassik',      ru: 'Классическая',   en: 'Classic' },
     'spot.t2':       { uz: 'futbolka.',    ru: 'футболка.',      en: 'T-shirt.' },
     'spot.d1':       { uz: '<strong>100% paxta</strong> · Uniseks bichim', ru: '<strong>100% хлопок</strong> · Унисекс крой', en: '<strong>100% cotton</strong> · Unisex cut' },
-    'spot.d2':       { uz: '<strong>5 ta asosiy rang</strong> · 89 000 so‘mdan', ru: '<strong>5 базовых цветов</strong> · от 89 000 сум', en: '<strong>5 base colors</strong> · From 89,000 UZS' },
+    'spot.d2':       { uz: '<strong>5 ta asosiy rang</strong>', ru: '<strong>5 базовых цветов</strong>', en: '<strong>5 base colors</strong>' },
     'spot.customize':{ uz: 'Buni sozlash', ru: 'Настроить эту', en: 'Customize this' },
 
     // ===== Home — products grid (static cards) =====
@@ -101,6 +101,13 @@
     // ===== Footer =====
     'footer.contact':  { uz: 'Aloqa',  ru: 'Контакты',  en: 'Contact' },
     'footer.location': { uz: 'Toshkent, O‘zbekiston', ru: 'Ташкент, Узбекистан', en: 'Tashkent, Uzbekistan' },
+    'footer.privacy':  { uz: 'Maxfiylik va cookie', ru: 'Конфиденциальность и cookie', en: 'Privacy and cookies' },
+
+    // ===== Analytics consent banner (assets/analytics.js, LOOM-283) =====
+    'consent.text':    { uz: 'Sayt qanday ishlatilishini tushunish uchun Google Analytics va Microsoft Clarity’dan foydalanamiz. Ular faqat roziligingiz bilan yoqiladi.', ru: 'Мы используем Google Analytics и Microsoft Clarity, чтобы понимать, как люди пользуются сайтом. Они включаются только с вашего согласия.', en: 'We use Google Analytics and Microsoft Clarity to understand how people use the site. They run only if you agree.' },
+    'consent.accept':  { uz: 'Roziman', ru: 'Принять', en: 'Accept' },
+    'consent.decline': { uz: 'Rad etish', ru: 'Отказаться', en: 'Decline' },
+    'consent.more':    { uz: 'Batafsil', ru: 'Подробнее', en: 'Learn more' },
     'footer.navTitle':    { uz: 'Sahifalar', ru: 'Навигация', en: 'Navigate' },
     'footer.designersTitle': { uz: 'Dizaynerlarga', ru: 'Дизайнерам', en: 'For designers' },
     'footer.becomeDesigner': { uz: 'Dizayner bo‘lish', ru: 'Стать дизайнером', en: 'Become a designer' },

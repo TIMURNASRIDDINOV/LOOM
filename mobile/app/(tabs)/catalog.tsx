@@ -1,28 +1,27 @@
 import React, { useState } from 'react'
-import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native'
+import { ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 
-import { C, RULE, fmt, noShadow, offset, type Size } from '../../src/theme/tokens'
-import { productConfig } from '../../src/lib/product-config'
-import { body, disp, kicker, mono, monoSemi } from '../../src/theme/type'
+import { C, RULE } from '../../src/theme/tokens'
+import { body, disp, monoSemi } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
-import { Button, SlashTitle, T, Tap } from '../../src/components/ui'
-import { fetchProducts, productImage, useAsync } from '../../src/api/catalog'
-import { buildPlainDesignJson } from '../../src/api/design'
+import { ChevronRight } from '../../src/components/icons'
+import { ChipRow, EmptyState, OfflineState, Skeleton, T, Tap, isOffline } from '../../src/components/ui'
+import { Heading } from '../../src/components/shop/Heading'
+import { ProductCard, ProductGrid, cellStyle } from '../../src/components/shop/ProductCard'
+import { SectionHeading } from '../../src/components/shop/SectionHeading'
+import { fetchProducts, useAsync } from '../../src/api/catalog'
 import type { Product } from '../../src/api/types'
-import { productName, useI18n } from '../../src/i18n'
-import { useCart } from '../../src/state/cart'
-import { useToast } from '../../src/state/toast'
+import { useI18n } from '../../src/i18n'
 
 type Tab = 'all' | 'custom' | 'ready'
 
-// Mirrors the web catalog (products-catalog.js): the same three tabs, the same
-// card anatomy — image, ready chip, title, description, price — and the same
-// quick add-to-bag that reveals a size row inline instead of navigating away.
-// The web's 6-size row wraps to two lines at phone width.
+// W10 catalog, W11 loading, W12 offline. Every card opens the product page
+// (W13), which carries the studio and cart actions.
 
 export default function Catalog() {
   const [tab, setTab] = useState<Tab>('all')
+  const router = useRouter()
   const { t } = useI18n()
   const { data, loading, error, reload } = useAsync(fetchProducts, [])
 
@@ -31,52 +30,92 @@ export default function Catalog() {
   const blank = products.filter((p) => p.product_type === 'blank')
   const ready = products.filter((p) => p.product_type === 'ready')
 
+  const grid = (items: Product[]) => (
+    <ProductGrid>
+      {items.map((p) => (
+        <ProductCard key={p.id} product={p} index={products.indexOf(p) + 1} onPress={() => router.push(`/product?id=${p.id}`)} />
+      ))}
+    </ProductGrid>
+  )
+
   return (
     <View style={{ flex: 1 }}>
-      <AppBar title={t('bar.catalog')} />
+      <AppBar title="LOOM" />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        {/* The web hero, compressed to two lines. */}
-        <T style={kicker(10)}>
-          {`Apparel · 01—${String(Math.max(products.length, 1)).padStart(2, '0')}`}
-        </T>
-        <SlashTitle size={30} style={{ marginTop: 6, marginBottom: 4 }}>
-          {t('catalog.title')}
-        </SlashTitle>
-        <T style={[body(13, 1.6, { color: C.i55 }), { marginBottom: 18 }]}>
-          {t('catalog.subtitle')}
-        </T>
-
-        <View style={styles.tabs}>
-          <CatTab label={t('catalog.all')} count={products.length} active={tab === 'all'} onPress={() => setTab('all')} flex={1} />
-          <CatTab label={t('catalog.custom')} count={custom.length} active={tab === 'custom'} onPress={() => setTab('custom')} flex={1.5} />
-          <CatTab label={t('catalog.ready')} count={ready.length} active={tab === 'ready'} onPress={() => setTab('ready')} flex={1.5} />
+        <View style={{ gap: 8 }}>
+          <Heading style={disp(34, 1, { ls: -0.035 })}>
+            {t('catalog.title')}
+          </Heading>
+          <T style={body(14, 20 / 14, { color: C.i70 })}>{t('catalog.subtitle')}</T>
         </View>
 
-        {loading ? (
-          <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-            <ActivityIndicator color={C.coral} />
-          </View>
-        ) : error ? (
-          <View style={{ paddingVertical: 40, gap: 16 }}>
-            <T style={body(14, 1.6, { color: C.i55 })}>{error.message}</T>
-            <Button title={t('common.retry')} variant="ink" size={12.5} vPad={14} onPress={reload} />
-          </View>
+        {error && !data ? (
+          // W12 — no connection; any other failure gets the same card with its own words.
+          <>
+            {isOffline(error) ? (
+              <OfflineState onRetry={reload} />
+            ) : (
+              <EmptyState title={t('catalog.loadFailed')} action={t('common.retry')} onAction={reload} />
+            )}
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.ghosts}>
+              <View style={styles.ghost} />
+              <View style={styles.ghost} />
+            </View>
+          </>
         ) : (
           <>
-            {tab !== 'ready' ? (
-              <Section title={t('catalog.customSection')} note={t('catalog.customNote')} items={custom} />
-            ) : null}
-            {tab === 'all' && blank.length > 0 ? <Section title={t('common.noPrint')} note={t('st.blankNote')} items={blank} /> : null}
-            {tab !== 'custom' ? (
-              <View style={{ marginTop: tab === 'all' ? 26 : 0 }}>
-                <Section title={t('catalog.readySection')} note={t('catalog.readyNote')} items={ready} />
+            <ChipRow
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: 'all' as Tab, label: t('catalog.all') },
+                { value: 'custom' as Tab, label: t('catalog.custom') },
+                { value: 'ready' as Tab, label: t('catalog.ready') },
+              ]}
+            />
+
+            {loading && !data ? (
+              // W11 — skeleton cards while the catalog loads.
+              <View accessibilityRole="progressbar" accessibilityLabel={t('common.loading')} style={{ gap: 16 }}>
+                <T style={monoSemi(12, 16 / 12, { ls: 0.14, upper: true, color: C.i70 })}>{t('common.loading')}</T>
+                <ProductGrid muted>
+                  {[146, 146, 110, 110].map((h, i) => (
+                    <View key={i} style={cellStyle(true)}>
+                      <Skeleton height={h} lines={h === 146 ? ['60%', '85%', '50%'] : ['55%']} />
+                    </View>
+                  ))}
+                </ProductGrid>
               </View>
-            ) : null}
-            {products.length === 0 ? (
-              <T style={[body(14, 1.6, { color: C.i55 }), { paddingVertical: 40 }]}>
-                {t('catalog.empty')}
-              </T>
-            ) : null}
+            ) : (
+              <>
+                {tab !== 'ready' && custom.length > 0 ? (
+                  <Section title={t('catalog.customSection')} note={t('catalog.customNote')}>
+                    {grid(custom)}
+                  </Section>
+                ) : null}
+                {tab === 'all' && blank.length > 0 ? (
+                  <Section title={t('common.noPrint')} note={t('st.blankNote')}>
+                    {grid(blank)}
+                  </Section>
+                ) : null}
+                {tab !== 'custom' ? (
+                  <Section title={t('catalog.readySection')} note={ready.length ? t('catalog.readyNote') : undefined}>
+                    {ready.length ? (
+                      grid(ready)
+                    ) : (
+                      // No ready-made designs yet: send shoppers to the designers' works instead.
+                      <Tap accessibilityRole="link" onPress={() => router.push('/market')} style={styles.marketRow}>
+                        <T style={[disp(15, 1.2, { ls: -0.01 }), { flex: 1 }]}>{t('catalog.marketRow')}</T>
+                        <ChevronRight size={18} color={C.ink} width={2.4} />
+                      </Tap>
+                    )}
+                  </Section>
+                ) : null}
+                {products.length === 0 ? (
+                  <T style={body(14, 20 / 14, { color: C.i70 })}>{t('catalog.empty')}</T>
+                ) : null}
+              </>
+            )}
           </>
         )}
       </ScrollView>
@@ -84,219 +123,28 @@ export default function Catalog() {
   )
 }
 
-function CatTab({
-  label,
-  count,
-  active,
-  onPress,
-  flex,
-}: {
-  label: string
-  count: number
-  active: boolean
-  onPress: () => void
-  flex: number
-}) {
+function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
-    <Tap
-      haptic
-      onPress={onPress}
-      style={[
-        styles.catTab,
-        { flex, backgroundColor: active ? C.ink : C.white },
-        active ? offset(2, C.coral) : noShadow,
-      ]}
-    >
-      <T style={disp(10.5, 1, { ls: 0.14, upper: true, color: active ? C.paper : C.i55 })}>
-        {label}{' '}
-        <T style={{ fontSize: 7.6, color: active ? C.white : C.deep }}>
-          {String(count).padStart(2, '0')}
-        </T>
-      </T>
-    </Tap>
-  )
-}
-
-function Section({ title, note, items }: { title: string; note: string; items: Product[] }) {
-  if (!items.length) return null
-  return (
-    <View>
-      <View style={styles.sectionHead}>
-        <T style={disp(12, 1, { ls: -0.02 })}>{title}</T>
-        <T style={[mono(9, 1.3, { ls: 0.12, upper: true, color: C.i38 }), { flex: 1 }]}>{note}</T>
-        <T style={mono(9.5, 1, { color: C.deep })}>{String(items.length).padStart(2, '0')}</T>
-      </View>
-      <View style={styles.grid}>
-        {items.map((p) => (
-          <ProductCard key={p.id} product={p} />
-        ))}
-      </View>
-    </View>
-  )
-}
-
-function ProductCard({ product: p }: { product: Product }) {
-  const router = useRouter()
-  const cart = useCart()
-  const { flash } = useToast()
-  const { t, lang } = useI18n()
-  const [sizesOpen, setSizesOpen] = useState(false)
-
-  const isReady = p.product_type === 'ready'
-  // Sizes and the garment colour from the product's config (LOOM-166).
-  const cfg = productConfig(p)
-
-  const addWithSize = (size: Size) => {
-    cart.add({
-      productId: p.id,
-      name: productName(p, lang),
-      image: p.thumbnail_url,
-      unitPrice: p.price,
-      // A garment bought straight from the catalog carries no print.
-      designJson: buildPlainDesignJson(size, cfg.colors.find((c) => c.available)?.hex),
-      meta: `${isReady ? t('catalog.readyDesign') : t('common.noPrint')} · ${size}`,
-      logoKey: null,
-    })
-    setSizesOpen(false)
-    flash(t('catalog.addedSize', { name: productName(p, lang), size }))
-  }
-
-  return (
-    <View style={styles.card}>
-      <Tap onPress={() => router.push(`/product?id=${p.id}`)}>
-        <View style={styles.cardImg}>
-          <Image source={productImage(p)} style={styles.fill} resizeMode="cover" />
-          {isReady ? (
-            <View style={styles.readyChip}>
-              <T style={mono(7.5, 1.3, { ls: 0.1, upper: true })}>{t('catalog.readyChip')}</T>
-            </View>
-          ) : null}
-        </View>
-      </Tap>
-
-      <View style={styles.cardBody}>
-        <T style={disp(13.5, 1.15, { ls: -0.01 })} numberOfLines={1}>
-          {productName(p, lang)}
-        </T>
-        {p.description_ru ? (
-          <T style={[body(10.5, 1.45, { color: C.i55 }), { marginTop: 4 }]} numberOfLines={2}>
-            {p.description_ru}
-          </T>
-        ) : null}
-        <T style={[mono(10.5, 1.2, { color: C.i70 }), { marginTop: 6 }]}>{fmt(p.price)} {t('common.sum')}</T>
-
-        {/* Custom garments lead with the studio, exactly like the web card. */}
-        {!isReady ? (
-          <Tap
-            haptic
-            style={styles.customBtn}
-            onPress={() => router.push(`/studio?productId=${p.id}`)}
-          >
-            <T style={monoSemi(9, 1, { ls: 0.1, upper: true, color: C.paper })}>{t(p.product_type === 'blank' ? 'st.colorSize' : 'catalog.customize')}</T>
-          </Tap>
-        ) : null}
-
-        <Tap
-          haptic
-          style={[styles.bagBtn, isReady && styles.bagBtnPrimary]}
-          onPress={() => setSizesOpen((v) => !v)}
-        >
-          <T
-            style={monoSemi(9, 1, {
-              ls: 0.1,
-              upper: true,
-              color: isReady ? C.white : C.ink,
-            })}
-          >
-            {sizesOpen ? t('common.cancel') : t('catalog.toCart')}
-          </T>
-        </Tap>
-
-        {sizesOpen ? (
-          <View style={styles.sizeRow}>
-            {cfg.sizes.map((z) => (
-              <Tap key={z} haptic style={styles.sizeChip} onPress={() => addWithSize(z)}>
-                <T style={monoSemi(9.5, 1, { color: C.ink })}>{z}</T>
-              </Tap>
-            ))}
-          </View>
-        ) : null}
-      </View>
+    <View style={{ gap: 10 }}>
+      <SectionHeading title={title} note={note} />
+      {children}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 24 },
-  fill: { width: '100%', height: '100%' },
-  tabs: { flexDirection: 'row', gap: 6, marginBottom: 16 },
-  catTab: {
-    paddingVertical: 11,
-    paddingHorizontal: 4,
-    borderWidth: RULE,
-    borderColor: C.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionHead: {
+  page: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, gap: 16 },
+  ghosts: { flexDirection: 'row', gap: 14, opacity: 0.6 },
+  ghost: { flex: 1, height: 150, borderWidth: RULE, borderStyle: 'dashed', borderColor: 'rgba(19,19,17,.3)' },
+  marketRow: {
+    minHeight: 64,
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 10,
-    paddingBottom: 7,
-    marginBottom: 13,
-    borderBottomWidth: RULE,
-    borderBottomColor: C.ink,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 },
-  card: {
-    width: '47.6%',
-    flexGrow: 1,
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
     borderWidth: RULE,
-    borderColor: C.ink,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(19,19,17,.4)',
     backgroundColor: C.white,
-  },
-  cardImg: {
-    aspectRatio: 4 / 5,
-    overflow: 'hidden',
-    borderBottomWidth: RULE,
-    borderBottomColor: C.ink,
-  },
-  cardBody: { paddingHorizontal: 10, paddingVertical: 9 },
-  readyChip: {
-    position: 'absolute',
-    top: 7,
-    left: 7,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    backgroundColor: C.paper,
-    borderWidth: 1,
-    borderColor: C.ink,
-  },
-  customBtn: {
-    marginTop: 9,
-    paddingVertical: 9,
-    borderWidth: 1,
-    borderColor: C.ink,
-    backgroundColor: C.ink,
-    alignItems: 'center',
-  },
-  bagBtn: {
-    marginTop: 6,
-    paddingVertical: 9,
-    borderWidth: 1,
-    borderColor: C.ink,
-    backgroundColor: C.white,
-    alignItems: 'center',
-  },
-  bagBtnPrimary: { backgroundColor: C.coral, borderColor: C.ink },
-  sizeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 7 },
-  sizeChip: {
-    minWidth: 30,
-    paddingVertical: 7,
-    paddingHorizontal: 5,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: C.paper,
-    alignItems: 'center',
   },
 })

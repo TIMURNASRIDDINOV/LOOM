@@ -21,7 +21,7 @@ function formatDate(ts: number): string {
   return new Date(ts).toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent' })
 }
 
-function escapeHtml(text: string | null | undefined): string {
+export function escapeHtml(text: string | null | undefined): string {
   if (!text) return ''
   return String(text)
     .replace(/&/g, '&amp;')

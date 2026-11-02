@@ -29,6 +29,8 @@ import {
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { funnelRange, getFunnelStats } from '../db/funnel'
+import { Ga4Error, ga4Days, ga4Report } from '../lib/ga4'
+import { clarityReadout } from '../lib/clarity'
 import { signToken, verifyToken } from '../lib/jwt'
 import { serveObject } from '../lib/r2'
 import { clientIp, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
@@ -560,6 +562,28 @@ admin.get('/analytics/funnel', requireAdmin, requireCap('analytics.view'), async
   const range = funnelRange(c.req.query('from'), c.req.query('to'))
   if (!range) return c.json({ error: 'Choose valid UTC dates, up to 366 days.', code: 'funnel_range' }, 400)
   return c.json(await getFunnelStats(c.env.DB, range))
+})
+
+// GA4 Data API readout (lib/ga4.ts). Google failures are 502 with a stable
+// code, never 401/403, so the admin client does not read them as a lost session.
+admin.get('/analytics/ga4', requireAdmin, requireCap('analytics.view'), async (c) => {
+  c.header('Cache-Control', 'no-store')
+  const days = ga4Days(c.req.query('days'))
+  if (!days) return c.json({ error: 'days must be 7 or 28.', code: 'ga4_days' }, 400)
+  try {
+    return c.json(await ga4Report(c.env, days, c.req.url))
+  } catch (error) {
+    if (!(error instanceof Ga4Error)) console.error('ga4', error)
+    const known = error instanceof Ga4Error ? error : new Ga4Error('ga4_request_failed')
+    return c.json({ configured: true, error: 'GA4 request failed.', code: known.code, lastFetchedAt: known.lastFetchedAt }, 502)
+  }
+})
+
+// Clarity readout from the daily D1 snapshots (lib/clarity.ts). Never calls
+// Clarity: its quota is 10 requests a day and the cron spends 4.
+admin.get('/analytics/clarity', requireAdmin, requireCap('analytics.view'), async (c) => {
+  c.header('Cache-Control', 'no-store')
+  return c.json(await clarityReadout(c.env))
 })
 
 export { setupRouter }

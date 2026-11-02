@@ -1,27 +1,22 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  Animated,
-  Easing,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native'
+import React, { useEffect, useRef, useState } from 'react'
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as WebBrowser from 'expo-web-browser'
 
-import { C, RULE } from '../src/theme/tokens'
-import { body, disp, label as labelType, mono } from '../src/theme/type'
-import { Close, DotsIcon, Telegram } from '../src/components/icons'
-import { SocialButton } from '../src/components/SocialButtons'
-import { Button, T, Tap, Toast, Wordmark } from '../src/components/ui'
+import { C, F, RULE, offset } from '../src/theme/tokens'
+import { body, disp, kicker, label as labelType, monoBold, monoSemi } from '../src/theme/type'
+import { BackHeader } from '../src/components/AppBar'
+import { Apple, Discord, Facebook, Google, Telegram } from '../src/components/icons'
+import { Clock, Phone } from '../src/components/start/glyphs'
+import { PhoneField } from '../src/components/start/PhoneField'
+import { visibleProviders } from '../src/components/start/providers'
+import { Button, Input, T, Tap, Toast } from '../src/components/ui'
 import { useAuth } from '../src/state/auth'
 import { useToast } from '../src/state/toast'
 import { goBack } from '../src/lib/nav'
 import { useT } from '../src/i18n'
+import type { StringKey } from '../src/i18n/strings'
 import {
   OAuthCancelled,
   fetchProviders,
@@ -29,9 +24,24 @@ import {
   type ProviderInfo,
 } from '../src/api/oauth'
 
-const SESSION_SECONDS = 600
+// Used only when the Worker's reply carries no usable `expires_at`.
+const SESSION_MS = 10 * 60 * 1000
 
 type Mode = 'phone' | 'wait' | 'email'
+
+// What each provider button says and draws.
+const PROVIDER: Record<ProviderId, { label: StringKey; glyph: React.ReactNode }> = {
+  apple: { label: 'login.apple', glyph: <Apple size={20} /> },
+  google: { label: 'login.google', glyph: <Google size={20} /> },
+  facebook: { label: 'login.facebook', glyph: <Facebook size={20} /> },
+  discord: { label: 'login.discord', glyph: <Discord size={20} /> },
+}
+
+// Telegram-blue button text: white on the brand blue, tracking from the design (.1em).
+const TG_TEXT = { color: C.white, letterSpacing: 1.3 }
+const OUTLINE_TEXT = { letterSpacing: 1.3 }
+
+type Errors = { phone?: string; email?: string; password?: string; form?: string }
 
 export default function Login() {
   const router = useRouter()
@@ -41,11 +51,9 @@ export default function Login() {
   const t = useT()
 
   const [step, setStep] = useState<Mode>('phone')
-  // Which providers the Worker actually holds credentials for. Anything absent
-  // still renders, greyed out with «скоро», so the sheet does not silently
-  // shrink between deployments.
+  // Which providers the Worker holds credentials for. A provider it does not
+  // list is not drawn at all — no «скоро» placeholder in a store build.
   const [live, setLive] = useState<ProviderInfo[]>([])
-  const [more, setMore] = useState(false)
   const [oauthBusy, setOauthBusy] = useState<ProviderId | null>(null)
   const [register, setRegister] = useState(false)
   const [email, setEmail] = useState('')
@@ -53,8 +61,11 @@ export default function Login() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<Errors>({})
   const [deepLink, setDeepLink] = useState('')
-  const [left, setLeft] = useState(SESSION_SECONDS)
+  const [endsAt, setEndsAt] = useState(0)
+  const [now, setNow] = useState(Date.now())
+  const [expired, setExpired] = useState(false)
   const session = useRef<string | null>(null)
 
   useEffect(() => {
@@ -62,24 +73,28 @@ export default function Login() {
     fetchProviders()
       .then((ps) => alive && setLive(ps))
       .catch(() => {
-        // Offline or an old Worker — every social button just shows «скоро».
+        // Offline or an old Worker: Telegram and email still work.
       })
     return () => {
       alive = false
     }
   }, [])
 
-  const close = () => {
+  const go = (mode: Mode) => {
+    setErr({})
+    setStep(mode)
+  }
+
+  const cancelWait = () => {
     stopPolling()
-    goBack(router)
+    setExpired(false)
+    go('phone')
   }
 
   const social = async (provider: ProviderId) => {
     const info = live.find((p) => p.id === provider)
-    if (!info) {
-      flash(t('login.errProvider'))
-      return
-    }
+    if (!info) return
+    setErr({})
     setOauthBusy(provider)
     try {
       await signInWithOAuth(provider, info.clientId)
@@ -87,46 +102,50 @@ export default function Login() {
       goBack(router)
     } catch (e) {
       // Backing out of the browser sheet is not an error worth shouting about.
-      if (!(e instanceof OAuthCancelled)) flash((e as Error).message)
+      if (!(e instanceof OAuthCancelled)) setErr({ form: (e as Error).message })
     } finally {
       setOauthBusy(null)
     }
   }
 
+  const openBot = (link: string) =>
+    WebBrowser.openBrowserAsync(link).catch(() => setErr({ form: t('login.errBot') }))
+
   const start = async () => {
     const digits = phone.replace(/\D/g, '')
     if (digits.length < 9) {
-      flash(t('login.errPhone'))
+      setErr({ phone: t('login.errPhone') })
       return
     }
+    setErr({})
     setBusy(true)
     try {
       const res = await startTelegram(digits)
       session.current = res.session_id
       setDeepLink(res.telegram_deep_link)
-      setLeft(SESSION_SECONDS)
+      // The Worker says when the session ends; a reused session may have less than 10 min left.
+      const end = Number(res.expires_at)
+      setEndsAt(Number.isFinite(end) ? end : Date.now() + SESSION_MS)
+      setNow(Date.now())
+      setExpired(false)
       setStep('wait')
       // Hand the user straight to the bot — the whole point of this flow.
-      WebBrowser.openBrowserAsync(res.telegram_deep_link).catch(() => {})
+      openBot(res.telegram_deep_link)
     } catch (e) {
-      flash((e as Error).message)
+      setErr({ form: (e as Error).message })
     } finally {
       setBusy(false)
     }
   }
 
   const submitEmail = async () => {
-    // The backend rejects anything under 8 characters (routes/auth.ts), so
-    // validating at 6 here just turned a fixable field error into a server
-    // error the user could not act on.
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      flash(t('login.errEmail'))
-      return
-    }
-    if (password.length < 8) {
-      flash(t('login.errPassword'))
-      return
-    }
+    // The backend rejects anything under 8 characters (routes/auth.ts); both
+    // checks run before any request goes out.
+    const e: Errors = {}
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = t('login.errEmail')
+    if (password.length < 8) e.password = t('login.errPassword')
+    setErr(e)
+    if (e.email || e.password) return
     setBusy(true)
     try {
       await signInWithEmail(
@@ -135,16 +154,18 @@ export default function Login() {
       )
       flash(register ? t('login.created') : t('login.done'))
       goBack(router)
-    } catch (e) {
-      flash((e as Error).message)
+    } catch (x) {
+      setErr({ form: (x as Error).message })
     } finally {
       setBusy(false)
     }
   }
 
+  const waiting = step === 'wait' && !expired
+
   // Poll every 2s while waiting, exactly like the web flow.
   useEffect(() => {
-    if (step !== 'wait' || !session.current) return
+    if (!waiting || !session.current) return
     let alive = true
 
     const tick = async () => {
@@ -155,12 +176,9 @@ export default function Login() {
         if (res.status === 'verified') {
           flash(t('login.doneVerified'))
           goBack(router)
-          return
-        }
-        if (res.status === 'failed' || res.status === 'expired') {
-          flash(t('login.expired'))
-          setStep('phone')
-          return
+        } else if (res.status === 'failed' || res.status === 'expired') {
+          stopPolling()
+          setExpired(true)
         }
       } catch (e) {
         // A transient network blip shouldn't end the wait — but a server that
@@ -168,362 +186,315 @@ export default function Login() {
         // instead of spinning until the countdown runs out.
         const msg = (e as Error)?.message ?? ''
         if (msg === t('login.errNoToken')) {
-          flash(msg)
+          stopPolling()
+          setErr({ form: msg })
           setStep('phone')
         }
       }
     }
 
     const poll = setInterval(tick, 2000)
-    const countdown = setInterval(() => setLeft((v) => Math.max(0, v - 1)), 1000)
+    const clock = setInterval(() => setNow(Date.now()), 1000)
     return () => {
       alive = false
       clearInterval(poll)
-      clearInterval(countdown)
+      clearInterval(clock)
     }
-  }, [step, pollTelegram, router, flash])
+  }, [waiting, pollTelegram, stopPolling, router, flash, t])
+
+  const left = Math.max(0, Math.ceil((endsAt - now) / 1000))
+  useEffect(() => {
+    if (waiting && left === 0) {
+      stopPolling()
+      setExpired(true)
+    }
+  }, [waiting, left, stopPolling])
 
   const mmss = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
-  const progress = left / SESSION_SECONDS
+  const providers = visibleProviders(live, Platform.OS)
 
   return (
     <KeyboardAvoidingView
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <BackHeader onBack={step === 'phone' ? undefined : step === 'wait' ? cancelWait : () => go('phone')} />
       <ScrollView
-        contentContainerStyle={[
-          styles.page,
-          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 30 },
-        ]}
+        contentContainerStyle={[styles.page, { paddingBottom: Math.max(insets.bottom, 16) + 14 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Tap style={styles.close} onPress={close} hitSlop={8}>
-          <Close />
-        </Tap>
-
         {step === 'phone' ? (
-          <View style={styles.center}>
-            <Wordmark size={17} />
-            <T style={[disp(36, 0.98, { ls: -0.035 }), { marginTop: 22, marginBottom: 8 }]}>
-              {t('login.title')}
-            </T>
-            <T style={[body(15, 1.6, { color: C.i55 }), { marginBottom: 28 }]}>
-              {t('login.subtitle')}
-            </T>
+          <View style={styles.main}>
+            <Heading kick={t('common.signIn')} title={t('login.title')} sub={t('login.subtitle')} compact />
 
-            <T style={[labelType(10.5, { color: C.i70 }), { marginBottom: 8 }]}>{t('login.phone')}</T>
-            <View style={styles.phoneField}>
-              <View style={styles.prefix}>
-                <T style={{ fontFamily: 'IBMPlexMono_500Medium', fontSize: 16, color: C.ink }}>
-                  +998
-                </T>
-              </View>
-              <TextInput
+            <View style={{ gap: 12 }}>
+              <PhoneField
+                label={t('login.phone')}
                 value={phone}
-                onChangeText={setPhone}
-                placeholder="90 123 45 67"
-                placeholderTextColor={C.i38}
-                keyboardType="number-pad"
-                style={styles.phoneInput}
-                allowFontScaling={false}
-                maxLength={12}
+                onChange={(v) => {
+                  setPhone(v)
+                  if (err.phone) setErr({})
+                }}
+                error={err.phone}
+                onSubmit={start}
+              />
+              <Button
+                title={t('login.tgContinue')}
+                variant="ink"
+                size={13}
+                loading={busy}
+                icon={<Telegram size={20} />}
+                style={{ backgroundColor: C.telegram }}
+                textStyle={TG_TEXT}
+                onPress={start}
+              />
+              <T style={body(13, 18 / 13, { color: C.i70 })}>{t('login.tgHint')}</T>
+              {err.form ? <T style={body(13, 18 / 13, { color: C.deep })}>{err.form}</T> : null}
+            </View>
+
+            {providers.length > 0 ? (
+              <>
+                <View style={styles.divider}>
+                  <View style={styles.rule} />
+                  <T style={labelType(12)}>{t('login.or')}</T>
+                  <View style={styles.rule} />
+                </View>
+                <View style={{ gap: 12 }}>
+                  {providers.map((id) => (
+                    <Button
+                      key={id}
+                      title={t(PROVIDER[id].label)}
+                      variant="outline"
+                      size={13}
+                      loading={oauthBusy === id}
+                      icon={PROVIDER[id].glyph}
+                      style={{ backgroundColor: C.white }}
+                      textStyle={OUTLINE_TEXT}
+                      onPress={() => social(id)}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : null}
+
+            <Tap accessibilityRole="link" style={styles.more} onPress={() => go('email')}>
+              <T style={[monoSemi(13, 1.2, { ls: 0.06 }), styles.underline]}>{t('login.more')} →</T>
+            </Tap>
+          </View>
+        ) : step === 'email' ? (
+          <View style={styles.main}>
+            <Heading
+              kick={t('common.signIn')}
+              title={register ? t('login.registerTitle') : t('login.emailTitle')}
+              sub={register ? t('login.registerHint') : t('login.emailHint')}
+              compact
+            />
+
+            <View style={{ gap: 18 }}>
+              {register ? (
+                <Input
+                  label={t('login.name')}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder={t('login.namePh')}
+                  autoComplete="name"
+                />
+              ) : null}
+              <Input
+                label={t('login.emailLabel')}
+                value={email}
+                onChangeText={setEmail}
+                error={err.email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+              />
+              <Input
+                label={t('login.password')}
+                value={password}
+                onChangeText={setPassword}
+                error={err.password}
+                placeholder={t('login.passwordPh')}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete={register ? 'new-password' : 'current-password'}
+                onSubmitEditing={submitEmail}
+              />
+              {err.form ? <T style={body(13, 18 / 13, { color: C.deep })}>{err.form}</T> : null}
+              <Button
+                title={register ? t('login.create') : t('common.signIn')}
+                loading={busy}
+                style={{ marginTop: 6 }}
+                onPress={submitEmail}
               />
             </View>
 
-            <Tap haptic style={styles.tgBtn} onPress={busy ? undefined : start}>
-              <Telegram />
-              <T style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13.1, color: C.white, letterSpacing: 0.5 }}>
-                {busy ? t('login.tgOpening') : t('login.tgContinue')}
-              </T>
+            <Tap accessibilityRole="link" style={styles.more} onPress={() => go('phone')}>
+              <T style={[monoSemi(13, 1.2, { ls: 0.06 }), styles.underline]}>{t('login.backToTelegram')}</T>
             </Tap>
-            <T style={[body(11.8, 1.5, { color: C.i38, align: 'center' }), { marginTop: 10 }]}>
-              {t('login.tgHint')}
-            </T>
-
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <T style={body(11.5, 1, { ls: 0.06, color: C.i38 })}>{t('login.or')}</T>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Google rides above the fold with Telegram; Facebook, Discord and
-                email sit behind the overflow row so the sheet stays two-choice. */}
-            <SocialButton
-              kind="google"
-              disabled={!live.some((p) => p.id === 'google')}
-              busy={oauthBusy === 'google'}
-              onPress={() => social('google')}
-            />
-
-            {more ? (
-              <>
-                <SocialButton
-                  kind="facebook"
-                  disabled={!live.some((p) => p.id === 'facebook')}
-                  busy={oauthBusy === 'facebook'}
-                  onPress={() => social('facebook')}
-                />
-                <SocialButton
-                  kind="discord"
-                  disabled={!live.some((p) => p.id === 'discord')}
-                  busy={oauthBusy === 'discord'}
-                  onPress={() => social('discord')}
-                />
-                <SocialButton kind="email" onPress={() => setStep('email')} />
-              </>
-            ) : (
-              <Tap haptic style={styles.moreRow} onPress={() => setMore(true)} hitSlop={6}>
-                <DotsIcon color={C.i55} />
-                <T style={body(12.5, 1, { color: C.i55 })}>{t('login.more')}</T>
-              </Tap>
-            )}
-
-            <T style={[body(12.5, 1.5, { color: C.i55, align: 'center' }), { marginTop: 18 }]}>
-              {t('login.noAccount')}{' '}
-              <T
-                style={{ color: C.deep }}
-                onPress={() => {
-                  setRegister(true)
-                  setStep('email')
-                }}
-              >
-                {t('login.register')}
-              </T>
-            </T>
-          </View>
-        ) : step === 'email' ? (
-          <View style={styles.center}>
-            <Wordmark size={17} />
-            <T style={[disp(34, 0.98, { ls: -0.035 }), { marginTop: 22, marginBottom: 8 }]}>
-              {register ? t('login.registerTitle') : t('login.emailTitle')}
-            </T>
-            <T style={[body(15, 1.6, { color: C.i55 }), { marginBottom: 24 }]}>
-              {register ? t('login.registerHint') : t('login.emailHint')}
-            </T>
-
-            {register ? (
-              <Field label={t('login.name')} value={name} onChange={setName} placeholder={t('login.namePh')} />
-            ) : null}
-            <Field
-              label="Email"
-              value={email}
-              onChange={setEmail}
-              placeholder="you@example.com"
-              keyboard="email-address"
-            />
-            <Field
-              label={t('login.password')}
-              value={password}
-              onChange={setPassword}
-              placeholder={t('login.passwordPh')}
-              secure
-            />
-
-            <Button
-              title={register ? t('login.create') : t('common.signIn')}
-              variant="ink"
-              size={13}
-              vPad={16}
-              loading={busy}
-              style={{ marginTop: 6 }}
-              onPress={submitEmail}
-            />
-            <T
-              style={[body(12.5, 1.5, { color: C.deep, align: 'center' }), { marginTop: 18 }]}
-              onPress={() => setRegister(!register)}
-            >
-              {register ? t('login.haveAccount') : t('login.create')}
-            </T>
-            <T
-              style={[body(12.5, 1.5, { color: C.i55, align: 'center' }), { marginTop: 14 }]}
-              onPress={() => setStep('phone')}
-            >
-              {t('login.backToTelegram')}
-            </T>
           </View>
         ) : (
-          <View style={[styles.center, { alignItems: 'center' }]}>
-            <Spinner />
-            <T style={[disp(26, 1.05, { ls: -0.03, align: 'center' }), { marginTop: 24, marginBottom: 10 }]}>
-              {t('login.waitTitle')}
-            </T>
-            <T style={[body(14.5, 1.6, { color: C.i55, align: 'center' }), styles.waitCopy]}>
-              {t('login.waitBody')}
-            </T>
+          <>
+            <View style={[styles.main, { paddingTop: 32, gap: 28 }]}>
+              <View style={styles.handoff} accessibilityElementsHidden>
+                <View style={[styles.square, { backgroundColor: C.white }, offset(2)]}>
+                  <Phone />
+                </View>
+                <View style={styles.dashes}>
+                  <View style={styles.dashRow}>
+                    {Array.from({ length: 40 }, (_, i) => (
+                      <View key={i} style={styles.dash} />
+                    ))}
+                  </View>
+                  <View style={styles.marker} />
+                </View>
+                <View style={[styles.square, { backgroundColor: C.telegram }, offset(2)]}>
+                  <Telegram size={30} />
+                </View>
+              </View>
 
-            <Tap
-              haptic
-              style={[styles.tgBtn, { marginBottom: 26 }]}
-              onPress={() => WebBrowser.openBrowserAsync(deepLink).catch(() => {})}
-            >
-              <Telegram />
-              <T style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13.1, color: C.white, letterSpacing: 0.5 }}>
-                {t('login.openBot')}
-              </T>
-            </Tap>
+              <Heading
+                kick={expired ? t('common.signIn') : t('login.tgOpening')}
+                title={expired ? t('login.expiredTitle') : t('login.waitTitle')}
+                sub={expired ? t('login.expired') : t('login.waitBody')}
+              />
 
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+              <View style={styles.numberCard}>
+                <View style={{ gap: 4, flexShrink: 0 }}>
+                  <T style={labelType(12)}>{t('login.phone')}</T>
+                  <T style={monoSemi(17, 22 / 17)}>{`+998 ${phone}`}</T>
+                </View>
+                <View style={[styles.chip, expired && { backgroundColor: C.paper2 }]}>
+                  <Clock />
+                  <T style={monoBold(12, 16 / 12, { ls: 0.06 })}>{t('login.left', { time: mmss })}</T>
+                </View>
+              </View>
+              {err.form ? <T style={body(13, 18 / 13, { color: C.deep })}>{err.form}</T> : null}
             </View>
-            <T style={[mono(10.5, 1.4, { ls: 0.14, upper: true, color: C.i38 }), { marginTop: 8, marginBottom: 26 }]}>
-              {`+998 ${phone} · ${t('login.left', { time: mmss })}`}
-            </T>
 
-            <Tap
-              onPress={() => {
-                stopPolling()
-                setStep('phone')
-              }}
-              style={{ paddingVertical: 12, paddingHorizontal: 8 }}
-            >
-              <T style={[body(12.5, 1, { color: C.i55 }), { textDecorationLine: 'underline' }]}>
-                {t('common.cancel')}
-              </T>
-            </Tap>
-          </View>
+            <View style={{ gap: 10, paddingTop: 24 }}>
+              {expired ? (
+                <Button title={t('common.retry')} loading={busy} onPress={start} />
+              ) : (
+                <Button
+                  title={t('login.openBot')}
+                  variant="ink"
+                  size={13}
+                  icon={<Telegram size={20} />}
+                  style={{ backgroundColor: C.telegram }}
+                  textStyle={TG_TEXT}
+                  onPress={() => openBot(deepLink)}
+                />
+              )}
+              <Tap accessibilityRole="button" style={styles.cancel} onPress={cancelWait}>
+                <T style={disp(13, 1, { ls: 0.14, upper: true })}>{t('common.cancel')}</T>
+              </Tap>
+            </View>
+          </>
         )}
 
-        <T style={[mono(10.5, 1.6, { ls: 0.06, color: C.i38, align: 'center' })]}>
-          {t('login.terms')}
-        </T>
+        {step !== 'wait' ? (
+          <View style={styles.footer}>
+            <View style={styles.prompt}>
+              <T style={body(14, 20 / 14, { color: C.i70 })}>
+                {register && step === 'email' ? '' : `${t('login.noAccount')} `}
+              </T>
+              <Tap
+                accessibilityRole="link"
+                style={styles.link}
+                onPress={() => {
+                  setRegister(step === 'email' ? !register : true)
+                  go('email')
+                }}
+              >
+                <T style={[bodyLink, styles.underline]}>
+                  {register && step === 'email' ? t('login.haveAccount') : t('login.register')}
+                </T>
+              </Tap>
+            </View>
+            {step === 'phone' ? (
+              <T style={body(12, 16 / 12, { color: C.i70, align: 'center' })}>{t('login.terms')}</T>
+            ) : null}
+          </View>
+        ) : null}
       </ScrollView>
       <Toast message={message} bottom={60} />
     </KeyboardAvoidingView>
   )
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  keyboard,
-  secure,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  keyboard?: 'default' | 'email-address'
-  secure?: boolean
-}) {
+const bodyLink = { fontFamily: F.bodySemi, fontSize: 14, lineHeight: 20, color: C.ink }
+
+/** Kicker, 34px title and a line of copy: the head of every start screen (W06–W08). */
+function Heading({ kick, title, sub, compact }: { kick: string; title: string; sub: string; compact?: boolean }) {
   return (
-    <View style={{ marginBottom: 12 }}>
-      <T style={[labelType(10.5, { color: C.i70 }), { marginBottom: 8 }]}>{label}</T>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={C.i38}
-        keyboardType={keyboard ?? 'default'}
-        secureTextEntry={secure}
-        autoCapitalize="none"
-        autoCorrect={false}
-        style={styles.textField}
-        allowFontScaling={false}
-      />
+    <View style={{ gap: compact ? 8 : 10 }}>
+      <T style={kicker()}>{kick}</T>
+      <T style={disp(34, 1, { ls: -0.035 })}>{title}</T>
+      <T style={compact ? body(15, 22 / 15, { color: C.i70 }) : body(16, 24 / 16, { color: C.i70 })}>{sub}</T>
     </View>
-  )
-}
-
-/** The coral-topped ring from the design's waiting state. */
-function Spinner() {
-  const spin = useRef(new Animated.Value(0)).current
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: 900,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    )
-    loop.start()
-    return () => loop.stop()
-  }, [spin])
-
-  return (
-    <Animated.View
-      style={[
-        styles.spinner,
-        { transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] },
-      ]}
-    />
   )
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.paper },
-  page: { flexGrow: 1, paddingHorizontal: 24 },
-  close: { width: 44, height: 44, marginLeft: -12, alignItems: 'center', justifyContent: 'center' },
-  center: { flex: 1, justifyContent: 'center' },
+  page: { flexGrow: 1, paddingHorizontal: 16 },
+  main: { flex: 1, paddingTop: 24, gap: 22 },
+  underline: { textDecorationLine: 'underline' },
 
-  phoneField: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rule: { flex: 1, height: 1, backgroundColor: C.line },
+  more: { alignSelf: 'center', minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
+
+  handoff: { flexDirection: 'row', alignItems: 'center', height: 96, paddingHorizontal: 6 },
+  square: {
+    width: 72,
+    height: 72,
     borderWidth: RULE,
     borderColor: C.ink,
-    backgroundColor: C.white,
-    marginBottom: 12,
-  },
-  prefix: {
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-    borderRightWidth: RULE,
-    borderRightColor: C.ink,
-    backgroundColor: C.paper,
-  },
-  phoneInput: {
-    flex: 1,
-    minWidth: 0,
-    paddingHorizontal: 14,
-    paddingVertical: 15,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: C.ink,
-  },
-  tgBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8.8,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderWidth: RULE,
-    borderColor: C.telegram,
-    backgroundColor: C.telegram,
   },
-
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 24 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: C.i09 },
-  textField: {
-    paddingHorizontal: 14,
-    paddingVertical: 15,
+  dashes: { flex: 1, height: 12, marginHorizontal: 10, justifyContent: 'center' },
+  dashRow: { flexDirection: 'row', height: 2, overflow: 'hidden' },
+  dash: { width: 6, height: 2, marginRight: 6, backgroundColor: C.ink },
+  marker: {
+    position: 'absolute',
+    left: '44%',
+    top: 0,
+    width: 12,
+    height: 12,
     borderWidth: RULE,
     borderColor: C.ink,
-    backgroundColor: C.white,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: C.ink,
+    backgroundColor: C.coral,
   },
 
-  moreRow: {
+  // The chip drops under the number when a long «осталось 4:52» does not fit beside it.
+  numberCard: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
+    justifyContent: 'space-between',
+    gap: 12,
     paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: RULE,
+    borderColor: C.ink,
+    backgroundColor: C.white,
   },
-  waitCopy: { maxWidth: 260, marginBottom: 24 },
-  spinner: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2.5,
-    borderColor: 'rgba(19,19,17,.16)',
-    borderTopColor: C.coral,
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: C.coral,
   },
-  progressTrack: { width: '100%', height: 3, backgroundColor: 'rgba(19,19,17,.09)' },
-  progressFill: { height: '100%', backgroundColor: C.coral },
+  cancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+
+  footer: { alignItems: 'center', gap: 4, paddingTop: 24 },
+  prompt: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  link: { minHeight: 44, justifyContent: 'center' },
 })

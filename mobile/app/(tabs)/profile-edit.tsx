@@ -1,30 +1,47 @@
 import React, { useEffect, useState } from 'react'
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native'
-import { useRouter } from 'expo-router'
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native'
+import { Redirect, useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { C, RULE } from '../../src/theme/tokens'
-import { body, disp, label as labelType, mono } from '../../src/theme/type'
-import { AppBar } from '../../src/components/AppBar'
-import { ChevronLeft } from '../../src/components/icons'
-import { MapPicker, type Pin } from '../../src/components/MapPicker'
-import { Button, T, Tap } from '../../src/components/ui'
+import { C, HAIR, RULE, noShadow, offset } from '../../src/theme/tokens'
+import { disp, dispExtra, kicker, mono } from '../../src/theme/type'
+import { BackHeader } from '../../src/components/AppBar'
+import { Button, Input, T, Tap } from '../../src/components/ui'
+import { Camera, Lock } from '../../src/components/account/icons'
 import { useAuth } from '../../src/state/auth'
 import { useToast } from '../../src/state/toast'
 import { goBack } from '../../src/lib/nav'
 import { useT } from '../../src/i18n'
 
-/** Personal data: photo, name, phone and the saved delivery address. */
+// The saved delivery address lives in `users.location_preset` (free JSON). W35
+// adds the four detail fields; they use the keys of an order's `address_details`.
+type Preset = { address?: string; lat?: number; lng?: number; entrance?: string; apartment?: string; floor?: string; intercom?: string }
+const DETAILS = ['entrance', 'apartment', 'floor', 'intercom'] as const
+
+function parsePreset(raw: string | null | undefined): Preset {
+  if (!raw) return {}
+  try {
+    const p: unknown = JSON.parse(raw)
+    return p && typeof p === 'object' ? (p as Preset) : {}
+  } catch {
+    return {}
+  }
+}
+
+/** W35 personal data: photo, name, phone and the saved delivery address. */
 export default function ProfileEdit() {
   const router = useRouter()
-  const { user, signedIn, phoneVerified, updateProfile, uploadAvatar } = useAuth()
+  const insets = useSafeAreaInsets()
+  const { user, signedIn, loading: authLoading, phoneVerified, updateProfile, uploadAvatar } = useAuth()
   const { flash } = useToast()
   const t = useT()
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [address, setAddress] = useState('')
-  const [pin, setPin] = useState<Pin | null>(null)
+  const [saved, setSaved] = useState<Preset>({})
+  const [street, setStreet] = useState('')
+  const [details, setDetails] = useState<Record<(typeof DETAILS)[number], string>>({ entrance: '', apartment: '', floor: '', intercom: '' })
   const [busy, setBusy] = useState(false)
   const [avatarBusy, setAvatarBusy] = useState(false)
 
@@ -32,21 +49,15 @@ export default function ProfileEdit() {
     if (!user) return
     setName(user.name ?? [user.first_name, user.last_name].filter(Boolean).join(' '))
     setPhone(user.phone ?? '')
-    if (user.location_preset) {
-      try {
-        const p = JSON.parse(user.location_preset) as { address?: string; lat?: number; lng?: number }
-        if (p.address) setAddress(p.address)
-        if (typeof p.lat === 'number' && typeof p.lng === 'number') setPin({ lat: p.lat, lng: p.lng, address: p.address })
-      } catch {
-        // malformed preset — start blank
-      }
-    }
+    const p = parsePreset(user.location_preset)
+    setSaved(p)
+    setStreet(p.address ?? '')
+    setDetails({ entrance: p.entrance ?? '', apartment: p.apartment ?? '', floor: p.floor ?? '', intercom: p.intercom ?? '' })
   }, [user])
 
-  if (!signedIn) {
-    router.replace('/login')
-    return null
-  }
+  // While the session is still being read at launch, `signedIn` is false for a moment.
+  if (authLoading) return <View style={{ flex: 1, backgroundColor: C.paper }} />
+  if (!signedIn) return <Redirect href="/login" />
 
   const pickAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -78,6 +89,12 @@ export default function ProfileEdit() {
   }
 
   const save = async () => {
+    const address = street.trim()
+    const extra = Object.fromEntries(DETAILS.map((k) => [k, details[k].trim()]).filter(([, v]) => v))
+    // The map pin belongs to the street it was set for: edit the street and it is dropped.
+    const pin = address && address === saved.address && typeof saved.lat === 'number' && typeof saved.lng === 'number'
+      ? { lat: saved.lat, lng: saved.lng }
+      : {}
     setBusy(true)
     try {
       await updateProfile({
@@ -85,9 +102,8 @@ export default function ProfileEdit() {
         // A Telegram-verified number is the one the courier calls; the field is
         // read-only in that case so it cannot drift from the verified value.
         ...(phoneVerified ? {} : { phone: phone.trim() || null }),
-        location_preset: address.trim()
-          ? { address: address.trim(), lat: pin?.lat, lng: pin?.lng }
-          : null,
+        // auth.tsx types the preset as {address, lat, lng}; the server stores any JSON object.
+        location_preset: address || Object.keys(extra).length ? ({ address, ...pin, ...extra } as { address: string }) : null,
       })
       flash(t('pe.saved'))
       goBack(router)
@@ -99,101 +115,87 @@ export default function ProfileEdit() {
   }
 
   const initial = (name || user?.email || 'L').trim().charAt(0).toUpperCase()
+  const realEmail = user?.email && !user.email.endsWith('@oauth.loom') ? user.email : null
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
-      <AppBar title={t('bar.account')} />
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.paper }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <BackHeader title={t('pe.title')} />
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Tap style={styles.back} onPress={() => goBack(router)}>
-          <ChevronLeft size={13} width={2.4} color={C.i55} />
-          <T style={mono(10.5, 1, { ls: 0.16, upper: true, color: C.i55 })}>{t('common.back')}</T>
-        </Tap>
-        <T style={[disp(28, 1, { ls: -0.03 }), { marginBottom: 18 }]}>
-          {t('pe.title')}<T style={{ color: C.coral }}>/</T>
-        </T>
-
         <View style={styles.avatarRow}>
-          <View style={styles.avatar}>
+          <View style={[styles.avatar, offset(3)]}>
             {user?.avatar_url ? (
               <Image source={{ uri: user.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : (
-              <T style={{ fontFamily: 'InterTight_800ExtraBold', fontSize: 26, color: C.white }}>{initial}</T>
+              <T style={dispExtra(36, 1)}>{initial}</T>
             )}
           </View>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Button title={avatarBusy ? t('pe.uploading') : t('pe.changePhoto')} variant="outline" size={11.5} vPad={11} loading={avatarBusy} onPress={pickAvatar} />
-            <T style={body(11, 1.5, { color: C.i38 })}>{t('pe.photoHint')}</T>
+          <View style={{ flex: 1, gap: 6, alignItems: 'flex-start' }}>
+            <Tap
+              accessibilityRole="button"
+              accessibilityState={{ busy: avatarBusy, disabled: avatarBusy }}
+              disabled={avatarBusy}
+              onPress={pickAvatar}
+              style={[styles.photoBtn, offset(2)]}
+            >
+              <Camera size={16} width={2.4} />
+              <T style={disp(13, 1)}>{avatarBusy ? t('pe.uploading') : t('pe.changePhoto')}</T>
+            </Tap>
+            <T style={mono(12, 4 / 3, { color: C.i70 })}>{t('pe.photoHint')}</T>
           </View>
         </View>
 
-        <Field label={t('pe.name')} value={name} onChange={setName} placeholder={t('pe.namePh')} />
-        <Field
-          label={phoneVerified ? t('pe.phoneVerified') : t('pe.phone')}
-          value={phone}
-          onChange={setPhone}
-          placeholder="+998 90 123-45-67"
-          keyboard="phone-pad"
-          disabled={phoneVerified}
-        />
-        {user?.email && !user.email.endsWith('@oauth.loom') ? (
-          <Field label="Email" value={user.email} onChange={() => {}} disabled />
-        ) : null}
+        <Input label={t('pe.name')} value={name} onChangeText={setName} placeholder={t('pe.namePh')} />
 
-        <T style={[labelType(9.5, { color: C.i70 }), { marginTop: 8, marginBottom: 6 }]}>{t('pe.address')}</T>
-        <MapPicker
-          value={pin}
-          onChange={(next) => {
-            setPin(next)
-            if (next.address && !address.trim()) setAddress(next.address)
-          }}
-        />
-        <Field label={t('pe.street')} value={address} onChange={setAddress} placeholder={t('co.addressPh')} />
+        <View>
+          <Input
+            label={phoneVerified ? t('pe.phoneVerified') : t('pe.phone')}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="+998 90 123-45-67"
+            keyboardType="phone-pad"
+            editable={!phoneVerified}
+            style={phoneVerified ? [styles.locked, { fontFamily: 'IBMPlexMono_400Regular', paddingRight: 44 }] : undefined}
+          />
+          {phoneVerified ? (
+            <View pointerEvents="none" style={styles.lock}>
+              <Lock size={18} width={2.2} />
+            </View>
+          ) : null}
+        </View>
 
-        <Button title={t('common.save')} vPad={16} loading={busy} style={{ marginTop: 8 }} onPress={save} />
+        {realEmail ? <Input label="Email" value={realEmail} editable={false} style={styles.locked} /> : null}
+
+        <View style={{ gap: 10, marginTop: 4 }}>
+          <T style={[kicker(), styles.legend]}>{t('pe.address')}</T>
+          <Input label={t('pe.street')} value={street} onChangeText={setStreet} placeholder={t('co.addressPh')} />
+          <View style={styles.grid}>
+            {DETAILS.map((k) => (
+              <View key={k} style={styles.cell}>
+                <Input
+                  label={t(`pe.${k}`)}
+                  value={details[k]}
+                  onChangeText={(v) => setDetails((d) => ({ ...d, [k]: v }))}
+                  style={{ fontFamily: 'IBMPlexMono_400Regular' }}
+                />
+              </View>
+            ))}
+          </View>
+        </View>
       </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: 30 + insets.bottom }]}>
+        <Button title={t('common.save')} size={14} loading={busy} onPress={save} />
+      </View>
     </KeyboardAvoidingView>
   )
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  keyboard,
-  disabled,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  keyboard?: 'default' | 'phone-pad' | 'email-address'
-  disabled?: boolean
-}) {
-  return (
-    <View style={{ marginBottom: 12 }}>
-      <T style={[labelType(9.5, { color: C.i70 }), { marginBottom: 6 }]}>{label}</T>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={C.i38}
-        keyboardType={keyboard ?? 'default'}
-        editable={!disabled}
-        style={[styles.input, disabled && { color: C.i55, backgroundColor: C.paper }]}
-        allowFontScaling={false}
-      />
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 32 },
-  back: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingBottom: 14 },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
+  page: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 14 },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   avatar: {
-    width: 72,
-    height: 72,
+    width: 84,
+    height: 84,
     borderWidth: RULE,
     borderColor: C.ink,
     backgroundColor: C.coral,
@@ -201,14 +203,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  input: {
-    paddingHorizontal: 13,
-    paddingVertical: 12,
+  photoBtn: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
     borderWidth: RULE,
     borderColor: C.ink,
     backgroundColor: C.white,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: C.ink,
   },
+  locked: { backgroundColor: C.paper2, borderColor: 'rgba(19,19,17,0.3)', color: C.ink, ...noShadow },
+  lock: { position: 'absolute', right: 14, bottom: 17 },
+  legend: { paddingBottom: 6, borderBottomWidth: HAIR, borderBottomColor: C.line },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 10 },
+  cell: { width: '47%', flexGrow: 1, minWidth: 0 },
+  footer: { paddingTop: 12, paddingHorizontal: 16, backgroundColor: C.paper, borderTopWidth: RULE, borderTopColor: C.ink },
 })

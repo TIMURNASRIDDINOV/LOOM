@@ -4,6 +4,21 @@
 // terminology follows the web ("Savatcha", "Katalog", "Kirish", "so‘m").
 //
 // Interpolation: `{name}` placeholders, filled by `t(key, { name })`.
+//
+// App v2 (PRD-210): new keys go in the screen group's module under ./groups —
+// start, shop, studio, lab, account, market — each typed by `Group`, so a key
+// missing from uz or en fails `tsc` there. The modules are spread in at the
+// end of each dictionary below.
+
+import { account } from './groups/account'
+import { lab } from './groups/lab'
+import { market } from './groups/market'
+import { shop } from './groups/shop'
+import { start } from './groups/start'
+import { studio } from './groups/studio'
+
+/** One screen group's strings: uz and en must carry exactly ru's keys. */
+export type Group<R> = { ru: R; uz: Record<keyof R, string>; en: Record<keyof R, string> }
 
 export const ru = {
   'co.priceChanged': 'Цены изменились. Проверьте новую сумму и подтвердите заказ ещё раз.',
@@ -39,6 +54,10 @@ export const ru = {
   'common.itemsN': '{n} позиции',
   'common.uploadFailed': 'Не удалось загрузить файл',
   'common.photoFailed': 'Не удалось загрузить фото',
+  'common.close': 'Закрыть',
+  'common.cart': 'Корзина',
+  'common.decrease': 'Уменьшить',
+  'common.increase': 'Увеличить',
   'st.defaultProduct': 'Классическая футболка',
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
@@ -46,6 +65,7 @@ export const ru = {
   'tab.catalog': 'Каталог',
   'tab.orders': 'Заказы',
   'tab.account': 'Профиль',
+  'tab.studio': 'Студия',
 
   // ── App bar titles ────────────────────────────────────────────────────────
   'bar.catalog': 'КАТАЛОГ',
@@ -81,7 +101,6 @@ export const ru = {
   'login.google': 'Продолжить через Google',
   'login.facebook': 'Продолжить через Facebook',
   'login.discord': 'Продолжить через Discord',
-  'login.email': 'Войти по email',
   'login.more': 'Другие способы входа',
   'login.noAccount': 'Нет аккаунта?',
   'login.register': 'Зарегистрироваться',
@@ -113,10 +132,6 @@ export const ru = {
   'login.expired': 'Сессия истекла — попробуйте ещё раз',
 
   // ── Home ──────────────────────────────────────────────────────────────────
-  'home.kicker': 'Ташкент · доставка 2–4 дня',
-  'home.hero1': 'Носи',
-  'home.hero2': 'то, что ты',
-  'home.hero3': 'придумал.',
   'home.resume': 'Продолжить',
   'home.blank': 'чистый холст',
   'home.layer1': '{n} слой',
@@ -143,18 +158,13 @@ export const ru = {
   'catalog.readySection': 'Готовые дизайны',
   'catalog.readyNote': 'выберите размер',
   'catalog.empty': 'Каталог пока пуст.',
-  'catalog.readyChip': 'готовый',
-  'catalog.customize': 'Настроить',
-  'catalog.toCart': 'В корзину',
   'catalog.readyDesign': 'Готовый дизайн',
-  'catalog.addedSize': '{name} · {size} — в корзине',
 
   // ── Product ───────────────────────────────────────────────────────────────
   'product.toCatalog': 'В каталог',
-  'product.readyChip': 'готовый дизайн',
   'product.colors': 'Цвета',
   'product.size': 'Размер',
-  'product.addToCart': 'В корзину · {price}',
+  'product.addToCart': 'В корзину · {price} сум',
   'product.added': 'Добавлено в корзину',
 
   // ── Cart ──────────────────────────────────────────────────────────────────
@@ -201,8 +211,6 @@ export const ru = {
   'co.errEmpty': 'Корзина пуста',
   'co.errVerify': 'Подтвердите номер через Telegram',
   'co.errPayOpen': 'Не удалось открыть оплату',
-  'co.summaryName': 'Имя',
-  'co.summaryAddress': 'Адрес',
 
   // ── Orders ────────────────────────────────────────────────────────────────
   'orders.title': 'Заказы',
@@ -298,10 +306,10 @@ export const ru = {
   'pub.bioPh': 'Графика, типографика, Ташкент',
   'pub.createProfile': 'Создать профиль',
   'pub.moderationNote': 'Каждая работа проходит проверку прав и качества печати перед публикацией.',
-  'pub.errHandle': 'Ник: 3–24 символа, латиница, цифры, точка или _',
+  'pub.errHandle': '3–24 символа: латинские буквы, цифры, точка или нижнее подчёркивание.',
   'pub.profileCreated': 'Профиль дизайнера создан',
   'pub.cabinet': 'Кабинет дизайнера',
-  'pub.publish': 'Опубликовать работу',
+  'pub.publish': 'Новая работа',
   'pub.onModeration': 'На модерации.',
   'pub.earned': 'Заработано',
   'pub.payable': 'К выплате',
@@ -331,7 +339,7 @@ export const ru = {
   'pub.tags': 'Теги',
   'pub.tagsPh': 'Ташкент, ночь, типографика',
   'pub.markup': 'Ваша наценка',
-  'pub.markupNote': 'Покупатель платит цену вещи + {markup} сум. Вам — {share} сум с каждой продажи, LOOM удерживает 30%.',
+  'pub.markupNote': 'Покупатель платит цену вещи + {markup} сум. Вам — {share} сум с каждой продажи, LOOM удерживает {pct}%.',
   'pub.submit': 'Отправить на проверку',
   'pub.errNotUploaded': 'Файл ещё не загрузился',
   'pub.errTitle': 'Укажите название работы',
@@ -363,6 +371,7 @@ export const ru = {
   'st.colorSize': 'Цвет и размер',
   'st.sizeUnavailable': 'Этот размер недоступен — выберите другой',
   'st.colorUnavailable': 'Этот цвет недоступен — выберите другой',
+  'st.textSameColor': 'Слишком близко к цвету вещи — выберите другой',
   'st.errUpload': 'Не удалось загрузить графику. Проверьте соединение.',
   'st.added': 'Добавлено в корзину',
   'st.print': 'печать {w}×{h} см · {face}',
@@ -376,7 +385,6 @@ export const ru = {
   // ── Tool sheet ────────────────────────────────────────────────────────────
   'tool.text': 'Текст',
   'tool.image': 'Графика',
-  'tool.color': 'Цвет вещи',
   'tool.size': 'Размер',
   'tool.caption': 'Надпись',
   'tool.captionPh': 'Введите текст…',
@@ -391,7 +399,6 @@ export const ru = {
   'tool.errBig': 'Файл больше 20 МБ — сожмите его и попробуйте снова',
   'tool.placed': 'Готово — правьте размер и положение в панели слоя',
   'tool.uploadLater': 'Файл не загрузился — попробуем ещё раз при оформлении',
-  'tool.chosen': 'Выбрано: {color}',
   'tool.sizeTitle': 'Размер {size}',
   'tool.sizeHint': 'Между размерами — берите больший для свободной посадки.',
   'fit.XS': 'Обхват груди 84–88 см · длина 66 см · US XS · EU 42',
@@ -417,6 +424,7 @@ export const ru = {
   'color.grey': 'Серый',
   'color.navy': 'Тёмно-синий',
   'color.khaki': 'Хаки',
+  'color.coral': 'Коралловый',
 
   // ── Map ───────────────────────────────────────────────────────────────────
   'map.hint': 'Нажмите на карту или перетащите метку',
@@ -425,6 +433,13 @@ export const ru = {
   'err.title': 'Что-то пошло не так',
   'err.body': 'Экран не смог отрисоваться. Ваша корзина и дизайн сохранены — попробуйте ещё раз.',
   'err.retry': 'Попробовать снова',
+
+  ...start.ru,
+  ...shop.ru,
+  ...studio.ru,
+  ...lab.ru,
+  ...account.ru,
+  ...market.ru,
 } as const
 
 export type StringKey = keyof typeof ru
@@ -463,12 +478,17 @@ export const uz: Dictionary = {
   'common.itemsN': '{n} ta mahsulot',
   'common.uploadFailed': 'Faylni yuklab bo‘lmadi',
   'common.photoFailed': 'Rasmni yuklab bo‘lmadi',
+  'common.close': 'Yopish',
+  'common.cart': 'Savatcha',
+  'common.decrease': 'Kamaytirish',
+  'common.increase': 'Ko‘paytirish',
   'st.defaultProduct': 'Klassik futbolka',
 
   'tab.home': 'Bosh sahifa',
   'tab.catalog': 'Katalog',
   'tab.orders': 'Buyurtmalar',
   'tab.account': 'Profil',
+  'tab.studio': 'Studiya',
 
   'bar.catalog': 'KATALOG',
   'bar.orders': 'BUYURTMALAR',
@@ -501,7 +521,6 @@ export const uz: Dictionary = {
   'login.google': 'Google orqali davom etish',
   'login.facebook': 'Facebook orqali davom etish',
   'login.discord': 'Discord orqali davom etish',
-  'login.email': 'Email orqali kirish',
   'login.more': 'Boshqa kirish usullari',
   'login.noAccount': 'Hisobingiz yo‘qmi?',
   'login.register': 'Ro‘yxatdan o‘tish',
@@ -532,10 +551,6 @@ export const uz: Dictionary = {
   'login.created': 'Hisob yaratildi',
   'login.expired': 'Sessiya muddati tugadi — qayta urinib ko‘ring',
 
-  'home.kicker': 'Toshkent · 2–4 kunda yetkazish',
-  'home.hero1': 'Tasavvurni',
-  'home.hero2': 'kiyimga',
-  'home.hero3': 'aylantiring.',
   'home.resume': 'Davom etish',
   'home.blank': 'bo‘sh asos',
   'home.layer1': '{n} qatlam',
@@ -561,17 +576,12 @@ export const uz: Dictionary = {
   'catalog.readySection': 'Tayyor dizaynlar',
   'catalog.readyNote': 'o‘lchamni tanlang',
   'catalog.empty': 'Katalog hozircha bo‘sh.',
-  'catalog.readyChip': 'tayyor',
-  'catalog.customize': 'Sozlash',
-  'catalog.toCart': 'Savatga',
   'catalog.readyDesign': 'Tayyor dizayn',
-  'catalog.addedSize': '{name} · {size} — savatda',
 
   'product.toCatalog': 'Katalogga',
-  'product.readyChip': 'tayyor dizayn',
   'product.colors': 'Ranglar',
   'product.size': 'O‘lcham',
-  'product.addToCart': 'Savatga · {price}',
+  'product.addToCart': 'Savatga · {price} so‘m',
   'product.added': 'Savatga qo‘shildi',
 
   'cart.title': 'Savatcha',
@@ -616,8 +626,6 @@ export const uz: Dictionary = {
   'co.errEmpty': 'Savat bo‘sh',
   'co.errVerify': 'Raqamni Telegram orqali tasdiqlang',
   'co.errPayOpen': 'To‘lovni ochib bo‘lmadi',
-  'co.summaryName': 'Ism',
-  'co.summaryAddress': 'Manzil',
 
   'orders.title': 'Buyurtmalar',
   'orders.signIn': 'Buyurtmalaringizni ko‘rish va ishlab chiqarishni kuzatish uchun kiring.',
@@ -707,7 +715,7 @@ export const uz: Dictionary = {
   'pub.bioPh': 'Grafika, tipografika, Toshkent',
   'pub.createProfile': 'Profil yaratish',
   'pub.moderationNote': 'Har bir ish nashrdan oldin huquqlar va chop sifati bo‘yicha tekshiriladi.',
-  'pub.errHandle': 'Nik: 3–24 belgi, lotin harflari, raqamlar, nuqta yoki _',
+  'pub.errHandle': '3–24 belgi: lotin harflari, raqamlar, nuqta yoki pastki chiziq.',
   'pub.profileCreated': 'Dizayner profili yaratildi',
   'pub.cabinet': 'Dizayner kabineti',
   'pub.publish': 'Ish joylash',
@@ -740,7 +748,7 @@ export const uz: Dictionary = {
   'pub.tags': 'Teglar',
   'pub.tagsPh': 'Toshkent, tun, tipografika',
   'pub.markup': 'Sizning ustamangiz',
-  'pub.markupNote': 'Xaridor kiyim narxi + {markup} so‘m to‘laydi. Sizga har sotuvdan {share} so‘m, LOOM 30% ushlab qoladi.',
+  'pub.markupNote': 'Xaridor kiyim narxi + {markup} so‘m to‘laydi. Sizga har sotuvdan {share} so‘m, LOOM {pct}% ushlab qoladi.',
   'pub.submit': 'Tekshiruvga yuborish',
   'pub.errNotUploaded': 'Fayl hali yuklanmadi',
   'pub.errTitle': 'Ish nomini kiriting',
@@ -771,6 +779,7 @@ export const uz: Dictionary = {
   'st.colorSize': 'Rang va o‘lcham',
   'st.sizeUnavailable': 'Bu o‘lcham mavjud emas — boshqasini tanlang',
   'st.colorUnavailable': 'Bu rang mavjud emas — boshqasini tanlang',
+  'st.textSameColor': 'Kiyim rangiga juda yaqin — boshqasini tanlang',
   'st.errUpload': 'Grafikani yuklab bo‘lmadi. Aloqani tekshiring.',
   'st.added': 'Savatga qo‘shildi',
   'st.print': 'chop {w}×{h} sm · {face}',
@@ -783,7 +792,6 @@ export const uz: Dictionary = {
 
   'tool.text': 'Matn',
   'tool.image': 'Grafika',
-  'tool.color': 'Kiyim rangi',
   'tool.size': 'O‘lcham',
   'tool.caption': 'Yozuv',
   'tool.captionPh': 'Matn kiriting…',
@@ -798,7 +806,6 @@ export const uz: Dictionary = {
   'tool.errBig': 'Fayl 20 MB dan katta — siqib, qayta urinib ko‘ring',
   'tool.placed': 'Tayyor — o‘lcham va joylashuvni qatlam panelida sozlang',
   'tool.uploadLater': 'Fayl yuklanmadi — rasmiylashtirishda qayta urinamiz',
-  'tool.chosen': 'Tanlangan: {color}',
   'tool.sizeTitle': 'O‘lcham {size}',
   'tool.sizeHint': 'O‘lchamlar orasida bo‘lsangiz — bo‘shroq o‘tirishi uchun kattasini oling.',
   'fit.XS': 'Ko‘krak aylanasi 84–88 sm · uzunlik 66 sm · US XS · EU 42',
@@ -822,12 +829,20 @@ export const uz: Dictionary = {
   'color.grey': 'Kulrang',
   'color.navy': 'To‘q ko‘k',
   'color.khaki': 'Xaki',
+  'color.coral': 'Marjon',
 
   'map.hint': 'Xaritaga bosing yoki belgini suring',
 
   'err.title': 'Nimadir xato ketdi',
   'err.body': 'Ekran chizilmadi. Savat va dizayningiz saqlangan — qayta urinib ko‘ring.',
   'err.retry': 'Qayta urinish',
+
+  ...start.uz,
+  ...shop.uz,
+  ...studio.uz,
+  ...lab.uz,
+  ...account.uz,
+  ...market.uz,
 }
 
 export const en: Dictionary = {
@@ -863,12 +878,17 @@ export const en: Dictionary = {
   'common.itemsN': '{n} items',
   'common.uploadFailed': 'Couldn’t upload the file',
   'common.photoFailed': 'Couldn’t upload the photo',
+  'common.close': 'Close',
+  'common.cart': 'Cart',
+  'common.decrease': 'Decrease',
+  'common.increase': 'Increase',
   'st.defaultProduct': 'Classic T-shirt',
 
   'tab.home': 'Home',
   'tab.catalog': 'Catalog',
   'tab.orders': 'Orders',
   'tab.account': 'Profile',
+  'tab.studio': 'Studio',
 
   'bar.catalog': 'CATALOG',
   'bar.orders': 'ORDERS',
@@ -901,7 +921,6 @@ export const en: Dictionary = {
   'login.google': 'Continue with Google',
   'login.facebook': 'Continue with Facebook',
   'login.discord': 'Continue with Discord',
-  'login.email': 'Sign in with email',
   'login.more': 'Other ways to sign in',
   'login.noAccount': 'No account?',
   'login.register': 'Create one',
@@ -932,10 +951,6 @@ export const en: Dictionary = {
   'login.created': 'Account created',
   'login.expired': 'Session expired — try again',
 
-  'home.kicker': 'Tashkent · delivery in 2–4 days',
-  'home.hero1': 'Wear',
-  'home.hero2': 'what you',
-  'home.hero3': 'imagine.',
   'home.resume': 'Continue',
   'home.blank': 'blank canvas',
   'home.layer1': '{n} layer',
@@ -961,17 +976,12 @@ export const en: Dictionary = {
   'catalog.readySection': 'Ready designs',
   'catalog.readyNote': 'pick a size',
   'catalog.empty': 'The catalog is empty for now.',
-  'catalog.readyChip': 'ready',
-  'catalog.customize': 'Customise',
-  'catalog.toCart': 'Add to cart',
   'catalog.readyDesign': 'Ready design',
-  'catalog.addedSize': '{name} · {size} — in your cart',
 
   'product.toCatalog': 'To the catalog',
-  'product.readyChip': 'ready design',
   'product.colors': 'Colours',
   'product.size': 'Size',
-  'product.addToCart': 'Add to cart · {price}',
+  'product.addToCart': 'Add to cart · {price} UZS',
   'product.added': 'Added to cart',
 
   'cart.title': 'Cart',
@@ -1016,8 +1026,6 @@ export const en: Dictionary = {
   'co.errEmpty': 'Your cart is empty',
   'co.errVerify': 'Verify your number via Telegram',
   'co.errPayOpen': 'Couldn’t open the payment page',
-  'co.summaryName': 'Name',
-  'co.summaryAddress': 'Address',
 
   'orders.title': 'Orders',
   'orders.signIn': 'Sign in to see your orders and track production.',
@@ -1107,10 +1115,10 @@ export const en: Dictionary = {
   'pub.bioPh': 'Graphics, typography, Tashkent',
   'pub.createProfile': 'Create profile',
   'pub.moderationNote': 'Every work is checked for rights and print quality before publication.',
-  'pub.errHandle': 'Handle: 3–24 characters, Latin letters, digits, dot or _',
+  'pub.errHandle': '3–24 characters: Latin letters, digits, dot or underscore.',
   'pub.profileCreated': 'Designer profile created',
   'pub.cabinet': 'Designer cabinet',
-  'pub.publish': 'Publish a work',
+  'pub.publish': 'New work',
   'pub.onModeration': 'Under review.',
   'pub.earned': 'Earned',
   'pub.payable': 'Payable',
@@ -1140,7 +1148,7 @@ export const en: Dictionary = {
   'pub.tags': 'Tags',
   'pub.tagsPh': 'Tashkent, night, typography',
   'pub.markup': 'Your markup',
-  'pub.markupNote': 'The buyer pays the garment price + {markup} UZS. You get {share} UZS per sale; LOOM keeps 30%.',
+  'pub.markupNote': 'The buyer pays the garment price + {markup} UZS. You get {share} UZS per sale; LOOM keeps {pct}%.',
   'pub.submit': 'Submit for review',
   'pub.errNotUploaded': 'The file hasn’t finished uploading',
   'pub.errTitle': 'Give the work a title',
@@ -1171,6 +1179,7 @@ export const en: Dictionary = {
   'st.colorSize': 'Colour and size',
   'st.sizeUnavailable': 'This size is unavailable — choose another',
   'st.colorUnavailable': 'This colour is unavailable — choose another',
+  'st.textSameColor': 'Too close to the garment colour — choose another',
   'st.errUpload': 'Couldn’t upload the artwork. Check your connection.',
   'st.added': 'Added to cart',
   'st.print': 'print {w}×{h} cm · {face}',
@@ -1183,7 +1192,6 @@ export const en: Dictionary = {
 
   'tool.text': 'Text',
   'tool.image': 'Artwork',
-  'tool.color': 'Garment colour',
   'tool.size': 'Size',
   'tool.caption': 'Caption',
   'tool.captionPh': 'Enter text…',
@@ -1198,7 +1206,6 @@ export const en: Dictionary = {
   'tool.errBig': 'File is over 20 MB — compress it and try again',
   'tool.placed': 'Done — adjust size and position in the layer panel',
   'tool.uploadLater': 'Upload failed — we’ll retry at checkout',
-  'tool.chosen': 'Selected: {color}',
   'tool.sizeTitle': 'Size {size}',
   'tool.sizeHint': 'Between sizes? Take the larger one for a relaxed fit.',
   'fit.XS': 'Chest 84–88 cm · length 66 cm · US XS · EU 42',
@@ -1222,10 +1229,18 @@ export const en: Dictionary = {
   'color.grey': 'Grey',
   'color.navy': 'Navy',
   'color.khaki': 'Khaki',
+  'color.coral': 'Coral',
 
   'map.hint': 'Tap the map or drag the pin',
 
   'err.title': 'Something went wrong',
   'err.body': 'The screen couldn’t render. Your cart and design are saved — try again.',
   'err.retry': 'Try again',
+
+  ...start.en,
+  ...shop.en,
+  ...studio.en,
+  ...lab.en,
+  ...account.en,
+  ...market.en,
 }

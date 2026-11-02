@@ -8,6 +8,7 @@ import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
 import adminAiRoutes from './routes/admin-ai'
 import adminArtworkRoutes from './routes/admin-artworks'
+import adminInstagramRoutes from './routes/admin-instagram'
 import aiCutoutRoutes from './routes/ai-cutout'
 import cartRoutes from './routes/cart'
 import paymentsRoutes from './routes/payments'
@@ -15,7 +16,11 @@ import filesRoutes from './routes/files'
 import userProfile from './routes/user-profile'
 import oauthRoutes from './routes/oauth'
 import designerRoutes from './routes/designers'
-import type { BaseEnv } from './types'
+import { IG_DRAFTER_CRON, draftWeeklyPosts } from './lib/instagram-drafter'
+import { publishDuePosts } from './lib/instagram-publish'
+import { pullInsights } from './lib/instagram-insights'
+import { CLARITY_CRON, pullClarity } from './lib/clarity'
+import type { BaseEnv, Bindings } from './types'
 
 const PROD_ORIGINS = [
   'https://loomdesign.uz',
@@ -64,6 +69,7 @@ app.route('/api/admin', adminProductsRoutes)  // /api/admin/products/*, /api/adm
 app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/notifications
 app.route('/api/admin', adminAiRoutes)        // /api/admin/ai/{models,budget,runs,generate}
 app.route('/api/admin', adminArtworkRoutes)   // /api/admin/artworks, /api/admin/artworks/:id/review
+app.route('/api/admin', adminInstagramRoutes) // /api/admin/instagram/{posts,media,settings,insights}
 app.route('/api/ai', aiCutoutRoutes)          // GET /api/ai/cutout/* (admin-only)
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
 app.route('/api/auth', userProfile)
@@ -99,4 +105,20 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500)
 })
 
-export default app
+// ─── Cron (wrangler.toml [triggers]) ──────────────────────────────────────────
+// Dispatch on the exact cron string; any other cron does nothing.
+// */5 * * * *: publish due approved Instagram posts (LOOM-271).
+// 0 3 * * 1:   weekly Instagram insights pull, Monday 08:00 Tashkent (LOOM-273).
+// 0 1 * * 1:   weekly AI batch of Instagram drafts, Monday 06:00 Tashkent (LOOM-272, IG_DRAFTER_CRON).
+// 0 2 * * *:   daily Clarity snapshots, 07:00 Tashkent (LOOM-286, CLARITY_CRON).
+const PUBLISH_CRON = '*/5 * * * *'
+const INSIGHTS_CRON = '0 3 * * 1'
+
+async function scheduled(event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+  if (event.cron === PUBLISH_CRON) ctx.waitUntil(publishDuePosts(env))
+  else if (event.cron === INSIGHTS_CRON) ctx.waitUntil(pullInsights(env))
+  else if (event.cron === IG_DRAFTER_CRON) ctx.waitUntil(draftWeeklyPosts(env))
+  else if (event.cron === CLARITY_CRON) ctx.waitUntil(pullClarity(env))
+}
+
+export default { fetch: app.fetch, scheduled }

@@ -92,6 +92,298 @@
     loadFunnel(true)
   }
 
+  // ── GA4 tab (LOOM-285): GET /api/admin/analytics/ga4, loaded on first open ──
+  const ga4Translations = {
+    ru: {
+      consent: 'Только посетители с согласием: меньше, чем во внутренней воронке', open: 'Открыть GA4 ↗',
+      period: 'Период', days28: '28 дней', days7: '7 дней', loading: 'Загрузка…', empty: 'Нет данных за этот период.',
+      fetched: 'Получено', cached: 'из кэша', lastGood: 'Последние данные', code: 'Код',
+      pages: 'Популярные страницы', clicks: 'Клики (ui_click)', sources: 'Источники трафика', devices: 'Устройства',
+      events: 'Прокрутка и события конфигуратора',
+      page: 'Страница', views: 'Просмотры', users: 'Пользователи', text: 'Текст', id: 'ID', section: 'Секция', count: 'Кол-во',
+      source: 'Источник', medium: 'Канал', campaign: 'Кампания', sessions: 'Сеансы', device: 'Устройство', event: 'Событие',
+      setupTitle: 'GA4 не подключён',
+      setup: 'Не заданы секреты Worker: {missing}. Настройка: сервисный аккаунт Google с ролью Viewer в ресурсе GA4, числовой Property ID, затем npx wrangler secret put для каждого секрета. Пошагово — в задаче LOOM-284.',
+      failed: 'Не удалось загрузить данные GA4. Повторите попытку.',
+      ga4_rate_limited: 'Квота Google Analytics исчерпана. Повторите позже.',
+      ga4_forbidden: 'Google отказал в доступе: включите Google Analytics Data API и дайте сервисному аккаунту роль Viewer в ресурсе GA4.',
+      ga4_custom_dimensions_missing: 'В GA4 не зарегистрированы параметры element_id, element_text и section (данные появляются через 24–48 ч).',
+      ga4_auth_failed: 'Ключ сервисного аккаунта не принят. Загрузите GA4_SA_KEY заново.',
+      ga4_property_invalid: 'GA4_PROPERTY_ID должен быть числовым Property ID (не G-…).',
+    },
+    uz: {
+      consent: 'Faqat rozilik bergan tashrifchilar: ichki voronkadan kamroq', open: 'GA4 ni ochish ↗',
+      period: 'Davr', days28: '28 kun', days7: '7 kun', loading: 'Yuklanmoqda…', empty: 'Bu davr uchun maʼlumot yo‘q.',
+      fetched: 'Olingan', cached: 'keshdan', lastGood: 'Oxirgi maʼlumot', code: 'Kod',
+      pages: 'Mashhur sahifalar', clicks: 'Bosishlar (ui_click)', sources: 'Trafik manbalari', devices: 'Qurilmalar',
+      events: 'Aylantirish va konfigurator hodisalari',
+      page: 'Sahifa', views: 'Ko‘rishlar', users: 'Foydalanuvchilar', text: 'Matn', id: 'ID', section: 'Bo‘lim', count: 'Soni',
+      source: 'Manba', medium: 'Kanal', campaign: 'Kampaniya', sessions: 'Seanslar', device: 'Qurilma', event: 'Hodisa',
+      setupTitle: 'GA4 ulanmagan',
+      setup: 'Worker sirlari berilmagan: {missing}. Sozlash: GA4 resursida Viewer roli bor Google xizmat hisobi, raqamli Property ID, so‘ng har bir sir uchun npx wrangler secret put. Batafsil — LOOM-284 vazifasida.',
+      failed: 'GA4 maʼlumotlarini yuklab bo‘lmadi. Qayta urinib ko‘ring.',
+      ga4_rate_limited: 'Google Analytics kvotasi tugadi. Keyinroq urinib ko‘ring.',
+      ga4_forbidden: 'Google ruxsat bermadi: Google Analytics Data API ni yoqing va xizmat hisobiga GA4 resursida Viewer rolini bering.',
+      ga4_custom_dimensions_missing: 'GA4 da element_id, element_text va section parametrlari ro‘yxatdan o‘tmagan (maʼlumot 24–48 soatdan keyin chiqadi).',
+      ga4_auth_failed: 'Xizmat hisobi kaliti qabul qilinmadi. GA4_SA_KEY ni qayta yuklang.',
+      ga4_property_invalid: 'GA4_PROPERTY_ID raqamli Property ID bo‘lishi kerak (G-… emas).',
+    },
+    en: {
+      consent: 'Consented visitors only: lower than the first-party funnel', open: 'Open GA4 ↗',
+      period: 'Period', days28: '28 days', days7: '7 days', loading: 'Loading…', empty: 'No data for this period.',
+      fetched: 'Fetched', cached: 'from cache', lastGood: 'Last good fetch', code: 'Code',
+      pages: 'Top pages', clicks: 'Clicks (ui_click)', sources: 'Traffic sources', devices: 'Devices',
+      events: 'Scroll and configurator events',
+      page: 'Page', views: 'Views', users: 'Users', text: 'Text', id: 'ID', section: 'Section', count: 'Count',
+      source: 'Source', medium: 'Medium', campaign: 'Campaign', sessions: 'Sessions', device: 'Device', event: 'Event',
+      setupTitle: 'GA4 is not connected',
+      setup: 'Missing Worker secrets: {missing}. Setup: a Google service account with the Viewer role on the GA4 property, the numeric Property ID, then npx wrangler secret put for each secret. Step by step in LOOM-284.',
+      failed: 'Could not load GA4 data. Please try again.',
+      ga4_rate_limited: 'Google Analytics quota reached. Try again later.',
+      ga4_forbidden: 'Google refused access: enable the Google Analytics Data API and give the service account the Viewer role on the GA4 property.',
+      ga4_custom_dimensions_missing: 'GA4 has no custom dimensions element_id, element_text and section yet (data appears 24–48 h after registering them).',
+      ga4_auth_failed: 'The service-account key was rejected. Upload GA4_SA_KEY again.',
+      ga4_property_invalid: 'GA4_PROPERTY_ID must be the numeric Property ID (not G-…).',
+    },
+  }
+  const gt = ga4Translations[document.documentElement.lang.split('-')[0]] || ga4Translations.ru
+  gt.ga4_key_invalid = gt.ga4_auth_failed
+
+  // [response key, columns as [row key, label key, numeric?]]
+  const GA4_CARDS = [
+    ['pages', [['path', 'page'], ['views', 'views', 1], ['users', 'users', 1]]],
+    ['clicks', [['text', 'text'], ['elementId', 'id'], ['section', 'section'], ['path', 'page'], ['count', 'count', 1]]],
+    ['sources', [['source', 'source'], ['medium', 'medium'], ['campaign', 'campaign'], ['sessions', 'sessions', 1], ['users', 'users', 1]]],
+    ['devices', [['device', 'device'], ['sessions', 'sessions', 1], ['users', 'users', 1]]],
+    ['events', [['event', 'event'], ['path', 'page'], ['count', 'count', 1]]],
+  ]
+  let ga4Opened = false
+
+  function ga4Notice(kind, title, body) {
+    return '<div class="notice notice--' + kind + '"><div><strong>' + esc(title) + '</strong>' +
+      (body ? '<div>' + esc(body) + '</div>' : '') + '</div></div>'
+  }
+
+  function ga4Card(key, cols, rows, sub) {
+    const head = cols.map(([, label, num]) => '<th' + (num ? ' class="right"' : '') + '>' + esc(gt[label]) + '</th>').join('')
+    const body = rows.length
+      ? rows.map((r) => '<tr>' + cols.map(([k, , num]) => num
+        ? '<td class="num right">' + Number(r[k] || 0).toLocaleString('ru-RU') + '</td>'
+        : '<td>' + esc(r[k]) + '</td>').join('') + '</tr>').join('')
+      : '<tr><td colspan="' + cols.length + '"><div class="state">' + esc(gt.empty) + '</div></td></tr>'
+    return '<div class="card"><div class="card-head"><div><h3 class="card-title">' + esc(gt[key]) + '</h3>' +
+      '<p class="card-sub">' + esc(sub) + '</p></div></div>' +
+      '<div class="table-wrap"><table class="table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div></div>'
+  }
+
+  async function loadGa4() {
+    ga4Opened = true
+    const state = el('ga4-state'), results = el('ga4-results')
+    el('ga4-days').disabled = true
+    results.hidden = true
+    state.innerHTML = '<p class="field-hint">' + esc(gt.loading) + '</p>'
+    try {
+      const data = await apiJSON('/api/admin/analytics/ga4?days=' + el('ga4-days').value)
+      if (!data.configured) {
+        state.innerHTML = ga4Notice('warning', gt.setupTitle, gt.setup.replace('{missing}', (data.missing || []).join(', ')))
+        return
+      }
+      el('ga4-link').href = 'https://analytics.google.com/analytics/web/#/p' + encodeURIComponent(data.propertyId) + '/reports/intelligenthome'
+      const sub = gt.consent + ' · ' + gt.fetched + ' ' + formatDate(data.fetchedAt) + (data.cached ? ' (' + gt.cached + ')' : '')
+      results.innerHTML = GA4_CARDS.map(([key, cols]) => ga4Card(key, cols, data[key] || [], sub)).join('')
+      state.innerHTML = ''
+      results.hidden = false
+    } catch (error) {
+      const d = error.data || {}
+      const detail = [d.code ? gt.code + ': ' + d.code : '', d.lastFetchedAt ? gt.lastGood + ': ' + formatDate(d.lastFetchedAt) : '']
+      state.innerHTML = ga4Notice('danger', gt[d.code] || gt.failed, detail.filter(Boolean).join(' · '))
+    } finally {
+      el('ga4-days').disabled = false
+    }
+  }
+
+  function wireGa4() {
+    document.querySelectorAll('[data-ga4-i18n]').forEach((node) => { node.textContent = gt[node.dataset.ga4I18n] })
+    el('ga4-days').addEventListener('change', loadGa4)
+  }
+
+  // ── Clarity tab (LOOM-286): GET /api/admin/analytics/clarity, daily D1 snapshots ──
+  // The Worker cron spends 4 of Clarity's 10 daily requests, so there is no
+  // refresh button. Field names inside Clarity's metrics are undocumented:
+  // known ones get a label, anything else shows under Clarity's own name.
+  const clarityTranslations = {
+    ru: {
+      dashboard: 'Дашборд Clarity ↗', heatmaps: 'Тепловые карты ↗',
+      linkNote: 'Тепловые карты и записи сеансов недоступны через API Clarity: они открываются только в самой Clarity.',
+      window: 'Снимок раз в день в 02:00 UTC за предыдущие 24 часа.',
+      setupTitle: 'Clarity не подключён',
+      setup: 'Не задан секрет Worker CLARITY_API_TOKEN. Настройка (только администратор проекта Clarity): Settings → Data Export → Generate new API token, затем npx wrangler secret put CLARITY_API_TOKEN. Не используйте токен для ручных запросов: лимит — 10 запросов в день.',
+      pendingTitle: 'Снимков пока нет', pending: 'Первый снимок появится после ежедневного запуска в 02:00 UTC (07:00 по Ташкенту).',
+      errorTitle: 'Последний запуск Clarity не удался', next: 'Следующий запуск — в 02:00 UTC. Ниже — последние сохранённые данные.',
+      s429: 'Дневной лимит (10 запросов) исчерпан.', s401: 'Токен отклонён: создайте новый и обновите CLARITY_API_TOKEN.',
+      failed: 'Не удалось загрузить данные Clarity. Повторите попытку.',
+      summary: 'Сводка за 24 часа', trend: 'Rage- и dead-клики за 30 дней', trendNote: 'Число кликов за 24 часа до каждого запуска.',
+      ragePages: 'Rage-клики по страницам', deadPages: 'Dead-клики по страницам', scrollPages: 'Глубина прокрутки по страницам',
+      metric: 'Метрика', values: 'Значения',
+      names: {
+        rageclickcount: 'Rage-клики', deadclickcount: 'Dead-клики', scrolldepth: 'Глубина прокрутки', traffic: 'Трафик',
+        engagementtime: 'Время вовлечения', quickbackclick: 'Быстрые возвраты', excessivescroll: 'Лишняя прокрутка',
+        scripterrorcount: 'Ошибки скриптов', errorclickcount: 'Клики с ошибкой',
+        visitscount: 'Визиты', averagescrolldepth: 'Ср. глубина, %', sessionswithmetricpercentage: '% сеансов',
+        totalbotsessioncount: 'Боты', pagespersessionpercentage: 'Стр./сеанс',
+      },
+    },
+    uz: {
+      dashboard: 'Clarity paneli ↗', heatmaps: 'Issiqlik xaritalari ↗',
+      linkNote: 'Issiqlik xaritalari va seans yozuvlari Clarity API orqali berilmaydi: ular faqat Clarity’ning o‘zida ochiladi.',
+      window: 'Har kuni 02:00 UTC da oldingi 24 soat uchun bitta surat.',
+      setupTitle: 'Clarity ulanmagan',
+      setup: 'Worker siri CLARITY_API_TOKEN berilmagan. Sozlash (faqat Clarity loyiha administratori): Settings → Data Export → Generate new API token, so‘ng npx wrangler secret put CLARITY_API_TOKEN. Tokendan qo‘lda so‘rovlar uchun foydalanmang: limit — kuniga 10 ta so‘rov.',
+      pendingTitle: 'Hali surat yo‘q', pending: 'Birinchi surat har kungi 02:00 UTC (Toshkent vaqti bilan 07:00) ishga tushishidan keyin paydo bo‘ladi.',
+      errorTitle: 'Oxirgi Clarity ishga tushishi muvaffaqiyatsiz', next: 'Keyingi ishga tushish 02:00 UTC da. Quyida oxirgi saqlangan maʼlumotlar.',
+      s429: 'Kunlik limit (10 ta so‘rov) tugadi.', s401: 'Token rad etildi: yangisini yarating va CLARITY_API_TOKEN ni yangilang.',
+      failed: 'Clarity maʼlumotlarini yuklab bo‘lmadi. Qayta urinib ko‘ring.',
+      summary: 'So‘nggi 24 soat', trend: 'Rage va dead bosishlar, 30 kun', trendNote: 'Har bir ishga tushishdan oldingi 24 soatdagi bosishlar soni.',
+      ragePages: 'Sahifalar bo‘yicha rage bosishlar', deadPages: 'Sahifalar bo‘yicha dead bosishlar', scrollPages: 'Sahifalar bo‘yicha aylantirish chuqurligi',
+      metric: 'Metrika', values: 'Qiymatlar',
+      names: {
+        rageclickcount: 'Rage bosishlar', deadclickcount: 'Dead bosishlar', scrolldepth: 'Aylantirish chuqurligi', traffic: 'Trafik',
+        engagementtime: 'Faollik vaqti', quickbackclick: 'Tez qaytishlar', excessivescroll: 'Ortiqcha aylantirish',
+        scripterrorcount: 'Skript xatolari', errorclickcount: 'Xatoli bosishlar',
+        visitscount: 'Tashriflar', averagescrolldepth: 'O‘rtacha chuqurlik, %', sessionswithmetricpercentage: 'Seanslar, %',
+        totalbotsessioncount: 'Botlar', pagespersessionpercentage: 'Sahifa/seans',
+      },
+    },
+    en: {
+      dashboard: 'Clarity dashboard ↗', heatmaps: 'Heatmaps ↗',
+      linkNote: 'Heatmaps and session recordings are not available through the Clarity API: they open only in Clarity itself.',
+      window: 'One snapshot a day at 02:00 UTC, covering the 24 hours before it.',
+      setupTitle: 'Clarity is not connected',
+      setup: 'Missing Worker secret CLARITY_API_TOKEN. Setup (Clarity project admin only): Settings → Data Export → Generate new API token, then npx wrangler secret put CLARITY_API_TOKEN. Do not use the token for manual calls: the limit is 10 requests a day.',
+      pendingTitle: 'No snapshot yet', pending: 'The first snapshot arrives after the daily run at 02:00 UTC (07:00 Tashkent).',
+      errorTitle: 'The last Clarity run failed', next: 'Next run at 02:00 UTC. Below is the last stored data.',
+      s429: 'Daily limit of 10 requests reached.', s401: 'Token rejected: create a new one and update CLARITY_API_TOKEN.',
+      failed: 'Could not load Clarity data. Please try again.',
+      summary: 'Last 24 hours', trend: 'Rage and dead clicks, 30 days', trendNote: 'Clicks in the 24 hours before each run.',
+      ragePages: 'Rage clicks by page', deadPages: 'Dead clicks by page', scrollPages: 'Scroll depth by page',
+      metric: 'Metric', values: 'Values',
+      names: {
+        rageclickcount: 'Rage clicks', deadclickcount: 'Dead clicks', scrolldepth: 'Scroll depth', traffic: 'Traffic',
+        engagementtime: 'Engagement time', quickbackclick: 'Quick backs', excessivescroll: 'Excessive scrolling',
+        scripterrorcount: 'Script errors', errorclickcount: 'Error clicks',
+        visitscount: 'Visits', averagescrolldepth: 'Avg depth, %', sessionswithmetricpercentage: '% of sessions',
+        totalbotsessioncount: 'Bots', pagespersessionpercentage: 'Pages/session',
+      },
+    },
+  }
+  const ct = clarityTranslations[document.documentElement.lang.split('-')[0]] || clarityTranslations.ru
+  ct.s403 = ct.s401
+  const cnorm = (name) => String(name).toLowerCase().replace(/[^a-z\d]/g, '')
+  // Field label: Clarity-specific first, then the GA4 tab's shared words, else Clarity's name.
+  const SHARED_FIELDS = { url: 'page', device: 'device', source: 'source', medium: 'medium', campaign: 'campaign', subtotal: 'count',
+    sessionscount: 'sessions', totalsessioncount: 'sessions', distinctusercount: 'users', distantusercount: 'users', pagesviews: 'views' }
+  const fieldLabel = (key) => ct.names[cnorm(key)] || gt[SHARED_FIELDS[cnorm(key)]] || key
+  const cnum = (v) => Number(v).toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+  const SUMMARY_ORDER = ['rageclickcount', 'deadclickcount', 'scrolldepth', 'traffic', 'engagementtime', 'quickbackclick', 'excessivescroll', 'scripterrorcount', 'errorclickcount']
+  // [title key, snapshot, metric]: each a table of Clarity's rows.
+  const CLARITY_TABLES = [
+    ['pages', 'totals', 'popularpages'],
+    ['ragePages', 'url', 'rageclickcount'],
+    ['deadPages', 'url', 'deadclickcount'],
+    ['scrollPages', 'url', 'scrolldepth'],
+    ['devices', 'device', 'traffic'],
+    ['sources', 'source', 'traffic'],
+  ]
+  let clarityOpened = false
+
+  function claritySub(snap) {
+    return gt.consent + (snap ? ' · ' + gt.fetched + ' ' + formatDate(snap.fetchedAt) : '')
+  }
+
+  function clarityCard(title, sub, head, body, cols, tableClass = '') {
+    return '<div class="card"><div class="card-head"><div><h3 class="card-title">' + esc(title) + '</h3>' +
+      '<p class="card-sub">' + esc(sub) + '</p></div></div><div class="table-wrap"><table class="table ' + tableClass + '"><thead><tr>' + head + '</tr></thead><tbody>' +
+      (body || '<tr><td colspan="' + cols + '"><div class="state">' + esc(gt.empty) + '</div></td></tr>') + '</tbody></table></div></div>'
+  }
+
+  // Totals (one item, no text field) as one row each: "field: value · field: value".
+  function claritySummary(snap) {
+    const metrics = (snap && snap.metrics) || {}
+    const keys = Object.keys(metrics).filter((k) => metrics[k].length === 1 && !Object.values(metrics[k][0]).some((v) => typeof v === 'string'))
+      .sort((a, b) => (SUMMARY_ORDER.indexOf(a) + 1 || 99) - (SUMMARY_ORDER.indexOf(b) + 1 || 99))
+    const body = keys.map((k) => '<tr><th scope="row">' + esc(ct.names[k] || k) + '</th><td>' +
+      Object.entries(metrics[k][0]).map(([f, v]) => '<span class="clarity-pair">' + esc(fieldLabel(f)) + ': <span class="num">' +
+        esc(typeof v === 'number' ? cnum(v) : v ?? '—') + '</span></span>').join(' · ') +
+      '</td></tr>').join('')
+    return clarityCard(ct.summary, claritySub(snap), '<th>' + esc(ct.metric) + '</th><th>' + esc(ct.values) + '</th>', body, 2, 'clarity-summary')
+  }
+
+  // Clarity's rows, largest first by their first numeric field, top 20. Text
+  // columns first, then numbers, in the order Clarity sent them.
+  function clarityTable(title, snap, metric) {
+    const items = ((snap && snap.metrics[metric]) || []).slice()
+    const sortKey = items.length ? Object.keys(items[0]).find((k) => typeof items[0][k] === 'number') : null
+    if (sortKey) items.sort((a, b) => (Number(b[sortKey]) || 0) - (Number(a[sortKey]) || 0))
+    const rows = items.slice(0, 20)
+    const keys = [...new Set(rows.flatMap(Object.keys))]
+    const isNum = (k) => rows.every((r) => r[k] == null || typeof r[k] === 'number')
+    const cols = keys.filter((k) => !isNum(k)).concat(keys.filter(isNum))
+    const head = cols.map((k) => '<th' + (isNum(k) ? ' class="right"' : '') + '>' + esc(fieldLabel(k)) + '</th>').join('')
+    const body = rows.map((r) => '<tr>' + cols.map((k) => isNum(k)
+      ? '<td class="num right">' + (r[k] == null ? '—' : cnum(r[k])) + '</td>'
+      : '<td>' + esc(r[k] == null || r[k] === '' ? '—' : r[k]) + '</td>').join('') + '</tr>').join('')
+    return clarityCard(title, claritySub(snap), head, body, Math.max(cols.length, 1))
+  }
+
+  function clarityError(data) {
+    const err = data.lastError
+    const times = Object.values(data.latest).filter(Boolean).map((s) => s.fetchedAt).sort()
+    if (!err || (times.length && err.fetchedAt < times[times.length - 1])) return ''
+    const detail = err.request + ': HTTP ' + err.status + ', ' + formatDate(err.fetchedAt) + '. ' + (ct['s' + err.status] ? ct['s' + err.status] + ' ' : '') + ct.next
+    return ga4Notice('danger', ct.errorTitle, detail)
+  }
+
+  async function loadClarity() {
+    clarityOpened = true
+    const state = el('clarity-state'), results = el('clarity-results')
+    state.innerHTML = '<p class="field-hint">' + esc(gt.loading) + '</p>'
+    try {
+      const data = await apiJSON('/api/admin/analytics/clarity')
+      if (!data.configured) {
+        state.innerHTML = ga4Notice('warning', ct.setupTitle, ct.setup)
+        return
+      }
+      el('clarity-dashboard').href = data.links.dashboard
+      el('clarity-heatmaps').href = data.links.heatmaps
+      const latest = data.latest
+      const error = clarityError(data)
+      if (!Object.values(latest).some(Boolean)) {
+        state.innerHTML = error || ga4Notice('warning', ct.pendingTitle, ct.pending)
+        return
+      }
+      state.innerHTML = error
+      el('clarity-trend-sub').textContent = gt.consent + ' · ' + ct.trendNote
+      el('clarity-tables').innerHTML = claritySummary(latest.totals) +
+        CLARITY_TABLES.map(([title, snap, metric]) => clarityTable(ct[title] || gt[title], latest[snap], metric)).join('')
+      results.hidden = false
+      const labels = data.trend.map((p) => p.fetchedAt.slice(5, 10))
+      whenChart(() => {
+        makeChart('bar', 'clarity-rage-chart', labels, data.trend.map((p) => p.rageClicks))
+        makeChart('bar', 'clarity-dead-chart', labels, data.trend.map((p) => p.deadClicks))
+      })
+    } catch {
+      state.innerHTML = ga4Notice('danger', ct.failed, '')
+    }
+  }
+
+  function wireClarity() {
+    document.querySelectorAll('[data-clarity-i18n]').forEach((node) => {
+      const key = node.dataset.clarityI18n
+      const text = ct[key] || ct.names[key] || gt[key]
+      if (text) node.textContent = text
+    })
+  }
+
   // Russian needs three forms; "2 заказа(ов)" is not something you ship to a
   // person who reads this screen every morning.
   function plural(n, one, few, many) {
@@ -265,6 +557,8 @@
       { tab: el('tab-orders'), panel: el('panel-orders') },
       { tab: el('tab-visitors'), panel: el('panel-visitors') },
       { tab: el('tab-funnel'), panel: el('panel-funnel') },
+      { tab: el('tab-ga4'), panel: el('panel-ga4') },
+      { tab: el('tab-clarity'), panel: el('panel-clarity') },
     ]
     tabs.forEach(({ tab }, i) => {
       tab.addEventListener('click', () => {
@@ -275,6 +569,9 @@
         // Chart.js sizes to a hidden container as 0×0; rebuild on reveal.
         const d = lastChartData['visitors-chart']
         if (i === 1 && d) whenChart(() => makeChart(d.kind, 'visitors-chart', d.labels, d.data))
+        // GA4 costs Data API quota, so it loads only when someone opens the tab.
+        if (tab.id === 'tab-ga4' && !ga4Opened) loadGa4()
+        if (tab.id === 'tab-clarity' && !clarityOpened) loadClarity()
       })
     })
   }
@@ -315,6 +612,8 @@
   window.LOOM_LAYOUT.onReady(() => {
     wireTabs()
     wireFunnel()
+    wireGa4()
+    wireClarity()
     load()
   })
 })()

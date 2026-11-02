@@ -2394,3 +2394,254 @@ export async function updateArtworkDetails(db: D1Database, id: number, value: {
     return result.meta.changes > 0
   })
 }
+
+// ─── Instagram posts (migration 0024, PRD-213) ───────────────────────────────
+// Rules (caption limits, which status may move where) live in lib/instagram.ts.
+// Every write carries its expected status in the WHERE clause, so an admin
+// edit and the publishing cron claiming the same row cannot both win.
+
+export interface IgPost {
+  id: number
+  caption_uz: string
+  caption_ru: string
+  caption_en: string
+  langs: string
+  media_key: string | null
+  media_url: string | null
+  publish_at: string | null
+  status: string
+  source: string
+  attempts: number
+  error: string | null
+  ig_container_id: string | null
+  ig_media_id: string | null
+  permalink: string | null
+  created_by: number | null
+  approved_by: number | null
+  approved_at: string | null
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type IgPostContent = Pick<IgPost, 'caption_uz' | 'caption_ru' | 'caption_en' | 'langs' | 'media_key' | 'media_url' | 'publish_at'>
+
+export async function listIgPosts(db: D1Database, status: string | null): Promise<IgPost[]> {
+  return safeQuery('listIgPosts', async () => {
+    // ponytail: newest 200, no paging; add page/limit when the list outgrows it.
+    const where = status ? 'WHERE status = ?' : ''
+    const stmt = db.prepare(`SELECT * FROM ig_posts ${where} ORDER BY COALESCE(publish_at, created_at) DESC, id DESC LIMIT 200`)
+    return (await (status ? stmt.bind(status) : stmt).all<IgPost>()).results
+  })
+}
+
+export async function getIgPost(db: D1Database, id: number): Promise<IgPost | null> {
+  return safeQuery('getIgPost', () => db.prepare('SELECT * FROM ig_posts WHERE id = ?').bind(id).first<IgPost>())
+}
+
+export async function insertIgPost(db: D1Database, value: IgPostContent, adminId: number, now: string): Promise<number> {
+  return safeQuery('insertIgPost', async () => {
+    const result = await db.prepare(`INSERT INTO ig_posts
+      (caption_uz, caption_ru, caption_en, langs, media_key, media_url, publish_at, status, source, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'manual', ?, ?, ?)`)
+      .bind(value.caption_uz, value.caption_ru, value.caption_en, value.langs, value.media_key, value.media_url, value.publish_at, adminId, now, now)
+      .run()
+    return Number(result.meta.last_row_id)
+  })
+}
+
+/** Save new content. `changed` sends an approved post back to draft (R-1). False when the status moved meanwhile. */
+export async function updateIgPostContent(
+  db: D1Database, id: number, value: IgPostContent, changed: boolean, editable: readonly string[], now: string,
+): Promise<boolean> {
+  return safeQuery('updateIgPostContent', async () => {
+    const back = changed ? "status = 'approved'" : '0'
+    const result = await db.prepare(`UPDATE ig_posts SET
+      caption_uz = ?, caption_ru = ?, caption_en = ?, langs = ?, media_key = ?, media_url = ?, publish_at = ?,
+      approved_by = CASE WHEN ${back} THEN NULL ELSE approved_by END,
+      approved_at = CASE WHEN ${back} THEN NULL ELSE approved_at END,
+      status = CASE WHEN ${back} THEN 'draft' ELSE status END,
+      updated_at = ?
+      WHERE id = ? AND status IN (${editable.map(() => '?').join(', ')})`)
+      .bind(value.caption_uz, value.caption_ru, value.caption_en, value.langs, value.media_key, value.media_url, value.publish_at, now, id, ...editable)
+      .run()
+    return result.meta.changes > 0
+  })
+}
+
+/**
+ * Move a post between statuses. Approval records who and when; any other move
+ * clears it. Back to draft also resets the publishing attempt state.
+ * `updatedAt`, when given, must still match: the content that was checked is
+ * the content that gets approved.
+ */
+export async function moveIgPost(
+  db: D1Database, id: number, from: readonly string[], to: string, adminId: number, now: string, updatedAt?: string,
+): Promise<boolean> {
+  return safeQuery('moveIgPost', async () => {
+    const approved = to === 'approved'
+    const reset = to === 'draft' ? ', attempts = 0, error = NULL, ig_container_id = NULL' : ''
+    const result = await db.prepare(`UPDATE ig_posts SET status = ?, approved_by = ?, approved_at = ?, updated_at = ?${reset}
+      WHERE id = ? AND status IN (${from.map(() => '?').join(', ')})${updatedAt ? ' AND updated_at = ?' : ''}`)
+      .bind(to, approved ? adminId : null, approved ? now : null, now, id, ...from, ...(updatedAt ? [updatedAt] : []))
+      .run()
+    return result.meta.changes > 0
+  })
+}
+
+export async function getIgSetting(db: D1Database, key: string): Promise<{ value: string; updated_by: number | null; updated_at: string } | null> {
+  return safeQuery('getIgSetting', () =>
+    db.prepare('SELECT value, updated_by, updated_at FROM ig_settings WHERE key = ?').bind(key).first())
+}
+
+export async function setIgSetting(db: D1Database, key: string, value: string, adminId: number, now: string): Promise<void> {
+  return safeQuery('setIgSetting', async () => {
+    await db.prepare(`INSERT INTO ig_settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
+      .bind(key, value, adminId, now).run()
+  })
+}
+
+// ─── Instagram publishing cron (LOOM-271) ────────────────────────────────────
+
+/**
+ * Posts the cron may take: approved and due, or left in publishing by a run
+ * that stopped before `staleBefore` (a container still processing, or a crash).
+ */
+export async function listDueIgPosts(db: D1Database, now: string, staleBefore: string, limit: number): Promise<IgPost[]> {
+  return safeQuery('listDueIgPosts', async () => (await db.prepare(`SELECT * FROM ig_posts
+    WHERE approved_by IS NOT NULL
+      AND ((status = 'approved' AND publish_at <= ?) OR (status = 'publishing' AND updated_at < ?))
+    ORDER BY publish_at, id LIMIT ?`).bind(now, staleBefore, limit).all<IgPost>()).results)
+}
+
+/** Take a post for this run. False when another run or an admin edit got there first. */
+export async function claimIgPost(db: D1Database, post: Pick<IgPost, 'id' | 'status' | 'updated_at'>, now: string): Promise<boolean> {
+  return safeQuery('claimIgPost', async () => (await db.prepare(`UPDATE ig_posts SET status = 'publishing', updated_at = ?
+    WHERE id = ? AND status = ? AND updated_at = ? AND approved_by IS NOT NULL`)
+    .bind(now, post.id, post.status, post.updated_at).run()).meta.changes > 0)
+}
+
+export type IgPublishFields = Partial<Pick<IgPost, 'status' | 'attempts' | 'error' | 'ig_container_id' | 'ig_media_id' | 'permalink' | 'published_at'>>
+
+/** Write the cron's result on a post it holds (status publishing). False when it no longer holds it. */
+export async function settleIgPost(db: D1Database, id: number, fields: IgPublishFields, now: string): Promise<boolean> {
+  return safeQuery('settleIgPost', async () => {
+    // Column names come from the IgPublishFields keys only, never from input.
+    const keys = Object.keys(fields) as (keyof IgPublishFields)[]
+    const result = await db.prepare(`UPDATE ig_posts SET ${keys.map((k) => `${k} = ?, `).join('')}updated_at = ?
+      WHERE id = ? AND status = 'publishing'`).bind(...keys.map((k) => fields[k] ?? null), now, id).run()
+    return result.meta.changes > 0
+  })
+}
+
+/** Switch the kill switch on from the cron. True only for the call that switched it. */
+export async function pauseIgPublishing(db: D1Database, now: string): Promise<boolean> {
+  return safeQuery('pauseIgPublishing', async () => (await db.prepare(`UPDATE ig_settings SET value = '1', updated_by = NULL, updated_at = ?
+    WHERE key = 'publish_paused' AND value = '0'`).bind(now).run()).meta.changes > 0)
+}
+
+// ─── Instagram insights (LOOM-273, migration 0026) ───────────────────────────
+
+export interface IgInsight {
+  scope: 'account' | 'media'
+  ig_media_id: string | null
+  metric: string
+  period: string
+  end_time: string | null
+  value: number
+}
+
+/** Media ids of posts this system published since `since` (ISO). */
+export async function listPublishedIgMediaIds(db: D1Database, since: string): Promise<string[]> {
+  return safeQuery('listPublishedIgMediaIds', async () => (await db.prepare(`SELECT ig_media_id FROM ig_posts
+    WHERE status = 'published' AND ig_media_id IS NOT NULL AND published_at >= ?
+    ORDER BY published_at DESC`).bind(since).all<{ ig_media_id: string }>()).results.map((r) => r.ig_media_id))
+}
+
+/** Insert or refresh rows on the unique key, so a second pull adds no duplicates. */
+export async function upsertIgInsights(db: D1Database, rows: IgInsight[], fetchedAt: string): Promise<void> {
+  if (!rows.length) return
+  return safeQuery('upsertIgInsights', async () => {
+    const stmt = db.prepare(`INSERT INTO ig_insights (scope, ig_media_id, metric, period, end_time, value, fetched_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (scope, COALESCE(ig_media_id, ''), metric, period, COALESCE(end_time, ''))
+      DO UPDATE SET value = excluded.value, fetched_at = excluded.fetched_at`)
+    await db.batch(rows.map((r) => stmt.bind(r.scope, r.ig_media_id, r.metric, r.period, r.end_time, r.value, fetchedAt)))
+  })
+}
+
+export interface IgPostInsightRow {
+  id: number
+  ig_media_id: string
+  permalink: string | null
+  published_at: string
+  metric: string | null
+  value: number | null
+  fetched_at: string | null
+}
+
+/** Published posts since `since` with their summed media metrics (one row per post and metric). */
+export async function listIgPostInsights(db: D1Database, since: string): Promise<IgPostInsightRow[]> {
+  return safeQuery('listIgPostInsights', async () => (await db.prepare(`SELECT p.id, p.ig_media_id, p.permalink, p.published_at,
+      i.metric, SUM(i.value) AS value, MAX(i.fetched_at) AS fetched_at
+    FROM ig_posts p
+    LEFT JOIN ig_insights i ON i.scope = 'media' AND i.ig_media_id = p.ig_media_id
+    WHERE p.status = 'published' AND p.ig_media_id IS NOT NULL AND p.published_at >= ?
+    GROUP BY p.id, i.metric
+    ORDER BY p.published_at DESC, p.id DESC`).bind(since).all<IgPostInsightRow>()).results)
+}
+
+// ─── Instagram ads (migration 0027, LOOM-276) ────────────────────────────────
+
+export interface IgAd {
+  id: number
+  ig_post_id: number
+  campaign_id: string | null
+  adset_id: string | null
+  ad_id: string | null
+  budget_usd_cents: number
+  budget_type: string
+  start_at: string
+  end_at: string
+  status_seen: string | null
+  created_by: number | null
+  created_at: string
+  error: string | null
+}
+
+export type IgAdFields = Partial<Pick<IgAd, 'campaign_id' | 'adset_id' | 'ad_id' | 'status_seen' | 'error'>>
+
+export async function listIgAds(db: D1Database): Promise<IgAd[]> {
+  // ponytail: newest 50, no paging; at about one ad a week that is a year.
+  return safeQuery('listIgAds', async () => (await db.prepare('SELECT * FROM ig_ads ORDER BY id DESC LIMIT 50').all<IgAd>()).results)
+}
+
+export async function getIgAd(db: D1Database, id: number): Promise<IgAd | null> {
+  return safeQuery('getIgAd', () => db.prepare('SELECT * FROM ig_ads WHERE id = ?').bind(id).first<IgAd>())
+}
+
+export async function insertIgAd(
+  db: D1Database, value: Pick<IgAd, 'ig_post_id' | 'budget_usd_cents' | 'start_at' | 'end_at'>, adminId: number, now: string,
+): Promise<number> {
+  return safeQuery('insertIgAd', async () => Number((await db.prepare(`INSERT INTO ig_ads
+    (ig_post_id, budget_usd_cents, budget_type, start_at, end_at, created_by, created_at) VALUES (?, ?, 'lifetime', ?, ?, ?, ?)`)
+    .bind(value.ig_post_id, value.budget_usd_cents, value.start_at, value.end_at, adminId, now).run()).meta.last_row_id))
+}
+
+export async function updateIgAd(db: D1Database, id: number, fields: IgAdFields): Promise<void> {
+  return safeQuery('updateIgAd', async () => {
+    // Column names come from the IgAdFields keys only, never from input.
+    const keys = Object.keys(fields) as (keyof IgAdFields)[]
+    if (!keys.length) return
+    await db.prepare(`UPDATE ig_ads SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
+      .bind(...keys.map((k) => fields[k] ?? null), id).run()
+  })
+}
+
+/** Budgets that can still be spent: ads with an ad set (the budget lives there) that have not ended. */
+export async function committedIgAdCents(db: D1Database, now: string): Promise<number> {
+  return safeQuery('committedIgAdCents', async () => Number((await db.prepare(
+    'SELECT COALESCE(SUM(budget_usd_cents), 0) AS cents FROM ig_ads WHERE adset_id IS NOT NULL AND end_at > ?',
+  ).bind(now).first<{ cents: number }>())?.cents ?? 0))
+}

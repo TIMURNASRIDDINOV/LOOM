@@ -14,10 +14,22 @@ import type { PrintArea } from '../api/types'
 //                                  print shop will receive
 //   · fitCameraToObject          — aim at the torso along the garment's own
 //                                  facing axis, 88% fill
+//   · the studio lighting rig    — Neutral tone mapping at exposure 1.2, the
+//                                  softbox environment, key/fill/rim lights that
+//                                  follow the camera, MeshPhysicalMaterial with
+//                                  per-fabric sheen and the dark-fabric lift
+//                                  (LOOM-261; configurator.js:819-938, :1071-1125)
 //
 // The page is loaded ONCE per model; every later change (colour, layers, view)
 // arrives through `window.__loom.update()` / `setView()` so the mesh, the
 // environment map and the decoder are never re-downloaded on a keystroke.
+//
+// Hardening (LOOM-262): setup is guarded and every failure is posted to the app
+// (`error` with a kind, `diag` with the facts the diagnostics overlay shows);
+// the web fonts start loading only after the first frame; the preview textures
+// are 1024², not the print path's 2048²; the render loop can be paused while the
+// 3D layer is hidden behind the 2D view; inside a vertical scroller a vertical
+// swipe scrolls the page and only a horizontal drag rotates the model.
 //
 // Scripts come from loomdesign.uz's own vendored copies (assets/vendor), which
 // is also why the WebView is given that origin as its base URL: the same
@@ -37,16 +49,72 @@ const VENDOR = [
   'three.min.js',
   'GLTFLoader.js',
   'OrbitControls.js',
-  'RoomEnvironment.js',
   'meshopt_decoder.js',
 ].map((f) => `${SITE_ORIGIN}/assets/vendor/${f}?v=1`)
 
 export const FONTS_CSS =
   'https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;700;800&family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600;700&display=swap'
 
+/**
+ * Side of the live preview's canvases (design textures and fabric maps), px.
+ * The print path keeps `TEX_SIZE` (2048); the preview draws the same layout
+ * scaled by LIVE/TEX, so five 1024² canvases (~47 MB) replace five 2048²
+ * (~187 MB) on the phone.
+ */
+export const LIVE_TEX_SIZE = 1024
+
 /** Tileable woven-cotton surface (CC0, assets/textures) — see configurator.js FABRIC_*. */
 const FABRIC_NORMAL_URL = `${SITE_ORIGIN}/assets/textures/fabric-jersey-normal.jpg?v=1`
 const FABRIC_ROUGH_URL = `${SITE_ORIGIN}/assets/textures/fabric-jersey-roughness.jpg?v=1`
+
+// ── Studio rig constants (mirror of configurator.js:819-847, :1071-1125) ──────
+// three r128 has no Neutral tone mapping; the web writes Khronos PBR Neutral
+// into r128's empty CustomToneMapping stub before any material compiles, and so
+// does this page. Keep the GLSL identical to the website's.
+const STUDIO_EXPOSURE = 1.2
+const TONE_STUB = 'vec3 CustomToneMapping( vec3 color ) { return color; }'
+const NEUTRAL_TONE_MAPPING = [
+  'vec3 CustomToneMapping( vec3 color ) {',
+  '\tconst float StartCompression = 0.8 - 0.04;',
+  '\tconst float Desaturation = 0.15;',
+  '\tcolor *= toneMappingExposure;',
+  '\tfloat x = min( color.r, min( color.g, color.b ) );',
+  '\tfloat offset = x < 0.08 ? x - 6.25 * x * x : 0.04;',
+  '\tcolor -= offset;',
+  '\tfloat peak = max( color.r, max( color.g, color.b ) );',
+  '\tif ( peak < StartCompression ) return color;',
+  '\tfloat d = 1. - StartCompression;',
+  '\tfloat newPeak = 1. - d * d / ( peak + d - StartCompression );',
+  '\tcolor *= newPeak / peak;',
+  '\tfloat g = 1. - 1. / ( Desaturation * ( peak - newPeak ) + 1. );',
+  '\treturn mix( color, vec3( newPeak ), g );',
+  '}',
+].join('\n')
+
+/** Same cloth presets as the website (configurator.js FABRIC_PRESETS). */
+const FABRIC_PRESETS = {
+  jersey: { tiles: 12, normalScale: 0.9, sheen: 0.32, sheenRough: 0.75, rough: 1.0 },
+  heavy: { tiles: 9, normalScale: 1.15, sheen: 0.26, sheenRough: 0.85, rough: 1.05 },
+  fleece: { tiles: 12, normalScale: 0.6, sheen: 0.5, sheenRough: 0.95, rough: 1.1 },
+  pique: { tiles: 14, normalScale: 1.05, sheen: 0.22, sheenRough: 0.6, rough: 0.95 },
+  twill: { tiles: 16, normalScale: 0.75, sheen: 0.14, sheenRough: 0.5, rough: 0.9 },
+}
+export type FabricKey = keyof typeof FABRIC_PRESETS
+
+/** Near-black garments render on a lifted albedo (configurator.js DARK_FABRIC, LOOM-219). */
+const DARK_FABRIC = { luma: 0.12, lift: 20, sheen: 0.7, spec: 0.5, env: 0.5 }
+
+/** Which cloth a product is cut from — the website's fabricForProduct(), same patterns. */
+export function fabricForProduct(
+  p: { slug?: string | null; name_ru?: string | null; name_en?: string | null } | null | undefined,
+): FabricKey {
+  const tag = [p?.slug, p?.name_ru, p?.name_en].filter(Boolean).join(' ').toLowerCase()
+  if (/hood|худи|толстов|sweat|свитш/.test(tag)) return 'fleece'
+  if (/polo|поло/.test(tag)) return 'pique'
+  if (/cap|кепк|панам|pant|штан|шорт|short/.test(tag)) return 'twill'
+  if (/oversize|оверсайз|heavy|плотн/.test(tag)) return 'heavy'
+  return 'jersey'
+}
 
 export type SceneConfig = {
   glbUrl: string
@@ -57,14 +125,19 @@ export type SceneConfig = {
   autoRotate: boolean
   /** The product's print area (LOOM-166); the web's defaults when absent. */
   printArea?: PrintArea
+  /** Cloth preset (sheen, weave scale); `jersey` when absent. */
+  fabric?: FabricKey
+  /** The stage sits inside a vertical scroller: a vertical swipe scrolls it, only a horizontal drag rotates. */
+  inScroll?: boolean
 }
 
 export function buildSceneHtml(cfg: SceneConfig): string {
-  const { printArea, ...scene } = cfg
+  const { printArea, fabric, inScroll, ...scene } = cfg
   const pa = printArea ?? { platen_cm: PLATEN_CM, width_frac: 0.55, top_frac: 0.2 }
   const CONFIG = JSON.stringify({
     ...scene,
     TEX_SIZE,
+    LIVE_TEX: LIVE_TEX_SIZE,
     REF_RECT,
     PLATEN_CM: pa.platen_cm,
     LEGACY_PRINT_AREA,
@@ -72,25 +145,34 @@ export function buildSceneHtml(cfg: SceneConfig): string {
     PLATEN_TOP_FRAC: pa.top_frac,
     FABRIC_NORMAL_URL,
     FABRIC_ROUGH_URL,
-    FABRIC_TILES: 12,
-    FABRIC_NORMAL_SCALE: 0.9,
-    FABRIC_ENV_INTENSITY: 0.7,
+    FABRIC: FABRIC_PRESETS[fabric ?? 'jersey'],
+    FABRIC_ENV_INTENSITY: 0.28, // the studio environment washes white cloth out above this
+    DARK_FABRIC,
+    STUDIO_EXPOSURE,
+    TONE_STUB,
+    NEUTRAL_TONE_MAPPING,
+    FONTS_CSS,
+    inScroll: !!inScroll,
   })
 
   return (
     '<!doctype html><html><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">' +
-    `<link rel="stylesheet" href="${FONTS_CSS}">` +
+    // No font stylesheet here: it is added after the first frame (see loadFonts), so
+    // it never queues ahead of the scripts and the model.
     '<style>' +
     `html,body{margin:0;height:100%;background:${cfg.background};overflow:hidden;` +
     '-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}' +
-    '#c{width:100%;height:100%;display:block;touch-action:none;outline:none}' +
+    // Inside a scroller the browser keeps vertical pans (the page scrolls); the page's own
+    // gesture filter (see the touch block in SCENE_JS) keeps them from rotating the model too.
+    `#c{width:100%;height:100%;display:block;touch-action:${inScroll ? 'pan-y' : 'none'};outline:none}` +
     // Preload the three faces so canvas text renders in them on the first bake.
     '#f{position:absolute;left:-9999px;top:0;font-size:12px}' +
     '#f .a{font-family:"Inter Tight";font-weight:700}#f .b{font-family:"Inter";font-weight:700}' +
     '#f .c{font-family:"IBM Plex Mono";font-weight:700}' +
     '</style>' +
-    VENDOR.map((src) => `<script src="${src}"></script>`).join('') +
+    // onerror records which script failed, so the page can ask the server why.
+    VENDOR.map((src) => `<script src="${src}" onerror="(window.__bad=window.__bad||[]).push(this.src)"></script>`).join('') +
     '</head><body>' +
     '<canvas id="c"></canvas>' +
     '<div id="f"><span class="a">LOOM</span><span class="b">LOOM</span><span class="c">LOOM</span></div>' +
@@ -140,38 +222,184 @@ export const DRAW_ELEMENT_JS = String.raw`
 const SCENE_JS = String.raw`
 (function () {
   var CFG = window.__LOOM_CFG;
-  var TEX = CFG.TEX_SIZE, REF = CFG.REF_RECT;
+  // TEX/REF are the print path's design units: every layout formula (print rect, text
+  // size, image scale) runs in them, exactly as for the print master. LIVE is the side of
+  // the preview's canvases; PXK scales design units to canvas pixels when drawing.
+  var TEX = CFG.TEX_SIZE, REF = CFG.REF_RECT, LIVE = CFG.LIVE_TEX, PXK = LIVE / TEX;
 
   function post(m) {
     var s = JSON.stringify(m);
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s);
     else if (window.parent && window.parent !== window) window.parent.postMessage(s, '*');
   }
-  function fail(why) { post({ type: 'error', message: why }); }
-  if (!window.THREE || !THREE.GLTFLoader || !THREE.OrbitControls) return fail('three.js did not load');
+
+  // What the diagnostics overlay shows (long-press on the stage caption). It only ever
+  // goes to the host app, never to a server. Every post carries the whole object.
+  var DIAG = {
+    webgl2: null, gpu: null, maxTex: null, dpr: window.devicePixelRatio || 1,
+    w: window.innerWidth, h: window.innerHeight, canvas: null, env: null,
+    tScripts: Math.round(performance.now()), tGlb: null, tFirst: null, lastError: null
+  };
+  function msg(e) { return String(e && e.message ? e.message : e); }
+  function diag(patch) { for (var k in patch) DIAG[k] = patch[k]; post({ type: 'diag', diag: DIAG }); }
+  // kind 'unavailable': this device cannot show 3D (no WebGL, a shader that will not link,
+  // a lost context). kind 'load': something did not arrive (script, model, timeout).
+  function fail(why, kind) { diag({ lastError: why }); post({ type: 'error', kind: kind || 'load', message: why }); pause(); }
+  window.addEventListener('error', function (e) { if (e && e.message && !DIAG.lastError) diag({ lastError: 'js: ' + e.message }); });
+
+  if (!window.THREE || !THREE.GLTFLoader || !THREE.OrbitControls) {
+    // A script that failed to load fired its onerror (see the page head); ask the server why.
+    var bad = window.__bad || [], file = function (u) { return u.split('/').pop().split('?')[0]; };
+    var probes = bad.map(function (u) {
+      return window.fetch
+        ? fetch(u, { cache: 'no-store' }).then(function (r) { return file(u) + ' HTTP ' + r.status; }, function () { return file(u) + ' unreachable'; })
+        : Promise.resolve(file(u));
+    });
+    Promise.all(probes).then(function (l) { fail('scripts: ' + (l.length ? l.join('; ') : 'three.js did not load')); });
+    return;
+  }
+
+  // ── Tone mapping (configurator.js:819-847) ────────────────────────────────
+  // Khronos PBR Neutral, written into r128's CustomToneMapping stub. It has to
+  // happen before the renderer exists: the chunk is read when the first
+  // material compiles. Linear clips a white chest; Neutral leaves everything
+  // below the highlights as authored, so white cloth reads white and a hex
+  // reads as itself. ACES stays as the fallback if the build lacks the stub.
+  function useNeutralToneMapping() {
+    var chunk = THREE.ShaderChunk.tonemapping_pars_fragment || '';
+    if (chunk.indexOf(CFG.NEUTRAL_TONE_MAPPING) !== -1) return true;
+    if (chunk.indexOf(CFG.TONE_STUB) === -1) return false;
+    THREE.ShaderChunk.tonemapping_pars_fragment = chunk.replace(CFG.TONE_STUB, CFG.NEUTRAL_TONE_MAPPING);
+    return true;
+  }
+  var neutral = useNeutralToneMapping();
 
   // ── Renderer / scene ──────────────────────────────────────────────────────
-  var canvas = document.getElementById('c');
-  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setClearColor(0x000000, 0);
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
-  renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = 0.5; // see configurator.js — white cloth clipped at 0.82
+  var canvas = document.getElementById('c'), renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = neutral ? THREE.CustomToneMapping : THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = neutral ? CFG.STUDIO_EXPOSURE : 0.95;
+  } catch (e) {
+    DIAG.webgl2 = false;
+    return fail('renderer: ' + msg(e), 'unavailable');
+  }
+  // The context can be taken away later (memory pressure); show the retry state, not a frozen frame.
+  canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); fail('WebGL context lost', 'unavailable'); }, false);
+  var gl = renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  DIAG.webgl2 = !!renderer.capabilities.isWebGL2;
+  DIAG.gpu = String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+  DIAG.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+
+  // The first program that did not compile or link (three keeps its diagnostics), or null.
+  // The 'known' programs are those that existed before the garment (the environment generator leaves one
+  // behind): a failure there is the environment's, reported as such, not the garment's.
+  var known = [];
+  function badProgram() {
+    var ps = renderer.info.programs || [];
+    for (var i = 0; i < ps.length; i++) if (known.indexOf(ps[i]) === -1 && ps[i].diagnostics && ps[i].diagnostics.runnable === false) return ps[i];
+    return null;
+  }
 
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 100);
   camera.position.set(0, 0, 3.2);
 
-  if (typeof THREE.RoomEnvironment === 'function') {
-    var pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+  // ── Studio environment (configurator.js:857-891) ──────────────────────────
+  // Five softboxes in a dark box, so the reflections on the cloth are the long
+  // vertical highlights of a studio, not a furnished room.
+  function buildStudioEnvironment(rend) {
+    if (typeof THREE.PMREMGenerator !== 'function') throw new Error('PMREMGenerator missing');
+    var pm = new THREE.PMREMGenerator(rend), env = new THREE.Scene();
+    var panel = function (w, h, color, x, y, z, ry) {
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide }));
+      m.position.set(x, y, z); if (ry) m.rotation.y = ry; env.add(m);
+    };
+    env.add(new THREE.Mesh(new THREE.BoxGeometry(14, 10, 14), new THREE.MeshBasicMaterial({ color: 0x14130f, side: THREE.BackSide })));
+    panel(7, 7, 0xffffff, -3.4, 1.6, 4.2, 0.5);     // key softbox, front-left
+    panel(4, 4, 0x8d959f, 4.4, 0.6, 3.0, -0.6);     // cool fill, front-right
+    panel(9, 1.8, 0xf2ece2, 0, 4.4, 0, 0);          // overhead strip
+    panel(1.8, 6, 0xc9d2dd, -5.2, 0.4, -2.4, 1.2);  // rim strip, back-left
+    panel(1.8, 6, 0xc9d2dd, 5.2, 0.4, -2.4, -1.2);  // rim strip, back-right
+    try {
+      var envTex = pm.fromScene(env, 0.04).texture;
+      // A shader that failed to link inside the generator leaves a black map, not an exception.
+      if (badProgram()) throw new Error('environment shader failed');
+      return envTex;
+    } finally {
+      env.traverse(function (o) { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+      pm.dispose();
+    }
   }
-  scene.add(new THREE.AmbientLight(0xffffff, 0.08));
-  var hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 0.12); hemi.position.set(0, 1, 0); scene.add(hemi);
-  var key = new THREE.DirectionalLight(0xffffff, 0.45); key.position.set(2.5, 3.5, 3); scene.add(key);
-  var fill = new THREE.DirectionalLight(0xffffff, 0.12); fill.position.set(-3, 1.5, 2); scene.add(fill);
+  // Without the map the scene still renders: the LOOM-261 rig no longer leans on it (the
+  // white tee's chest stays above 240 in the harness), and diag.env tells the overlay.
+  var envMap = null, envError = null;
+  try { envMap = buildStudioEnvironment(renderer); } catch (e) { envError = 'environment: ' + msg(e); }
+  scene.environment = envMap;
+  known = (renderer.info.programs || []).slice();
+  diag(envError ? { env: false, lastError: envError } : { env: true });
+
+  // ── Lighting rig (configurator.js:893-975, :981-987) ──────────────────────
+  // Ambient and hemisphere only lift the deepest shadow off black. Key (a
+  // positional SpotLight, whose falloff IS the modelling), fill and two rims
+  // live in a group that follows the camera's azimuth, so the back of the
+  // garment is lit like the front. No shadow map: the app leaves it out for
+  // frame rate (LOOM-261 follow-up).
+  scene.add(new THREE.AmbientLight(0xffffff, 0.05));
+  var hemi = new THREE.HemisphereLight(0xffffff, 0x33302b, 0.14); hemi.position.set(0, 1, 0); scene.add(hemi);
+  var studioRig = new THREE.Group(); scene.add(studioRig);
+  var keyLight = new THREE.SpotLight(0xffffff, 3.0, 1, 0.75, 1.0, 2.0);
+  keyLight.position.set(-0.62, 0.72, 0.66);
+  studioRig.add(keyLight); studioRig.add(keyLight.target);
+  var fillLight = new THREE.DirectionalLight(0xdde7f4, 0.28); fillLight.position.set(0.8, 0.26, 0.6); studioRig.add(fillLight);
+  var rimL = new THREE.DirectionalLight(0xffffff, 0.85); rimL.position.set(-0.8, 0.42, -0.7); studioRig.add(rimL);
+  var rimR = new THREE.DirectionalLight(0xeef4ff, 0.5); rimR.position.set(0.85, 0.3, -0.72); studioRig.add(rimR);
+
+  // Point the rig at the garment once its final size is known (after fitCamera).
+  function fitStudioToObject(object) {
+    object.updateMatrixWorld(true);
+    var box = new THREE.Box3().setFromObject(object), size = box.getSize(new THREE.Vector3());
+    var radius = Math.max(size.x, size.y, size.z) * 0.62;
+    studioRig.position.copy(box.getCenter(new THREE.Vector3()));
+    // Authored as unit directions: the key sits close, the rims far.
+    studioRig.children.forEach(function (l) { if (l.isDirectionalLight) l.position.normalize().multiplyScalar(radius * 4); });
+    keyLight.position.normalize().multiplyScalar(radius * 2.2);
+    keyLight.distance = radius * 6;
+  }
+  function updateStudioRig() {
+    studioRig.rotation.y = Math.atan2(camera.position.x - studioRig.position.x, camera.position.z - studioRig.position.z);
+  }
+
+  // ── Scroll versus rotate (only when the stage sits inside a vertical scroller) ──
+  // OrbitControls r128 cancels every touchstart ("prevent scrolling"), which would pin
+  // the page. Single-finger touches therefore arrive with a neutered preventDefault, and
+  // their first move decides: mostly vertical, the moves never reach the controls and the
+  // browser/native parent scrolls; mostly horizontal, the controls rotate as usual. Two
+  // fingers (pinch zoom) are never filtered. These listeners are registered before the
+  // controls' own so they run first, in every engine.
+  if (CFG.inScroll) {
+    var g0 = null;
+    var touchEnd = function () { g0 = null; };
+    canvas.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 1) { e.preventDefault = function () {}; g0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, lock: '' }; }
+      else g0 = null;
+    }, { capture: true, passive: true });
+    canvas.addEventListener('touchmove', function (e) {
+      if (!g0 || e.touches.length !== 1) return;
+      if (!g0.lock) {
+        var dx = Math.abs(e.touches[0].clientX - g0.x), dy = Math.abs(e.touches[0].clientY - g0.y);
+        if (dx < 8 && dy < 8) return e.stopImmediatePropagation(); // too small to tell
+        g0.lock = dy > dx ? 'v' : 'h';
+      }
+      if (g0.lock === 'v') e.stopImmediatePropagation();
+    }, { capture: true, passive: true });
+    canvas.addEventListener('touchend', touchEnd, true);
+    canvas.addEventListener('touchcancel', touchEnd, true);
+  }
 
   var controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.05;
@@ -182,7 +410,7 @@ const SCENE_JS = String.raw`
   controls.addEventListener('start', function () { controls.autoRotate = false; camAnim = null; post({ type: 'interact' }); });
 
   // ── Canvas textures: front, back, plain ───────────────────────────────────
-  function mkCanvas() { var c = document.createElement('canvas'); c.width = c.height = TEX; return c; }
+  function mkCanvas() { var c = document.createElement('canvas'); c.width = c.height = LIVE; return c; }
   var cv = { front: mkCanvas(), back: mkCanvas(), plain: mkCanvas() };
   var tex = {};
   var maxAniso = renderer.capabilities.getMaxAnisotropy();
@@ -201,9 +429,39 @@ const SCENE_JS = String.raw`
   // ── Fabric surface (mirror of configurator.js) ────────────────────────────
   // Tiled into the atlas rather than repeated: r128 drives every map on a
   // material with the design canvas's UV transform, which must stay at 1×.
+  var FAB = CFG.FABRIC, DARK = CFG.DARK_FABRIC;
   var fabricNormal = null, fabricRough = null, modelUvNative = false;
+  var darkK = 0, sheenTint = [1, 1, 1]; // 0–1: how close to black the garment is; its hue for the sheen
+
+  // The 3D albedo for a garment colour (configurator.js:1100). A #000000 map has
+  // no diffuse term, so near-black renders on a lifted albedo (#141414) and
+  // sheds most of its sheen, specular and reflections. Also sets darkK/sheenTint.
+  function darkFabricFill(hex) {
+    darkK = 0; sheenTint[0] = sheenTint[1] = sheenTint[2] = 1;
+    var m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return hex;
+    var n = parseInt(m[1], 16), rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    var t = Math.min(1, (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 / DARK.luma);
+    var k = 1 - t * t * (3 - 2 * t); // smoothstep: 1 at black, 0 from the threshold up
+    if (k <= 0) return hex;
+    darkK = k;
+    var lifted = rgb.map(function (v) { return v + k * (Math.max(v, DARK.lift) - v); });
+    var top = Math.max(lifted[0], lifted[1], lifted[2]);
+    lifted.forEach(function (v, i) { sheenTint[i] = 1 + k * (v / top - 1); });
+    return 'rgb(' + lifted.map(Math.round).join(',') + ')';
+  }
+  // Sheen, specular and reflections for the current garment colour (configurator.js:1118).
+  function applyFabricTone(mat) {
+    mat.envMapIntensity = CFG.FABRIC_ENV_INTENSITY * (1 - DARK.env * darkK);
+    if ('reflectivity' in mat) mat.reflectivity = 0.5 * (1 - DARK.spec * darkK); // 0.5: three's default
+    var s = FAB.sheen * (1 - DARK.sheen * darkK);
+    if (mat.sheen && mat.sheen.isColor) mat.sheen.setRGB(s * sheenTint[0], s * sheenTint[1], s * sheenTint[2]);
+    else if (typeof mat.sheen === 'number' && mat.sheen > 0) mat.sheen = s;
+  }
+
   function tileToTexture(img) {
-    var cv = mkCanvas(), g = cv.getContext('2d'), n = CFG.FABRIC_TILES, step = TEX / n;
+    var cv = mkCanvas(), g = cv.getContext('2d'), n = FAB.tiles, step = LIVE / n;
+    g.imageSmoothingQuality = 'high'; // a 512² source drawn ~6x smaller: average it, do not skip texels
     for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) g.drawImage(img, x * step, y * step, step, step);
     var t = new THREE.CanvasTexture(cv);
     t.flipY = false; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
@@ -216,8 +474,16 @@ const SCENE_JS = String.raw`
   function applyFabric(mat) {
     if (mat.userData.ownNormalMap || !fabricNormal) return;
     mat.normalMap = fabricNormal;
-    mat.normalScale = new THREE.Vector2(CFG.FABRIC_NORMAL_SCALE, CFG.FABRIC_NORMAL_SCALE);
-    mat.roughnessMap = fabricRough; mat.roughness = 1.0;
+    mat.normalScale = new THREE.Vector2(FAB.normalScale, FAB.normalScale);
+    mat.roughnessMap = fabricRough; mat.roughness = FAB.rough;
+    // Sheen is what separates cloth from plastic. r128 takes a Color (null is
+    // off); later builds take a float plus sheenRoughness. Feed whichever this
+    // build wants — a Standard fallback material has neither.
+    if ('sheen' in mat) {
+      if (mat.sheen === null) mat.sheen = new THREE.Color();
+      else if (!mat.sheen.isColor) { mat.sheen = FAB.sheen; if ('sheenRoughness' in mat) mat.sheenRoughness = FAB.sheenRough; }
+    }
+    applyFabricTone(mat);
     mat.needsUpdate = true;
   }
   Promise.all([loadImg(CFG.FABRIC_NORMAL_URL), loadImg(CFG.FABRIC_ROUGH_URL)]).then(function (imgs) {
@@ -227,29 +493,33 @@ const SCENE_JS = String.raw`
 
   function drawPlain() {
     var g = cv.plain.getContext('2d');
-    g.clearRect(0, 0, TEX, TEX); g.fillStyle = design.shirtColor; g.fillRect(0, 0, TEX, TEX);
+    g.setTransform(PXK, 0, 0, PXK, 0, 0); // draw in design units, store at LIVE pixels
+    g.clearRect(0, 0, TEX, TEX); g.fillStyle = darkFabricFill(design.shirtColor); g.fillRect(0, 0, TEX, TEX);
     tex.plain.needsUpdate = true;
+    materials.forEach(applyFabricTone);
   }
 
   ${DRAW_ELEMENT_JS}
   function drawView(view) {
     var g = cv[view].getContext('2d');
-    g.clearRect(0, 0, TEX, TEX);
-    g.drawImage(cv.plain, 0, 0, TEX, TEX);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, LIVE, LIVE);
+    g.drawImage(cv.plain, 0, 0, LIVE, LIVE);
+    g.setTransform(PXK, 0, 0, PXK, 0, 0); // the elements are laid out in design units
     var rect = PRINT[view] || CFG.LEGACY_PRINT_AREA;
     (design[view] || []).forEach(function (el) { drawElement(g, el, rect); });
     tex[view].needsUpdate = true;
   }
 
+  function bake() {
+    drawPlain(); drawView('front'); drawView('back');
+    materials.forEach(function (m) { m.needsUpdate = true; });
+  }
   var redrawQueued = false;
   function redraw() {
     if (redrawQueued) return;
     redrawQueued = true;
-    requestAnimationFrame(function () {
-      redrawQueued = false;
-      drawPlain(); drawView('front'); drawView('back');
-      materials.forEach(function (m) { m.needsUpdate = true; });
-    });
+    requestAnimationFrame(function () { redrawQueued = false; bake(); });
   }
 
   function ensureImage(src) {
@@ -478,7 +748,19 @@ const SCENE_JS = String.raw`
   // ── Load ──────────────────────────────────────────────────────────────────
   var loader = new THREE.GLTFLoader();
   if (typeof MeshoptDecoder !== 'undefined') loader.setMeshoptDecoder(MeshoptDecoder);
+  var tLoad = performance.now();
   loader.load(CFG.glbUrl, function (gltf) {
+    try { onModel(gltf); } catch (e) { fail('model setup: ' + msg(e)); }
+  }, function (xhr) {
+    if (xhr.total) post({ type: 'progress', pct: Math.round((xhr.loaded / xhr.total) * 100) });
+  }, function (err) {
+    // r128's FileLoader hands over the XHR progress event: its target carries the HTTP status
+    // (0 for a connection that failed). A parse error arrives as an Error with a message.
+    var st = err && err.target && err.target.status;
+    fail(st ? 'GLB HTTP ' + st : 'GLB failed to load: ' + (err && err.message ? err.message : 'network error'));
+  });
+
+  function onModel(gltf) {
     var object = gltf.scene;
     normalizeModelUVsGlobally(object);
     object.traverse(function (ch) {
@@ -489,7 +771,9 @@ const SCENE_JS = String.raw`
       var isBack = nodeHasAnyNameInHierarchy(ch, ['body_back']);
       var isFront = nodeHasAnyNameInHierarchy(ch, ['body_front']) || (mName.indexOf('body') !== -1 && !isBack && !isSleeve && !isRib);
       var map = isFront ? tex.front : isBack ? tex.back : tex.plain;
-      var mat = new THREE.MeshStandardMaterial({ map: map, side: THREE.FrontSide, roughness: 0.7, metalness: 0, envMapIntensity: CFG.FABRIC_ENV_INTENSITY });
+      // Physical, not Standard: cotton needs sheen (see applyFabric).
+      var Fabric = THREE.MeshPhysicalMaterial || THREE.MeshStandardMaterial;
+      var mat = new Fabric({ map: map, side: THREE.FrontSide, roughness: 0.75, metalness: 0, envMapIntensity: CFG.FABRIC_ENV_INTENSITY });
       // Surface detail: an authored normal map on native UVs wins, else the tiled cotton.
       var orig = Array.isArray(ch.material) ? ch.material[0] : ch.material;
       if (modelUvNative && orig && orig.normalMap) {
@@ -500,6 +784,7 @@ const SCENE_JS = String.raw`
       } else {
         applyFabric(mat);
       }
+      applyFabricTone(mat); // also before the fabric maps arrive, and for authored maps
       ch.material = mat; materials.push(mat);
       if (isFront) frontMeshes.push(ch); else if (isBack) backMeshes.push(ch);
     });
@@ -511,13 +796,29 @@ const SCENE_JS = String.raw`
     PRINT.front = measurePrintRect(frontMeshes);
     PRINT.back = measurePrintRect(backMeshes);
     fitCamera(object);
-    redraw();
+    fitStudioToObject(object);
+    // First frame, drawn here and now so that "ready" means a frame is on the canvas, and
+    // so a program that did not compile shows up before the shopper sees a black garment.
+    bake(); updateStudioRig(); renderer.render(scene, camera);
+    var bad = badProgram();
+    if (bad) return fail('shader ' + bad.name + ': ' + String(bad.diagnostics.programLog || 'program did not link').slice(0, 160), 'unavailable');
+    diag({ canvas: [canvas.width, canvas.height], tGlb: Math.round(performance.now() - tLoad), tFirst: Math.round(performance.now()) });
     post({ type: 'ready', printable: frontMeshes.length > 0, front: !!PRINT.front, back: !!PRINT.back });
-  }, function (xhr) {
-    if (xhr.total) post({ type: 'progress', pct: Math.round((xhr.loaded / xhr.total) * 100) });
-  }, function (err) {
-    fail('GLB failed to load: ' + (err && err.message ? err.message : String(err)));
-  });
+    setTimeout(loadFonts, 0); // only now: the fonts must not compete with the model
+  }
+
+  // Web fonts for the text baked into the textures. Added after the first frame; the
+  // textures are redrawn once the three faces are in (text before that uses the fallback).
+  function loadFonts() {
+    var l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = CFG.FONTS_CSS;
+    l.onload = function () {
+      if (!document.fonts || !document.fonts.load) return;
+      Promise.all(['700 12px "Inter Tight"', '700 12px "Inter"', '700 12px "IBM Plex Mono"'].map(function (f) { return document.fonts.load(f, 'LOOM'); }))
+        .then(redraw, function () {});
+    };
+    document.head.appendChild(l);
+  }
 
   // ── Public API for the host ───────────────────────────────────────────────
   window.__loom = {
@@ -528,6 +829,9 @@ const SCENE_JS = String.raw`
     },
     setView: setView,
     resetView: function () { setView(CFG.view); },
+    // The host hides this layer behind the 2D view: no frames while nobody can see them.
+    pause: pause,
+    resume: resume,
     // Introspection for the web preview / QA — never used by the app itself.
     debug: function () {
       return {
@@ -545,6 +849,7 @@ const SCENE_JS = String.raw`
       var saved = camera.position.clone(), aspect = camera.aspect;
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
       if (zoom && zoom > 1) camera.position.lerpVectors(controls.target, saved, 1 / zoom);
+      updateStudioRig();
       renderer.render(scene, camera);
       var url = renderer.domElement.toDataURL('image/png');
       camera.position.copy(saved); camera.aspect = aspect; camera.updateProjectionMatrix();
@@ -558,15 +863,17 @@ const SCENE_JS = String.raw`
     if (!m || !m.type) return;
     if (m.type === 'update') window.__loom.update(m.design);
     if (m.type === 'view') setView(m.view);
+    if (m.type === 'pause') pause();
+    if (m.type === 'resume') resume();
   });
   window.addEventListener('resize', function () {
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight, false);
   });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { redraw(); });
 
-  (function loop() {
-    requestAnimationFrame(loop);
+  var raf = 0;
+  function loop() {
+    raf = requestAnimationFrame(loop);
     if (camAnim) {
       var t = Math.min(1, (performance.now() - camAnim.start) / camAnim.ms);
       var k = 1 - Math.pow(1 - t, 3);
@@ -575,7 +882,11 @@ const SCENE_JS = String.raw`
       if (t >= 1) camAnim = null;
     }
     controls.update();
+    updateStudioRig();
     renderer.render(scene, camera);
-  })();
+  }
+  function pause() { if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+  function resume() { if (!raf) loop(); }
+  loop();
 })();
 `

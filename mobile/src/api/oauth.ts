@@ -10,12 +10,15 @@ import { tStatic } from '../i18n'
 // system browser, then hands the resulting code to the Worker, which does the
 // token exchange (see backend/src/routes/oauth.ts).
 
-export type ProviderId = 'google' | 'facebook' | 'discord'
+// `apple` is listed by the Worker once Sign in with Apple exists (PRD-211);
+// the button is iOS-only. The native flow itself is not part of this file yet.
+export type ProviderId = 'google' | 'facebook' | 'discord' | 'apple'
 
 export const PROVIDER_LABEL: Record<ProviderId, string> = {
   google: 'Google',
   facebook: 'Facebook',
   discord: 'Discord',
+  apple: 'Apple',
 }
 
 type Endpoints = {
@@ -27,7 +30,7 @@ type Endpoints = {
   usePKCE: boolean
 }
 
-const ENDPOINTS: Record<ProviderId, Endpoints> = {
+const ENDPOINTS: Record<Exclude<ProviderId, 'apple'>, Endpoints> = {
   google: {
     authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenEndpoint: 'https://oauth2.googleapis.com/token',
@@ -102,6 +105,7 @@ export async function signInWithProvider(
   provider: ProviderId,
   clientId: string,
 ): Promise<{ token: string; user: Me }> {
+  if (provider === 'apple') throw new Error(tStatic('login.errProvider'))
   const cfg = ENDPOINTS[provider]
   const uri = redirectUri(provider, clientId)
 

@@ -1,31 +1,49 @@
-import React, { useEffect, useRef } from 'react'
-import { Animated, Easing, Image, ScrollView, StyleSheet, View } from 'react-native'
+import React, { useEffect } from 'react'
+import { Image, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-import { C, RULE, fmt, offset } from '../../src/theme/tokens'
-import { body, disp, kicker, mono, monoSemi } from '../../src/theme/type'
+import { C, RULE, offset } from '../../src/theme/tokens'
+import { body, disp, kicker, mono } from '../../src/theme/type'
 import { AppBar } from '../../src/components/AppBar'
 import { ArrowUpRight } from '../../src/components/icons'
-import { Button, Panel, SectionHead, T, Tap } from '../../src/components/ui'
+import {
+  ArtworkCard,
+  Button,
+  EmptyState,
+  OfflineState,
+  Skeleton,
+  T,
+  Tap,
+  isOffline,
+} from '../../src/components/ui'
+import { LabHero } from '../../src/components/shop/LabHero'
+import { Marquee } from '../../src/components/shop/Marquee'
+import { ProductCard, ProductGrid, cellStyle } from '../../src/components/shop/ProductCard'
+import { SectionHeading } from '../../src/components/shop/SectionHeading'
 import {
   GARMENT_FLAT,
   fetchArtworks,
   fetchProducts,
-  productImage,
   useAsync,
   useRefreshOnFocus,
 } from '../../src/api/catalog'
-import { colorName, productName, useI18n } from '../../src/i18n'
+import { colorName, useI18n } from '../../src/i18n'
+import { useLabEnabled } from '../../src/lib/flags'
 import { useStudio } from '../../src/state/studio'
 import { ONBOARD_KEY } from '../onboarding'
 
+// W09. Blocks, top to bottom: the Lab hero (only while the Lab flag is on),
+// the studio resume card, "Start with" (the catalog), the marquee, designers'
+// artwork, the designer pitch. With the flag off there is no Lab element.
+
 export default function Home() {
   const router = useRouter()
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const { s, layerCount } = useStudio()
-  const { data: products } = useAsync(fetchProducts, [])
-  const { data: artworks, reload: reloadArtworks } = useAsync(fetchArtworks, [])
+  const lab = useLabEnabled()
+  const { data: products, loading, error, reload } = useAsync(fetchProducts, [])
+  const { data: artworks, loading: artLoading, error: artError, reload: reloadArtworks } = useAsync(fetchArtworks, [])
   useRefreshOnFocus(reloadArtworks)
 
   // First launch goes through onboarding once, then never again.
@@ -37,7 +55,8 @@ export default function Home() {
       .catch(() => {})
   }, [router])
 
-  const custom = (products ?? []).filter((p) => p.product_type !== 'ready').slice(0, 4)
+  const all = products ?? []
+  const start = all.filter((p) => p.product_type !== 'ready').slice(0, 4)
   const layers = layerCount
     ? t(layerCount === 1 ? 'home.layer1' : 'home.layerN', { n: layerCount })
     : t('home.blank')
@@ -46,97 +65,114 @@ export default function Home() {
   return (
     <View style={{ flex: 1 }}>
       <AppBar title="LOOM" />
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
-          <T style={kicker()}>{t('home.kicker')}</T>
-          <T style={[disp(38, 0.96, { ls: -0.035 }), { marginTop: 12 }]}>
-            {t('home.hero1')} <T style={{ color: C.coral }}>/</T>
-            {'\n'}{t('home.hero2')}{'\n'}{t('home.hero3')}
-          </T>
-        </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+        {lab ? <LabHero /> : null}
 
-        {/* Resume card — the studio is the app's centre of gravity. */}
-        <View style={{ paddingHorizontal: 18, paddingBottom: 22 }}>
-          <Tap onPress={() => router.push('/studio')}>
-            <Panel raised style={styles.resume}>
-              <View style={styles.resumeThumb}>
-                <Image source={GARMENT_FLAT} style={styles.resumeImg} resizeMode="contain" />
-              </View>
-              <View style={styles.resumeBody}>
-                <T style={monoSemi(9.5, 1, { ls: 0.2, upper: true, color: C.coral })}>{t('home.resume')}</T>
-                <T style={disp(17, 1.1, { ls: -0.02 })} numberOfLines={1}>
-                  {s.productName || t('st.defaultProduct')}
-                </T>
-                <T style={mono(11, 1.4, { color: C.i55 })} numberOfLines={1}>
-                  {resumeMeta}
-                </T>
-              </View>
-              <View style={styles.resumeArrow}>
-                <ArrowUpRight />
-              </View>
-            </Panel>
+        <View style={styles.block}>
+          {/* Resume card — the studio is the app's centre of gravity. */}
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel={`${t('home.resume')}: ${s.productName || t('st.defaultProduct')}`}
+            onPress={() => router.push('/studio')}
+            style={[styles.resume, offset(2)]}
+          >
+            <View style={styles.resumeThumb}>
+              <Image source={GARMENT_FLAT} style={{ width: 56, height: 56 }} resizeMode="contain" />
+            </View>
+            <View style={styles.resumeBody}>
+              <T style={mono(12, 16 / 12, { ls: 0.14, upper: true, color: C.deep })}>{t('home.resume')}</T>
+              <T style={disp(16, 1.15, { ls: -0.02 })} numberOfLines={1}>
+                {s.productName || t('st.defaultProduct')}
+              </T>
+              <T style={mono(12, 16 / 12, { color: C.i70 })} numberOfLines={1}>
+                {resumeMeta}
+              </T>
+            </View>
+            <View style={styles.resumeArrow}>
+              <ArrowUpRight color={C.ink} />
+            </View>
           </Tap>
+
+          <View style={{ gap: 12 }}>
+            <SectionHeading title={t('home.startWith')} action={t('home.catalogLink')} onAction={() => router.push('/catalog')} />
+            {error && !products ? (
+              isOffline(error) ? (
+                <OfflineState onRetry={reload} />
+              ) : (
+                <EmptyState title={t('catalog.loadFailed')} action={t('common.retry')} onAction={reload} />
+              )
+            ) : loading && !products ? (
+              <ProductGrid muted>
+                {[0, 1].map((i) => (
+                  <View key={i} style={cellStyle(true)}>
+                    <Skeleton height={150} lines={['60%', '85%', '50%']} />
+                  </View>
+                ))}
+              </ProductGrid>
+            ) : (
+              <ProductGrid>
+                {start.map((p) => (
+                  <ProductCard key={p.id} product={p} index={all.indexOf(p) + 1} onPress={() => router.push(`/product?id=${p.id}`)} />
+                ))}
+              </ProductGrid>
+            )}
+          </View>
         </View>
 
-        <View style={{ paddingBottom: 24 }}>
-          <SectionHead title={t('home.startWith')} action={t('home.catalogLink')} onAction={() => router.push('/catalog')} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-            {custom.map((p) => (
-              <Tap key={p.id} style={styles.railCard} onPress={() => router.push(`/studio?productId=${p.id}`)}>
-                <View style={styles.railImgWrap}>
-                  <Image source={productImage(p)} style={styles.fill} resizeMode="cover" />
-                </View>
-                <View style={{ paddingHorizontal: 9, paddingVertical: 8 }}>
-                  <T style={disp(13, 1.15)} numberOfLines={1}>
-                    {productName(p, lang)}
-                  </T>
-                  <T style={[mono(10, 1.2, { color: C.i55 }), { marginTop: 2 }]}>{fmt(p.price)}</T>
-                </View>
-              </Tap>
-            ))}
-            {custom.length === 0
-              ? [0, 1, 2].map((i) => <View key={i} style={[styles.railCard, styles.railSkeleton]} />)
-              : null}
-          </ScrollView>
+        <View style={{ marginTop: 24 }}>
+          <Marquee
+            items={[
+              { text: t('home.marqueeA'), tail: 'LOOM © 2026' },
+              { text: t('home.marqueeB'), tail: 'Tashkent, UZ' },
+            ]}
+          />
         </View>
 
-        <Marquee a={t('home.marqueeA')} b={t('home.marqueeB')} />
-
-        <View style={{ paddingTop: 24 }}>
-          <SectionHead title={t('home.fromDesigners')} action={t('home.all')} onAction={() => router.push('/market')} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-            {(artworks ?? []).slice(0, 6).map((a) => (
-              <Tap key={a.id} style={styles.artCard} onPress={() => router.push('/market')}>
-                <Image source={{ uri: a.image_url }} style={styles.artSwatch} resizeMode="cover" />
-                <View style={{ paddingHorizontal: 10, paddingVertical: 9 }}>
-                  <T style={disp(13.5, 1.15)} numberOfLines={1}>
-                    {a.title}
-                  </T>
-                  <T style={[mono(10, 1.3, { color: C.i55 }), { marginTop: 3 }]} numberOfLines={1}>
-                    {`${a.author}${a.markup > 0 ? ` · +${fmt(a.markup)}` : ''}`}
-                  </T>
-                </View>
-              </Tap>
-            ))}
-            {(artworks ?? []).length === 0 ? (
-              <View style={styles.artEmpty}>
-                <T style={mono(9.5, 1.5, { ls: 0.14, upper: true, color: C.i38 })}>{t('home.noArtworks')}</T>
+        {/* A failed artwork request hides the rail rather than claim there is none. */}
+        {artError && !artworks ? null : (
+          <View style={[styles.block, { paddingTop: 24 }]}>
+            <SectionHeading title={t('home.fromDesigners')} action={t('home.all')} onAction={() => router.push('/market')} />
+            {artLoading && !artworks ? (
+              <View style={styles.rail}>
+                {[0, 1].map((i) => (
+                  <Skeleton key={i} height={150} lines={['70%', '50%']} style={{ width: 150 }} />
+                ))}
               </View>
-            ) : null}
-          </ScrollView>
-        </View>
+            ) : (artworks ?? []).length === 0 ? (
+              <View style={styles.none}>
+                <T style={body(14, 21 / 14, { color: C.i70 })}>{t('home.noArtworks')}</T>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.railScroll}
+                contentContainerStyle={styles.rail}
+              >
+                {(artworks ?? []).slice(0, 6).map((a) => (
+                  <ArtworkCard
+                    key={a.id}
+                    artwork={a}
+                    style={{ width: 150 }}
+                    onPress={() => router.push('/market')}
+                    onAuthor={() => router.push(`/designer?handle=${encodeURIComponent(a.author.replace(/^@/, ''))}`)}
+                  />
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        )}
 
-        {/* Designer pitch — reversed out on ink, the design's one dark block. */}
-        <View style={styles.pitch}>
-          <T style={disp(29, 0.98, { ls: -0.035, color: C.paper })}>{t('home.pitchTitle')}</T>
-          <T style={[body(13.5, 1.6, { color: C.onInk55 }), { marginTop: 12, marginBottom: 20 }]}>{t('home.pitchBody')}</T>
+        {/* Designer pitch. */}
+        <View style={[styles.pitch, offset(6, C.coral)]}>
+          <T style={kicker()}>{t('home.pitchKicker')}</T>
+          <T style={disp(26, 1.02, { ls: -0.03 })}>{t('home.pitchTitle')}</T>
+          <T style={body(14, 21 / 14, { color: C.i70 })}>{t('home.pitchBody')}</T>
           <Button
             title={t('home.pitchCta')}
-            variant="ghostInk"
-            size={12.5}
-            vPad={15}
-            style={{ alignSelf: 'flex-start', paddingHorizontal: 26 }}
-            onPress={() => router.push('/market')}
+            variant="ink"
+            style={{ alignSelf: 'flex-start', paddingHorizontal: 18, marginTop: 4 }}
+            onPress={() => router.push('/publish')}
           />
         </View>
       </ScrollView>
@@ -144,58 +180,28 @@ export default function Home() {
   )
 }
 
-/** The looping wordmark strip. Two identical halves, translated by half width. */
-function Marquee({ a, b }: { a: string; b: string }) {
-  const x = useRef(new Animated.Value(0)).current
-  const HALF = 980
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(x, { toValue: -HALF, duration: 24000, easing: Easing.linear, useNativeDriver: true }),
-    )
-    loop.start()
-    return () => loop.stop()
-  }, [x])
-
-  const unit = (key: string, phrase: string, tail: string) => (
-    <View key={key} style={styles.marqueeUnit}>
-      <T style={disp(19, 1, { ls: -0.02 })}>{phrase}</T>
-      <T style={disp(19, 1, { color: C.coral })}>/</T>
-      <T style={mono(10.5, 1, { ls: 0.22, upper: true, color: C.i38 })}>{tail}</T>
-    </View>
-  )
-
-  return (
-    <View style={styles.marquee}>
-      <Animated.View style={[styles.marqueeTrack, { transform: [{ translateX: x }] }]}>
-        {['a', 'b'].map((half) => (
-          <View key={half} style={{ flexDirection: 'row', width: HALF }}>
-            {unit(`${half}1`, a, 'LOOM © 2026')}
-            {unit(`${half}2`, b, 'Tashkent, UZ')}
-          </View>
-        ))}
-      </Animated.View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
-  hero: { paddingHorizontal: 18, paddingTop: 22, paddingBottom: 20 },
-  fill: { width: '100%', height: '100%' },
+  block: { paddingHorizontal: 16, paddingTop: 16, gap: 24 },
 
-  resume: { flexDirection: 'row', alignItems: 'stretch' },
+  resume: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    minHeight: 72,
+    borderWidth: RULE,
+    borderColor: C.ink,
+    backgroundColor: C.white,
+  },
   resumeThumb: {
-    width: 96,
+    width: 72,
     borderRightWidth: RULE,
     borderRightColor: C.ink,
+    backgroundColor: C.paper2,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
   },
-  resumeImg: { width: '100%', height: 68 },
-  resumeBody: { flex: 1, minWidth: 0, paddingHorizontal: 14, paddingVertical: 13, gap: 5 },
+  resumeBody: { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 9, justifyContent: 'center', gap: 3 },
   resumeArrow: {
-    width: 42,
+    width: 48,
     borderLeftWidth: RULE,
     borderLeftColor: C.ink,
     backgroundColor: C.coral,
@@ -203,33 +209,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  rail: { paddingHorizontal: 18, paddingBottom: 4, gap: 11 },
-  railCard: { width: 124, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white },
-  railSkeleton: { height: 200, backgroundColor: 'rgba(19,19,17,.04)' },
-  railImgWrap: { aspectRatio: 4 / 5, overflow: 'hidden', borderBottomWidth: RULE, borderBottomColor: C.ink },
+  railScroll: { marginHorizontal: -16 },
+  rail: { flexDirection: 'row', gap: 14, paddingHorizontal: 16, paddingBottom: 4 },
+  none: { padding: 16, borderWidth: RULE, borderStyle: 'dashed', borderColor: 'rgba(19,19,17,.4)', backgroundColor: C.white },
 
-  artCard: { width: 150, borderWidth: RULE, borderColor: C.ink, backgroundColor: C.white },
-  artSwatch: { width: '100%', aspectRatio: 1, borderBottomWidth: RULE, borderBottomColor: C.ink },
-  artEmpty: {
-    width: 240,
-    paddingVertical: 26,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: C.line,
-    justifyContent: 'center',
-  },
-
-  marquee: {
-    overflow: 'hidden',
-    borderTopWidth: RULE,
-    borderBottomWidth: RULE,
+  pitch: {
+    gap: 10,
+    marginTop: 28,
+    marginLeft: 16,
+    marginRight: 22,
+    padding: 16,
+    borderWidth: RULE,
     borderColor: C.ink,
-    paddingVertical: 11,
-    backgroundColor: C.paper,
+    backgroundColor: C.white,
   },
-  marqueeTrack: { flexDirection: 'row' },
-  marqueeUnit: { flexDirection: 'row', alignItems: 'baseline', gap: 36, paddingRight: 36 },
-
-  pitch: { marginTop: 26, backgroundColor: C.ink, paddingHorizontal: 18, paddingTop: 32, paddingBottom: 34 },
 })

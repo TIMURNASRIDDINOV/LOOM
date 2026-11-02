@@ -61,6 +61,27 @@ export type Bindings = {
   // Google models are refused by the budget guard and disabled in the admin UI.
   // Set via: wrangler secret put GEMINI_API_KEY
   GEMINI_API_KEY?: string
+  // Instagram publishing (PRD-213), Worker secrets only. The admin API reports
+  // whether both are set, never their values; LOOM-271 is the only reader.
+  IG_ACCESS_TOKEN?: string
+  IG_USER_ID?: string
+  // Instagram ads (PRD-213 Phase 3, LOOM-276), Worker secrets only. The ad
+  // account id (with or without act_), a token with ads_management + ads_read
+  // on it, and the Facebook Page linked to the Instagram account.
+  META_AD_ACCOUNT_ID?: string
+  META_ADS_ACCESS_TOKEN?: string
+  META_PAGE_ID?: string
+  // GA4 Data API readout for the admin Overview (lib/ga4.ts). Optional: when
+  // unset, GET /api/admin/analytics/ga4 answers { configured: false }.
+  //   wrangler secret put GA4_PROPERTY_ID           (numeric property id)
+  //   wrangler secret put GA4_SA_KEY < key.json     (service-account JSON key)
+  GA4_PROPERTY_ID?: string
+  GA4_SA_KEY?: string
+  // Clarity Data Export token for the daily snapshot cron (lib/clarity.ts).
+  // Optional: when unset, the cron does nothing and
+  // GET /api/admin/analytics/clarity answers { configured: false }.
+  //   wrangler secret put CLARITY_API_TOKEN   (Clarity, Settings, Data Export)
+  CLARITY_API_TOKEN?: string
 }
 
 // Used by user-auth middleware and routes
