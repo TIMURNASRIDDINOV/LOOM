@@ -1,7 +1,7 @@
 # LOOM-160 local QA
 
 Requires the LOOM-159 / LOOM-158 checkout implementation and its additive
-`0023_atomic_checkout.sql` migration. This change adds no migration.
+`0029_atomic_checkout.sql` migration. This change adds no migration.
 
 Run `node backend/scripts/funnel-test.mjs` from the repository root. It bundles
 the real Worker, applies the migrations to an ephemeral local D1 database, seeds
