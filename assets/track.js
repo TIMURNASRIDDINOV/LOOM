@@ -31,7 +31,26 @@
     return 'other'
   }
 
+  // Inside the Telegram Mini App, same detection as tma.js: Telegram opens the
+  // page with #tgWebAppData=…, and its SDK keeps the params in sessionStorage
+  // for later pages. loom_tg is our own copy, so a second page still counts
+  // when the SDK never loaded. If none is present, the UA value below is sent.
+  function inTelegram() {
+    try {
+      if (/tgWebAppData/.test(window.location.hash)) {
+        sessionStorage.setItem('loom_tg', '1')
+        return true
+      }
+      return !!(sessionStorage.getItem('loom_tg') || sessionStorage.getItem('__telegram__initParams'))
+    } catch (_) {
+      return /tgWebAppData/.test(window.location.hash)
+    }
+  }
+  // Read at load, before any script can rewrite the URL hash.
+  const TELEGRAM = inTelegram()
+
   function detectBrowser() {
+    if (TELEGRAM) return 'telegram'
     const ua = navigator.userAgent
     if (/SamsungBrowser/i.test(ua)) return 'samsung'
     if (/Edge|Edg\//i.test(ua))    return 'edge'
