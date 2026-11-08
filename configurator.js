@@ -1692,6 +1692,10 @@ function refreshPriceLabels() {
   document
     .querySelectorAll(".summary-price .summary-val, .summary-price .summary-value, .configurator-price")
     .forEach((el) => { el.textContent = numFmt + " " + CT("cfg.currency", "сум"); });
+  // The phone shell's CTAs (LOOM-292); none exist while LOOM_FLAGS.cfgPhone is off.
+  document.querySelectorAll(".cta-price").forEach((el) => {
+    el.textContent = numFmt + " " + CT("cfg.currency", "сум");
+  });
 }
 
 /** The product's name in the visitor's language (0020 added name_uz). */
@@ -3624,6 +3628,7 @@ function initUI() {
   bindSheet();
   bindKeyboardLayout();
   bindStepNext();
+  bindPhoneFlow();
   bindLab();
   bindMoreMenu();
   bindFullscreen();
@@ -4736,6 +4741,7 @@ function _isSheetLayout() {
 function setStep(step) {
   if (SHEET_STEPS.indexOf(step) < 0) step = "design";
   if (_blankOnly && step === "design") step = "color";
+  if (_blankOnly && _p3()) step = "color"; // PRD-214 A-1: a blank product ends at step 1
   if (step === "order" && !sizeChosen()) return;
   if (step !== currentStep) setCamAccOpen(false); // collapsed on step entry
   currentStep = step;
@@ -4769,6 +4775,7 @@ function setStep(step) {
 
   markStepsDone();
   updateStepNext();
+  p3Sync();
   animateStepIn();
   snapSheetToStep();
 }
@@ -4796,6 +4803,14 @@ const NEXT_STEP = { design: "color", color: "order" };
 function updateStepNext() {
   const label = document.getElementById("step-next-label");
   if (!label) return;
+  if (_p3()) {
+    // No "next: design" string exists yet (LOOM-293 adds one): the button
+    // names the step it opens, next to its arrow.
+    const k = P3_NAME[P3_NEXT[currentStep]] || P3_NAME.order;
+    label.setAttribute("data-i18n", k[0]);
+    label.textContent = CT(k[0], k[1]);
+    return;
+  }
   // The long label wraps to two lines in a narrow panel (a 375px phone sheet,
   // the 300-400px desktop panel), so the panel's width picks the short one.
   const narrow = (document.getElementById("studio-sheet")?.clientWidth || window.innerWidth) <= 560;
@@ -4844,9 +4859,83 @@ function bindLab() {
 function bindStepNext() {
   const btn = document.getElementById("btn-step-next");
   if (!btn) return;
-  btn.addEventListener("click", () => setStep(NEXT_STEP[currentStep] || "order"));
+  btn.addEventListener("click", () => {
+    if (!_p3()) { setStep(NEXT_STEP[currentStep] || "order"); return; }
+    // Kiyim holds the size, and Joylash needs one: ask for it here.
+    if (currentStep === "color" && !sizeChosen()) return;
+    setStep(P3_NEXT[currentStep] || "order");
+  });
   window.addEventListener("resize", updateStepNext);
   updateStepNext();
+}
+
+// ── LOOM-292: three-step phone shell (LOOM_FLAGS.cfgPhone) ─────
+// Kiyim → Dizayn → Joylash (PRD-214 D-7) over today's panels: Kiyim is the
+// colour + size tab, Dizayn the design dock, Joylash the order summary.
+// html.cfg-phone3 is set only while the flag is on and every branch also
+// needs the phone breakpoint (A-7), so desktop and the flag-off page run
+// today's code. The step contents are LOOM-293..295.
+const P3_STEPS = ["color", "design", "order"];
+const P3_NEXT = { color: "design", design: "order" };
+const P3_NAME = {
+  color: ["cfg.stepGarment", "Одежда"],
+  design: ["cfg.stepDesign", "Дизайн"],
+  order: ["cfg.stepPlace", "Размещение"],
+};
+// The hint chip reuses each panel's existing one-line guidance.
+const P3_HINT = {
+  color: ["cfg.step2Lead", "Выберите размер, затем нажмите на квадрат, чтобы сменить цвет ткани."],
+  design: ["cfg.flatHint", "Тяните дизайн — двигать · углы — размер · кружок — поворот"],
+  order: ["cfg.step3Lead", "Всё верно? Нажмите большую кнопку внизу — мы сошьём и привезём."],
+};
+
+function phoneFlowEnabled() {
+  try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgPhone); } catch (e) { return false; }
+}
+function _p3() { return phoneFlowEnabled() && _isSheetLayout(); }
+
+/** Header progress, its label and the hint chip follow currentStep. */
+function p3Sync() {
+  if (!_p3()) return;
+  const i = P3_STEPS.indexOf(currentStep);
+  document.querySelectorAll(".p3-seg").forEach((b) => {
+    const j = P3_STEPS.indexOf(b.dataset.step);
+    b.dataset.st = j < i ? "done" : j === i ? "now" : "todo";
+    b.setAttribute("aria-disabled", String(j > i));
+    if (j === i) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+  });
+  const count = document.getElementById("p3-count");
+  if (count) count.textContent = (i + 1) + "/3";
+  [["p3-name", P3_NAME], ["p3-hint", P3_HINT]].forEach(([id, map]) => {
+    const el = document.getElementById(id);
+    const k = map[currentStep];
+    if (!el || !k) return;
+    el.setAttribute("data-i18n", k[0]); // i18n.apply re-translates it
+    el.textContent = CT(k[0], k[1]);
+  });
+}
+
+function bindPhoneFlow() {
+  if (!phoneFlowEnabled()) return;
+  document.documentElement.classList.add("cfg-phone3");
+  // Completed segments go back; the current and later ones do nothing.
+  document.querySelectorAll(".p3-seg").forEach((b) => {
+    b.addEventListener("click", () => {
+      if (!_p3()) return;
+      if (P3_STEPS.indexOf(b.dataset.step) < P3_STEPS.indexOf(currentStep)) setStep(b.dataset.step);
+    });
+  });
+  // The CTA carries the server price shown on the page (refreshPriceLabels).
+  ["btn-step-next", "btn-add-to-cart"].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (!btn || btn.querySelector(".cta-price")) return;
+    const span = document.createElement("span");
+    span.className = "cta-price";
+    btn.appendChild(span);
+  });
+  refreshPriceLabels();
+  window.addEventListener("loom:langchange", refreshPriceLabels); // the currency word
+  if (_p3()) setStep("color");
 }
 
 /** A new step starts with the sheet compact. */
