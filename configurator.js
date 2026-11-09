@@ -5020,6 +5020,11 @@ function p3SyncGarments() {
   if (!_p3Garments) return;
   const slug = currentProduct && currentProduct.slug;
   _syncRadios("p3-gcards", ".p3-gc", "active", (b) => b.dataset.slug === slug);
+  // Bring the active card into the row's view (row scroll only, never the page).
+  const a = _p3Garments.querySelector(".p3-gc.active");
+  if (!a) return;
+  const r = _p3Garments.getBoundingClientRect(), c = a.getBoundingClientRect();
+  if (c.left < r.left || c.right > r.right) _p3Garments.scrollLeft += c.left - r.left - (r.width - c.width) / 2;
 }
 
 /** Take the 3D garment off the stage; the next 3D open loads _pendingGlbUrl. */
