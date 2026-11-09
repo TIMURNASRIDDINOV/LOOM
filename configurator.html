@@ -47,13 +47,13 @@
     <script defer src="assets/layout.js?v=7"></script>
     <script defer src="assets/i18n.js?v=49"></script>
     <script defer src="assets/auth.js?v=5"></script>
-    <script defer src="assets/tma.js?v=3"></script>
+    <script defer src="assets/tma.js?v=4"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=3"></script>
     <script defer src="assets/cart.js?v=7"></script>
-    <script defer src="configurator.js?v=95"></script>
+    <script defer src="configurator.js?v=96"></script>
 
     <style>
       /* ============================================================
@@ -2323,6 +2323,19 @@
       }
       @media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
         html.cfg-phone3 .studio-sheet .choice-tile.need-design { animation: needSize 0.36s ease 2; }
+      }
+      /* LOOM-297: the phone shell inside Telegram. configurator.js sets
+         html.tma-cfg only there, with the flag on, on a phone. Telegram's
+         Back/Main/Secondary buttons replace the site header and the bar;
+         the header's height becomes the top inset. html.tma-buy keeps Buy
+         now in the page on clients older than Bot API 7.10. */
+      @media (max-width: 900px) {
+        html.tma-cfg .nav, html.tma-cfg .mobile-menu { display: none; }
+        html.tma-cfg .studio { --nav-h: var(--tma-top, env(safe-area-inset-top, 0px)); }
+        html.tma-cfg body:not(.kb-open) .studio-sheet { padding-bottom: var(--tma-bottom, env(safe-area-inset-bottom, 0px)); }
+        html.tma-cfg:not(.tma-buy) .studio-sheet .panel-foot { display: none; }
+        html.tma-cfg body .studio-sheet .panel-foot > :not(#btn-place-order) { display: none; }
+        html.tma-cfg .studio-sheet .panel-foot { padding-bottom: 0.5rem; }
       }
     </style>
   </head>
