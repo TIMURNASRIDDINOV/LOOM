@@ -1697,6 +1697,7 @@ function refreshPriceLabels() {
   document.querySelectorAll(".cta-price").forEach((el) => {
     el.textContent = numFmt + " " + CT("cfg.currency", "сум");
   });
+  tmaSync(); // LOOM-297: the price on Telegram's MainButton
 }
 
 /** The product's name in the visitor's language (0020 added name_uz). */
@@ -4926,6 +4927,7 @@ function p3Sync() {
     el.textContent = CT(k[0], k[1]);
   });
   p3SyncPlace();
+  tmaSync();
 }
 
 /** LOOM-294: outline the step 2 tiles (the need-size look); replays on every refused tap. */
@@ -4964,6 +4966,108 @@ function bindPhoneFlow() {
   window.addEventListener("loom:langchange", refreshPriceLabels); // the currency word
   p3BuildPlace();
   if (_p3()) setStep("color");
+  bindTmaButtons();
+}
+
+// ── LOOM-297: the phone shell inside Telegram ──────────────────
+// Telegram's MainButton mirrors the bar's primary CTA, SecondaryButton
+// (Bot API 7.10+) is Buy now, BackButton goes back a step; html.tma-cfg hides
+// the site header and the bar. Bound only inside Telegram with cfgPhone on,
+// and only while the phone shell applies (<= 900px), so nothing changes
+// anywhere else. html.tma comes from assets/tma.js, which also loads the SDK.
+let _tma = null;      // Telegram.WebApp once bound
+let _tmaOn = false;   // the mode is applied now
+let _tmaBusy = false; // add to cart / buy now running from a Telegram button
+
+function bindTmaButtons() {
+  if (!document.documentElement.classList.contains("tma")) return;
+  const start = () => {
+    const W = window.Telegram && window.Telegram.WebApp;
+    if (_tma || !W || !W.MainButton) return;
+    _tma = W;
+    const buyStep = () => currentStep === "order" || _blankOnly;
+    W.MainButton.onClick(() => {
+      if (!_tmaOn || _tmaBusy) return;
+      if (!buyStep()) { document.getElementById("btn-step-next")?.click(); return; }
+      tmaRun(W.MainButton, () => { trackStep("cfg_cart"); return addToCart(); });
+    });
+    if (W.SecondaryButton) W.SecondaryButton.onClick(() => { if (_tmaOn && !_tmaBusy) tmaRun(W.SecondaryButton, buyNow); });
+    W.BackButton.onClick(() => {
+      const i = P3_STEPS.indexOf(currentStep);
+      if (_tmaOn && !_tmaBusy && i > 0) setStep(P3_STEPS[i - 1]);
+    });
+    W.onEvent("safeAreaChanged", tmaSync);
+    W.onEvent("contentSafeAreaChanged", tmaSync);
+    window.addEventListener("resize", tmaSync);
+    // Telegram keeps its buttons across page loads: clear them when leaving
+    // (checkout, cart), restore them if the page comes back from bfcache.
+    window.addEventListener("pagehide", () => {
+      if (!_tmaOn) return;
+      W.MainButton.hide();
+      W.BackButton.hide();
+      if (W.SecondaryButton) W.SecondaryButton.hide();
+      _tmaOn = false;
+    });
+    window.addEventListener("pageshow", (e) => { if (e.persisted) tmaSync(); });
+    tmaSync();
+  };
+  if (window.Telegram && window.Telegram.WebApp) start();
+  else window.addEventListener("loom:tma-ready", start, { once: true });
+}
+
+/** Progress on the tapped button until fn settles; other taps wait. */
+async function tmaRun(btn, fn) {
+  _tmaBusy = true;
+  btn.showProgress(false);
+  btn.disable();
+  try { await fn(); } finally {
+    _tmaBusy = false;
+    btn.hideProgress();
+    btn.enable();
+    tmaSync();
+  }
+}
+
+/** Apply or clear the mode and copy the bar's current state to Telegram. */
+function tmaSync() {
+  const W = _tma;
+  if (!W || _tmaBusy) return;
+  const root = document.documentElement;
+  const on = _p3();
+  const hasSec = !!W.SecondaryButton && W.isVersionAtLeast("7.10");
+  if (!on) {
+    if (!_tmaOn) return;
+    root.classList.remove("tma-cfg", "tma-buy");
+    root.style.removeProperty("--tma-top");
+    root.style.removeProperty("--tma-bottom");
+    W.MainButton.hide();
+    W.BackButton.hide();
+    if (hasSec) W.SecondaryButton.hide();
+    _tmaOn = false;
+    return;
+  }
+  // Inset API is 8.0+; without it the CSS falls back to env(safe-area-inset-*).
+  const s = W.safeAreaInset || {}, c = W.contentSafeAreaInset || {};
+  if (W.isVersionAtLeast("8.0")) {
+    root.style.setProperty("--tma-top", ((s.top || 0) + (c.top || 0)) + "px");
+    root.style.setProperty("--tma-bottom", ((s.bottom || 0) + (c.bottom || 0)) + "px");
+  }
+  root.classList.add("tma-cfg");
+  _tmaOn = true;
+  const buy = currentStep === "order" || _blankOnly;
+  const src = document.getElementById(buy ? "btn-add-to-cart" : "btn-step-next");
+  const label = src && src.querySelector("span[data-i18n]");
+  const price = src && src.querySelector(".cta-price");
+  W.MainButton.setParams({
+    text: [label && label.textContent, price && price.textContent].filter(Boolean).join(" · "),
+    color: "#fc5044", text_color: "#ffffff", is_active: true, is_visible: true,
+  });
+  if (P3_STEPS.indexOf(currentStep) > 0) W.BackButton.show(); else W.BackButton.hide();
+  if (hasSec) {
+    const t = document.querySelector("#btn-place-order span[data-i18n]");
+    W.SecondaryButton.setParams({ text: t ? t.textContent : "", position: "left", is_active: true, is_visible: buy });
+  }
+  root.classList.toggle("tma-buy", buy && !hasSec); // old client: Buy now stays in the page
 }
 
 // ── LOOM-295: step 3 Joylash ───────────────────────────────────
@@ -5527,6 +5631,7 @@ function updateCartCta() {
     label.setAttribute("data-i18n", "cfg.addToBag");
     label.textContent = CT("cfg.addToBag", "Добавить в корзину");
     btn.classList.remove("is-blank");
+    tmaSync();
     return;
   }
   const empty = !_viewHasContent("front") && !_viewHasContent("back");
@@ -5535,6 +5640,7 @@ function updateCartCta() {
   label.setAttribute("data-i18n", key);
   label.textContent = CT(key, empty ? "Заказать без принта" : _p3() ? "Добавить в корзину" : "В корзину");
   btn.classList.toggle("is-blank", empty);
+  tmaSync();
 }
 
 // ── "⋯" overflow menu ───────────────────────────────────────────

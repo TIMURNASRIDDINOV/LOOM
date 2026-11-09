@@ -58,6 +58,8 @@
 
     syncTheme(W)
     try { W.onEvent && W.onEvent('themeChanged', () => syncTheme(W)) } catch (e) {}
+    // The configurator's phone shell drives Telegram's own buttons (LOOM-297).
+    try { window.dispatchEvent(new Event('loom:tma-ready')) } catch (e) {}
 
     autoLogin(W)
   }
