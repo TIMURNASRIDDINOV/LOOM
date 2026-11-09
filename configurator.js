@@ -5019,7 +5019,8 @@ function p3BuildPlace() {
     const el = selectedElement();
     if (!b || !el) return;
     if (b.dataset.cm) return p3SetWidthCm(el, +b.dataset.cm);
-    if (b.dataset.act === "center") return centerSelected();
+    // AC-2: "Markazga" centres both ways; desktop's centerSelected stays horizontal-only.
+    if (b.dataset.act === "center") { el.ny = 0.5; return centerSelected(); }
     if (b.dataset.act === "remove") return deleteElement(el.id);
     if (b.dataset.act === "replace") return p3Replace(el);
   });
