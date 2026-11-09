@@ -6679,7 +6679,6 @@ function bindSummaryTab() {
  */
 function _withStillCamera(view, read) {
   finishEntrance(); // full scale, facing front. Turntable cannot move mid-call.
-  const pose = CAM_VIEWS[view === "back" ? "back" : "front"];
   const prevHandles = _showHandles;
   const pos = camera.position.clone();
   const quat = camera.quaternion.clone();
@@ -6687,24 +6686,14 @@ function _withStillCamera(view, read) {
   // frames, not the cart mockups and PNG an order ships with.
   const liveRatio = renderer.getPixelRatio();
   const stillRatio = Math.min(window.devicePixelRatio || 1, 2);
-  // LOOM-295 AC-4 (STD-11): the phone shell's preview is a different box, so
-  // stills render at the flag-off phone stage size (configurator.html:
-  // 100dvh - nav-h - 40dvh, min 260px) and the cart mockups stay identical.
-  const liveSize = renderer.getSize(new THREE.Vector2());
-  let stillSize = null;
-  if (_p3() && !document.body.classList.contains("kb-open")) {
-    const c = document.getElementById("three-container");
-    const navH = parseFloat(getComputedStyle(c).getPropertyValue("--nav-h")) || 0;
-    stillSize = [c.clientWidth, Math.max(260, Math.round(window.innerHeight * 0.6 - navH))];
-  }
+  // LOOM-295 AC-4 (STD-11): with the phone shell on, stills are framed on the
+  // flag-off stage, so the cart mockups match the flag-off page exactly.
+  const flagOffFit = _p3() && shirtObject && !document.body.classList.contains("kb-open")
+    ? _p3FlagOffFit() : null;
+  const pose = CAM_VIEWS[view === "back" ? "back" : "front"];
   _showHandles = false;
   try {
     if (stillRatio !== liveRatio) renderer.setPixelRatio(stillRatio);
-    if (stillSize) {
-      renderer.setSize(stillSize[0], stillSize[1], false);
-      camera.aspect = stillSize[0] / stillSize[1];
-      camera.updateProjectionMatrix();
-    }
     drawTexture("front");
     drawTexture("back");
     camera.position.set(pose.x, pose.y, pose.z);
@@ -6714,11 +6703,7 @@ function _withStillCamera(view, read) {
     return read(renderer.domElement);
   } finally {
     if (stillRatio !== liveRatio) renderer.setPixelRatio(liveRatio);
-    if (stillSize) {
-      renderer.setSize(liveSize.x, liveSize.y, false);
-      camera.aspect = liveSize.x / liveSize.y;
-      camera.updateProjectionMatrix();
-    }
+    if (flagOffFit) flagOffFit();
     _showHandles = prevHandles;
     camera.position.copy(pos);
     camera.quaternion.copy(quat);
@@ -6726,6 +6711,62 @@ function _withStillCamera(view, read) {
     updateStudioRig();
     renderer.render(scene, camera);
   }
+}
+
+/**
+ * LOOM-295: fit the camera as the flag-off page would. The phone shell's
+ * layout is CSS under html.cfg-phone3, so drop the class for one synchronous
+ * layout (no paint happens in between), size the renderer to that stage and
+ * re-run the normal fit. Returns a function that puts the camera, controls
+ * and renderer state back.
+ */
+function _p3FlagOffFit() {
+  const root = document.documentElement;
+  const box = document.getElementById("three-container");
+  const v3 = (o) => (o ? o.clone() : o);
+  const saved = {
+    front: { ...CAM_VIEWS.front }, back: { ...CAM_VIEWS.back },
+    initPos: v3(INITIAL_VIEW.position), initTarget: v3(INITIAL_VIEW.target),
+    target: controls.target.clone(), minD: controls.minDistance, maxD: controls.maxDistance,
+    near: camera.near, far: camera.far, aspect: camera.aspect,
+    view: camera.view && camera.view.enabled ? { ...camera.view } : null,
+    anim: { ...camAnim }, refit: _refitOnShow,
+    size: renderer.getSize(new THREE.Vector2()),
+  };
+  const still = document.createElement("style");
+  still.textContent = "*,*::before,*::after{transition:none!important}";
+  document.head.appendChild(still);
+  root.classList.remove("cfg-phone3");
+  const w = box.clientWidth, h = box.clientHeight; // forces the flag-off layout
+  if (w && h) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    fitCameraToObject(shirtObject);
+  }
+  root.classList.add("cfg-phone3");
+  void box.clientHeight; // back to the phone layout before transitions return
+  still.remove();
+  return () => {
+    Object.assign(CAM_VIEWS.front, saved.front);
+    Object.assign(CAM_VIEWS.back, saved.back);
+    INITIAL_VIEW.position = saved.initPos;
+    INITIAL_VIEW.target = saved.initTarget;
+    controls.target.copy(saved.target);
+    controls.minDistance = saved.minD;
+    controls.maxDistance = saved.maxD;
+    Object.assign(camAnim, saved.anim);
+    _refitOnShow = saved.refit;
+    renderer.setSize(saved.size.x, saved.size.y, false);
+    camera.near = saved.near;
+    camera.far = saved.far;
+    camera.aspect = saved.aspect;
+    if (saved.view) {
+      const o = saved.view;
+      camera.setViewOffset(o.fullWidth, o.fullHeight, o.offsetX, o.offsetY, o.width, o.height);
+    } else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  };
 }
 
 function _snapshotURL(type, quality, view) {
