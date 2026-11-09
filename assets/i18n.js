@@ -196,6 +196,13 @@
     'cfg.nextPlace':    { uz: 'Keyin: joylash', ru: 'К размещению', en: 'Next: placement' },
     'cfg.addToBag':     { uz: 'Savatga qo‘shish', ru: 'Добавить в корзину', en: 'Add to bag' },
     'cfg.moreActions':  { uz: 'Yana', ru: 'Ещё', en: 'More' },
+    // LOOM-295: the phone's step 3 (Joylash). ru and en are drafts for Content.
+    'cfg.more':         { uz: 'Ko‘proq', ru: 'Ещё', en: 'More' },
+    'cfg.presetS':      { uz: 'Kichik 10 sm', ru: 'Малый 10 см', en: 'Small 10 cm' },
+    'cfg.presetM':      { uz: 'O‘rta 20 sm', ru: 'Средний 20 см', en: 'Medium 20 cm' },
+    'cfg.presetL':      { uz: 'Katta 28 sm', ru: 'Крупный 28 см', en: 'Large 28 cm' },
+    'cfg.replace':      { uz: 'Almashtirish', ru: 'Заменить', en: 'Replace' },
+    'cfg.camSide':      { uz: 'Yon', ru: 'Сбоку', en: 'Side' },
     'cfg.stepDesign':   { uz: 'Dizayn',        ru: 'Дизайн',        en: 'Design' },
     'cfg.stepColorSize':{ uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour & size' },
     'cfg.stepOrder':    { uz: 'Buyurtma',      ru: 'Заказ',         en: 'Order' },
