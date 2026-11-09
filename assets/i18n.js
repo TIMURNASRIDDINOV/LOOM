@@ -192,6 +192,8 @@
     'cfg.nextOrder':    { uz: 'Keyingisi: buyurtma', ru: 'Дальше: заказ', en: 'Next: your order' },
     'cfg.nextColorShort': { uz: 'Keyin: rang', ru: 'Дальше: цвет', en: 'Next: colour' },
     'cfg.nextOrderShort': { uz: 'Keyin: buyurtma', ru: 'Дальше: заказ', en: 'Next: order' },
+    'cfg.nextDesign':   { uz: 'Keyin: dizayn', ru: 'Дальше: дизайн', en: 'Next: design' },
+    'cfg.addToBag':     { uz: 'Savatga qo‘shish', ru: 'Добавить в корзину', en: 'Add to bag' },
     'cfg.moreActions':  { uz: 'Yana', ru: 'Ещё', en: 'More' },
     'cfg.stepDesign':   { uz: 'Dizayn',        ru: 'Дизайн',        en: 'Design' },
     'cfg.stepColorSize':{ uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour & size' },
