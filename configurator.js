@@ -4809,7 +4809,7 @@ function updateStepNext() {
     // Each step says where it goes (LOOM-293, LOOM-294).
     const k = currentStep === "color"
       ? ["cfg.nextDesign", "Дальше: дизайн"]
-      : ["cfg.nextPlace", "Дальше: размещение"];
+      : ["cfg.nextPlace", "К размещению"];
     label.setAttribute("data-i18n", k[0]);
     label.textContent = CT(k[0], k[1]);
     return;
