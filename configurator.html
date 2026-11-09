@@ -45,7 +45,7 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=5"></script>
     <script defer src="assets/layout.js?v=7"></script>
-    <script defer src="assets/i18n.js?v=47"></script>
+    <script defer src="assets/i18n.js?v=48"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
@@ -53,7 +53,7 @@
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=3"></script>
     <script defer src="assets/cart.js?v=7"></script>
-    <script defer src="configurator.js?v=93"></script>
+    <script defer src="configurator.js?v=94"></script>
 
     <style>
       /* ============================================================
@@ -2021,7 +2021,7 @@
          step panel under it in a fixed height that scrolls inside, and a
          one-row bar whose buttons share a top edge. While typing (kb-open)
          the keyboard layout above takes over unchanged. */
-      .p3-prog, .p3-hint, .cta-price, .p3-gcards { display: none; }
+      .p3-prog, .p3-hint, .cta-price, .p3-gcards, .p3-more, .p3-cam, .p3-place { display: none; }
       @media (max-width: 900px) {
         html.cfg-phone3 .studio {
           --p3-top: 46px;   /* the progress strip */
@@ -2217,6 +2217,84 @@
            two step 2 tiles, in the need-size look. */
         html.cfg-phone3 .studio-sheet .choice-tile.need-design {
           outline: 2px solid var(--danger); outline-offset: 3px;
+        }
+
+        /* ── LOOM-295: step 3 places the design. 2D|3D over Old|Orqa in
+           the preview's top-left corner, "Ko'proq" (Save under it)
+           top-right, the hint on the bottom edge. The panel is three
+           print-width presets over the element's actions; the % field is
+           gone. 3D is look-only: the panel's controls, Old|Orqa and the
+           hint go, and the camera row (configurator.js unhides it once
+           the model is in) takes the hint's place. Panel and bar need
+           212px (the bar is two lines at 320px); a shorter screen gives
+           the preview up, as steps 1-2 do. */
+        html.cfg-phone3 #dock-sel-num { display: none; }
+        html.cfg-phone3 .studio-sheet[data-step="order"] .tab-scroll { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        html.cfg-phone3 .studio:has(.studio-sheet[data-step="order"]) {
+          --p3-pv: min(56dvh, calc(100dvh - var(--nav-h) - var(--p3-top) - 212px));
+          --p3-y: calc(var(--nav-h) + var(--p3-top) + 8px);
+        }
+        html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="order"]) .surface-toggle {
+          top: var(--p3-y); left: 12px; right: auto; transform: none;
+        }
+        html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="order"]) .view-toggle {
+          top: calc(var(--p3-y) + 64px); left: 12px; right: auto; margin: 0; transform: none;
+        }
+        html.cfg-phone3 .studio:has(.studio-sheet[data-step="order"]) .view-toggle .view-btn,
+        html.cfg-phone3 .p3-cam .view-btn { min-width: 48px; padding-left: 0.6rem; padding-right: 0.6rem; }
+        html.cfg-phone3 .studio:has(.studio-sheet[data-step="order"]) .chip-reset,
+        html.cfg-phone3.p3-3d .studio:has(.studio-sheet[data-step="order"]) .view-toggle { display: none; }
+        html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="order"]) .p3-more {
+          display: inline-flex; top: var(--p3-y); right: 12px;
+        }
+        html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="order"]) .chip-save {
+          top: calc(var(--p3-y) + 52px); right: 12px; left: auto;
+        }
+        /* The hint hides whenever the 3D is up (A-11). */
+        html.cfg-phone3.p3-3d body:not(.kb-open) .p3-hint:not(:empty) { display: none; }
+        html.cfg-phone3 body:not(.kb-open) .p3-cam:not([hidden]) {
+          display: flex; gap: 4px; position: absolute; z-index: 30;
+          left: 50%; transform: translateX(-50%); bottom: calc(var(--peek) + 6px);
+          padding: 4px; background: var(--paper-3); border: var(--rule); box-shadow: var(--hard-sm);
+        }
+        .p3-cam .view-btn::after { content: none; }
+        .p3-cam .view-btn svg { display: block; }
+
+        html.cfg-phone3 #tab-summary > :not(.p3-place) { display: none; }
+        html.cfg-phone3 .p3-place { display: flex; flex-direction: column; gap: 0.5rem; }
+        html.cfg-phone3.p3-3d .p3-place { display: none; }
+        .p3-pre {
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+          padding: 0 var(--gut) var(--gut) 0;
+        }
+        .studio-sheet .p3-pre .dock-pill {
+          min-height: 44px; padding: 0.25rem 0.35rem; font-size: 0.9rem; line-height: 1.15;
+          white-space: normal; text-wrap: balance; text-align: center;
+        }
+        .studio-sheet .p3-pre .dock-pill[aria-pressed="true"] {
+          background: var(--text); color: var(--paper); border-color: var(--text);
+          box-shadow: var(--hard-accent); transform: translate(-1px, -1px);
+        }
+        .p3-acts { display: flex; justify-content: space-between; gap: 0.5rem; }
+        .p3-act {
+          display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; padding: 0 0.2rem;
+          border: 0; background: none; color: var(--ink-70); cursor: pointer;
+          font-family: var(--font-display); font-size: 0.9rem; font-weight: 600;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .p3-act svg { flex: none; }
+        .p3-act:active { color: var(--text); }
+        .p3-act:focus-visible, .studio-sheet .p3-pre .dock-pill:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+        .p3-place button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+        /* 320px: the three actions keep one row. */
+        @media (max-width: 360px) {
+          .p3-acts { gap: 0.25rem; }
+          .p3-act { gap: 0.2rem; font-size: 0.8rem; }
+          .p3-act svg { width: 16px; height: 16px; }
+        }
+        @media (max-height: 700px) {
+          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="order"]) .p3-hint { display: none; }
+          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="order"]) .flat-stagebox { padding-bottom: 64px; }
         }
       }
       @media (max-width: 900px) and (prefers-reduced-motion: no-preference) {

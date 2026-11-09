@@ -626,6 +626,7 @@ function ensurePreview3D() {
     .then(() => {
       setCameraView(designState.activeView);
       _preview3DReady = true;
+      p3SyncPlace(); // LOOM-295: the phone's camera row waits for the model
       enableSaveDesign();
       announcePreview("cfg.loaded3d", "3D-превью готово");
     })
@@ -2646,6 +2647,7 @@ function _syncSelNum(el) {
   const n = document.getElementById("dock-sel-num");
   if (n && el) n.value = el.type === "text" ? el.size : el.scalePct;
   checkPrintDpi(el); // every scale gesture (drag handle, pinch, flat editor) lands here
+  p3SyncPlace(); // the phone's step 3 preset that matches the new width
 }
 
 // ================================================================
@@ -4922,6 +4924,7 @@ function p3Sync() {
     el.setAttribute("data-i18n", k[0]); // i18n.apply re-translates it
     el.textContent = CT(k[0], k[1]);
   });
+  p3SyncPlace();
 }
 
 /** LOOM-294: outline the step 2 tiles (the need-size look); replays on every refused tap. */
@@ -4958,7 +4961,157 @@ function bindPhoneFlow() {
   });
   refreshPriceLabels();
   window.addEventListener("loom:langchange", refreshPriceLabels); // the currency word
+  p3BuildPlace();
   if (_p3()) setStep("color");
+}
+
+// ── LOOM-295: step 3 Joylash ───────────────────────────────────
+// Over the preview: 2D|3D and Old|Orqa top-left (today's toggles, moved by
+// the phone stylesheet), "Ko'proq" top-right (today's More menu) and, in 3D,
+// one camera row on the bottom edge. Under it: three print-width presets and
+// the element's actions. 3D stays look-only (EDIT_ON_3D): the panel hides.
+// Built only while the flag is on, so the flag-off page has none of it.
+const P3_PRESETS = [
+  [10, "cfg.presetS", "Малый 10 см"],
+  [20, "cfg.presetM", "Средний 20 см"],
+  [28, "cfg.presetL", "Крупный 28 см"],
+];
+const _P3_ICON = (d) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+const _P3_RESET_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 10 9 10"/></svg>';
+
+function p3BuildPlace() {
+  const studio = document.querySelector(".studio");
+  const tab = document.getElementById("tab-summary");
+  if (!studio || !tab || document.getElementById("p3-place")) return;
+  // Text in the current language now; data-i18n keeps it right on a switch.
+  const span = (k, fb) => `<span data-i18n="${k}">${CT(k, fb)}</span>`;
+  const reset = CT("cfg.resetView", "Сброс вида");
+  studio.insertAdjacentHTML("beforeend",
+    `<button type="button" id="p3-more" class="stage-chip p3-more" aria-haspopup="true" aria-expanded="false">` +
+      _P3_ICON("M5.5 12h.01M12 12h.01M18.5 12h.01") + span("cfg.more", "Ещё") + `</button>` +
+    `<div class="p3-cam" id="p3-cam" role="group" data-i18n-attr="aria-label:cfg.preview" aria-label="${CT("cfg.preview", "Предпросмотр")}" hidden>` +
+      `<button type="button" class="view-btn" data-cam="front">${span("cfg.viewFront", "Перед")}</button>` +
+      `<button type="button" class="view-btn" data-cam="side">${span("cfg.camSide", "Сбоку")}</button>` +
+      `<button type="button" class="view-btn" data-cam="back">${span("cfg.viewBack", "Зад")}</button>` +
+      `<button type="button" class="view-btn" data-cam="reset" data-i18n-attr="aria-label:cfg.resetView;title:cfg.resetView" aria-label="${reset}" title="${reset}">${_P3_RESET_ICON}</button>` +
+    `</div>`);
+  tab.insertAdjacentHTML("afterbegin",
+    `<div class="p3-place" id="p3-place">` +
+      `<div class="p3-pre" role="group" data-i18n-attr="aria-label:cfg.sizeSlider" aria-label="${CT("cfg.sizeSlider", "Размер")}">` +
+        P3_PRESETS.map(([cm, k, fb]) => `<button type="button" class="dock-pill" data-cm="${cm}" aria-pressed="false">${span(k, fb)}</button>`).join("") +
+      `</div>` +
+      `<div class="p3-acts">` +
+        `<button type="button" class="p3-act" data-act="center">${_P3_ICON("M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4M12 5.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13z")}${span("cfg.center", "По центру")}</button>` +
+        `<button type="button" class="p3-act" data-act="replace">${_P3_ICON("M4 8.5h14l-3.5-3.5M20 15.5H6l3.5 3.5")}${span("cfg.replace", "Заменить")}</button>` +
+        `<button type="button" class="p3-act" data-act="remove">${_P3_ICON("M4.5 7h15M10 4h4M6.5 7l.9 12.5h9.2L17.5 7M10 11v5M14 11v5")}${span("cfg.remove", "Удалить")}</button>` +
+      `</div>` +
+    `</div>`);
+
+  const more = document.getElementById("p3-more");
+  more.addEventListener("click", (e) => { if (_moreToggle) _moreToggle(more, e); });
+  document.getElementById("p3-cam").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cam]");
+    if (b) p3Camera(b.dataset.cam);
+  });
+  const place = document.getElementById("p3-place");
+  place.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    const el = selectedElement();
+    if (!b || !el) return;
+    if (b.dataset.cm) return p3SetWidthCm(el, +b.dataset.cm);
+    if (b.dataset.act === "center") return centerSelected();
+    if (b.dataset.act === "remove") return deleteElement(el.id);
+    if (b.dataset.act === "replace") return p3Replace(el);
+  });
+}
+
+/** Printed width in cm: the drawn width's share of the print rect, times the platen. */
+let _p3MeasureCtx = null; // a 1x1 canvas: drawElementIn returns the box it drew
+function p3WidthCm(el) {
+  if (!_p3MeasureCtx) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 1;
+    _p3MeasureCtx = c.getContext("2d");
+  }
+  const r = printRect();
+  const b = drawElementIn(_p3MeasureCtx, el, r, false);
+  return b && r.w ? (b.w / r.w) * PLATEN_CM.w : 0;
+}
+
+/** A preset: that printed width, aspect kept, never wider than the print area. */
+function p3SetWidthCm(el, cm) {
+  const want = Math.min(cm, PLATEN_CM.w);
+  // The scale clamps and the text's fit-to-rect make this not quite linear,
+  // so a few proportional steps land it within a millimetre or two.
+  for (let i = 0; i < 4; i++) {
+    const now = p3WidthCm(el);
+    if (!now || Math.abs(now - want) < 0.1) break;
+    _flatApplyScale(el, (el.type === "text" ? el.size : el.scalePct) * (want / now));
+  }
+  redrawActive();
+  p3SyncPlace();
+}
+
+/** "Almashtirish": an image swaps its art in place (today's replace), text goes to its field. */
+function p3Replace(el) {
+  if (el.type === "image") {
+    _pendingLogoIsNew = false;
+    const fi = document.getElementById("logo-file-input");
+    if (fi) { fi.value = ""; fi.click(); }
+    return;
+  }
+  // The text field lives on step 2's panel, as the cart's untouched-text path does it.
+  setStep("design");
+  const input = document.getElementById("text-content-input");
+  if (input) requestAnimationFrame(() => {
+    input.scrollIntoView({ block: "nearest" });
+    if (input.getClientRects().length) input.focus({ preventScroll: true });
+  });
+}
+
+/** The 3D camera row. Old/Yon/Orqa move the camera only, never designState.activeView. */
+function p3Camera(which) {
+  if (!camera || !controls) return;
+  if (which === "reset") {
+    document.getElementById("btn-reset-view").click();
+    // Today's glide is a straight line: from more than 90° round it runs into
+    // the garment and stalls at the orbit's minimum distance. Snap instead.
+    const from = camera.position.clone().sub(controls.target);
+    if (INITIAL_VIEW.position && from.angleTo(INITIAL_VIEW.position.clone().sub(INITIAL_VIEW.target)) > Math.PI / 2) {
+      camAnim.active = false;
+      camera.position.copy(INITIAL_VIEW.position);
+      controls.target.copy(INITIAL_VIEW.target);
+      controls.update();
+      if (renderer && scene) { updateStudioRig(); renderer.render(scene, camera); }
+    }
+    return;
+  }
+  stopCamMotion();
+  setCameraView(which === "back" ? "back" : "front");
+  if (which !== "side") return;
+  // Yon: the front pose turned +90° in azimuth, to the customer's right.
+  const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  s.theta += Math.PI / 2;
+  camera.position.setFromSpherical(s).add(controls.target);
+  controls.update();
+  if (renderer && scene) { updateStudioRig(); renderer.render(scene, camera); }
+}
+
+/** html.p3-3d, the camera row and the presets follow the surface, the step and the selection. */
+function p3SyncPlace() {
+  if (!phoneFlowEnabled()) return;
+  document.documentElement.classList.toggle("p3-3d", !flatMode);
+  const cam = document.getElementById("p3-cam");
+  // Hidden while the model loads or failed: the LOOM-192 state shows instead.
+  if (cam) cam.hidden = !(_p3() && currentStep === "order" && !flatMode && _preview3DReady);
+  const place = document.getElementById("p3-place");
+  if (!place) return;
+  const el = selectedElement();
+  const cm = el ? p3WidthCm(el) : 0;
+  place.querySelectorAll("button").forEach((b) => {
+    b.disabled = !el;
+    if (b.dataset.cm) b.setAttribute("aria-pressed", String(!!el && Math.abs(cm - Math.min(+b.dataset.cm, PLATEN_CM.w)) < 0.5));
+  });
 }
 
 // ── LOOM-293: step 1 picks the garment on the page ─────────────
@@ -5056,6 +5209,7 @@ function p3DropModel() {
   _preview3DReady = false;
   _modelCredited = false;
   syncModelCredit();
+  p3SyncPlace();
 }
 
 async function p3PickGarment(p) {
@@ -5251,13 +5405,17 @@ function updateCartCta() {
     return;
   }
   const empty = !_viewHasContent("front") && !_viewHasContent("back");
-  const key = empty ? "cfg.orderBlank" : "cfg.addToCart";
+  // LOOM-295: the phone's step 3 says "Savatga qo'shish" next to Buy now.
+  const key = empty ? "cfg.orderBlank" : _p3() ? "cfg.addToBag" : "cfg.addToCart";
   label.setAttribute("data-i18n", key);
-  label.textContent = CT(key, empty ? "Заказать без принта" : "В корзину");
+  label.textContent = CT(key, empty ? "Заказать без принта" : _p3() ? "Добавить в корзину" : "В корзину");
   btn.classList.toggle("is-blank", empty);
 }
 
 // ── "⋯" overflow menu ───────────────────────────────────────────
+// LOOM-295: the phone's step 3 "Ko'proq" chip opens the same menu, anchored
+// to itself; with LOOM_FLAGS.cfgPhone off nothing else calls this.
+let _moreToggle = null; // (trigger, event) → open or close the menu at trigger
 function bindMoreMenu() {
   const wrap = document.querySelector(".dock-more");
   const btn = document.getElementById("btn-more");
@@ -5265,15 +5423,16 @@ function bindMoreMenu() {
   const menu = document.getElementById("dock-more-menu");
   // Out of the dock entirely — see the CSS note on backdrop-filter.
   if (menu && menu.parentElement !== document.body) document.body.appendChild(menu);
+  let anchor = btn;
   const close = () => {
     if (menu) menu.classList.remove("open");
-    btn.setAttribute("aria-expanded", "false");
+    anchor.setAttribute("aria-expanded", "false");
   };
 
   /** Anchor the fixed menu to the button, flipping up if it would overflow. */
   const place = () => {
     if (!menu) return;
-    const r = btn.getBoundingClientRect();
+    const r = anchor.getBoundingClientRect();
     menu.style.visibility = "hidden";
     menu.style.left = "0px"; menu.style.top = "0px";
     const mh = menu.offsetHeight, mw = menu.offsetWidth;
@@ -5283,18 +5442,20 @@ function bindMoreMenu() {
     menu.style.visibility = "";
   };
 
-  btn.addEventListener("click", (e) => {
+  _moreToggle = (trigger, e) => {
     e.stopPropagation();
     if (!menu) return;
+    if (trigger !== anchor) { close(); anchor = trigger; }
     const open = !menu.classList.contains("open");
     menu.classList.toggle("open", open);
-    btn.setAttribute("aria-expanded", String(open));
+    trigger.setAttribute("aria-expanded", String(open));
     if (open) {
       // In full screen only the stage is drawn, so the menu goes inside it.
       (document.fullscreenElement || document.body).appendChild(menu);
       place();
     }
-  });
+  };
+  btn.addEventListener("click", (e) => _moreToggle(btn, e));
   window.addEventListener("resize", () => { if (menu && menu.classList.contains("open")) place(); });
   window.addEventListener("scroll", close, true);
   if (menu) menu.querySelectorAll(".dock-more-item").forEach((i) => i.addEventListener("click", close));
@@ -5350,6 +5511,7 @@ function setFlatMode(on) {
     b.classList.toggle("active", on2);
     b.setAttribute("aria-selected", String(on2));
   });
+  p3SyncPlace(); // LOOM-295: step 3 in 3D is look-only
 
   if (flatMode) {
     stopCamMotion();
@@ -5562,6 +5724,7 @@ function syncPanelFromState() {
 
   updateViewToggleMarkers();
   renderPositionGuide();
+  p3SyncPlace();
 }
 
 // ================================================================
@@ -6080,13 +6243,15 @@ function sizeChosen() {
 // "По центру" — nx 0.5 is the garment's measured centreline on BOTH faces, so
 // this now actually centres the artwork instead of landing ~150px (front) /
 // ~250px (back) to one side, as a fixed TEX_SIZE/2 did.
+// The phone's step 3 "Markazga" (LOOM-295) runs the same.
+function centerSelected() {
+  const el = selectedElement();
+  if (!el) return;
+  el.nx = 0.5;
+  redrawActive();
+}
+
 function bindCenterButtons() {
-  const centerSelected = () => {
-    const el = selectedElement();
-    if (!el) return;
-    el.nx = 0.5;
-    redrawActive();
-  };
   const b = document.getElementById("btn-center-text");
   if (b) b.addEventListener("click", centerSelected);
 }
