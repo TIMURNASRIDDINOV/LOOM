@@ -45,7 +45,7 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=5"></script>
     <script defer src="assets/layout.js?v=7"></script>
-    <script defer src="assets/i18n.js?v=46"></script>
+    <script defer src="assets/i18n.js?v=47"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
@@ -53,7 +53,7 @@
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=3"></script>
     <script defer src="assets/cart.js?v=7"></script>
-    <script defer src="configurator.js?v=92"></script>
+    <script defer src="configurator.js?v=93"></script>
 
     <style>
       /* ============================================================
@@ -2146,14 +2146,14 @@
           --p3-s1: 262px; /* the step 1 panel and the bar */
           --p3-pv: min(56dvh, calc(100dvh - var(--nav-h) - var(--p3-top) - var(--p3-s1)));
         }
-        /* Short screens (320x568): the step 1 hint goes, so the garment
-           keeps the room between the chips and Front/Back. */
+        /* Short screens (320x568): the step 1 and 2 hint goes, so the
+           garment keeps the room between the chips and Front/Back. */
         @media (max-height: 700px) {
-          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="color"]) .p3-hint { display: none; }
-          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="color"]) .view-toggle {
+          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet:is([data-step="color"], [data-step="design"])) .p3-hint { display: none; }
+          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet:is([data-step="color"], [data-step="design"])) .view-toggle {
             top: calc(100dvh - var(--peek) - 62px);
           }
-          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="color"]) .flat-stagebox {
+          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet:is([data-step="color"], [data-step="design"])) .flat-stagebox {
             padding-bottom: 64px;
           }
         }
@@ -2207,6 +2207,20 @@
           display: block; font-family: var(--font-mono); font-size: 0.72rem;
           line-height: 1.2; color: var(--ink-70); white-space: nowrap;
         }
+        /* LOOM-294: step 2 is the two tiles over the bar (180px). 390x844
+           keeps the 56% preview; a shorter screen gives the preview up on
+           this step only, as step 1 does, so the tiles stay in view. */
+        html.cfg-phone3 .studio:has(.studio-sheet[data-step="design"]) {
+          --p3-pv: min(56dvh, calc(100dvh - var(--nav-h) - var(--p3-top) - 180px));
+        }
+        /* "Keyin: joylash" with nothing designed points at the
+           two step 2 tiles, in the need-size look. */
+        html.cfg-phone3 .studio-sheet .choice-tile.need-design {
+          outline: 2px solid var(--danger); outline-offset: 3px;
+        }
+      }
+      @media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+        html.cfg-phone3 .studio-sheet .choice-tile.need-design { animation: needSize 0.36s ease 2; }
       }
     </style>
   </head>
