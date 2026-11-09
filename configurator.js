@@ -4172,8 +4172,9 @@ function renderFlatEditor() {
 
   const box = _flatGarmentBox(face, W, H, true);
   // Only the zoom button zooms, and only in step 1: steps 2 and 3 show the
-  // whole shirt, because picking a colour needs it.
-  const zoomed = _flatZoomOn && currentStep === "design";
+  // whole shirt, because picking a colour needs it. LOOM-296: the phone's
+  // step 3 zooms too, from its "Ko'proq" sheet.
+  const zoomed = _flatZoomOn && (currentStep === "design" || (currentStep === "order" && _p3()));
   if (zoomed) _flatZoomBox(face, box, W, H);
   _flatSyncZoomBtn();
   _flatBox = box;
@@ -4967,7 +4968,7 @@ function bindPhoneFlow() {
 
 // ── LOOM-295: step 3 Joylash ───────────────────────────────────
 // Over the preview: 2D|3D and Old|Orqa top-left (today's toggles, moved by
-// the phone stylesheet), "Ko'proq" top-right (today's More menu) and, in 3D,
+// the phone stylesheet), "Ko'proq" top-right (LOOM-296's sheet) and, in 3D,
 // one camera row on the bottom edge. Under it: three print-width presets and
 // the element's actions. 3D stays look-only (EDIT_ON_3D): the panel hides.
 // Built only while the flag is on, so the flag-off page has none of it.
@@ -4987,7 +4988,7 @@ function p3BuildPlace() {
   const span = (k, fb) => `<span data-i18n="${k}">${CT(k, fb)}</span>`;
   const reset = CT("cfg.resetView", "Сброс вида");
   studio.insertAdjacentHTML("beforeend",
-    `<button type="button" id="p3-more" class="stage-chip p3-more" aria-haspopup="true" aria-expanded="false">` +
+    `<button type="button" id="p3-more" class="stage-chip p3-more" aria-haspopup="dialog" aria-expanded="false">` +
       _P3_ICON("M5.5 12h.01M12 12h.01M18.5 12h.01") + span("cfg.more", "Ещё") + `</button>` +
     `<div class="p3-cam" id="p3-cam" role="group" data-i18n-attr="aria-label:cfg.preview" aria-label="${CT("cfg.preview", "Предпросмотр")}" hidden>` +
       `<button type="button" class="view-btn" data-cam="front">${span("cfg.viewFront", "Перед")}</button>` +
@@ -5007,8 +5008,8 @@ function p3BuildPlace() {
       `</div>` +
     `</div>`);
 
-  const more = document.getElementById("p3-more");
-  more.addEventListener("click", (e) => { if (_moreToggle) _moreToggle(more, e); });
+  p3BuildSheet(studio, span);
+  document.getElementById("p3-more").addEventListener("click", p3SheetOpen);
   document.getElementById("p3-cam").addEventListener("click", (e) => {
     const b = e.target.closest("[data-cam]");
     if (b) p3Camera(b.dataset.cam);
@@ -5024,6 +5025,129 @@ function p3BuildPlace() {
     if (b.dataset.act === "remove") return deleteElement(el.id);
     if (b.dataset.act === "replace") return p3Replace(el);
   });
+}
+
+// ── LOOM-296: the "Ko'proq" sheet ──────────────────────────────
+// Step 3's rare tools, one row each, each running today's function. The
+// camera presets and Reset view are the camera row's (LOOM-295), not here.
+// The card is the lab sheet's (.flat-add-sheet), so it is a bottom sheet on
+// phones and follows the theme.
+const P3_MORE = [
+  ["layers", "cfg.layers", "Слои", "M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5"],
+  ["zoom", "cfg.zoomPrint", "Приблизить область печати", "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM21 21l-4.35-4.35M11 8v6M8 11h6"],
+  ["png", "cfg.savePng", "Сохранить дизайн как PNG", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"],
+  ["save", "cfg.saveLayout", "Сохранить макет", "M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7"],
+  ["load", "cfg.loadLayout", "Открыть макет", "M3 6.5h6l2 2.5h10v10.5H3z"],
+  ["reset", "cfg.resetDesign", "Сбросить дизайн", "M3 12a9 9 0 1 0 3-6.7M3 4v6h6"],
+  ["fs", "cfg.fullscreenEnter", "Во весь экран", "M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6"],
+];
+let _p3Layers = []; // the layers view's rows, topmost first
+
+function p3BuildSheet(studio, span) {
+  const more = CT("cfg.more", "Ещё");
+  studio.insertAdjacentHTML("beforeend",
+    `<div id="p3-sheet" class="flat-add-sheet p3-sheet" role="dialog" aria-modal="true" aria-labelledby="p3-sheet-title">` +
+      `<div class="flat-add-backdrop" data-close></div>` +
+      `<div class="flat-add-card">` +
+        `<div class="p3-sheet-head">` +
+          `<button type="button" class="dock-pill p3-sheet-back" data-back data-i18n-attr="aria-label:cfg.more" aria-label="${more}" hidden>${_P3_ICON("M15 5l-7 7 7 7")}</button>` +
+          `<p class="flat-add-title" id="p3-sheet-title" data-i18n="cfg.more">${more}</p>` +
+        `</div>` +
+        `<div class="p3-sheet-list">` +
+          P3_MORE.map(([id, k, fb, d]) =>
+            `<button type="button" class="flat-add-opt" data-item="${id}"${id === "zoom" || id === "fs" ? ' aria-pressed="false"' : ""}>` +
+              _P3_ICON(d) + `<span class="p3-opt-txt">${span(k, fb)}` +
+              (id === "png" ? `<small data-i18n="cfg.exportPngNeeds3d">${CT("cfg.exportPngNeeds3d", "Откройте 3D-превью, чтобы сохранить PNG")}</small>` : "") +
+            `</span></button>`).join("") +
+        `</div>` +
+        `<ul class="layer-list" id="p3-layers" hidden></ul>` +
+        `<button type="button" class="dock-pill lab-card__close" data-close data-i18n="cfg.close">${CT("cfg.close", "Закрыть")}</button>` +
+      `</div>` +
+    `</div>`);
+
+  const sheet = document.getElementById("p3-sheet");
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") p3SheetClose(); });
+  sheet.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-close], [data-back], [data-item], .layer-row");
+    if (!t) return;
+    if (t.hasAttribute("data-close")) return p3SheetClose();
+    if (t.hasAttribute("data-back")) return p3SheetView(false);
+    if (t.classList.contains("layer-row")) {
+      const el = _p3Layers[+t.dataset.i];
+      p3SheetClose();
+      if (el) selectElement(el.id);
+      return;
+    }
+    const id = t.dataset.item;
+    if (id === "layers") return p3SheetView(true);
+    if (t.getAttribute("aria-disabled") === "true") return; // its hint is on the row
+    p3SheetClose();
+    if (id === "zoom") {
+      // The print area is a 2D view: from the 3D, go to the 2D zoomed in.
+      if (!flatMode) { _flatZoomOn = false; setFlatMode(true); }
+      document.getElementById("btn-flat-zoom").click();
+    } else if (id === "png") document.getElementById("btn-save-design").click();
+    else if (id === "save") saveLayout();
+    else if (id === "load") loadLayout();
+    else if (id === "reset") resetDesign();
+    else if (id === "fs") document.getElementById("btn-fullscreen").click();
+  });
+}
+
+function p3SheetOpen() {
+  const sheet = document.getElementById("p3-sheet");
+  if (!sheet) return;
+  // The 3D, the zoom and full screen change between opens: read them now.
+  const row = (id) => sheet.querySelector(`[data-item="${id}"]`);
+  const png = row("png");
+  png.setAttribute("aria-disabled", String(!_preview3DReady));
+  png.querySelector("small").hidden = _preview3DReady;
+  row("zoom").setAttribute("aria-pressed", String(flatMode && _flatZoomOn));
+  // Not in Telegram; and, as for the desktop chip, not where the Fullscreen
+  // API is off (bindFullscreen has removed the chip there).
+  const fs = document.getElementById("btn-fullscreen");
+  row("fs").hidden = !fs || document.documentElement.classList.contains("tma");
+  row("fs").setAttribute("aria-pressed", fs ? fs.getAttribute("aria-pressed") : "false");
+  p3SheetView(false);
+  sheet.classList.add("open");
+  document.getElementById("p3-more").setAttribute("aria-expanded", "true");
+  row("layers").focus();
+}
+
+function p3SheetClose() {
+  const sheet = document.getElementById("p3-sheet");
+  if (!sheet || !sheet.classList.contains("open")) return;
+  sheet.classList.remove("open");
+  const more = document.getElementById("p3-more");
+  more.setAttribute("aria-expanded", "false");
+  more.focus();
+}
+
+/** The tool list, or the layers of the face on screen (topmost first). */
+function p3SheetView(layers) {
+  const sheet = document.getElementById("p3-sheet");
+  const title = document.getElementById("p3-sheet-title");
+  const k = layers ? ["cfg.layers", "Слои"] : ["cfg.more", "Ещё"];
+  title.setAttribute("data-i18n", k[0]); // i18n.apply re-translates it
+  title.textContent = CT(k[0], k[1]);
+  sheet.querySelector(".p3-sheet-list").hidden = layers;
+  sheet.querySelector(".p3-sheet-back").hidden = !layers;
+  const list = document.getElementById("p3-layers");
+  list.hidden = !layers;
+  if (!layers) return;
+  const st = designState[designState.activeView];
+  _p3Layers = st.elements.filter((e) => (e.type === "text" ? !!e.content : !!e.img)).reverse();
+  list.innerHTML = _p3Layers.length ? _p3Layers.map((el, i) => {
+    const text = el.type === "text";
+    const sel = el.id === st.selId;
+    const name = text ? el.content : el.name;
+    const k2 = text ? ["cfg.layerText", "Текст"] : ["cfg.layerLogo", "Логотип"];
+    return `<li><button type="button" class="layer-row${sel ? " selected" : ""}" data-i="${i}"${sel ? ' aria-current="true"' : ""}>` +
+      `<span class="layer-row-icon" aria-hidden="true">${text ? _ICON_TEXT : _ICON_IMG}</span>` +
+      (name ? `<span class="layer-row-name">${_esc(name)}</span>` : `<span class="layer-row-name" data-i18n="${k2[0]}">${CT(k2[0], k2[1])}</span>`) +
+      `</button></li>`;
+  }).join("") : `<li class="layer-empty" data-i18n="cfg.layerEmpty">${CT("cfg.layerEmpty", "Добавьте текст или логотип на эту сторону")}</li>`;
+  (list.querySelector("button") || sheet.querySelector(".p3-sheet-back")).focus();
 }
 
 /** Printed width in cm: the drawn width's share of the print rect, times the platen. */
@@ -5414,8 +5538,8 @@ function updateCartCta() {
 }
 
 // ── "⋯" overflow menu ───────────────────────────────────────────
-// LOOM-295: the phone's step 3 "Ko'proq" chip opens the same menu, anchored
-// to itself; with LOOM_FLAGS.cfgPhone off nothing else calls this.
+// Only #btn-more opens it; the phone's step 3 "Ko'proq" chip opens its own
+// sheet instead (LOOM-296, p3SheetOpen).
 let _moreToggle = null; // (trigger, event) → open or close the menu at trigger
 function bindMoreMenu() {
   const wrap = document.querySelector(".dock-more");
