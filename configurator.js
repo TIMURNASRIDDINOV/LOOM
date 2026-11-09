@@ -6732,6 +6732,7 @@ function _p3FlagOffFit() {
     view: camera.view && camera.view.enabled ? { ...camera.view } : null,
     anim: { ...camAnim }, refit: _refitOnShow,
     size: renderer.getSize(new THREE.Vector2()),
+    scale: shirtObject.scale.clone(),
   };
   const still = document.createElement("style");
   still.textContent = "*,*::before,*::after{transition:none!important}";
@@ -6742,12 +6743,17 @@ function _p3FlagOffFit() {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    // finishEntrance() set the pivot's scale but not its matrixWorld: a model
+    // loaded behind 2D would be measured at entrance scale (as onWindowResize does).
+    scene.updateMatrixWorld(true);
     fitCameraToObject(shirtObject);
   }
   root.classList.add("cfg-phone3");
   void box.clientHeight; // back to the phone layout before transitions return
   still.remove();
   return () => {
+    shirtObject.scale.copy(saved.scale);
+    shirtObject.updateMatrixWorld(true);
     Object.assign(CAM_VIEWS.front, saved.front);
     Object.assign(CAM_VIEWS.back, saved.back);
     INITIAL_VIEW.position = saved.initPos;
