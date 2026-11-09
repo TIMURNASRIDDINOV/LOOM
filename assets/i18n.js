@@ -144,6 +144,7 @@
     'cfg.size':         { uz: 'O‘lcham', ru: 'Размер', en: 'Size' },
     'cfg.layerText':    { uz: 'Matn',     ru: 'Текст',    en: 'Text' },
     'cfg.layerLogo':    { uz: 'Logotip',  ru: 'Логотип',  en: 'Logo' },
+    'cfg.layers':       { uz: 'Qatlamlar', ru: 'Слои', en: 'Layers' },
     'cfg.addText':      { uz: 'Matn',     ru: 'Текст',    en: 'Text' },
     'cfg.addLogo':      { uz: 'Logotip',  ru: 'Логотип',  en: 'Logo' },
     'cfg.layerEmpty':   { uz: 'Bu tomonga matn yoki logotip qo‘shing', ru: 'Добавьте текст или логотип на эту сторону', en: 'Add text or a logo to this side' },
