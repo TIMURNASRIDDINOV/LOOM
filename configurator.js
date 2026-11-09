@@ -6687,9 +6687,24 @@ function _withStillCamera(view, read) {
   // frames, not the cart mockups and PNG an order ships with.
   const liveRatio = renderer.getPixelRatio();
   const stillRatio = Math.min(window.devicePixelRatio || 1, 2);
+  // LOOM-295 AC-4 (STD-11): the phone shell's preview is a different box, so
+  // stills render at the flag-off phone stage size (configurator.html:
+  // 100dvh - nav-h - 40dvh, min 260px) and the cart mockups stay identical.
+  const liveSize = renderer.getSize(new THREE.Vector2());
+  let stillSize = null;
+  if (_p3() && !document.body.classList.contains("kb-open")) {
+    const c = document.getElementById("three-container");
+    const navH = parseFloat(getComputedStyle(c).getPropertyValue("--nav-h")) || 0;
+    stillSize = [c.clientWidth, Math.max(260, Math.round(window.innerHeight * 0.6 - navH))];
+  }
   _showHandles = false;
   try {
     if (stillRatio !== liveRatio) renderer.setPixelRatio(stillRatio);
+    if (stillSize) {
+      renderer.setSize(stillSize[0], stillSize[1], false);
+      camera.aspect = stillSize[0] / stillSize[1];
+      camera.updateProjectionMatrix();
+    }
     drawTexture("front");
     drawTexture("back");
     camera.position.set(pose.x, pose.y, pose.z);
@@ -6699,6 +6714,11 @@ function _withStillCamera(view, read) {
     return read(renderer.domElement);
   } finally {
     if (stillRatio !== liveRatio) renderer.setPixelRatio(liveRatio);
+    if (stillSize) {
+      renderer.setSize(liveSize.x, liveSize.y, false);
+      camera.aspect = liveSize.x / liveSize.y;
+      camera.updateProjectionMatrix();
+    }
     _showHandles = prevHandles;
     camera.position.copy(pos);
     camera.quaternion.copy(quat);
