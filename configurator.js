@@ -4999,6 +4999,16 @@ function bindTmaButtons() {
     W.onEvent("safeAreaChanged", tmaSync);
     W.onEvent("contentSafeAreaChanged", tmaSync);
     window.addEventListener("resize", tmaSync);
+    // Telegram keeps its buttons across page loads: clear them when leaving
+    // (checkout, cart), restore them if the page comes back from bfcache.
+    window.addEventListener("pagehide", () => {
+      if (!_tmaOn) return;
+      W.MainButton.hide();
+      W.BackButton.hide();
+      if (W.SecondaryButton) W.SecondaryButton.hide();
+      _tmaOn = false;
+    });
+    window.addEventListener("pageshow", (e) => { if (e.persisted) tmaSync(); });
     tmaSync();
   };
   if (window.Telegram && window.Telegram.WebApp) start();
@@ -5037,8 +5047,8 @@ function tmaSync() {
     return;
   }
   // Inset API is 8.0+; without it the CSS falls back to env(safe-area-inset-*).
-  const s = W.safeAreaInset, c = W.contentSafeAreaInset;
-  if (s && c) {
+  const s = W.safeAreaInset || {}, c = W.contentSafeAreaInset || {};
+  if (W.isVersionAtLeast("8.0")) {
     root.style.setProperty("--tma-top", ((s.top || 0) + (c.top || 0)) + "px");
     root.style.setProperty("--tma-bottom", ((s.bottom || 0) + (c.bottom || 0)) + "px");
   }
