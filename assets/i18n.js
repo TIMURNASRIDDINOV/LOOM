@@ -196,6 +196,8 @@
     'cfg.stepDesign':   { uz: 'Dizayn',        ru: 'Дизайн',        en: 'Design' },
     'cfg.stepColorSize':{ uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour & size' },
     'cfg.stepOrder':    { uz: 'Buyurtma',      ru: 'Заказ',         en: 'Order' },
+    'cfg.stepGarment':  { uz: 'Kiyim',         ru: 'Одежда',        en: 'Garment' },
+    'cfg.stepPlace':    { uz: 'Joylash',       ru: 'Размещение',    en: 'Placement' },
     'cfg.orderBlank':   { uz: 'Bosmasiz buyurtma berish', ru: 'Заказать без принта', en: 'Order without a print' },
     'cfg.deleted':      { uz: 'Qatlam o‘chirildi', ru: 'Слой удалён', en: 'Layer deleted' },
     'cfg.wasReset':     { uz: 'Dizayn tozalandi', ru: 'Дизайн сброшен', en: 'Design was reset' },

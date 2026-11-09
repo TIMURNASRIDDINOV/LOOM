@@ -43,9 +43,9 @@
          people who never opened the preview. Page scripts stay deferred so
          none of them blocks the parser. -->
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
-    <script defer src="assets/config.js?v=4"></script>
+    <script defer src="assets/config.js?v=5"></script>
     <script defer src="assets/layout.js?v=7"></script>
-    <script defer src="assets/i18n.js?v=44"></script>
+    <script defer src="assets/i18n.js?v=45"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
@@ -53,7 +53,7 @@
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=3"></script>
     <script defer src="assets/cart.js?v=7"></script>
-    <script defer src="configurator.js?v=90"></script>
+    <script defer src="configurator.js?v=91"></script>
 
     <style>
       /* ============================================================
@@ -2012,6 +2012,130 @@
         }
         .kb-open .model-credit { display: none; }
       }
+
+      /* ══ LOOM-292: three-step phone shell (LOOM_FLAGS.cfgPhone) ═══════
+         configurator.js sets html.cfg-phone3 only while the flag is on, so
+         with it off nothing here matches and the page is today's. Layout
+         and flow only, in the page's own skin: a progress strip under the
+         site header, the preview at 56% of the screen (R-2 asks >= 55%), one
+         step panel under it in a fixed height that scrolls inside, and a
+         one-row bar whose buttons share a top edge. While typing (kb-open)
+         the keyboard layout above takes over unchanged. */
+      .p3-prog, .p3-hint, .cta-price { display: none; }
+      @media (max-width: 900px) {
+        html.cfg-phone3 .studio {
+          --p3-top: 46px;   /* the progress strip */
+          --p3-pv: 56dvh;   /* the preview */
+          /* everything under the preview: the panel and the bar. --peek
+             already places Front/Back and the model credit. */
+          --peek: calc(100dvh - var(--nav-h) - var(--p3-top) - var(--p3-pv));
+        }
+        /* A blank product ends at step 1 (PRD-214 A-1): no progress. */
+        html.cfg-phone3 body.blank-only .studio { --p3-top: 0px; }
+
+        html.cfg-phone3 body:not(.kb-open) .p3-prog {
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+          position: absolute; z-index: 30; left: 0; right: 0; top: var(--nav-h);
+          height: var(--p3-top); padding: 0 1.25rem;
+          background: var(--paper); border-bottom: var(--rule);
+        }
+        html.cfg-phone3 body.blank-only .p3-prog { display: none; }
+        .p3-label {
+          position: absolute; left: 0; right: 0; top: 4px; margin: 0;
+          text-align: center; white-space: nowrap; pointer-events: none;
+          font-family: var(--font-display); font-size: 0.78rem; font-weight: 700;
+          line-height: 16px; color: var(--text);
+        }
+        .p3-seg {
+          display: flex; align-items: flex-end; min-height: 44px; padding: 0 0 6px;
+          border: 0; background: none; cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .p3-seg::before {
+          content: ""; flex: 1; height: 10px;
+          border: var(--rule); background: var(--paper-3);
+        }
+        .p3-seg[data-st="done"]::before { background: var(--accent); }
+        .p3-seg[data-st="now"]::before { background: var(--text); box-shadow: 2px 2px 0 var(--accent); }
+        .p3-seg[data-st="todo"] { cursor: default; }
+        .p3-seg[data-st="todo"]::before { border-color: var(--ink-38); }
+        .p3-seg:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+        /* The step hint: one line on the preview's bottom edge. */
+        html.cfg-phone3 body:not(.kb-open) .p3-hint:not(:empty) {
+          display: block; position: absolute; z-index: 30; left: 50%; transform: translateX(-50%);
+          bottom: calc(var(--peek) + 6px); margin: 0;
+          width: max-content; max-width: calc(100% - 24px);
+          padding: 4px 10px; background: var(--paper-3); color: var(--text);
+          border: var(--rule); font-size: 0.8rem; line-height: 18px;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+        }
+        html.cfg-phone3 .studio-sheet .dock-hint { display: none; }
+
+        /* The preview: the stage, the 3D and its loader share one box. */
+        html.cfg-phone3 body:not(.kb-open) #three-container,
+        html.cfg-phone3 body:not(.kb-open) .flat-editor,
+        html.cfg-phone3 body:not(.kb-open) .loading-overlay {
+          top: calc(var(--nav-h) + var(--p3-top)); height: var(--p3-pv); min-height: 0;
+        }
+        html.cfg-phone3 body:not(.kb-open) .chip-garment,
+        html.cfg-phone3 body:not(.kb-open) .chip-reset,
+        html.cfg-phone3 body:not(.kb-open) .chip-save,
+        html.cfg-phone3 body:not(.kb-open) .surface-toggle { top: calc(var(--nav-h) + var(--p3-top) + 16px); }
+        /* Front/Back steps up over the hint; the hem keeps clear of both. */
+        html.cfg-phone3 body:not(.kb-open) .view-toggle { top: calc(100dvh - var(--peek) - 100px); }
+        html.cfg-phone3 body:not(.kb-open) .flat-stagebox { padding-bottom: 106px; }
+        html.cfg-phone3 .model-credit { bottom: calc(var(--peek) + 108px); }
+
+        /* The panel: a fixed height under the preview, no handle to drag. */
+        html.cfg-phone3 body:not(.kb-open) .studio-sheet { height: var(--peek); transition: none; }
+        html.cfg-phone3 .studio-sheet .sheet-handle,
+        html.cfg-phone3 .studio-sheet .sheet-steps,
+        html.cfg-phone3 .studio-sheet .step-progress { display: none; }
+
+        /* The bar: one row. Step 3 puts Buy now left of the cart button. */
+        html.cfg-phone3 .studio-sheet .panel-foot { flex-direction: row; align-items: stretch; }
+        html.cfg-phone3 .studio-sheet .panel-foot > button {
+          flex: 1 1 0; width: auto; min-width: 0; min-height: 52px;
+          padding-top: 0.3rem; padding-bottom: 0.3rem;
+        }
+        html.cfg-phone3 .studio-sheet .panel-foot > .btn-primary-full {
+          flex-grow: 1.45; flex-wrap: wrap; align-content: center; row-gap: 0.1rem;
+        }
+        html.cfg-phone3 .studio-sheet #btn-place-order {
+          order: -1; align-items: center; justify-content: center;
+          padding-left: 0.3rem; padding-right: 0.3rem; text-align: center;
+          font-size: 0.85rem; line-height: 1.15;
+        }
+        /* Step 3 at 320px: the cart label keeps its 1.17rem floor, so it
+           takes the room instead. No icon, tight padding and 3:1 against
+           Buy now hold "Bosmasiz buyurtma berish" to two lines and the
+           whole bar on screen. */
+        html.cfg-phone3 .studio-sheet #btn-add-to-cart > svg:not(.spinner) { display: none; }
+        html.cfg-phone3 .studio-sheet .panel-foot > #btn-add-to-cart {
+          flex-grow: 3; padding-left: 0.3rem; padding-right: 0.3rem; letter-spacing: 0;
+        }
+        html.cfg-phone3 .studio-sheet[data-step="order"] #btn-place-order { display: flex; }
+        /* The forward label is one step name: one line, so the CTA keeps
+           More's 52px and both share a top edge down to 320px. */
+        html.cfg-phone3 .studio-sheet { --more-w: 4rem; }
+        html.cfg-phone3 .studio-sheet #btn-more { min-height: 52px; }
+        html.cfg-phone3 .studio-sheet #btn-step-next { padding-left: 0.5rem; padding-right: 0.5rem; }
+        html.cfg-phone3 .studio-sheet #step-next-label {
+          overflow: hidden; white-space: nowrap; text-overflow: ellipsis; overflow-wrap: normal;
+        }
+        /* The price under the label, in ink on the accent field (5.6:1). */
+        html.cfg-phone3 .cta-price {
+          display: block; flex: 0 0 100%; font-family: var(--font-mono); font-size: 0.75rem;
+          font-weight: 600; line-height: 1.2; letter-spacing: 0;
+          text-transform: none; color: #131311;
+        }
+        .btn-primary-full.is-blank .cta-price { color: inherit; }
+        /* Blank product: step 1 carries both buy buttons (A-1). */
+        html.cfg-phone3 body.blank-only .studio-sheet #btn-step-next { display: none; }
+        html.cfg-phone3 body.blank-only .studio-sheet #btn-add-to-cart { display: inline-flex; }
+        html.cfg-phone3 body.blank-only .studio-sheet #btn-place-order { display: flex; }
+      }
     </style>
   </head>
 
@@ -2118,6 +2242,19 @@
         <button type="button" id="btn-surface-2d" class="surface-btn active" role="tab" aria-selected="true" data-surface="flat">2D</button>
         <button type="button" id="btn-surface-3d" class="surface-btn" role="tab" aria-selected="false" data-surface="three">3D</button>
       </div>
+      <!-- LOOM-292: the three-step phone shell (LOOM_FLAGS.cfgPhone). The
+           progress sits under the site header, the step hint on the
+           preview's bottom edge. Both stay display:none unless
+           configurator.js sets html.cfg-phone3 and the viewport is a phone.
+           configurator.js owns the label, the hint and the segment states. -->
+      <nav class="p3-prog" id="p3-prog" data-i18n-attr="aria-label:cfg.steps" aria-label="Шаги">
+        <p class="p3-label" aria-hidden="true"><span id="p3-count">1/3</span> · <span id="p3-name" data-i18n="cfg.stepGarment">Одежда</span></p>
+        <button type="button" class="p3-seg" data-step="color" data-i18n-attr="aria-label:cfg.stepGarment" aria-label="Одежда"></button>
+        <button type="button" class="p3-seg" data-step="design" data-i18n-attr="aria-label:cfg.stepDesign" aria-label="Дизайн"></button>
+        <button type="button" class="p3-seg" data-step="order" data-i18n-attr="aria-label:cfg.stepPlace" aria-label="Размещение"></button>
+      </nav>
+      <p class="p3-hint" id="p3-hint"></p>
+
       <!-- legacy id kept so nothing that still references the chip breaks -->
       <button id="btn-toggle-preview" style="display:none" aria-hidden="true" tabindex="-1"></button>
 
