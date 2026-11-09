@@ -3845,6 +3845,7 @@ function addTextElement() {
   });
   st.elements.push(el);
   st.selId = el.id;
+  p3NeedDesign(false);
   syncPanelFromState();
   redrawActive();
   updateViewToggleMarkers();
@@ -4744,7 +4745,7 @@ function setStep(step) {
   if (_blankOnly && step === "design") step = "color";
   if (_blankOnly && _p3()) step = "color"; // PRD-214 A-1: a blank product ends at step 1
   if (step === "order" && !sizeChosen()) return;
-  if (step !== currentStep) setCamAccOpen(false); // collapsed on step entry
+  if (step !== currentStep) { setCamAccOpen(false); p3NeedDesign(false); } // collapsed on step entry
   currentStep = step;
   // The 2D zoom belongs to step 1. Repaint now, before the order summary
   // snapshots the flat canvas.
@@ -4805,10 +4806,10 @@ function updateStepNext() {
   const label = document.getElementById("step-next-label");
   if (!label) return;
   if (_p3()) {
-    // Step 1 says where it goes (LOOM-293); step 2 names the step it opens.
+    // Each step says where it goes (LOOM-293, LOOM-294).
     const k = currentStep === "color"
       ? ["cfg.nextDesign", "Дальше: дизайн"]
-      : P3_NAME[P3_NEXT[currentStep]] || P3_NAME.order;
+      : ["cfg.nextPlace", "К размещению"];
     label.setAttribute("data-i18n", k[0]);
     label.textContent = CT(k[0], k[1]);
     return;
@@ -4865,6 +4866,11 @@ function bindStepNext() {
     if (!_p3()) { setStep(NEXT_STEP[currentStep] || "order"); return; }
     // Kiyim holds the size, and Joylash needs one: ask for it here.
     if (currentStep === "color" && !sizeChosen()) return;
+    // Dizayn needs a design before Joylash: point at the two tiles.
+    if (currentStep === "design" && !_viewHasContent("front") && !_viewHasContent("back")) {
+      p3NeedDesign(true);
+      return;
+    }
     setStep(P3_NEXT[currentStep] || "order");
   });
   window.addEventListener("resize", updateStepNext);
@@ -4915,6 +4921,18 @@ function p3Sync() {
     if (!el || !k) return;
     el.setAttribute("data-i18n", k[0]); // i18n.apply re-translates it
     el.textContent = CT(k[0], k[1]);
+  });
+}
+
+/** LOOM-294: outline the step 2 tiles (the need-size look); replays on every refused tap. */
+function p3NeedDesign(on) {
+  ["btn-add-logo", "btn-add-text"].forEach((id) => {
+    const t = document.getElementById(id);
+    if (!t) return;
+    t.classList.remove("need-design");
+    if (!on) return;
+    void t.offsetWidth;
+    t.classList.add("need-design");
   });
 }
 
@@ -6400,6 +6418,10 @@ function handleImageFile(file, meta) {
       // "+ Логотип" adds a layer; the upload area swaps the selected layer's art.
       let el = (!_pendingLogoIsNew && sel && sel.type === "image") ? sel : null;
       let scalePct = 100;
+      // LOOM-294: a phone step 2 upload opens Joylash, and a face's first layer
+      // lands in the middle of the print area (nx/ny are its centre, as
+      // fractions of the print rect).
+      const p3Open = _p3() && currentStep === "design";
       if (!el) {
         // A 100% logo's long edge is 0.30 × TEX_SIZE against REF_RECT's width.
         const fullH = (TEX_SIZE * 0.30) / REF_RECT.h;
@@ -6411,7 +6433,7 @@ function handleImageFile(file, meta) {
         }
         const ownH = fullH * (scalePct / 100);
         el = newImageElement({
-          ny: st.elements.length ? _stackNy(designState.activeView, ownH) : 0.28,
+          ny: st.elements.length ? _stackNy(designState.activeView, ownH) : p3Open ? 0.5 : 0.28,
         });
         st.elements.push(el);
         st.selId = el.id;
@@ -6455,6 +6477,8 @@ function handleImageFile(file, meta) {
       updateViewToggleMarkers();
       refreshPriceLabels();
       trackStep("cfg_design_add");
+      p3NeedDesign(false);
+      if (p3Open) setStep("order");
       maybeShowFirstDesignReward();
       }; // apply()
 
