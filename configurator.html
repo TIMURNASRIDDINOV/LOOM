@@ -45,7 +45,7 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=5"></script>
     <script defer src="assets/layout.js?v=7"></script>
-    <script defer src="assets/i18n.js?v=45"></script>
+    <script defer src="assets/i18n.js?v=46"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=3"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
@@ -53,7 +53,7 @@
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=3"></script>
     <script defer src="assets/cart.js?v=7"></script>
-    <script defer src="configurator.js?v=91"></script>
+    <script defer src="configurator.js?v=92"></script>
 
     <style>
       /* ============================================================
@@ -2021,7 +2021,7 @@
          step panel under it in a fixed height that scrolls inside, and a
          one-row bar whose buttons share a top edge. While typing (kb-open)
          the keyboard layout above takes over unchanged. */
-      .p3-prog, .p3-hint, .cta-price { display: none; }
+      .p3-prog, .p3-hint, .cta-price, .p3-gcards { display: none; }
       @media (max-width: 900px) {
         html.cfg-phone3 .studio {
           --p3-top: 46px;   /* the progress strip */
@@ -2078,7 +2078,6 @@
         html.cfg-phone3 body:not(.kb-open) .loading-overlay {
           top: calc(var(--nav-h) + var(--p3-top)); height: var(--p3-pv); min-height: 0;
         }
-        html.cfg-phone3 body:not(.kb-open) .chip-garment,
         html.cfg-phone3 body:not(.kb-open) .chip-reset,
         html.cfg-phone3 body:not(.kb-open) .chip-save,
         html.cfg-phone3 body:not(.kb-open) .surface-toggle { top: calc(var(--nav-h) + var(--p3-top) + 16px); }
@@ -2135,6 +2134,79 @@
         html.cfg-phone3 body.blank-only .studio-sheet #btn-step-next { display: none; }
         html.cfg-phone3 body.blank-only .studio-sheet #btn-add-to-cart { display: inline-flex; }
         html.cfg-phone3 body.blank-only .studio-sheet #btn-place-order { display: flex; }
+
+        /* ── LOOM-293: step 1 picks garment, colour and size on the panel.
+           The garment cards replace the "Сменить товар" chip. Cards, sizes
+           and colours (label and swatches on one line) fit the panel at
+           390x844 with the preview kept at 56%; a shorter screen gives the
+           preview up on this step only, so all three stay in view. The size
+           guide follows below. Cards scroll sideways in their own row. */
+        html.cfg-phone3 .chip-garment { display: none; }
+        html.cfg-phone3 .studio:has(.studio-sheet[data-step="color"]) {
+          --p3-s1: 262px; /* the step 1 panel and the bar */
+          --p3-pv: min(56dvh, calc(100dvh - var(--nav-h) - var(--p3-top) - var(--p3-s1)));
+        }
+        /* Short screens (320x568): the step 1 hint goes, so the garment
+           keeps the room between the chips and Front/Back. */
+        @media (max-height: 700px) {
+          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="color"]) .p3-hint { display: none; }
+          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="color"]) .view-toggle {
+            top: calc(100dvh - var(--peek) - 62px);
+          }
+          html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="color"]) .flat-stagebox {
+            padding-bottom: 64px;
+          }
+        }
+        html.cfg-phone3 .studio-sheet[data-step="color"] .tab-scroll { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        html.cfg-phone3 #tab-color { flex-flow: row wrap; align-items: center; gap: 0.5rem 0.75rem; }
+        html.cfg-phone3 #tab-color > * { flex: 0 0 100%; min-width: 0; }
+        html.cfg-phone3 #tab-color > .size-guide,
+        html.cfg-phone3 #tab-color > .divider,
+        html.cfg-phone3 #tab-color > .blank-note { order: 1; }
+        /* The size buttons name themselves: their label stays for screen
+           readers only, like the step head. The colour label sits inline. */
+        html.cfg-phone3 #tab-color > .tab-section-label:has(+ .size-selector) {
+          position: absolute; width: 1px; height: 1px; overflow: hidden;
+          clip-path: inset(50%); white-space: nowrap; counter-increment: none;
+        }
+        html.cfg-phone3 .studio-sheet #tab-color > .tab-section-label:has(+ .color-swatches) {
+          flex: 0 0 auto; margin: 0; padding-bottom: 0; border-bottom: 0;
+        }
+        html.cfg-phone3 .studio-sheet #tab-color > .color-swatches {
+          flex: 1 1 0; display: flex; gap: 0.6rem; padding-top: 0;
+        }
+        html.cfg-phone3 .studio-sheet .swatch-btn { width: 40px; height: 40px; }
+        html.cfg-phone3 .p3-gcards {
+          display: flex; gap: 0.5rem; overflow-x: auto; scrollbar-width: none;
+          padding: 1px var(--gut) var(--gut) 1px;
+        }
+        html.cfg-phone3 .p3-gcards::-webkit-scrollbar { display: none; }
+        /* Three cards share a 360px row; a fourth scrolls in. */
+        .p3-gc {
+          flex: 1 1 0; min-width: 6.5rem; max-width: 12rem;
+          display: flex; align-items: center; gap: 0.3rem;
+          min-height: 44px; padding: 2px 0.4rem 2px 2px; text-align: left;
+          border: var(--rule); border-radius: 0; background: var(--paper-3); color: var(--text);
+          box-shadow: var(--hard-sm); cursor: pointer;
+          transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        .p3-gc:active { transform: translate(2px, 2px); box-shadow: none; }
+        .p3-gc.active {
+          box-shadow: var(--hard-accent); transform: translate(-1px, -1px);
+          border-left: 5px solid var(--accent); padding-left: 0;
+        }
+        .p3-gc:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+        .p3-gc img { width: 28px; height: 28px; flex: none; object-fit: contain; background: var(--paper-2); }
+        .p3-gc > span { min-width: 0; }
+        .p3-gc b {
+          display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+          overflow-wrap: anywhere;
+          font-family: var(--font-display); font-size: 0.74rem; font-weight: 700; line-height: 1.1;
+        }
+        .p3-gc small {
+          display: block; font-family: var(--font-mono); font-size: 0.72rem;
+          line-height: 1.2; color: var(--ink-70); white-space: nowrap;
+        }
       }
     </style>
   </head>

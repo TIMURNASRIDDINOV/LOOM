@@ -1711,6 +1711,7 @@ function productName(product) {
 function applyProductToHeader(product) {
   if (!product) return;
   refreshPriceLabels();
+  p3SyncGarments(); // LOOM-293: the step 1 card for this product
   const name = productName(product);
   if (!name) return;
   document.title = "LOOM — " + name; // the static <title> is product-neutral (LOOM-216)
@@ -4804,9 +4805,10 @@ function updateStepNext() {
   const label = document.getElementById("step-next-label");
   if (!label) return;
   if (_p3()) {
-    // No "next: design" string exists yet (LOOM-293 adds one): the button
-    // names the step it opens, next to its arrow.
-    const k = P3_NAME[P3_NEXT[currentStep]] || P3_NAME.order;
+    // Step 1 says where it goes (LOOM-293); step 2 names the step it opens.
+    const k = currentStep === "color"
+      ? ["cfg.nextDesign", "Дальше: дизайн"]
+      : P3_NAME[P3_NEXT[currentStep]] || P3_NAME.order;
     label.setAttribute("data-i18n", k[0]);
     label.textContent = CT(k[0], k[1]);
     return;
@@ -4904,6 +4906,7 @@ function p3Sync() {
     b.setAttribute("aria-disabled", String(j > i));
     if (j === i) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
   });
+  p3EnsureGarments();
   const count = document.getElementById("p3-count");
   if (count) count.textContent = (i + 1) + "/3";
   [["p3-name", P3_NAME], ["p3-hint", P3_HINT]].forEach(([id, map]) => {
@@ -4918,6 +4921,8 @@ function p3Sync() {
 function bindPhoneFlow() {
   if (!phoneFlowEnabled()) return;
   document.documentElement.classList.add("cfg-phone3");
+  _p3SnapshotBase(); // before any product's config lands on the built-in garment
+  window.addEventListener("loom:langchange", p3RenderGarments); // names are per language
   // Completed segments go back; the current and later ones do nothing.
   document.querySelectorAll(".p3-seg").forEach((b) => {
     b.addEventListener("click", () => {
@@ -4936,6 +4941,159 @@ function bindPhoneFlow() {
   refreshPriceLabels();
   window.addEventListener("loom:langchange", refreshPriceLabels); // the currency word
   if (_p3()) setStep("color");
+}
+
+// ── LOOM-293: step 1 picks the garment on the page ─────────────
+// Every active product is a card above the colours and sizes. A tap swaps
+// the product in place, without the trip to the catalogue: the page goes
+// back to the built-in garment and lays the new product's config on it, as
+// a fresh load of ?slug= would, while designState keeps every layer at its
+// normalised position. Colour and size start over on the new product's lists.
+let _p3Garments = null; // the card row, built on the first phone step
+let _p3Products = [];
+let _p3Swapping = false;
+let _p3Base = null;     // the built-in garment, before any product config
+
+function _p3SnapshotBase() {
+  _p3Base = {
+    colors: SHIRT_COLORS.map((c) => ({ ...c })),
+    sizes: [...document.querySelectorAll("#size-selector .size-btn")].map((b) => b.dataset.size),
+    platen: { ...PLATEN_CM }, wf: PLATEN_W_FRAC, tf: PLATEN_TOP_FRAC,
+    art: JSON.parse(JSON.stringify(FLAT_ART)),
+  };
+}
+
+function p3EnsureGarments() {
+  if (_p3Garments) return;
+  const tab = document.getElementById("tab-color");
+  if (!tab) return;
+  _p3Garments = document.createElement("div");
+  _p3Garments.id = "p3-gcards";
+  _p3Garments.className = "p3-gcards";
+  _p3Garments.setAttribute("role", "radiogroup");
+  _p3Garments.setAttribute("data-i18n-attr", "aria-label:cfg.stepGarment");
+  _p3Garments.setAttribute("aria-label", CT("cfg.stepGarment", "Одежда"));
+  tab.prepend(_p3Garments);
+  // No cards when the list fails: the page keeps the product it opened with.
+  fetch(getApiBase() + "/api/products")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((list) => {
+      const items = Array.isArray(list) ? list : (list && list.products) || [];
+      // Ready-made designs are bought as they are, never configured.
+      _p3Products = items.filter((p) => (p.product_type || "custom") !== "ready");
+      p3RenderGarments();
+    })
+    .catch(() => {});
+}
+
+function p3RenderGarments() {
+  if (!_p3Garments) return;
+  _p3Garments.textContent = "";
+  const cur = CT("cfg.currency", "сум");
+  _p3Products.forEach((p) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "p3-gc";
+    b.dataset.slug = p.slug;
+    const img = document.createElement("img");
+    img.alt = "";
+    // The photo when there is one, else the product's flat art.
+    const fa = p.config && p.config.flat_art && p.config.flat_art.front;
+    let fb = (fa && (fa.src_small || fa.src)) || _p3Base.art.front.srcSmall;
+    img.addEventListener("error", () => { if (fb) { img.src = fb; fb = null; } });
+    img.src = p.thumbnail_url || fb;
+    const txt = document.createElement("span");
+    const name = document.createElement("b");
+    name.textContent = productName(p);
+    const price = document.createElement("small"); // the currency word is on the CTA
+    price.textContent = new Intl.NumberFormat("ru-RU").format(p.price);
+    b.setAttribute("aria-label", productName(p) + ", " + price.textContent + " " + cur);
+    txt.append(name, price);
+    b.append(img, txt);
+    b.addEventListener("click", () => p3PickGarment(p));
+    _p3Garments.appendChild(b);
+  });
+  p3SyncGarments();
+}
+
+function p3SyncGarments() {
+  if (!_p3Garments) return;
+  const slug = currentProduct && currentProduct.slug;
+  _syncRadios("p3-gcards", ".p3-gc", "active", (b) => b.dataset.slug === slug);
+  // Bring the active card into the row's view (row scroll only, never the page).
+  const a = _p3Garments.querySelector(".p3-gc.active");
+  if (!a) return;
+  const r = _p3Garments.getBoundingClientRect(), c = a.getBoundingClientRect();
+  if (c.left < r.left || c.right > r.right) _p3Garments.scrollLeft += c.left - r.left - (r.width - c.width) / 2;
+}
+
+/** Take the 3D garment off the stage; the next 3D open loads _pendingGlbUrl. */
+function p3DropModel() {
+  if (!_preview3DReady) return;
+  finishEntrance();
+  if (scene) scene.remove(_pivot || shirtObject);
+  _pivot = null;
+  shirtObject = null;
+  _preview3D = null;
+  _preview3DReady = false;
+  _modelCredited = false;
+  syncModelCredit();
+}
+
+async function p3PickGarment(p) {
+  if (_p3Swapping || !p || !_p3Base || (currentProduct && currentProduct.slug === p.slug)) return;
+  _p3Swapping = true;
+  try {
+    // A model still loading lands first, so it cannot appear over the new one.
+    if (_preview3D) await _preview3D.catch(() => {});
+    const url = new URL(location.href);
+    url.searchParams.set("slug", p.slug);
+    history.replaceState(null, "", url.toString());
+
+    // The built-in garment, then the product's config on top of it.
+    SHIRT_COLORS.splice(0, SHIRT_COLORS.length, ..._p3Base.colors.map((c) => ({ ...c })));
+    DEFAULT_SHIRT_COLOR = SHIRT_COLORS[0].hex;
+    PLATEN_CM.w = _p3Base.platen.w;
+    PLATEN_CM.h = _p3Base.platen.h;
+    PLATEN_W_FRAC = _p3Base.wf;
+    PLATEN_TOP_FRAC = _p3Base.tf;
+    ["front", "back"].forEach((v) => {
+      PRINT_RECTS[v] = { ...DEFAULT_PRINT_RECTS[v] };
+      FLAT_ART[v] = JSON.parse(JSON.stringify(_p3Base.art[v]));
+      _centrelines[v] = null; // measured off the old mesh
+    });
+    _meshTris = { front: null, back: null };
+    _flatTint.key = null;
+    selectedSize = null; // LOOM-179: never carried over to another garment
+    buildColorSwatches();
+    buildSizeButtons(_p3Base.sizes);
+    currentProduct = p;
+    productUnavailable = false;
+    applyProductConfig(p);
+    paintShirtColor(DEFAULT_SHIRT_COLOR); // the product's first colour
+    setFabricPreset(fabricForProduct(p));
+    applyProductToHeader(p);
+    _pendingGlbUrl = p.glb_url || DEFAULT_MODEL_URL;
+    _prefetched = false;
+    p3DropModel();
+
+    // Today's blank rules (LOOM-226): colour and size only, no design tools.
+    const wasBlank = _blankOnly;
+    _blankOnly = p.product_type === "blank";
+    document.body.classList.toggle("blank-only", _blankOnly);
+    if (_blankOnly) {
+      for (const view of ["front", "back"]) { designState[view].elements = []; designState[view].selId = null; }
+      for (const id in uploadedFileData) delete uploadedFileData[id];
+    }
+    redrawActive();
+    updateViewToggleMarkers();
+    // A blank shows its 3D, as on load; back from one, the 2D editor; else
+    // the surface stays and a 3D on screen loads the new model.
+    setFlatMode(_blankOnly ? false : wasBlank ? true : flatMode);
+    setStep("color");
+  } finally {
+    _p3Swapping = false;
+  }
 }
 
 /** A new step starts with the sheet compact. */
@@ -5066,6 +5224,14 @@ function updateCartCta() {
   if (!btn) return;
   const label = btn.querySelector("span[data-i18n]");
   if (!label) return;
+  // A blank product (LOOM-226) is sold without a print by design, so on the
+  // phone's step 1 (LOOM-293) its button simply adds it to the bag.
+  if (_blankOnly && _p3()) {
+    label.setAttribute("data-i18n", "cfg.addToBag");
+    label.textContent = CT("cfg.addToBag", "Добавить в корзину");
+    btn.classList.remove("is-blank");
+    return;
+  }
   const empty = !_viewHasContent("front") && !_viewHasContent("back");
   const key = empty ? "cfg.orderBlank" : "cfg.addToCart";
   label.setAttribute("data-i18n", key);
