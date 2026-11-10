@@ -204,6 +204,8 @@
     'cfg.presetL':      { uz: 'Katta 28 sm', ru: 'Крупный 28 см', en: 'Large 28 cm' },
     'cfg.replace':      { uz: 'Almashtirish', ru: 'Заменить', en: 'Replace' },
     'cfg.camSide':      { uz: 'Yon', ru: 'Сбоку', en: 'Side' },
+    // LOOM-298: reopens a completed step of the desktop accordion. ru and en are drafts for Content.
+    'cfg.change':       { uz: 'O‘zgartirish', ru: 'Изменить', en: 'Change' },
     'cfg.stepDesign':   { uz: 'Dizayn',        ru: 'Дизайн',        en: 'Design' },
     'cfg.stepColorSize':{ uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour & size' },
     'cfg.stepOrder':    { uz: 'Buyurtma',      ru: 'Заказ',         en: 'Order' },

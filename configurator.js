@@ -4175,7 +4175,7 @@ function renderFlatEditor() {
   // Only the zoom button zooms, and only in step 1: steps 2 and 3 show the
   // whole shirt, because picking a colour needs it. LOOM-296: the phone's
   // step 3 zooms too, from its "Ko'proq" sheet.
-  const zoomed = _flatZoomOn && (currentStep === "design" || (currentStep === "order" && _p3()));
+  const zoomed = _flatZoomOn && (currentStep === "design" || (currentStep === "order" && _flow3()));
   if (zoomed) _flatZoomBox(face, box, W, H);
   _flatSyncZoomBtn();
   _flatBox = box;
@@ -4747,7 +4747,7 @@ function _isSheetLayout() {
 function setStep(step) {
   if (SHEET_STEPS.indexOf(step) < 0) step = "design";
   if (_blankOnly && step === "design") step = "color";
-  if (_blankOnly && _p3()) step = "color"; // PRD-214 A-1: a blank product ends at step 1
+  if (_blankOnly && _flow3()) step = "color"; // PRD-214 A-1: a blank product ends at step 1
   if (step === "order" && !sizeChosen()) return;
   if (step !== currentStep) { setCamAccOpen(false); p3NeedDesign(false); } // collapsed on step entry
   currentStep = step;
@@ -4809,7 +4809,7 @@ const NEXT_STEP = { design: "color", color: "order" };
 function updateStepNext() {
   const label = document.getElementById("step-next-label");
   if (!label) return;
-  if (_p3()) {
+  if (_flow3()) {
     // Each step says where it goes (LOOM-293, LOOM-294).
     const k = currentStep === "color"
       ? ["cfg.nextDesign", "Дальше: дизайн"]
@@ -4867,7 +4867,7 @@ function bindStepNext() {
   const btn = document.getElementById("btn-step-next");
   if (!btn) return;
   btn.addEventListener("click", () => {
-    if (!_p3()) { setStep(NEXT_STEP[currentStep] || "order"); return; }
+    if (!_flow3()) { setStep(NEXT_STEP[currentStep] || "order"); return; }
     // Kiyim holds the size, and Joylash needs one: ask for it here.
     if (currentStep === "color" && !sizeChosen()) return;
     // Dizayn needs a design before Joylash: point at the two tiles.
@@ -4905,10 +4905,17 @@ function phoneFlowEnabled() {
   try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgPhone); } catch (e) { return false; }
 }
 function _p3() { return phoneFlowEnabled() && _isSheetLayout(); }
+// LOOM-298: the same three steps on desktop (LOOM_FLAGS.cfgDesktop, >= 901px).
+function desktopFlowEnabled() {
+  try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgDesktop); } catch (e) { return false; }
+}
+function _d3() { return desktopFlowEnabled() && !_isSheetLayout(); }
+/** The three-step flow runs here: the phone shell or the desktop accordion. */
+function _flow3() { return _p3() || _d3(); }
 
 /** Header progress, its label and the hint chip follow currentStep. */
 function p3Sync() {
-  if (!_p3()) return;
+  if (!_flow3()) return;
   const i = P3_STEPS.indexOf(currentStep);
   document.querySelectorAll(".p3-seg").forEach((b) => {
     const j = P3_STEPS.indexOf(b.dataset.step);
@@ -4930,6 +4937,78 @@ function p3Sync() {
   tmaSync();
 }
 
+// ── LOOM-298: desktop accordion stepper (LOOM_FLAGS.cfgDesktop) ──
+// One header per step over today's panel bodies (step 1 #tab-color, step 2
+// the design dock, step 3 #tab-summary); CSS under html.cfg-desk3 orders
+// them header, body, header, body and pins .panel-foot. A completed step is
+// its header with a summary line and "O'zgartirish", which reopens it.
+let _d3Step = null; // the step the panel last scrolled to the top for
+
+function bindDesktopFlow() {
+  if (!desktopFlowEnabled()) return;
+  const sheet = document.getElementById("studio-sheet");
+  if (!sheet || sheet.querySelector(".d3-st")) return;
+  sheet.insertAdjacentHTML("beforeend", P3_STEPS.map((s, i) =>
+    `<button type="button" class="d3-st" data-step="${s}">` +
+      `<span class="step-num"><span>${i + 1}</span></span>` +
+      `<span class="d3-t"><b data-i18n="${P3_NAME[s][0]}">${CT(P3_NAME[s][0], P3_NAME[s][1])}</b><small></small></span>` +
+      `<span class="d3-e" data-i18n="cfg.change">${CT("cfg.change", "Изменить")}</span>` +
+    `</button>`).join(""));
+  sheet.addEventListener("click", (e) => {
+    const b = e.target.closest(".d3-st");
+    if (b && _d3() && b.dataset.st === "done") setStep(b.dataset.step);
+  });
+  window.addEventListener("loom:langchange", d3Sync); // the colour and garment names
+  // The class follows the breakpoint, so a resize across 900px swaps layouts.
+  const mq = window.matchMedia("(min-width: 901px)");
+  const apply = () => {
+    document.documentElement.classList.toggle("cfg-desk3", mq.matches);
+    _d3Step = null;
+    updateStepNext();
+    updateCartCta();
+    p3SyncPlace();
+  };
+  mq.addEventListener("change", () => {
+    apply();
+    // Widening a phone-layout page with cfgPhone off can leave the old flow
+    // on Dizayn with no size: step 1 must not then show as done.
+    if (_d3() && !sizeChosen() && currentStep !== "color") setStep("color");
+  });
+  apply();
+}
+
+/** Header states and the done steps' summary lines follow currentStep. */
+function d3Sync() {
+  if (!_d3()) return;
+  const i = P3_STEPS.indexOf(currentStep);
+  document.querySelectorAll(".d3-st").forEach((b) => {
+    const j = P3_STEPS.indexOf(b.dataset.step);
+    const st = j < i ? "done" : j === i ? "now" : "todo";
+    b.dataset.st = st;
+    b.setAttribute("aria-expanded", String(st === "now"));
+    b.setAttribute("aria-disabled", String(st !== "done"));
+    if (st === "now") b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+    b.querySelector("small").textContent = st === "done" ? d3Summary(b.dataset.step) : "";
+  });
+  // A new step starts at the panel's top: the done steps are one line each.
+  if (_d3Step !== currentStep) {
+    _d3Step = currentStep;
+    const sheet = document.getElementById("studio-sheet");
+    if (sheet) sheet.scrollTop = 0;
+  }
+}
+
+/** "Futbolka · Qora · M" for step 1; the layers' text and file names for step 2. */
+function d3Summary(step) {
+  if (step === "color") {
+    return [currentProduct && productName(currentProduct), getColorName(designState.shirtColor), selectedSize]
+      .filter(Boolean).join(" · ");
+  }
+  return ["front", "back"].flatMap((v) => designState[v].elements)
+    .map((e) => (e.type === "text" ? e.content : e.img && e.name))
+    .filter(Boolean).join(" · ");
+}
+
 /** LOOM-294: outline the step 2 tiles (the need-size look); replays on every refused tap. */
 function p3NeedDesign(on) {
   ["btn-add-logo", "btn-add-text"].forEach((id) => {
@@ -4943,8 +5022,10 @@ function p3NeedDesign(on) {
 }
 
 function bindPhoneFlow() {
-  if (!phoneFlowEnabled()) return;
-  document.documentElement.classList.add("cfg-phone3");
+  // LOOM-298: the desktop accordion runs on the same steps, garment cards
+  // and step 3 overlays, so either flag builds them.
+  if (!phoneFlowEnabled() && !desktopFlowEnabled()) return;
+  if (phoneFlowEnabled()) document.documentElement.classList.add("cfg-phone3");
   _p3SnapshotBase(); // before any product's config lands on the built-in garment
   window.addEventListener("loom:langchange", p3RenderGarments); // names are per language
   // Completed segments go back; the current and later ones do nothing.
@@ -4954,19 +5035,23 @@ function bindPhoneFlow() {
       if (P3_STEPS.indexOf(b.dataset.step) < P3_STEPS.indexOf(currentStep)) setStep(b.dataset.step);
     });
   });
-  // The CTA carries the server price shown on the page (refreshPriceLabels).
-  ["btn-step-next", "btn-add-to-cart"].forEach((id) => {
-    const btn = document.getElementById(id);
-    if (!btn || btn.querySelector(".cta-price")) return;
-    const span = document.createElement("span");
-    span.className = "cta-price";
-    btn.appendChild(span);
-  });
-  refreshPriceLabels();
-  window.addEventListener("loom:langchange", refreshPriceLabels); // the currency word
+  // The phone CTA carries the server price shown on the page
+  // (refreshPriceLabels); the desktop foot has its own price row.
+  if (phoneFlowEnabled()) {
+    ["btn-step-next", "btn-add-to-cart"].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn || btn.querySelector(".cta-price")) return;
+      const span = document.createElement("span");
+      span.className = "cta-price";
+      btn.appendChild(span);
+    });
+    refreshPriceLabels();
+    window.addEventListener("loom:langchange", refreshPriceLabels); // the currency word
+  }
   p3BuildPlace();
-  if (_p3()) setStep("color");
-  bindTmaButtons();
+  bindDesktopFlow();
+  if (_flow3()) setStep("color");
+  if (phoneFlowEnabled()) bindTmaButtons();
 }
 
 // ── LOOM-297: the phone shell inside Telegram ──────────────────
@@ -5207,6 +5292,8 @@ function p3SheetOpen() {
   png.setAttribute("aria-disabled", String(!_preview3DReady));
   png.querySelector("small").hidden = _preview3DReady;
   row("zoom").setAttribute("aria-pressed", String(flatMode && _flatZoomOn));
+  // LOOM-298: desktop opens it on every step; step 1 shows the whole garment.
+  row("zoom").hidden = currentStep === "color";
   // Not in Telegram; and, as for the desktop chip, not where the Fullscreen
   // API is off (bindFullscreen has removed the chip there).
   const fs = document.getElementById("btn-fullscreen");
@@ -5328,11 +5415,12 @@ function p3Camera(which) {
 
 /** html.p3-3d, the camera row and the presets follow the surface, the step and the selection. */
 function p3SyncPlace() {
-  if (!phoneFlowEnabled()) return;
+  if (!phoneFlowEnabled() && !desktopFlowEnabled()) return;
+  d3Sync(); // LOOM-298: a removed layer leaves step 2's summary line
   document.documentElement.classList.toggle("p3-3d", !flatMode);
   const cam = document.getElementById("p3-cam");
   // Hidden while the model loads or failed: the LOOM-192 state shows instead.
-  if (cam) cam.hidden = !(_p3() && currentStep === "order" && !flatMode && _preview3DReady);
+  if (cam) cam.hidden = !(_flow3() && currentStep === "order" && !flatMode && _preview3DReady);
   const place = document.getElementById("p3-place");
   if (!place) return;
   const el = selectedElement();
@@ -5627,7 +5715,7 @@ function updateCartCta() {
   if (!label) return;
   // A blank product (LOOM-226) is sold without a print by design, so on the
   // phone's step 1 (LOOM-293) its button simply adds it to the bag.
-  if (_blankOnly && _p3()) {
+  if (_blankOnly && _flow3()) {
     label.setAttribute("data-i18n", "cfg.addToBag");
     label.textContent = CT("cfg.addToBag", "Добавить в корзину");
     btn.classList.remove("is-blank");
@@ -5636,9 +5724,9 @@ function updateCartCta() {
   }
   const empty = !_viewHasContent("front") && !_viewHasContent("back");
   // LOOM-295: the phone's step 3 says "Savatga qo'shish" next to Buy now.
-  const key = empty ? "cfg.orderBlank" : _p3() ? "cfg.addToBag" : "cfg.addToCart";
+  const key = empty ? "cfg.orderBlank" : _flow3() ? "cfg.addToBag" : "cfg.addToCart";
   label.setAttribute("data-i18n", key);
-  label.textContent = CT(key, empty ? "Заказать без принта" : _p3() ? "Добавить в корзину" : "В корзину");
+  label.textContent = CT(key, empty ? "Заказать без принта" : _flow3() ? "Добавить в корзину" : "В корзину");
   btn.classList.toggle("is-blank", empty);
   tmaSync();
 }
@@ -6817,7 +6905,7 @@ function handleImageFile(file, meta) {
       // LOOM-294: a phone step 2 upload opens Joylash, and a face's first layer
       // lands in the middle of the print area (nx/ny are its centre, as
       // fractions of the print rect).
-      const p3Open = _p3() && currentStep === "design";
+      const p3Open = _flow3() && currentStep === "design";
       if (!el) {
         // A 100% logo's long edge is 0.30 × TEX_SIZE against REF_RECT's width.
         const fullH = (TEX_SIZE * 0.30) / REF_RECT.h;
@@ -6916,9 +7004,10 @@ function _withStillCamera(view, read) {
   // frames, not the cart mockups and PNG an order ships with.
   const liveRatio = renderer.getPixelRatio();
   const stillRatio = Math.min(window.devicePixelRatio || 1, 2);
-  // LOOM-295 AC-4 (STD-11): with the phone shell on, stills are framed on the
-  // flag-off stage, so the cart mockups match the flag-off page exactly.
-  const flagOffFit = _p3() && shirtObject && !document.body.classList.contains("kb-open")
+  // LOOM-295 AC-4 (STD-11): with the phone shell (or LOOM-298's desktop
+  // accordion) on, stills are framed on the flag-off stage, so the cart
+  // mockups match the flag-off page exactly.
+  const flagOffFit = _flow3() && shirtObject && !document.body.classList.contains("kb-open")
     ? _p3FlagOffFit() : null;
   const pose = CAM_VIEWS[view === "back" ? "back" : "front"];
   _showHandles = false;
@@ -6945,7 +7034,8 @@ function _withStillCamera(view, read) {
 
 /**
  * LOOM-295: fit the camera as the flag-off page would. The phone shell's
- * layout is CSS under html.cfg-phone3, so drop the class for one synchronous
+ * layout is CSS under html.cfg-phone3 (the desktop accordion's under
+ * html.cfg-desk3), so drop the class for one synchronous
  * layout (no paint happens in between), size the renderer to that stage and
  * re-run the normal fit. Returns a function that puts the camera, controls
  * and renderer state back.
@@ -6967,7 +7057,9 @@ function _p3FlagOffFit() {
   const still = document.createElement("style");
   still.textContent = "*,*::before,*::after{transition:none!important}";
   document.head.appendChild(still);
-  root.classList.remove("cfg-phone3");
+  // LOOM-298: the desktop accordion's stage is CSS under html.cfg-desk3.
+  const flagClasses = ["cfg-phone3", "cfg-desk3"].filter((c) => root.classList.contains(c));
+  root.classList.remove(...flagClasses);
   const w = box.clientWidth, h = box.clientHeight; // forces the flag-off layout
   if (w && h) {
     renderer.setSize(w, h, false);
@@ -6978,8 +7070,8 @@ function _p3FlagOffFit() {
     scene.updateMatrixWorld(true);
     fitCameraToObject(shirtObject);
   }
-  root.classList.add("cfg-phone3");
-  void box.clientHeight; // back to the phone layout before transitions return
+  root.classList.add(...flagClasses);
+  void box.clientHeight; // back to the flag-on layout before transitions return
   still.remove();
   return () => {
     shirtObject.scale.copy(saved.scale);

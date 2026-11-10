@@ -43,9 +43,9 @@
          people who never opened the preview. Page scripts stay deferred so
          none of them blocks the parser. -->
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
-    <script defer src="assets/config.js?v=6"></script>
+    <script defer src="assets/config.js?v=7"></script>
     <script defer src="assets/layout.js?v=7"></script>
-    <script defer src="assets/i18n.js?v=49"></script>
+    <script defer src="assets/i18n.js?v=50"></script>
     <script defer src="assets/auth.js?v=5"></script>
     <script defer src="assets/tma.js?v=4"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
@@ -53,7 +53,7 @@
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=3"></script>
     <script defer src="assets/cart.js?v=7"></script>
-    <script defer src="configurator.js?v=96"></script>
+    <script defer src="configurator.js?v=97"></script>
 
     <style>
       /* ============================================================
@@ -2256,6 +2256,11 @@
           left: 50%; transform: translateX(-50%); bottom: calc(var(--peek) + 6px);
           padding: 4px; background: var(--paper-3); border: var(--rule); box-shadow: var(--hard-sm);
         }
+      }
+      /* LOOM-298: the rules below up to the 320px block style the camera
+         row, the "Ko'proq" sheet and the step 3 presets for the phone shell
+         and the desktop accordion alike. They match only elements that
+         configurator.js builds while a flag is on. */
         .p3-cam .view-btn::after { content: none; }
         .p3-cam .view-btn svg { display: block; }
 
@@ -2281,9 +2286,11 @@
         }
         .p3-sheet .lab-card__close { min-height: 44px; }
 
+      @media (max-width: 900px) {
         html.cfg-phone3 #tab-summary > :not(.p3-place) { display: none; }
         html.cfg-phone3 .p3-place { display: flex; flex-direction: column; gap: 0.5rem; }
         html.cfg-phone3.p3-3d .p3-place { display: none; }
+      }
         .p3-pre {
           display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
           padding: 0 var(--gut) var(--gut) 0;
@@ -2307,6 +2314,7 @@
         .p3-act:active { color: var(--text); }
         .p3-act:focus-visible, .studio-sheet .p3-pre .dock-pill:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
         .p3-place button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+      @media (max-width: 900px) {
         /* 320px: the three actions keep one row. */
         @media (max-width: 360px) {
           .p3-acts { gap: 0.25rem; }
@@ -2336,6 +2344,141 @@
         html.tma-cfg:not(.tma-buy) .studio-sheet .panel-foot { display: none; }
         html.tma-cfg body .studio-sheet .panel-foot > :not(#btn-place-order) { display: none; }
         html.tma-cfg .studio-sheet .panel-foot { padding-bottom: 0.5rem; }
+      }
+
+      /* ══ LOOM-298: desktop accordion stepper (LOOM_FLAGS.cfgDesktop) ══
+         configurator.js sets html.cfg-desk3 only while the flag is on and
+         the viewport is 901px or wider, so with it off nothing here
+         matches. Layout and flow only, in the page's own skin. The panel
+         (the same framed card, about 400px) is one scroll box: a header
+         per step (.d3-st, built by configurator.js) over that step's
+         existing body, ordered with flex `order`, and .panel-foot pinned
+         to its bottom. The stage starts at the panel's edge, so the
+         preview gets about 69% of the width. Over the preview: 2D|3D and
+         Old|Orqa top-left, "Ko'proq" top-right, and in 3D on step 3 the
+         camera row on the bottom edge. */
+      .d3-st { display: none; }
+      @media (min-width: 901px) {
+        html.cfg-desk3 .studio {
+          --panel-w: clamp(380px, 31.25vw, 420px);
+          --stage-l: calc(var(--panel-inset) + var(--panel-w));
+        }
+        html.cfg-desk3 .studio-sheet {
+          bottom: var(--panel-inset);
+          overflow-y: auto; overscroll-behavior: contain;
+        }
+        /* The steps are the headers now; the price is in the foot (the
+           header's price row, hidden by the skin while the header shows it). */
+        html.cfg-desk3 .studio-sheet .sheet-handle,
+        html.cfg-desk3 .studio-sheet .sheet-steps,
+        html.cfg-desk3 #cam-acc,
+        html.cfg-desk3 .chip-fs-slot,
+        html.cfg-desk3 .chip-garment,
+        html.cfg-desk3 .chip-reset,
+        html.cfg-desk3 .chip-save { display: none; }
+        html.cfg-desk3 .studio-panel,
+        html.cfg-desk3 .studio-sheet .tab-scroll { display: contents; }
+        html.cfg-desk3 .d3-st[data-step="color"] { order: 1; }
+        html.cfg-desk3 #tab-color { order: 2; }
+        html.cfg-desk3 .d3-st[data-step="design"] { order: 3; }
+        html.cfg-desk3 .studio-sheet .design-dock { order: 4; flex: none; overflow: visible; }
+        html.cfg-desk3 .d3-st[data-step="order"] { order: 5; }
+        html.cfg-desk3 #tab-summary { order: 6; }
+        html.cfg-desk3 .studio-sheet .panel-foot { order: 7; position: sticky; bottom: 0; z-index: 2; margin-top: auto; }
+        /* setStep shows #tab-color inline on step 2 too (its old tab). */
+        html.cfg-desk3 .studio-sheet[data-step="design"] #tab-color { display: none !important; }
+        html.cfg-desk3 #tab-color,
+        html.cfg-desk3 #tab-summary { padding: 0.25rem 1.5rem 1.25rem; }
+        html.cfg-desk3 .studio-sheet .design-dock { padding-top: 0.25rem; }
+        /* The header names the step: its old heading stays for screen readers. */
+        html.cfg-desk3 .design-dock .step-head {
+          position: absolute; width: 1px; height: 1px; overflow: hidden;
+          clip-path: inset(50%); white-space: nowrap;
+        }
+        html.cfg-desk3 #tab-summary > :not(.p3-place) { display: none; }
+        html.cfg-desk3 .p3-place { display: flex; flex-direction: column; gap: 0.5rem; }
+        html.cfg-desk3.p3-3d .p3-place { display: none; }
+        /* A blank product is step 1 only, bought from there (PRD-214 A-1). */
+        html.cfg-desk3 body.blank-only .d3-st:not([data-step="color"]) { display: none; }
+
+        html.cfg-desk3 .d3-st {
+          display: flex; align-items: center; gap: 0.75rem; width: 100%; min-height: 64px;
+          padding: 0.6rem 1.5rem; margin: 0; border: 0; border-top: var(--rule); border-radius: 0;
+          background: var(--bg); color: var(--text); text-align: left; cursor: default;
+          font-family: var(--font-display);
+        }
+        html.cfg-desk3 .d3-st[data-step="color"] { border-top: 0; }
+        html.cfg-desk3 .d3-st[data-st="done"] { cursor: pointer; }
+        html.cfg-desk3 .d3-st:focus-visible { outline: 2px solid var(--text); outline-offset: -4px; }
+        html.cfg-desk3 .d3-st .step-num { width: 28px; height: 28px; }
+        html.cfg-desk3 .d3-st[data-st="now"] .step-num {
+          background: var(--text); color: var(--paper); border-color: var(--text); box-shadow: 2px 2px 0 var(--accent);
+        }
+        html.cfg-desk3 .d3-st[data-st="done"] .step-num { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+        html.cfg-desk3 .d3-st[data-st="done"] .step-num::after { content: '✓'; }
+        html.cfg-desk3 .d3-st[data-st="done"] .step-num > * { display: none; }
+        html.cfg-desk3 .d3-st[data-st="todo"] { color: var(--muted); }
+        html.cfg-desk3 .d3-t { flex: 1; min-width: 0; }
+        html.cfg-desk3 .d3-t b { display: block; font-size: 1.05rem; font-weight: 700; line-height: 1.3; }
+        html.cfg-desk3 .d3-t small {
+          display: block; font-family: var(--font-body); font-size: 0.85rem; line-height: 1.4;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        html.cfg-desk3 .d3-t small:empty { display: none; }
+        html.cfg-desk3 .d3-e { display: none; font-size: 0.85rem; font-weight: 600; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+        html.cfg-desk3 .d3-st[data-st="done"] .d3-e { display: inline; }
+        html.cfg-desk3 .d3-st[data-st="done"]:hover .d3-e { color: var(--text); }
+
+        /* Foot: one "Keyin: …" on steps 1-2; on step 3 (and a blank's
+           step 1) "Savatga qo'shish" with "Hozir sotib olish" beside it. */
+        html.cfg-desk3 .studio-sheet[data-step="order"] .panel-foot,
+        html.cfg-desk3 body.blank-only .studio-sheet .panel-foot { flex-flow: row wrap; }
+        html.cfg-desk3 .studio-sheet .panel-foot > .foot-price-row { display: flex; }
+        html.cfg-desk3 .studio-sheet[data-step="order"] .panel-foot > .foot-price-row,
+        html.cfg-desk3 body.blank-only .studio-sheet .panel-foot > .foot-price-row { flex: 0 0 100%; }
+        html.cfg-desk3 .studio-sheet[data-step="order"] .panel-foot > button,
+        html.cfg-desk3 body.blank-only .studio-sheet .panel-foot > button { flex: 1 1 0; min-width: 0; width: auto; }
+        /* As on the phone bar: no icons, and the cart button takes the room
+           its 1.17rem label needs (its words never split). */
+        html.cfg-desk3 .studio-sheet[data-step="order"] .panel-foot > button > svg:not(.spinner),
+        html.cfg-desk3 .studio-sheet[data-step="order"] .panel-foot .cta-ico,
+        html.cfg-desk3 body.blank-only .studio-sheet .panel-foot > button > svg:not(.spinner),
+        html.cfg-desk3 body.blank-only .studio-sheet .panel-foot .cta-ico { display: none; }
+        html.cfg-desk3 .studio-sheet[data-step="order"] .panel-foot > button,
+        html.cfg-desk3 body.blank-only .studio-sheet .panel-foot > button {
+          justify-content: center; text-align: center; padding-left: 0.5rem; padding-right: 0.5rem;
+          overflow-wrap: normal; text-wrap: balance;
+        }
+        html.cfg-desk3 .studio-sheet[data-step="order"] .panel-foot > #btn-add-to-cart,
+        html.cfg-desk3 body.blank-only .studio-sheet .panel-foot > #btn-add-to-cart { flex-grow: 1.6; }
+        html.cfg-desk3 body.blank-only .studio-sheet #btn-step-next { display: none; }
+        html.cfg-desk3 body.blank-only .studio-sheet #btn-add-to-cart,
+        html.cfg-desk3 body.blank-only .studio-sheet #btn-place-order { display: flex; }
+
+        /* Preview: three control groups in 2D. */
+        html.cfg-desk3 .view-toggle {
+          top: calc(var(--chip-top) + 56px); bottom: auto;
+          left: calc(var(--stage-l) + 24px); right: auto; margin: 0;
+        }
+        html.cfg-desk3.p3-3d .studio:has(.studio-sheet[data-step="order"]) .view-toggle { display: none; }
+        html.cfg-desk3 .p3-more { display: inline-flex; top: var(--chip-top); right: 24px; left: auto; }
+        html.cfg-desk3 .p3-more[aria-expanded="true"] { background: var(--text); color: var(--paper); }
+        /* "Ko'proq" opens its list as a popover under the chip; a click
+           anywhere else (the clear backdrop) closes it. */
+        html.cfg-desk3 .p3-sheet .flat-add-backdrop { background: none; }
+        html.cfg-desk3 .p3-sheet .flat-add-card {
+          left: auto; right: 24px; top: calc(var(--chip-top) + 56px); transform: none;
+          width: 300px; max-height: calc(100dvh - var(--chip-top) - 72px);
+        }
+        html.cfg-desk3 .p3-cam:not([hidden]) {
+          display: flex; gap: 4px; position: absolute; z-index: 30;
+          left: var(--stage-cx); transform: translateX(-50%); bottom: 6px;
+          padding: 4px; background: var(--paper-3); border: var(--rule); box-shadow: var(--hard-sm);
+        }
+        html.cfg-desk3 .p3-cam .view-btn {
+          display: inline-flex; align-items: center; justify-content: center;
+          min-width: 48px; min-height: 44px; padding: 0 0.6rem;
+        }
       }
     </style>
   </head>
