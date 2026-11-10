@@ -3497,15 +3497,24 @@ function _updatePinch() {
 // Nudge/delete now target the flat editor, so the step is measured against the
 // flat print rect in CSS px — one arrow press moves one on-screen pixel.
 function _onEdKeyDown(e) {
-  if (!flatMode || e.defaultPrevented) return;
+  if (e.defaultPrevented) return;
   const ae = document.activeElement;
   if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
   // Arrows and Backspace on a picker, menu or dialog belong to that control:
   // they must never move or delete the artwork behind it.
   if (ae && ae.closest && ae.closest('[role="radiogroup"], [role="menu"], [role="dialog"], dialog')) return;
+  // LOOM-299: the desktop flow adds Enter (primary CTA) and arrows in 3D.
+  const d3 = _d3();
+  if (d3 && e.key === "Enter" && _d3Enter(e, ae)) return;
+  if (!flatMode) { if (d3) _d3Orbit(e); return; }
   const el = _flatActiveEl();
-  if (!el) return;
-  const r = _flatRect || printRect();
+  if (!el) {
+    // Nothing selected: an arrow moves nothing, and not the page either.
+    if (d3 && e.key.startsWith("Arrow")) e.preventDefault();
+    return;
+  }
+  // The desktop flow steps 1 cm of the platen; the old flow steps 1 px.
+  const r = d3 ? PLATEN_CM : (_flatRect || printRect());
   const du = (e.shiftKey ? 10 : 1) / r.w;
   const dv = (e.shiftKey ? 10 : 1) / r.h;
   if (e.key === "ArrowLeft") el.nx -= du;
@@ -4959,6 +4968,9 @@ function bindDesktopFlow() {
     if (b && _d3() && b.dataset.st === "done") setStep(b.dataset.step);
   });
   window.addEventListener("loom:langchange", d3Sync); // the colour and garment names
+  window.addEventListener("keydown", _d3TrapTab);
+  const cv = document.getElementById("flat-canvas");
+  if (cv) cv.addEventListener("wheel", _d3Wheel, { passive: false });
   // The class follows the breakpoint, so a resize across 900px swaps layouts.
   const mq = window.matchMedia("(min-width: 901px)");
   const apply = () => {
@@ -4975,6 +4987,64 @@ function bindDesktopFlow() {
     if (_d3() && !sizeChosen() && currentStep !== "color") setStep("color");
   });
   apply();
+}
+
+/** LOOM-299: Enter on the page (not on a control, no dialog open) runs the foot's primary CTA. */
+function _d3Enter(e, ae) {
+  if (e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return false;
+  // A focused control keeps its own Enter: a button clicks itself.
+  if (ae && ae !== document.body && ae.closest('button, a[href], summary, [contenteditable="true"], [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="radio"], [role="option"], [role="menuitem"], [role="switch"]')) return false;
+  if (document.querySelector(".flat-add-sheet.open")) return false;
+  const cta = ["btn-step-next", "btn-add-to-cart"].map((id) => document.getElementById(id))
+    .find((b) => b && !b.disabled && b.getClientRects().length);
+  if (!cta) return false;
+  e.preventDefault();
+  cta.click();
+  return true;
+}
+
+/** LOOM-299: in 3D the arrows turn the camera round the garment; designState stays as it is. */
+function _d3Orbit(e) {
+  const k = { ArrowLeft: [1, 0], ArrowRight: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
+  if (!k || !camera || !controls) return;
+  e.preventDefault();
+  stopCamMotion();
+  const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  s.theta += k[0] * Math.PI / 12;
+  s.phi = Math.max(controls.minPolarAngle, Math.min(controls.maxPolarAngle, s.phi + k[1] * Math.PI / 24));
+  camera.position.setFromSpherical(s).add(controls.target);
+  controls.update();
+  if (renderer && scene) { updateStudioRig(); renderer.render(scene, camera); }
+}
+
+/** LOOM-299: the wheel over the selected element or its corner resizes it (2D, desktop flow). */
+function _d3Wheel(e) {
+  if (!_d3() || !flatMode || !e.deltaY) return;
+  const el = _flatActiveEl();
+  const b = el && _flatBoxes[el.id];
+  if (!b) return;
+  // Step 3 draws no handles (_flatUI is null there), so the element's own box counts too.
+  const p = _flatLocal(e);
+  const hit = _flatHitTest(p.x, p.y);
+  if (!(hit && hit.type !== "rotate") && !_flatPointInQuad(p.x, p.y, _flatCorners(b))) return;
+  e.preventDefault();
+  const f = e.deltaY < 0 ? 1.05 : 1 / 1.05;
+  _flatApplyScale(el, (el.type === "text" ? el.size : el.scalePct) * f);
+  redrawActive();
+  p3SyncPlace();
+}
+
+/** LOOM-299: Tab stays inside an open dialog's card on the desktop flow. */
+function _d3TrapTab(e) {
+  if (e.key !== "Tab" || !_d3()) return;
+  const card = document.querySelector(".flat-add-sheet.open .flat-add-card");
+  if (!card) return;
+  const f = [...card.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+    .filter((x) => !x.disabled && x.getClientRects().length);
+  if (!f.length) return;
+  const i = f.indexOf(document.activeElement);
+  e.preventDefault();
+  f[e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i + 1) % f.length].focus();
 }
 
 /** Header states and the done steps' summary lines follow currentStep. */
