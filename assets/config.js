@@ -14,8 +14,13 @@
   // `cfgPhone` is the three-step phone configurator (PRD-214, LOOM-292):
   // below 901px configurator.html shows Kiyim → Dizayn → Joylash with a
   // header progress and a one-row bar. Off = today's bottom sheet.
+  // `cfgDesktop` is the same three steps on desktop (PRD-214, LOOM-298):
+  // from 901px the left panel is an accordion of Kiyim → Dizayn → Joylash
+  // with a pinned price and CTA, and the preview carries three controls.
+  // Off = today's desktop panel.
   window.LOOM_FLAGS = {
     lab: false,
     cfgPhone: true,
+    cfgDesktop: false,
   }
 })()
