@@ -53,7 +53,7 @@
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=3"></script>
     <script defer src="assets/cart.js?v=7"></script>
-    <script defer src="configurator.js?v=97"></script>
+    <script defer src="configurator.js?v=98"></script>
 
     <style>
       /* ============================================================
@@ -2463,13 +2463,8 @@
         html.cfg-desk3.p3-3d .studio:has(.studio-sheet[data-step="order"]) .view-toggle { display: none; }
         html.cfg-desk3 .p3-more { display: inline-flex; top: var(--chip-top); right: 24px; left: auto; }
         html.cfg-desk3 .p3-more[aria-expanded="true"] { background: var(--text); color: var(--paper); }
-        /* "Ko'proq" opens its list as a popover under the chip; a click
-           anywhere else (the clear backdrop) closes it. */
-        html.cfg-desk3 .p3-sheet .flat-add-backdrop { background: none; }
-        html.cfg-desk3 .p3-sheet .flat-add-card {
-          left: auto; right: 24px; top: calc(var(--chip-top) + 56px); transform: none;
-          width: 300px; max-height: calc(100dvh - var(--chip-top) - 72px);
-        }
+        /* LOOM-299: "Ko'proq" is the centred dialog (.flat-add-card's own
+           place) over the dimmed backdrop; Tab stays inside it. */
         html.cfg-desk3 .p3-cam:not([hidden]) {
           display: flex; gap: 4px; position: absolute; z-index: 30;
           left: var(--stage-cx); transform: translateX(-50%); bottom: 6px;
