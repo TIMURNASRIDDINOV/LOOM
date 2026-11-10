@@ -16,6 +16,6 @@
   // header progress and a one-row bar. Off = today's bottom sheet.
   window.LOOM_FLAGS = {
     lab: false,
-    cfgPhone: false,
+    cfgPhone: true,
   }
 })()
