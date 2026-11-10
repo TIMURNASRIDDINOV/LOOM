@@ -5019,12 +5019,15 @@ function _d3Orbit(e) {
 
 /** LOOM-299: the wheel over the selected element or its corner resizes it (2D, desktop flow). */
 function _d3Wheel(e) {
-  if (!_d3() || !flatMode || !_flatActiveId()) return;
+  if (!_d3() || !flatMode || !e.deltaY) return;
+  const el = _flatActiveEl();
+  const b = el && _flatBoxes[el.id];
+  if (!b) return;
+  // Step 3 draws no handles (_flatUI is null there), so the element's own box counts too.
   const p = _flatLocal(e);
   const hit = _flatHitTest(p.x, p.y);
-  if (!hit || hit.type === "rotate" || !e.deltaY) return;
+  if (!(hit && hit.type !== "rotate") && !_flatPointInQuad(p.x, p.y, _flatCorners(b))) return;
   e.preventDefault();
-  const el = _flatActiveEl();
   const f = e.deltaY < 0 ? 1.05 : 1 / 1.05;
   _flatApplyScale(el, (el.type === "text" ? el.size : el.scalePct) * f);
   redrawActive();
