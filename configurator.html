@@ -53,7 +53,7 @@
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=3"></script>
     <script defer src="assets/cart.js?v=7"></script>
-    <script defer src="configurator.js?v=98"></script>
+    <script defer src="configurator.js?v=99"></script>
 
     <style>
       /* ============================================================
@@ -125,6 +125,13 @@
         --studio-1: #1b1a17;
         --studio-2: #0d0c0b;
       }
+      /* LOOM-304: one unit for every phone-layout height. Browsers without
+         dvh (iOS Safari < 15.4, Chrome and Android WebView < 108, so also
+         Telegram on those) could not compute --peek and --p3-pv at all: the
+         garment preview got no height. They use vh now, which is the tall
+         viewport, so the preview can sit a little under a browser toolbar. */
+      :root { --dvh: 1vh; }
+      @supports (height: 1dvh) { :root { --dvh: 1dvh; } }
       body { background: var(--bg); color: var(--text); min-height: 100vh; }
 
       /* ── Studio stage: soft, low-contrast warm backdrop ──────── */
@@ -1005,10 +1012,10 @@
         /* Single source of truth for the sheet's resting height — the stage
            height and the Перед/Зад position are both derived from it.
            40%: on a phone the garment has to stay in view while choosing. */
-        .studio { --peek: 40dvh; height: 100dvh; min-height: 0; overflow: hidden; display: block; }
+        .studio { --peek: calc(40 * var(--dvh)); height: calc(100 * var(--dvh)); min-height: 0; overflow: hidden; display: block; }
         #three-container {
           position: absolute; inset: var(--nav-h) 0 auto 0;
-          height: calc(100dvh - var(--nav-h) - var(--peek)); min-height: 260px; width: auto;
+          height: calc(100 * var(--dvh) - var(--nav-h) - var(--peek)); min-height: 260px; width: auto;
         }
         .loading-overlay { inset: var(--nav-h) 0 auto 0; height: 56vh; height: 56dvh; }
         /* Utility chips go icon-only on phones. Their labels are the longest
@@ -1127,12 +1134,12 @@
         /* The flat editor owns everything above the sheet's resting height */
         .flat-editor {
           position: absolute; inset: var(--nav-h) 0 auto 0;
-          height: calc(100dvh - var(--nav-h) - var(--peek)); min-height: 260px;
+          height: calc(100 * var(--dvh) - var(--nav-h) - var(--peek)); min-height: 260px;
         }
         /* bottom padding clears the Перед/Зад toggle so the hem never sits under it */
         .flat-stagebox { padding: 40px 12px 62px; }
         /* left is reset too — the desktop rule offsets it past the rail */
-        .view-toggle { bottom: auto; top: calc(100dvh - var(--peek) - 56px); left: 50%; }
+        .view-toggle { bottom: auto; top: calc(100 * var(--dvh) - var(--peek) - 56px); left: 50%; }
 
         /* ≥16px inputs: iOS Safari zoom-jumps on focus below that */
         .form-input, .form-select { font-size: 16px; }
@@ -1806,7 +1813,7 @@
         .studio-sheet {
           top: calc(var(--nav-h) + var(--panel-inset)); left: var(--panel-inset); bottom: auto;
           width: var(--panel-w);
-          max-height: calc(100dvh - var(--nav-h) - 2 * var(--panel-inset));
+          max-height: calc(100 * var(--dvh) - var(--nav-h) - 2 * var(--panel-inset));
           border: var(--rule);
           box-shadow: var(--hard);
           backdrop-filter: none; -webkit-backdrop-filter: none;
@@ -2025,16 +2032,16 @@
       @media (max-width: 900px) {
         html.cfg-phone3 .studio {
           --p3-top: 46px;   /* the progress strip */
-          --p3-pv: 56dvh;   /* the preview */
+          --p3-pv: calc(56 * var(--dvh));   /* the preview */
           /* LOOM-303: the least the preview keeps on a short screen. Steps
              1-3 give the preview up for their panel, and with phone browser
              bars (320x454 visible) that left it 82px: no garment at all.
              Below the floor the panel gives the height up and scrolls; the
              last term keeps the bar (96px at most) on screen in landscape. */
-          --p3-floor: max(0px, min(46dvh, 260px, calc(100dvh - var(--nav-h) - var(--p3-top) - 96px)));
+          --p3-floor: max(0px, min(calc(46 * var(--dvh)), 260px, calc(100 * var(--dvh) - var(--nav-h) - var(--p3-top) - 96px)));
           /* everything under the preview: the panel and the bar. --peek
              already places Front/Back and the model credit. */
-          --peek: calc(100dvh - var(--nav-h) - var(--p3-top) - var(--p3-pv));
+          --peek: calc(100 * var(--dvh) - var(--nav-h) - var(--p3-top) - var(--p3-pv));
         }
         /* A blank product ends at step 1 (PRD-214 A-1): no progress. */
         html.cfg-phone3 body.blank-only .studio { --p3-top: 0px; }
@@ -2088,7 +2095,7 @@
         html.cfg-phone3 body:not(.kb-open) .chip-save,
         html.cfg-phone3 body:not(.kb-open) .surface-toggle { top: calc(var(--nav-h) + var(--p3-top) + 16px); }
         /* Front/Back steps up over the hint; the hem keeps clear of both. */
-        html.cfg-phone3 body:not(.kb-open) .view-toggle { top: calc(100dvh - var(--peek) - 100px); }
+        html.cfg-phone3 body:not(.kb-open) .view-toggle { top: calc(100 * var(--dvh) - var(--peek) - 100px); }
         html.cfg-phone3 body:not(.kb-open) .flat-stagebox { padding-bottom: 106px; }
         html.cfg-phone3 .model-credit { bottom: calc(var(--peek) + 108px); }
 
@@ -2150,7 +2157,7 @@
         html.cfg-phone3 .chip-garment { display: none; }
         html.cfg-phone3 .studio:has(.studio-sheet[data-step="color"]) {
           --p3-s1: 262px; /* the step 1 panel and the bar */
-          --p3-pv: max(var(--p3-floor), min(56dvh, calc(100dvh - var(--nav-h) - var(--p3-top) - var(--p3-s1))));
+          --p3-pv: max(var(--p3-floor), min(calc(56 * var(--dvh)), calc(100 * var(--dvh) - var(--nav-h) - var(--p3-top) - var(--p3-s1))));
         }
         /* Short screens (320x568): the step 1 and 2 hint goes, so the
            garment keeps the room between the chips and Front/Back. */
@@ -2160,7 +2167,7 @@
           html.cfg-phone3 .model-credit { bottom: calc(var(--peek) + 70px); }
           html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet:is([data-step="color"], [data-step="design"])) .p3-hint { display: none; }
           html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet:is([data-step="color"], [data-step="design"])) .view-toggle {
-            top: calc(100dvh - var(--peek) - 62px);
+            top: calc(100 * var(--dvh) - var(--peek) - 62px);
           }
           html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet:is([data-step="color"], [data-step="design"])) .flat-stagebox {
             padding-bottom: 64px;
@@ -2220,7 +2227,7 @@
            keeps the 56% preview; a shorter screen gives the preview up on
            this step only, as step 1 does, so the tiles stay in view. */
         html.cfg-phone3 .studio:has(.studio-sheet[data-step="design"]) {
-          --p3-pv: max(var(--p3-floor), min(56dvh, calc(100dvh - var(--nav-h) - var(--p3-top) - 180px)));
+          --p3-pv: max(var(--p3-floor), min(calc(56 * var(--dvh)), calc(100 * var(--dvh) - var(--nav-h) - var(--p3-top) - 180px)));
         }
         /* "Keyin: joylash" with nothing designed points at the
            two step 2 tiles, in the need-size look. */
@@ -2240,7 +2247,7 @@
         html.cfg-phone3 #dock-sel-num { display: none; }
         html.cfg-phone3 .studio-sheet[data-step="order"] .tab-scroll { padding-top: 0.5rem; padding-bottom: 0.5rem; }
         html.cfg-phone3 .studio:has(.studio-sheet[data-step="order"]) {
-          --p3-pv: max(var(--p3-floor), min(56dvh, calc(100dvh - var(--nav-h) - var(--p3-top) - 212px)));
+          --p3-pv: max(var(--p3-floor), min(calc(56 * var(--dvh)), calc(100 * var(--dvh) - var(--nav-h) - var(--p3-top) - 212px)));
           --p3-y: calc(var(--nav-h) + var(--p3-top) + 8px);
         }
         html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet[data-step="order"]) .surface-toggle {
@@ -2275,7 +2282,7 @@
 
         /* LOOM-296: the "Ko'proq" sheet — the lab sheet's card, one
            .flat-add-opt row per tool, the layer rows from .layer-list. */
-        .p3-sheet .flat-add-card { max-height: calc(100dvh - 16px); overflow-y: auto; }
+        .p3-sheet .flat-add-card { max-height: calc(100 * var(--dvh) - 16px); overflow-y: auto; }
         .p3-sheet-head { display: flex; align-items: center; gap: 0.5rem; }
         .p3-sheet-head .flat-add-title { margin: 0; }
         .p3-sheet-back { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0; }
