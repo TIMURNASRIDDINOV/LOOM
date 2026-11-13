@@ -5680,7 +5680,7 @@ function setSheetOpen(open) {
   _sheetOpen = !!open;
   const sheet = document.getElementById("studio-sheet");
   if (!sheet) return;
-  sheet.style.setProperty("--sheet-h", (_sheetOpen ? SHEET_FULL : SHEET_PEEK) + "dvh");
+  sheet.style.setProperty("--sheet-h", "calc(" + (_sheetOpen ? SHEET_FULL : SHEET_PEEK) + " * var(--dvh))"); // LOOM-304: --dvh is 1vh without dvh
 }
 
 function bindSheet() {
