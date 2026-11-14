@@ -1,0 +1,149 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Atelye — the phone configurator (PRD-215, LOOM_FLAGS.cfgAtelye)
+   Every rule sits under html.cfg-atelye (set by configurator.js only while
+   the flag is on) AND the phone breakpoint, so the flag-off page and the
+   desktop page never match one. Tokens: design source of truth D-12
+   (~/.config/loom/state/mobile-ds-2026-11-14, Version 3). No has-selector
+   and no bare dynamic-viewport unit here (LOOM-304, LOOM-305).
+   LOOM-307: tokens, Archivo, the shell (full-bleed canvas, top row, action
+   bar). The rail, strip, sheets and Telegram come in LOOM-308..314.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* The Atelye rows exist only while the flag is on; outside the mode
+   (desktop, or before the class lands) they are never drawn. */
+.atl-top, .atl-bar { display: none; }
+
+@media (max-width: 900px) {
+  html.cfg-atelye {
+    --canvas: #e4e7ea; --surface: #ffffff; --surface2: #e9ecef;
+    --ink: #14171a; --mut: #59616a; --ln: rgba(20, 23, 26, .16);
+    --brand: #fc5044; --cta: #d93529; --cta-press: #b82a20; --on-cta: #ffffff;
+    --alert: #c4291d; --alert-bg: #fdecea;
+    --r-chip: 6px; --r-btn: 8px; --r-panel: 12px; --r-sheet: 14px;
+    --e1: 0 0 0 1px var(--ln), 0 6px 14px -6px rgba(14, 18, 24, .28);
+    --e2: 0 0 0 1px var(--ln), 0 -14px 30px -12px rgba(14, 18, 24, .3);
+    --t-fast: 100ms; --t-base: 140ms; --t-sheet: 220ms;
+    --ease: cubic-bezier(.2, 0, 0, 1); --ease-out: cubic-bezier(.4, 0, 1, 1);
+    --f: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  html.cfg-atelye[data-theme="dark"] {
+    --canvas: #1c1f23; --surface: #2a2e33; --surface2: #3a4047;
+    --ink: #f0f2f4; --mut: #a3abb3; --ln: rgba(255, 255, 255, .16);
+    --alert: #ff9a8f; --alert-bg: #40211e;
+  }
+
+  /* ── Shell: the garment owns the screen ─────────────────────── */
+  html.cfg-atelye body { background: var(--canvas); font-family: var(--f); }
+  html.cfg-atelye .nav,
+  html.cfg-atelye .mobile-menu,
+  html.cfg-atelye .studio-sheet,
+  html.cfg-atelye .p3-prog,
+  html.cfg-atelye .p3-hint,
+  html.cfg-atelye .stage-chip,
+  html.cfg-atelye .chip-fs-slot,
+  html.cfg-atelye .view-toggle { display: none !important; }
+  html.cfg-atelye .studio { --nav-h: 0px; padding-top: 0; background: var(--canvas); }
+  html.cfg-atelye .studio::before { content: none; }
+  html.cfg-atelye #three-container,
+  html.cfg-atelye .flat-editor,
+  html.cfg-atelye .loading-overlay {
+    position: fixed; inset: 0; width: auto; height: auto; min-height: 0;
+  }
+  /* The garment is drawn between the top row and the action bar. */
+  html.cfg-atelye .flat-stagebox {
+    padding: calc(env(safe-area-inset-top, 0px) + 56px) 12px calc(env(safe-area-inset-bottom, 0px) + 60px);
+  }
+
+  /* ── Top row: Orqaga (left), 2D / 3D (right) ───────────────── */
+  html.cfg-atelye .atl-top {
+    position: fixed; z-index: 60; left: 12px; right: 12px;
+    top: calc(env(safe-area-inset-top, 0px) + 5px);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-family: var(--f); pointer-events: none;
+  }
+  html.cfg-atelye .atl-top > * { pointer-events: auto; }
+  html.cfg-atelye .atl-ibtn {
+    width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0;
+    border-radius: var(--r-chip); background: var(--surface); color: var(--ink);
+    box-shadow: var(--e1); font-family: var(--f); cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  html.cfg-atelye .atl-ibtn:active { background: var(--surface2); }
+  html.cfg-atelye .atl-top .surface-toggle {
+    position: static; transform: none; inset: auto; margin: 0 0 0 auto;
+    display: flex; height: 44px; padding: 0; gap: 0; border: 0;
+    border-radius: var(--r-chip); background: var(--surface); box-shadow: var(--e1);
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+  html.cfg-atelye .atl-top .surface-btn {
+    width: 44px; height: 44px; min-width: 0; padding: 0; margin: 0;
+    border: 3px solid transparent; background-clip: padding-box; border-radius: 7px;
+    background-color: transparent; color: var(--mut); box-shadow: none;
+    font: 700 13px var(--f); letter-spacing: 0; text-transform: none; cursor: pointer;
+  }
+  html.cfg-atelye .atl-top .surface-btn[aria-pressed="true"] { background-color: var(--ink); color: var(--surface); }
+
+  /* ── Action bar: price + caption, Hozir sotib olish, Savatga qo'shish ── */
+  html.cfg-atelye .atl-bar {
+    position: fixed; z-index: 60; left: 0; right: 0; bottom: 0;
+    box-sizing: border-box; height: calc(52px + env(safe-area-inset-bottom, 0px));
+    padding: 3px max(10px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(10px, env(safe-area-inset-left, 0px));
+    display: flex; align-items: center; gap: 7px;
+    background: var(--surface); color: var(--ink); box-shadow: 0 -1px 0 var(--ln);
+    font-family: var(--f);
+  }
+  html.cfg-atelye .atl-pr {
+    display: flex; flex-direction: column; flex: none; line-height: 1.15;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  html.cfg-atelye .atl-pr b { font: 700 14px var(--f); color: var(--ink); }
+  html.cfg-atelye .atl-pr span { font: 400 11.5px var(--f); font-stretch: 90%; color: var(--mut); }
+  html.cfg-atelye .atl-pr span.warn { color: var(--alert); font-weight: 600; }
+  html.cfg-atelye .atl-bar #btn-place-order,
+  html.cfg-atelye .atl-bar #btn-add-to-cart {
+    all: unset; box-sizing: border-box;
+    flex: 1 1 auto; min-width: 0; height: 46px; padding: 0 8px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border-radius: var(--r-btn); cursor: pointer; text-align: center;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    font: 700 13.5px/1.1 var(--f); font-stretch: 82%;
+    transition: background var(--t-fast) var(--ease);
+  }
+  html.cfg-atelye .atl-bar #btn-place-order { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  html.cfg-atelye .atl-bar #btn-place-order:active { background: var(--surface2); }
+  html.cfg-atelye .atl-bar #btn-add-to-cart { flex-grow: 1.15; background: var(--cta); color: var(--on-cta); }
+  html.cfg-atelye .atl-bar #btn-add-to-cart:active { background: var(--cta-press); }
+  html.cfg-atelye .atl-bar #btn-place-order:disabled,
+  html.cfg-atelye .atl-bar #btn-add-to-cart:disabled { cursor: default; opacity: .6; }
+  /* Text only, except the busy spinner addToCart() puts in. */
+  html.cfg-atelye .atl-bar #btn-add-to-cart > svg:not(.spinner),
+  html.cfg-atelye .atl-bar #btn-place-order .cta-ico { display: none; }
+  html.cfg-atelye .atl-bar #btn-add-to-cart > svg.spinner { flex: none; animation: atl-spin .8s linear infinite; }
+  /* Labels wrap to two lines rather than being cut (small phones, or
+     system-ui when Archivo does not load). */
+  html.cfg-atelye .atl-bar button > span { min-width: 0; overflow-wrap: anywhere; }
+  /* Today's toast clears the action bar until LOOM-312 moves it to the top. */
+  html.cfg-atelye #loom-toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; }
+
+  /* No double-tap zoom delay and no grey flash on the Atelye controls. */
+  html.cfg-atelye .atl-top button,
+  html.cfg-atelye .atl-bar button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+  /* Focus: 2 px, visible on every surface (R-16). */
+  html.cfg-atelye .atl-top :focus-visible,
+  html.cfg-atelye .atl-bar :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 2px var(--surface); }
+
+  /* Small phones: a tighter bar. */
+  @media (max-width: 374px) {
+    html.cfg-atelye .atl-bar { gap: 5px; padding-left: 8px; padding-right: 8px; }
+    html.cfg-atelye .atl-bar #btn-place-order,
+    html.cfg-atelye .atl-bar #btn-add-to-cart { font-size: 12.5px; padding: 0 5px; }
+    html.cfg-atelye .atl-pr b { font-size: 13px; }
+  }
+}
+
+@keyframes atl-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  html.cfg-atelye .atl-top *, html.cfg-atelye .atl-bar * { transition: none !important; animation: none !important; }
+}

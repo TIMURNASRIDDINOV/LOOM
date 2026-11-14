@@ -196,6 +196,9 @@
     'cfg.nextDesign':   { uz: 'Keyin: dizayn', ru: 'Дальше: дизайн', en: 'Next: design' },
     'cfg.nextPlace':    { uz: 'Keyin: joylash', ru: 'К размещению', en: 'Next: placement' },
     'cfg.addToBag':     { uz: 'Savatga qo‘shish', ru: 'Добавить в корзину', en: 'Add to bag' },
+    // LOOM-307: the Atelye phone shell. ru and en are drafts for Content.
+    'cfg.back':         { uz: 'Orqaga', ru: 'Назад', en: 'Back' },
+    'cfg.noSize':       { uz: 'o‘lcham yo‘q', ru: 'размер не выбран', en: 'no size' },
     'cfg.moreActions':  { uz: 'Yana', ru: 'Ещё', en: 'More' },
     // LOOM-295: the phone's step 3 (Joylash). ru and en are drafts for Content.
     'cfg.more':         { uz: 'Ko‘proq', ru: 'Ещё', en: 'More' },

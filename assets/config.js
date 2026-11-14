@@ -18,9 +18,15 @@
   // from 901px the left panel is an accordion of Kiyim → Dizayn → Joylash
   // with a pinned price and CTA, and the preview carries three controls.
   // Off = today's desktop panel.
+  // `cfgAtelye` is the Atelye phone configurator (PRD-215, LOOM-307..315):
+  // below 901px the garment fills the screen, tools sit on its edges and an
+  // action bar holds the two buy buttons. On, it replaces the cfgPhone flow
+  // whatever cfgPhone says. Off (or missing) = the cfgPhone flow. Desktop
+  // is unchanged either way. Tim switches it on (PRD-215 rollout step 3).
   window.LOOM_FLAGS = {
     lab: false,
     cfgPhone: true,
     cfgDesktop: false,
+    cfgAtelye: false,
   }
 })()
