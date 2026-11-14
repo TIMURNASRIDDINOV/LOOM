@@ -4977,8 +4977,17 @@ function bindAtelye() {
     '</div>' +
     '<div class="atl-bar" id="atl-bar" data-ov>' +
       '<p class="atl-pr"><b id="atl-price"></b><span id="atl-cap"></span></p>' +
-    '</div>');
+    '</div>' +
+    atlRailHtml() +
+    `<div class="atl-col" id="atl-col" data-ov role="group" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="${_esc(CT("cfg.colorChoice", "Выбор цвета"))}"></div>`);
+  // LOOM-308: Ko'proq opens the step 3 sheet, which the phone flow builds
+  // only when cfgPhone runs (it is off while this mode is on).
+  if (!document.getElementById("p3-sheet")) {
+    p3BuildSheet(studio, (k, fb) => `<span data-i18n="${k}">${CT(k, fb)}</span>`);
+  }
   document.getElementById("atl-back").addEventListener("click", atlBack);
+  bindAtelyeRail();
+  atlBuildColors();
   window.addEventListener("loom:langchange", () => { atlSyncCaption(); refreshPriceLabels(); }); // the currency word
   const mq = window.matchMedia("(max-width: 900px)");
   const apply = () => {
@@ -5041,6 +5050,113 @@ function atlSyncCaption() {
   cap.textContent = selectedSize
     ? [selectedSize, getColorName(designState.shirtColor)].filter(Boolean).join(" · ")
     : CT("cfg.noSize", "размер не выбран");
+}
+
+// ── LOOM-308: tool rail (right edge) and colour stack (left edge) ──
+// The rail replaces the steps: Kiyim, Rasm, Matn, Orqa / Old, Ko'proq, each
+// running the handler the old control ran. On a blank product (body.blank-only)
+// CSS leaves only Kiyim. The colour stack shows while neither face has an
+// element (LOOM-306:A-1). Both hide while a sheet or the keyboard is open.
+const _ATL_IC = {
+  garment: '<path d="M8.5 3.5 4 6 2.5 10l3 1.2V20h13v-8.8l3-1.2L20 6l-4.5-2.5c-.6 1.6-2 2.5-3.5 2.5s-2.9-.9-3.5-2.5Z"/>',
+  image: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m5 18 5-5 3.5 3.5L16 14l4 4"/>',
+  text: '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
+  side: '<path d="M12 3v18M8 7 4 12l4 5V7ZM16 7l4 5-4 5V7Z"/>',
+  more: '<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>',
+};
+const ATL_RAIL = [
+  ["garment", "cfg.stepGarment", "Одежда"],
+  ["image", "cfg.railImage", "Картинка"],
+  ["text", "cfg.addText", "Текст"],
+  ["side", "cfg.viewBack", "Зад"],
+  ["more", "cfg.more", "Ещё"],
+];
+const ATL_MAX_COLORS = 5; // R-6: the first five colours of the product
+
+function atlRailHtml() {
+  return `<div class="atl-rail" id="atl-rail" data-ov role="toolbar" aria-orientation="vertical" data-i18n-attr="aria-label:cfg.tools" aria-label="${_esc(CT("cfg.tools", "Инструменты"))}">` +
+    ATL_RAIL.map(([act, k, fb]) =>
+      `<button type="button" class="atl-tool${act === "garment" ? "" : " atl-print"}" id="atl-${act}" data-act="${act}"` +
+        (act === "more" ? ' aria-haspopup="dialog" aria-expanded="false"' : "") + ">" +
+        `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${_ATL_IC[act]}</svg>` +
+        `<span data-i18n="${k}">${CT(k, fb)}</span></button>`).join("") +
+    "</div>";
+}
+
+function bindAtelyeRail() {
+  const rail = document.getElementById("atl-rail");
+  rail.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-act]");
+    if (!b) return;
+    const act = b.dataset.act;
+    if (act === "image") {
+      _pendingLogoIsNew = true; // as "Rasm yuklash": always a new layer
+      const fi = document.getElementById("logo-file-input");
+      if (fi) { fi.value = ""; fi.click(); }
+    } else if (act === "text") {
+      addTextElement();
+    } else if (act === "side") {
+      // In 3D the flip lands on the 2D editor of the other face.
+      if (!flatMode) setFlatMode(true);
+      setActiveView(designState.activeView === "front" ? "back" : "front");
+    } else if (act === "more") {
+      p3SheetOpen();
+    }
+    // "garment": the Kiyim sheet arrives with LOOM-311.
+  });
+  // The arrow keys move along the toolbar too (WAI-ARIA toolbar pattern).
+  rail.addEventListener("keydown", (e) => {
+    const step = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    const items = [...rail.querySelectorAll("button")].filter((b) => b.offsetParent);
+    const i = items.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    items[(i + step + items.length) % items.length].focus();
+  });
+  window.addEventListener("loom:langchange", atlBuildColors); // colour names
+  atlSyncTools();
+}
+
+/** One 44 px button per product colour (30 px swatch), the first five. */
+function atlBuildColors() {
+  const col = document.getElementById("atl-col");
+  if (!col) return;
+  col.textContent = "";
+  SHIRT_COLORS.slice(0, ATL_MAX_COLORS).forEach((def) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "atl-sw";
+    b.dataset.hex = def.hex;
+    b.setAttribute("aria-label", colorLabel(def));
+    b.disabled = def.available === false; // keeps its place, refuses the tap
+    const i = document.createElement("i");
+    i.style.backgroundColor = def.hex;
+    b.appendChild(i);
+    b.addEventListener("click", () => selectShirtColor(def.hex, null));
+    col.appendChild(b);
+  });
+  atlSyncColors();
+}
+
+function atlSyncColors() {
+  const hex = String(designState.shirtColor || "").toUpperCase();
+  document.querySelectorAll("#atl-col .atl-sw").forEach((b) => {
+    b.setAttribute("aria-pressed", String(String(b.dataset.hex).toUpperCase() === hex));
+  });
+}
+
+/** The side button names the face it goes to; the stack follows "any element?". */
+function atlSyncTools() {
+  const side = document.getElementById("atl-side");
+  if (!side) return;
+  const toBack = designState.activeView === "front";
+  const label = side.querySelector("span");
+  const k = toBack ? ["cfg.viewBack", "Зад"] : ["cfg.viewFront", "Перед"];
+  label.setAttribute("data-i18n", k[0]); // i18n.apply re-translates it
+  label.textContent = CT(k[0], k[1]);
+  const any = elementsOf("front").length + elementsOf("back").length > 0;
+  document.getElementById("atl-col").hidden = any;
 }
 
 /** The previous page, or the catalogue when the page was opened directly (OPEN-3). */
@@ -5468,7 +5584,7 @@ function p3SheetOpen() {
   png.querySelector("small").hidden = _preview3DReady;
   row("zoom").setAttribute("aria-pressed", String(flatMode && _flatZoomOn));
   // LOOM-298: desktop opens it on every step; step 1 shows the whole garment.
-  row("zoom").hidden = currentStep === "color";
+  row("zoom").hidden = currentStep === "color" && !_atl(); // LOOM-308: no steps in Atelye
   // Not in Telegram; and, as for the desktop chip, not where the Fullscreen
   // API is off (bindFullscreen has removed the chip there).
   const fs = document.getElementById("btn-fullscreen");
@@ -5476,7 +5592,9 @@ function p3SheetOpen() {
   row("fs").setAttribute("aria-pressed", fs ? fs.getAttribute("aria-pressed") : "false");
   p3SheetView(false);
   sheet.classList.add("open");
-  document.getElementById("p3-more").setAttribute("aria-expanded", "true");
+  document.documentElement.classList.add("atl-sheet"); // LOOM-308: rail and stack step aside
+  const more = _p3MoreBtn();
+  if (more) more.setAttribute("aria-expanded", "true");
   row("layers").focus();
 }
 
@@ -5484,10 +5602,15 @@ function p3SheetClose() {
   const sheet = document.getElementById("p3-sheet");
   if (!sheet || !sheet.classList.contains("open")) return;
   sheet.classList.remove("open");
-  const more = document.getElementById("p3-more");
+  document.documentElement.classList.remove("atl-sheet");
+  const more = _p3MoreBtn();
+  if (!more) return;
   more.setAttribute("aria-expanded", "false");
   more.focus();
 }
+
+/** The button that opened the sheet: the Atelye rail's Ko'proq, or step 3's chip. */
+function _p3MoreBtn() { return document.getElementById(_atl() ? "atl-more" : "p3-more"); }
 
 /** The tool list, or the layers of the face on screen (topmost first). */
 function p3SheetView(layers) {
@@ -6643,6 +6766,7 @@ function buildColorSwatches() {
     }
     container.appendChild(btn);
   });
+  atlBuildColors(); // LOOM-308: the Atelye colour stack, same colours
   syncPickers();
 }
 
@@ -6660,6 +6784,7 @@ function syncPickers() {
   _syncRadios("color-swatches", ".swatch-btn", "selected", (b) => String(b.dataset.hex).toUpperCase() === hex);
   _syncRadios("size-selector", ".size-btn", "active", (b) => b.dataset.size === selectedSize);
   atlSyncCaption();
+  atlSyncColors();
 }
 
 function _syncRadios(id, sel, cls, isOn) {
@@ -6839,6 +6964,7 @@ function setActiveView(view, keepCamera) {
 
   // Re-pin the live overlay to the new face.
   if (editMode) drawEditor();
+  atlSyncTools(); // LOOM-308: Orqa / Old
 }
 
 /** Dot on the Перед/Зад buttons marking a side that already carries artwork. */
@@ -6852,6 +6978,7 @@ function updateViewToggleMarkers() {
   // call sites scattered through the add/delete/undo paths.
   if (typeof updateCartCta === "function") updateCartCta();
   if (typeof markStepsDone === "function") markStepsDone();
+  atlSyncTools(); // LOOM-308: the colour stack shows only on an empty design
 }
 
 // ================================================================
