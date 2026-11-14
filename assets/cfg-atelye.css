@@ -144,6 +144,9 @@
   html.cfg-atelye .atl-bar #btn-add-to-cart:active { background: var(--cta-press); }
   html.cfg-atelye .atl-bar #btn-place-order:disabled,
   html.cfg-atelye .atl-bar #btn-add-to-cart:disabled { cursor: default; opacity: .6; }
+  /* `all: unset` above outranks the shared .atl-bar :focus-visible ring (LOOM-315). */
+  html.cfg-atelye .atl-bar #btn-place-order:focus-visible,
+  html.cfg-atelye .atl-bar #btn-add-to-cart:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   /* Text only, except the busy spinner addToCart() puts in. */
   html.cfg-atelye .atl-bar #btn-add-to-cart > svg:not(.spinner),
   html.cfg-atelye .atl-bar #btn-place-order .cta-ico { display: none; }
