@@ -29,12 +29,29 @@
     --t-fast: 100ms; --t-base: 140ms; --t-sheet: 220ms;
     --ease: cubic-bezier(.2, 0, 0, 1); --ease-out: cubic-bezier(.4, 0, 1, 1);
     --f: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    /* Insets and the action bar's height; Telegram overrides them (LOOM-314). */
+    --atl-st: env(safe-area-inset-top, 0px); --atl-sb: env(safe-area-inset-bottom, 0px); --atl-bar: 52px;
   }
   html.cfg-atelye[data-theme="dark"] {
     --canvas: #1c1f23; --surface: #2a2e33; --surface2: #3a4047;
     --ink: #f0f2f4; --mut: #a3abb3; --ln: rgba(255, 255, 255, .16);
     --alert: #ff9a8f; --alert-bg: #40211e;
   }
+
+  /* ── LOOM-314: inside Telegram ──────────────────────────────────
+     MainButton (Savatga qo'shish), SecondaryButton (Hozir sotib olish) and
+     BackButton replace the action bar and Orqaga; the top row keeps 2D / 3D.
+     A client older than 7.10 keeps Hozir sotib olish in the page
+     (html.tma-atl-buy). --tma-top / --tma-bottom come from Telegram 8.0+. */
+  html.cfg-atelye.tma-atl {
+    --atl-st: var(--tma-top, env(safe-area-inset-top, 0px));
+    --atl-sb: var(--tma-bottom, env(safe-area-inset-bottom, 0px));
+  }
+  html.cfg-atelye.tma-atl:not(.tma-atl-buy) { --atl-bar: 0px; }
+  html.cfg-atelye.tma-atl:not(.tma-atl-buy) .atl-bar,
+  html.cfg-atelye.tma-atl #atl-back,
+  html.cfg-atelye.tma-atl-buy .atl-bar .atl-pr,
+  html.cfg-atelye.tma-atl-buy .atl-bar #btn-add-to-cart { display: none !important; }
 
   /* ── Shell: the garment owns the screen ─────────────────────── */
   html.cfg-atelye body { background: var(--canvas); font-family: var(--f); }
@@ -55,13 +72,13 @@
   }
   /* The garment is drawn between the top row and the action bar. */
   html.cfg-atelye .flat-stagebox {
-    padding: calc(env(safe-area-inset-top, 0px) + 56px) 12px calc(env(safe-area-inset-bottom, 0px) + 60px);
+    padding: calc(var(--atl-st) + 56px) 12px calc(var(--atl-sb) + var(--atl-bar) + 8px);
   }
 
   /* ── Top row: Orqaga (left), 2D / 3D (right) ───────────────── */
   html.cfg-atelye .atl-top {
     position: fixed; z-index: 60; left: 12px; right: 12px;
-    top: calc(env(safe-area-inset-top, 0px) + 5px);
+    top: calc(var(--atl-st) + 5px);
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     font-family: var(--f); pointer-events: none;
   }
@@ -98,8 +115,8 @@
   /* ── Action bar: price + caption, Hozir sotib olish, Savatga qo'shish ── */
   html.cfg-atelye .atl-bar {
     position: fixed; z-index: 60; left: 0; right: 0; bottom: 0;
-    box-sizing: border-box; height: calc(52px + env(safe-area-inset-bottom, 0px));
-    padding: 3px max(10px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(10px, env(safe-area-inset-left, 0px));
+    box-sizing: border-box; height: calc(52px + var(--atl-sb));
+    padding: 3px max(10px, env(safe-area-inset-right, 0px)) var(--atl-sb) max(10px, env(safe-area-inset-left, 0px));
     display: flex; align-items: center; gap: 7px;
     background: var(--surface); color: var(--ink); box-shadow: 0 -1px 0 var(--ln);
     font-family: var(--f);
@@ -187,7 +204,7 @@
   /* ── Context strip: 8 px over the action bar, one row ─────────── */
   html.cfg-atelye .atl-strip {
     position: fixed; z-index: 55; left: 50%; transform: translateX(-50%);
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--atl-bar) + 8px + var(--atl-sb));
     box-sizing: border-box; width: max-content; max-width: calc(100vw - 20px);
     display: flex; padding: 4px; overflow-x: auto; overscroll-behavior-x: contain;
     scrollbar-width: none; background: var(--surface); border-radius: var(--r-panel);
@@ -229,7 +246,7 @@
   /* The tag over the strip: the size prompt in button red, the blank note in ink on surface. */
   html.cfg-atelye .atl-tag {
     position: fixed; z-index: 55; left: 50%; transform: translateX(-50%); margin: 0; display: block;
-    bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--atl-bar) + 66px + var(--atl-sb));
     max-width: calc(100vw - 20px); box-sizing: border-box; padding: 5px 10px;
     border-radius: 4px; background: var(--cta); color: var(--on-cta);
     font: 700 12.5px/1.25 var(--f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -262,7 +279,7 @@
 
   /* ── LOOM-312: toast, one block under the top row ── */
   html.cfg-atelye .atl-toast {
-    position: fixed; z-index: 70; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 57px);
+    position: fixed; z-index: 70; left: 50%; top: calc(var(--atl-st) + 57px);
     display: flex; align-items: center; gap: 8px; box-sizing: border-box;
     width: max-content; max-width: calc(100vw - 40px); margin: 0; padding: 11px 14px;
     border-radius: var(--r-chip); background: var(--surface); color: var(--ink); box-shadow: var(--e1);
@@ -337,8 +354,8 @@
   html.cfg-atelye .atl-sh {
     position: fixed; z-index: 65; left: 0; right: 0; bottom: 0; box-sizing: border-box;
     display: flex; flex-direction: column; gap: 4px;
-    height: calc(160px + env(safe-area-inset-bottom, 0px));
-    padding: 0 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    height: calc(160px + var(--atl-sb));
+    padding: 0 12px calc(10px + var(--atl-sb));
     background: var(--surface); color: var(--ink); font-family: var(--f);
     border-radius: var(--r-sheet) var(--r-sheet) 0 0; box-shadow: var(--e2);
     overflow: hidden; overscroll-behavior: contain;
@@ -440,7 +457,7 @@
   html.cfg-atelye .atl-kb {
     position: fixed; z-index: 62; left: 0; right: 0; bottom: 0; box-sizing: border-box;
     display: flex; flex-direction: column; gap: 7px;
-    padding: 7px max(10px, env(safe-area-inset-right, 0px)) calc(7px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+    padding: 7px max(10px, env(safe-area-inset-right, 0px)) calc(7px + var(--atl-sb)) max(10px, env(safe-area-inset-left, 0px));
     background: var(--surface); color: var(--ink); box-shadow: 0 -1px 0 var(--ln);
     font-family: var(--f);
   }
