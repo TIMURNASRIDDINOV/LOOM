@@ -5433,7 +5433,8 @@ function atlStripHtml() {
         '<span class="atl-msg-t"></span><button type="button" class="atl-chip" data-act="msg"></button></div>' +
     "</div>" +
     '<div class="atl-up-ph" id="atl-up-ph" data-ov aria-hidden="true" hidden></div>' +
-    `<p class="atl-toast" id="atl-toast" data-ov role="status" aria-live="polite">${_ATL_SVG(_ATL_ALERT, 18)}<span></span></p>`;
+    `<div class="atl-toast" id="atl-toast" data-ov role="status" aria-live="polite">${_ATL_SVG(_ATL_ALERT, 18)}<span></span>` +
+      `<button type="button" data-i18n="cfg.undo">${CT("cfg.undo", "Отменить")}</button></div>`;
 }
 
 function bindAtelyeStrip() {
@@ -5576,8 +5577,14 @@ function atlMsg(kind, key, fb, btn, run, el) {
 function atlMsgRun() {
   const m = _atlMsg;
   if (!m) return;
+  const chip = document.activeElement && document.activeElement.closest && document.activeElement.closest("#atl-strip");
   if (m.kind !== "load") atlMsg(null);
   m.run();
+  // The chip is gone with the message: a keyboard user lands on Rasm.
+  if (chip && !document.activeElement.closest("#atl-strip:not([hidden]) .atl-grp:not([hidden])")) {
+    const img = document.getElementById("atl-image");
+    if (img && img.offsetParent) img.focus();
+  }
 }
 
 function atlSyncMsg(strip, on) {
@@ -5592,7 +5599,7 @@ function atlSyncMsg(strip, on) {
     strip.setAttribute("role", role);
     t.textContent = ""; // the role first, then the words, so the change is announced
   }
-  if (t.textContent !== text) requestAnimationFrame(() => { if (_atlMsg === m) t.textContent = CT(m.key, m.fb); });
+  if (t.textContent !== text) setTimeout(() => { if (_atlMsg === m) t.textContent = CT(m.key, m.fb); }, 50);
   strip.setAttribute("aria-busy", String(m.kind === "load"));
   const ic = strip.querySelector(".atl-msg-ic");
   const icon = m.kind === "load" ? '<i class="atl-spin"></i>' : _ATL_SVG(_ATL_ALERT, 20);
@@ -5614,12 +5621,13 @@ function atlUpStart() {
     _atlUpBusy = ["btn-place-order", "btn-add-to-cart"].map((id) => document.getElementById(id)).filter((b) => b && !b.disabled);
     _atlUpBusy.forEach((b) => { b.disabled = true; });
   }
+  document.documentElement.classList.add("atl-up"); // hides the empty "Dizayn qo'shish" under the block
   const ph = document.getElementById("atl-up-ph");
   const r = flatMode && _flatCv && _flatRect;
   if (!ph || !r) return;
   // A block in the middle of the print area, where the image lands.
   const cr = _flatCv.getBoundingClientRect();
-  const w = Math.round(Math.min(_flatRect.w * 0.42, _flatRect.h * 0.35)), h = Math.round(w * 1.2);
+  const w = Math.round(Math.min(_flatRect.w * 0.5, _flatRect.h * 0.4)), h = Math.round(w * 1.2);
   ph.style.width = w + "px";
   ph.style.height = h + "px";
   ph.style.transform = `translate(${Math.round(cr.left + _flatRect.x + (_flatRect.w - w) / 2)}px, ${Math.round(cr.top + _flatRect.y + (_flatRect.h - h) / 2)}px)`;
@@ -5628,6 +5636,7 @@ function atlUpStart() {
 
 function atlUpEnd() {
   if (_atlUpBusy) { _atlUpBusy.forEach((b) => { b.disabled = false; }); _atlUpBusy = null; }
+  document.documentElement.classList.remove("atl-up");
   const ph = document.getElementById("atl-up-ph");
   if (ph) ph.hidden = true;
   if (_atlMsg && _atlMsg.kind === "load") atlMsg(null);
@@ -5639,18 +5648,20 @@ function atlUpCancel() {
   atlUpEnd();
 }
 
-function atlToast(message, type) {
+// undo: the delete toast keeps today's Undo button and its 6 s (showUndoToast).
+function atlToast(message, type, undo) {
   const t = document.getElementById("atl-toast");
   if (!t) return;
   clearTimeout(_atlToastT);
   const err = type === "error";
   _atlToastSeq++;
   t.classList.toggle("err", err);
+  t.classList.toggle("undo", !!undo);
   t.querySelector("span").textContent = message;
   t.classList.remove("show");
   void t.offsetWidth; // the newer toast replaces the older one with its own entrance
   t.classList.add("show");
-  if (!err) _atlToastT = setTimeout(atlToastHide, 2000);
+  if (!err) _atlToastT = setTimeout(atlToastHide, undo ? 6000 : 2000);
 }
 
 function atlToastHide() {
@@ -5663,6 +5674,7 @@ function atlToastHide() {
 }
 
 function bindAtelyeMsg() {
+  document.querySelector("#atl-toast button").addEventListener("click", () => { atlToastHide(); performUndo(); });
   // The next tap anywhere ends an error toast and a strip error or hint
   // (the strip's own chip runs first: it is inside the strip).
   document.addEventListener("pointerdown", (e) => {
@@ -7014,6 +7026,7 @@ function performUndo() {
 
 /** Toast with an action. The plain showToast() is pointer-events:none. */
 function showUndoToast(message) {
+  if (_atl()) return atlToast(message, "info", true); // LOOM-312
   const old = document.getElementById("loom-undo-toast");
   if (old) old.remove();
 
