@@ -8,12 +8,13 @@
    LOOM-307: tokens, Archivo, the shell (full-bleed canvas, top row, action
    bar). LOOM-308: the tool rail (right) and the colour stack (left).
    LOOM-309: the context strip and its tag. LOOM-310: the corner buttons on
-   the selected print. LOOM-311: the bottom sheet. Telegram comes in LOOM-314.
+   the selected print. LOOM-311: the bottom sheet. LOOM-312: strip messages
+   and the toast. Telegram comes in LOOM-314.
    ═══════════════════════════════════════════════════════════════════ */
 
 /* The Atelye rows exist only while the flag is on; outside the mode
    (desktop, or before the class lands) they are never drawn. */
-.atl-top, .atl-bar, .atl-rail, .atl-col, .atl-strip, .atl-tag, .atl-hand, .atl-sh, .atl-shade { display: none; }
+.atl-top, .atl-bar, .atl-rail, .atl-col, .atl-strip, .atl-tag, .atl-hand, .atl-sh, .atl-shade, .atl-up-ph, .atl-toast { display: none; }
 
 @media (max-width: 900px) {
   html.cfg-atelye {
@@ -84,6 +85,14 @@
     font: 700 13px var(--f); letter-spacing: 0; text-transform: none; cursor: pointer;
   }
   html.cfg-atelye .atl-top .surface-btn[aria-pressed="true"] { background-color: var(--ink); color: var(--surface); }
+  /* LOOM-312: the 3D button spins while the model loads. */
+  html.cfg-atelye .atl-top .surface-btn.atl-busy { position: relative; color: transparent; }
+  html.cfg-atelye .atl-top .surface-btn.atl-busy::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+    box-sizing: border-box; border-radius: 50%; border: 2px solid var(--ink); border-right-color: transparent;
+    animation: atl-spin .8s linear infinite;
+  }
+  html.cfg-atelye .atl-top .surface-btn.atl-busy[aria-pressed="true"]::after { border-color: var(--surface); border-right-color: transparent; }
 
   /* ── Action bar: price + caption, Hozir sotib olish, Savatga qo'shish ── */
   html.cfg-atelye .atl-bar {
@@ -124,8 +133,6 @@
   /* Labels wrap to two lines rather than being cut (small phones, or
      system-ui when Archivo does not load). */
   html.cfg-atelye .atl-bar button > span { min-width: 0; overflow-wrap: anywhere; }
-  /* Today's toast clears the action bar until LOOM-312 moves it to the top. */
-  html.cfg-atelye #loom-toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; }
 
   /* ── Tool rail (right edge): Kiyim, Rasm, Matn, Orqa / Old, Ko'proq ── */
   html.cfg-atelye .atl-rail,
@@ -226,6 +233,58 @@
     font: 700 12.5px/1.25 var(--f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   html.cfg-atelye .atl-tag.note { background: var(--surface); color: var(--ink); box-shadow: var(--e1); }
+
+  /* ── LOOM-312: messages on the strip (upload, low quality, 3D failed) ── */
+  html.cfg-atelye .atl-strip.msg { padding-left: 12px; min-height: 52px; }
+  html.cfg-atelye .atl-msg { flex: 1 1 auto; min-width: 0; gap: 10px; font: 600 13px/1.3 var(--f); }
+  html.cfg-atelye .atl-msg-ic { display: flex; flex: none; }
+  html.cfg-atelye .atl-msg-t { flex: 1 1 auto; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  html.cfg-atelye .atl-strip.err { background: var(--alert-bg); color: var(--alert); box-shadow: inset 0 0 0 1.5px var(--alert); }
+  html.cfg-atelye .atl-strip.err .atl-chip { color: var(--ink); }
+  html.cfg-atelye .atl-spin {
+    display: block; width: 16px; height: 16px; box-sizing: border-box; border-radius: 50%;
+    border: 2px solid currentColor; border-right-color: transparent; animation: atl-spin .8s linear infinite;
+  }
+  /* Where the image will land while it is read. */
+  html.cfg-atelye .atl-up-ph {
+    position: fixed; z-index: 45; left: 0; top: 0; display: grid; place-items: center;
+    border-radius: 3px; background: var(--surface2); box-shadow: inset 0 0 0 1px var(--ln);
+    pointer-events: none; animation: atl-shim 1.1s ease-in-out infinite alternate;
+  }
+  html.cfg-atelye .atl-up-ph::after {
+    content: ""; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%;
+    border: 2.4px solid var(--ink); border-right-color: transparent; animation: atl-spin .9s linear infinite;
+  }
+  html.cfg-atelye .atl-up-ph[hidden] { display: none; }
+  html.cfg-atelye.atl-up .flat-empty { visibility: hidden; }
+
+  /* ── LOOM-312: toast, one block under the top row ── */
+  html.cfg-atelye .atl-toast {
+    position: fixed; z-index: 70; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 57px);
+    display: flex; align-items: center; gap: 8px; box-sizing: border-box;
+    width: max-content; max-width: calc(100vw - 40px); margin: 0; padding: 11px 14px;
+    border-radius: var(--r-chip); background: var(--surface); color: var(--ink); box-shadow: var(--e1);
+    font: 600 13px/1.3 var(--f); overflow-wrap: anywhere; pointer-events: none;
+    opacity: 0; transform: translate(-50%, -8px);
+    transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out);
+  }
+  html.cfg-atelye .atl-toast.show {
+    opacity: 1; transform: translate(-50%, 0);
+    transition: opacity var(--t-sheet) var(--ease), transform var(--t-sheet) var(--ease);
+  }
+  html.cfg-atelye .atl-toast svg { display: none; flex: none; }
+  html.cfg-atelye .atl-toast.err { background: var(--alert-bg); color: var(--alert); box-shadow: inset 0 0 0 1.5px var(--alert); }
+  html.cfg-atelye .atl-toast.err svg { display: block; }
+  /* The delete toast keeps today's Undo. */
+  html.cfg-atelye .atl-toast button { display: none; }
+  html.cfg-atelye .atl-toast.undo.show { pointer-events: auto; }
+  html.cfg-atelye .atl-toast.undo button {
+    all: unset; box-sizing: border-box; display: inline-flex; align-items: center; flex: none;
+    height: 44px; margin: -11px -6px -11px 4px; padding: 0 8px; cursor: pointer; color: var(--ink);
+    font: 700 13px var(--f); text-decoration: underline; text-underline-offset: 3px;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  html.cfg-atelye .atl-toast button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; border-radius: var(--r-chip); }
 
   /* ── Corner buttons on the selected print (2D) ────────────────
      The layer itself is the focusable group; it takes no pointer, so the
@@ -399,10 +458,13 @@
 }
 
 @keyframes atl-spin { to { transform: rotate(360deg); } }
+@keyframes atl-shim { from { opacity: .55; } to { opacity: .95; } }
 
 @media (max-width: 900px) and (prefers-reduced-motion: reduce) {
   html.cfg-atelye .atl-top *, html.cfg-atelye .atl-bar *,
   html.cfg-atelye .atl-rail *, html.cfg-atelye .atl-col *,
   html.cfg-atelye .atl-strip *, html.cfg-atelye .atl-hand * { transition: none !important; animation: none !important; }
   html.cfg-atelye .atl-sh, html.cfg-atelye .atl-sh * { transition: none !important; animation: none !important; }
+  html.cfg-atelye .atl-toast, html.cfg-atelye .atl-up-ph, html.cfg-atelye .atl-up-ph::after,
+  html.cfg-atelye .atl-top .surface-btn.atl-busy::after { transition: none !important; animation: none !important; }
 }

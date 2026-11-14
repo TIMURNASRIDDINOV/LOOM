@@ -626,12 +626,14 @@ function ensurePreview3D() {
     .then(() => {
       setCameraView(designState.activeView);
       _preview3DReady = true;
+      atlBusy3d(false);
       p3SyncPlace(); // LOOM-295: the phone's camera row waits for the model
       enableSaveDesign();
       announcePreview("cfg.loaded3d", "3D-превью готово");
     })
     .catch((err) => {
       _preview3D = null;
+      atlBusy3d(false);
       announcePreview("cfg.load3dFailed", "Не удалось загрузить 3D-превью");
       showPreviewError(err);
       throw err;
@@ -644,11 +646,20 @@ function ensurePreview3D() {
 // impossible; now it is a network away, and a spinner that never resolves is
 // worse than an error the user can act on.
 
+/** LOOM-312: the Atelye 3D button spins while the model loads (CSS only under html.cfg-atelye). */
+function atlBusy3d(on) {
+  const b = document.getElementById("btn-surface-3d");
+  if (!b || (on && !_atl())) return;
+  b.classList.toggle("atl-busy", on);
+  if (on) b.setAttribute("aria-busy", "true"); else b.removeAttribute("aria-busy");
+}
+
 // fresh: a new attempt, so the bar starts over as indeterminate.
 function showPreviewLoading(fresh) {
   const overlay = document.getElementById("loading-overlay");
   if (!overlay) return;
   overlay.classList.remove("is-error");
+  atlBusy3d(true); // LOOM-312
   overlay.style.display = "flex";
   overlay.style.opacity = "1";
   if (fresh) setLoadProgress(null);
@@ -684,6 +695,15 @@ function showPreviewError(err) {
   if (!overlay) return;
   overlay.classList.add("is-error");
   setFlatMode(true); // hides the overlay
+  if (_atl()) {
+    // LOOM-312: on the strip, where the retry is; it runs the 3D button again.
+    atlMsg("err", "cfg.load3dFailed", "Не удалось загрузить 3D-превью", ["cfg.retry", "Повторить"], () => {
+      overlay.classList.remove("is-error");
+      const b3 = document.getElementById("btn-surface-3d");
+      if (b3) b3.click();
+    });
+    return;
+  }
   showToast(CT("cfg.load3dFailed", "Не удалось загрузить 3D-превью"), "error");
   const btn = document.getElementById("preview-retry");
   if (btn && !btn.dataset.bound) {
@@ -5004,6 +5024,7 @@ function bindAtelye() {
   document.getElementById("atl-back").addEventListener("click", atlBack);
   bindAtelyeSel();
   bindAtelyeStrip(); // before the rail: its first sync draws the strip
+  bindAtelyeMsg(); // LOOM-312
   bindAtelyeRail();
   bindAtelyeSheet();
   if (!_p3Base) _p3SnapshotBase(); // LOOM-311: p3PickGarment's base (bindPhoneFlow skips it in this mode)
@@ -5407,7 +5428,13 @@ function atlStripHtml() {
           .map(([c, k, fb]) => `<button type="button" class="atl-chip" data-cam="${c}" aria-pressed="false">${span(k, fb)}</button>`).join("") +
         `<button type="button" class="atl-chip atl-ico" data-cam="reset" ${lab("cfg.resetView", "Сброс вида")}>${_P3_RESET_ICON}</button>` +
       "</div>" +
-    "</div>";
+      // LOOM-312: upload, low-quality and 3D messages (atlMsg).
+      '<div class="atl-grp atl-msg" data-strip="msg"><span class="atl-msg-ic" aria-hidden="true"></span>' +
+        '<span class="atl-msg-t"></span><button type="button" class="atl-chip" data-act="msg"></button></div>' +
+    "</div>" +
+    '<div class="atl-up-ph" id="atl-up-ph" data-ov aria-hidden="true" hidden></div>' +
+    `<div class="atl-toast" id="atl-toast" data-ov role="status" aria-live="polite">${_ATL_SVG(_ATL_ALERT, 18)}<span></span>` +
+      `<button type="button" data-i18n="cfg.undo">${CT("cfg.undo", "Отменить")}</button></div>`;
 }
 
 function bindAtelyeStrip() {
@@ -5415,6 +5442,7 @@ function bindAtelyeStrip() {
   strip.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b || b.disabled) return;
+    if (b.dataset.act === "msg") return atlMsgRun();
     if (b.dataset.size) return atlPickSize(b.dataset.size);
     if (b.dataset.cam) {
       p3Camera(b.dataset.cam);
@@ -5466,6 +5494,7 @@ function atlAskSize(run) {
 }
 
 function atlStripMode() {
+  if (_atlMsg) return "msg"; // LOOM-312
   if (_atlNeed) return "sizes";
   if (elementsOf("front").length + elementsOf("back").length === 0) return "sizes";
   if (!flatMode) return _preview3DReady ? "cam" : "";
@@ -5484,6 +5513,7 @@ function atlSyncStrip() {
   _atlMode = mode;
   strip.hidden = !mode;
   strip.classList.toggle("need", !!_atlNeed);
+  atlSyncMsg(strip, mode === "msg");
   strip.querySelectorAll(".atl-grp").forEach((g) => { g.hidden = g.dataset.strip !== mode; });
   if (mode === "sizes") atlSyncSizes(strip.querySelector('[data-strip="sizes"]'));
   const shSizes = document.querySelector("#atl-sh [data-sizes]"); // LOOM-311: the Kiyim sheet's size row
@@ -5525,6 +5555,134 @@ function atlSyncSizes(grp) {
     b.setAttribute("aria-pressed", String(o.dataset.size === selectedSize));
     b.setAttribute("aria-label", CT("cfg.sizeN", "Размер {size}").replace("{size}", o.dataset.size));
   });
+}
+
+// ── LOOM-312: upload, low-quality and 3D messages in the strip; toasts ──
+// A message takes the strip (atlStripMode "msg") with one chip that fixes it:
+// "load" (spinner, role=status, Bekor qilish), "err" (alert look, role=alert,
+// Qayta urinish) and "low" (role=status, Kichik 10 sm). err and low go on the
+// next tap anywhere outside the strip; load ends when the upload does. The
+// toast is one persistent polite live region under the top row.
+const _ATL_ALERT = "M12 4 2.5 20h19L12 4ZM12 10v5M12 17.6v.2";
+let _atlMsg = null;     // { kind, key, fb, btn: [key, fb], run, el? }
+let _atlUpSeq = 0;      // the upload the strip waits for; any other read is ignored
+let _atlUpBusy = null;  // the buy buttons the upload disabled
+let _atlToastT = 0, _atlToastSeq = 0;
+
+function atlMsg(kind, key, fb, btn, run, el) {
+  _atlMsg = kind ? { kind, key, fb, btn, run, el } : null;
+  atlSyncStrip();
+}
+
+function atlMsgRun() {
+  const m = _atlMsg;
+  if (!m) return;
+  const chip = document.activeElement && document.activeElement.closest && document.activeElement.closest("#atl-strip");
+  if (m.kind !== "load") atlMsg(null);
+  m.run();
+  // The chip is gone with the message: a keyboard user lands on Rasm.
+  if (chip && !document.activeElement.closest("#atl-strip:not([hidden]) .atl-grp:not([hidden])")) {
+    const img = document.getElementById("atl-image");
+    if (img && img.offsetParent) img.focus();
+  }
+}
+
+function atlSyncMsg(strip, on) {
+  const m = on ? _atlMsg : null;
+  strip.classList.toggle("msg", !!m);
+  strip.classList.toggle("err", !!m && m.kind === "err");
+  if (!m) { strip.removeAttribute("role"); strip.removeAttribute("aria-busy"); return; }
+  const role = m.kind === "err" ? "alert" : "status";
+  const t = strip.querySelector(".atl-msg-t");
+  const text = CT(m.key, m.fb);
+  if (strip.getAttribute("role") !== role) {
+    strip.setAttribute("role", role);
+    t.textContent = ""; // the role first, then the words, so the change is announced
+  }
+  if (t.textContent !== text) setTimeout(() => { if (_atlMsg === m) t.textContent = CT(m.key, m.fb); }, 50);
+  strip.setAttribute("aria-busy", String(m.kind === "load"));
+  const ic = strip.querySelector(".atl-msg-ic");
+  const icon = m.kind === "load" ? '<i class="atl-spin"></i>' : _ATL_SVG(_ATL_ALERT, 20);
+  if (ic.dataset.k !== m.kind) { ic.dataset.k = m.kind; ic.innerHTML = icon; }
+  const b = strip.querySelector('[data-act="msg"]');
+  b.setAttribute("data-i18n", m.btn[0]);
+  b.textContent = CT(m.btn[0], m.btn[1]);
+}
+
+/** The picker again, for the same purpose (new layer or replace) as the refused file. */
+function atlRepick() {
+  const fi = document.getElementById("logo-file-input");
+  if (fi) { fi.value = ""; fi.click(); }
+}
+
+function atlUpStart() {
+  atlMsg("load", "cfg.uploading", "Загружаем картинку…", ["cfg.cancel", "Отмена"], atlUpCancel);
+  if (!_atlUpBusy) {
+    _atlUpBusy = ["btn-place-order", "btn-add-to-cart"].map((id) => document.getElementById(id)).filter((b) => b && !b.disabled);
+    _atlUpBusy.forEach((b) => { b.disabled = true; });
+  }
+  document.documentElement.classList.add("atl-up"); // hides the empty "Dizayn qo'shish" under the block
+  const ph = document.getElementById("atl-up-ph");
+  const r = flatMode && _flatCv && _flatRect;
+  if (!ph || !r) return;
+  // A block in the middle of the print area, where the image lands.
+  const cr = _flatCv.getBoundingClientRect();
+  const w = Math.round(Math.min(_flatRect.w * 0.5, _flatRect.h * 0.4)), h = Math.round(w * 1.2);
+  ph.style.width = w + "px";
+  ph.style.height = h + "px";
+  ph.style.transform = `translate(${Math.round(cr.left + _flatRect.x + (_flatRect.w - w) / 2)}px, ${Math.round(cr.top + _flatRect.y + (_flatRect.h - h) / 2)}px)`;
+  ph.hidden = false;
+}
+
+function atlUpEnd() {
+  if (_atlUpBusy) { _atlUpBusy.forEach((b) => { b.disabled = false; }); _atlUpBusy = null; }
+  document.documentElement.classList.remove("atl-up");
+  const ph = document.getElementById("atl-up-ph");
+  if (ph) ph.hidden = true;
+  if (_atlMsg && _atlMsg.kind === "load") atlMsg(null);
+}
+
+/** Bekor qilish: nothing is placed, and the read still running is ignored when it ends. */
+function atlUpCancel() {
+  _atlUpSeq++;
+  atlUpEnd();
+}
+
+// undo: the delete toast keeps today's Undo button and its 6 s (showUndoToast).
+function atlToast(message, type, undo) {
+  const t = document.getElementById("atl-toast");
+  if (!t) return;
+  clearTimeout(_atlToastT);
+  const err = type === "error";
+  _atlToastSeq++;
+  t.classList.toggle("err", err);
+  t.classList.toggle("undo", !!undo);
+  t.querySelector("span").textContent = message;
+  t.classList.remove("show");
+  void t.offsetWidth; // the newer toast replaces the older one with its own entrance
+  t.classList.add("show");
+  if (!err) _atlToastT = setTimeout(atlToastHide, undo ? 6000 : 2000);
+}
+
+function atlToastHide() {
+  const t = document.getElementById("atl-toast");
+  if (!t || !t.classList.contains("show")) return;
+  clearTimeout(_atlToastT);
+  t.classList.remove("show");
+  const seq = _atlToastSeq;
+  setTimeout(() => { if (seq === _atlToastSeq) t.querySelector("span").textContent = ""; }, 200);
+}
+
+function bindAtelyeMsg() {
+  document.querySelector("#atl-toast button").addEventListener("click", () => { atlToastHide(); performUndo(); });
+  // The next tap anywhere ends an error toast and a strip error or hint
+  // (the strip's own chip runs first: it is inside the strip).
+  document.addEventListener("pointerdown", (e) => {
+    if (!_atl()) return;
+    const t = document.getElementById("atl-toast");
+    if (t && t.classList.contains("err")) atlToastHide();
+    if (_atlMsg && _atlMsg.kind !== "load" && !e.target.closest("#atl-strip")) atlMsg(null);
+  }, true);
 }
 
 /** The previous page, or the catalogue when the page was opened directly (OPEN-3). */
@@ -6868,6 +7026,7 @@ function performUndo() {
 
 /** Toast with an action. The plain showToast() is pointer-events:none. */
 function showUndoToast(message) {
+  if (_atl()) return atlToast(message, "info", true); // LOOM-312
   const old = document.getElementById("loom-undo-toast");
   if (old) old.remove();
 
@@ -7771,44 +7930,65 @@ function checkPrintDpi(el) {
   if (f && f.type === "image/svg+xml") return;
   const px = Math.max(el.img.naturalWidth || 0, el.img.naturalHeight || 0);
   const low = px > 0 && printDpi(px, el.scalePct) < MIN_PRINT_DPI;
-  if (low && !el._lowDpi) {
+  if (low && !el._lowDpi && _atl()) {
+    atlMsg("low", "cfg.lowDpiShort", "Низкое качество: при таком размере печать может быть размытой.",
+      ["cfg.presetS", "Малый 10 см"], () => p3SetWidthCm(el, 10), el);
+  } else if (low && !el._lowDpi) {
     showToast(CT("cfg.uploadLowDpi", "Низкое разрешение: при таком размере печать может быть размытой. Уменьшите изображение или загрузите файл побольше."), "warning");
   }
+  if (!low && _atlMsg && _atlMsg.kind === "low" && _atlMsg.el === el) atlMsg(null); // fixed
   el._lowDpi = low;
 }
 
-function handleImageFile(file, meta) {
+// tok: the HEIC re-run passes its upload's token (LOOM-312); a fresh pick has none.
+function handleImageFile(file, meta, tok) {
   if (_blankOnly) return;
+  // LOOM-312: in Atelye the strip shows the read, a refusal and Bekor qilish;
+  // a read that is cancelled or replaced by a newer pick is ignored.
+  const atl = _atl();
+  const first = tok == null;
+  if (first) tok = ++_atlUpSeq;
+  const live = () => !atl || tok === _atlUpSeq;
+  const refuse = (key, fb) => {
+    if (!live()) return;
+    if (!atl) return showToast(CT(key, fb), "error");
+    atlUpEnd();
+    atlMsg("err", key, fb, ["cfg.retry", "Повторить"], atlRepick);
+  };
   // Phones often hand over HEIC with an empty or generic type, so the
   // extension counts too.
   const heic = /^image\/hei[cf]$/.test(file.type) || /\.hei[cf]$/i.test(file.name || "");
   if (!file.type.startsWith("image/") && !heic) {
-    showToast(CT("cfg.uploadErrType", "Пожалуйста, загрузите файл изображения (PNG, JPG, WebP, HEIC, SVG)"), "error");
+    refuse("cfg.uploadErrType", "Пожалуйста, загрузите файл изображения (PNG, JPG, WebP, HEIC, SVG)");
     return;
   }
 
   if (file.size > 15 * 1024 * 1024) {
-    showToast(CT("cfg.uploadErrSize", "Файл слишком большой (макс. 15 МБ)"), "error");
+    refuse("cfg.uploadErrSize", "Файл слишком большой (макс. 15 МБ)");
     return;
   }
+  if (atl && first) atlUpStart();
 
   const reader = new FileReader();
+  if (atl) reader.onerror = () => refuse("cfg.uploadErrRead", "Не удалось открыть изображение. Попробуйте файл JPG или PNG.");
   reader.onload = (e) => {
+    if (!live()) return;
     const img = new Image();
     img.onerror = () => {
-      const failed = () => showToast(CT("cfg.uploadErrRead", "Не удалось открыть изображение. Попробуйте файл JPG или PNG."), "error");
-      if (!heic) return failed();
+      const failed = () => refuse("cfg.uploadErrRead", "Не удалось открыть изображение. Попробуйте файл JPG или PNG.");
+      if (!heic || !live()) return failed();
       // Convert to JPEG and start over; the result is no longer HEIC, so this
       // cannot loop.
       _loadChunk(HEIC_DECODER)
         .then(() => window.HeicTo({ blob: file, type: "image/jpeg", quality: 0.92 }))
-        .then((blob) => handleImageFile(
+        .then((blob) => live() && handleImageFile(
           new File([blob], (file.name || "photo").replace(/\.hei[cf]$/i, "") + ".jpg", { type: "image/jpeg" }),
-          meta,
+          meta, tok,
         ))
         .catch(failed);
     };
     img.onload = () => {
+      if (!live()) return;
       // Re-encode through a canvas when the image is larger than the 2048px
       // texture (phone photos: those pixels can never be seen, yet every redraw
       // and the order upload would pay for them) or is a format the upload
@@ -7830,6 +8010,8 @@ function handleImageFile(file, meta) {
       const finalType = finalData.slice(5, finalData.indexOf(";"));
 
       const apply = () => {
+      if (!live()) return; // LOOM-312: cancelled, or a newer pick
+      if (atl) atlUpEnd();
       if (_blankOnly) return; // picked while the product was loading
       const st = designState[designState.activeView];
       const sel = selectedElement();
@@ -8255,6 +8437,7 @@ function _float32Copy(root) {
 // ================================================================
 
 function showToast(message, type = "success") {
+  if (_atl()) return atlToast(message, type); // LOOM-312: the Atelye toast
   const existing = document.getElementById("loom-toast");
   if (existing) existing.remove();
 
