@@ -200,6 +200,9 @@
     'cfg.back':         { uz: 'Orqaga', ru: 'Назад', en: 'Back' },
     'cfg.noSize':       { uz: 'o‘lcham yo‘q', ru: 'размер не выбран', en: 'no size' },
     'cfg.moreActions':  { uz: 'Yana', ru: 'Ещё', en: 'More' },
+    // LOOM-308: the Atelye tool rail. ru and en are drafts for Content.
+    'cfg.tools':        { uz: 'Asboblar', ru: 'Инструменты', en: 'Tools' },
+    'cfg.railImage':    { uz: 'Rasm', ru: 'Картинка', en: 'Image' },
     // LOOM-295: the phone's step 3 (Joylash). ru and en are drafts for Content.
     'cfg.more':         { uz: 'Ko‘proq', ru: 'Ещё', en: 'More' },
     'cfg.presetS':      { uz: 'Kichik 10 sm', ru: 'Малый 10 см', en: 'Small 10 cm' },
