@@ -27,6 +27,6 @@
     lab: false,
     cfgPhone: true,
     cfgDesktop: false,
-    cfgAtelye: false,
+    cfgAtelye: true,
   }
 })()
