@@ -317,6 +317,9 @@
     'cfg.uploadErrRead':   { uz: 'Rasmni ochib bo‘lmadi. JPG yoki PNG faylni sinab ko‘ring.', ru: 'Не удалось открыть изображение. Попробуйте файл JPG или PNG.', en: 'Could not open this image. Try a JPG or PNG file.' },
     'cfg.uploadErrLogo':   { uz: 'Logotipni yuklashda xatolik. Buyurtma berishdan oldin qayta urinib ko‘ring.', ru: 'Ошибка загрузки логотипа. Пожалуйста, попробуйте снова перед отправкой заказа.', en: 'Could not upload your logo. Please try again before placing the order.' },
     'cfg.uploadLowDpi':    { uz: 'Past sifat: bu o‘lchamda rasm xira chiqishi mumkin. Uni kichraytiring yoki kattaroq fayl yuklang.', ru: 'Низкое разрешение: при таком размере печать может быть размытой. Уменьшите изображение или загрузите файл побольше.', en: 'Low resolution: this image may print blurry at this size. Make it smaller or upload a larger file.' },
+    'cfg.uploading':       { uz: 'Rasm yuklanmoqda…', ru: 'Загружаем картинку…', en: 'Uploading the image…' },
+    'cfg.cancel':          { uz: 'Bekor qilish', ru: 'Отмена', en: 'Cancel' },
+    'cfg.lowDpiShort':     { uz: 'Past sifat: bu o‘lchamda rasm xira chiqishi mumkin.', ru: 'Низкое качество: при таком размере печать может быть размытой.', en: 'Low quality: at this size the print may look blurry.' },
 
     // ===== Bag (shared cart drawer) =====
     'cart.edit':    { uz: 'O‘zgartirish', ru: 'Изменить',  en: 'Edit' },
