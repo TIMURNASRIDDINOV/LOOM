@@ -3889,6 +3889,7 @@ function addTextElement() {
   // No 3D reward here on purpose: adding text focuses the input so the user can
   // type, and swapping the surface out from under a focused field is hostile.
   // The reward fires on the image path, where the action is already finished.
+  if (_atl()) { atlTextOpen(); return el; } // LOOM-313: the text bar on the keyboard
   const ti = document.getElementById("text-content-input");
   if (ti) ti.focus();
   return el;
@@ -5015,7 +5016,7 @@ function bindAtelye() {
     '</div>' +
     atlRailHtml() +
     `<div class="atl-col" id="atl-col" data-ov role="group" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="${_esc(CT("cfg.colorChoice", "Выбор цвета"))}"></div>` +
-    atlStripHtml() + atlSelHtml() + atlSheetHtml());
+    atlStripHtml() + atlSelHtml() + atlSheetHtml() + atlKbHtml());
   // LOOM-308: Ko'proq opens the step 3 sheet, which the phone flow builds
   // only when cfgPhone runs (it is off while this mode is on).
   if (!document.getElementById("p3-sheet")) {
@@ -5027,12 +5028,13 @@ function bindAtelye() {
   bindAtelyeMsg(); // LOOM-312
   bindAtelyeRail();
   bindAtelyeSheet();
+  bindAtelyeKb(); // LOOM-313
   if (!_p3Base) _p3SnapshotBase(); // LOOM-311: p3PickGarment's base (bindPhoneFlow skips it in this mode)
   atlBuildColors();
   window.addEventListener("loom:langchange", () => { atlSyncCaption(); refreshPriceLabels(); }); // the currency word
   const mq = window.matchMedia("(max-width: 900px)");
   const apply = () => {
-    if (!mq.matches) atlSheetClose(false); // LOOM-311: the sheets are phone-only
+    if (!mq.matches) { atlSheetClose(false); atlTextClose(false); } // LOOM-311, LOOM-313: phone-only
     atlPlace(mq.matches);
     updateCartCta();
     refreshPriceLabels();
@@ -5277,6 +5279,11 @@ function _atlSelSafe() {
 function atlSyncSel() {
   const box = document.getElementById("atl-hand");
   if (!box) return;
+  if (_atlKb) { // LOOM-313: the bar edits the selected text layer only
+    const t = _atl() && flatMode ? _flatActiveEl() : null;
+    if (!t || t.type !== "text") atlTextClose(false);
+    else { box.hidden = true; return atlKbPlace(); }
+  }
   const el = _atl() && flatMode && !document.documentElement.classList.contains("atl-sheet") ? _flatActiveEl() : null;
   const b = el && _flatCv && _flatRect && _flatBoxes[el.id];
   box.hidden = !b;
@@ -5346,8 +5353,9 @@ function atlSelAct(act, byKey) {
     if (want > now && p3WidthCm(el) < now + 0.1) p3SetWidthCm(el, steps[0]);
   } else if (act === "more") {
     p3SheetOpen(document.querySelector('#atl-hand .atl-cb[data-act="more"]'));
+  } else if (act === "edit") {
+    atlTextOpen(); // LOOM-313
   }
-  // "edit": the text bar arrives with LOOM-313.
 }
 
 function bindAtelyeSel() {
@@ -5416,7 +5424,7 @@ function atlStripHtml() {
         `<button type="button" class="atl-chip atl-ico" data-act="center" ${lab("cfg.center", "По центру")}>${_ATL_SVG("M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4M12 5.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13z")}</button>` +
       "</div>" +
       '<div class="atl-grp" data-strip="text">' +
-        // "Tahrirlash" opens the text bar, which arrives with LOOM-313.
+        // "Tahrirlash" opens the text bar (LOOM-313).
         `<button type="button" class="atl-chip" data-act="edit">${_ATL_SVG("M5 7V5h14v2M12 5v14M9 19h6", 17)}${span("cfg.edit", "Изменить")}</button>` +
         `<span class="atl-sel"><select id="atl-font" class="atl-chip" ${lab("cfg.font", "Шрифт")}>` +
           FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}">${_esc(label)}</option>`).join("") +
@@ -5443,6 +5451,7 @@ function bindAtelyeStrip() {
     const b = e.target.closest("button");
     if (!b || b.disabled) return;
     if (b.dataset.act === "msg") return atlMsgRun();
+    if (b.dataset.act === "edit") return atlTextOpen(); // LOOM-313
     if (b.dataset.size) return atlPickSize(b.dataset.size);
     if (b.dataset.cam) {
       p3Camera(b.dataset.cam);
@@ -5683,6 +5692,172 @@ function bindAtelyeMsg() {
     if (t && t.classList.contains("err")) atlToastHide();
     if (_atlMsg && _atlMsg.kind !== "load" && !e.target.closest("#atl-strip")) atlMsg(null);
   }, true);
+}
+
+// ── LOOM-313: the text bar on the keyboard ──
+// One bar on the visual viewport's bottom edge (the keyboard top): the field
+// and Tayyor, then font, B, I and colour. Each control feeds today's text
+// control (#text-content-input, #font-family-select, #btn-bold, #btn-italic,
+// #text-color-picker), so today's handlers change the layer. While it is open
+// html.atl-typing puts the rail, strip, tag, corner buttons and action bar away
+// (the outline stays), and the 2D editor slides up so the layer stays above
+// the bar. Tayyor, Enter, Esc or a tap on the garment close it; the layer
+// stays selected. Without visualViewport the bar sits on the bottom edge.
+let _atlKb = false;
+let _atlKbDy = 0; // how far the editor is slid up, px
+
+function atlKbHtml() {
+  const lab = (k, fb) => `data-i18n-attr="aria-label:${k}" aria-label="${_esc(CT(k, fb))}"`;
+  return `<div class="atl-kb" id="atl-kb" data-ov role="group" ${lab("cfg.layerText", "Текст")} hidden>` +
+    '<div class="atl-kb-r">' +
+      '<input type="text" id="atl-tin" name="print-text" class="atl-kb-in" enterkeyhint="done" autocomplete="off" spellcheck="false" aria-describedby="atl-kb-err"' +
+        ` data-i18n-attr="aria-label:cfg.layerText;placeholder:cfg.textPlaceholder" aria-label="${_esc(CT("cfg.layerText", "Текст"))}" placeholder="${_esc(CT("cfg.textPlaceholder", "Введите текст…"))}" />` +
+      `<button type="button" class="atl-kb-done" data-act="done" data-i18n="cfg.done">${CT("cfg.done", "Готово")}</button>` +
+    "</div>" +
+    '<p class="atl-kb-err" id="atl-kb-err" role="alert" hidden></p>' +
+    '<div class="atl-kb-r">' +
+      `<span class="atl-sel"><select id="atl-kfont" class="atl-chip" ${lab("cfg.font", "Шрифт")}>` +
+        FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}">${_esc(label)}</option>`).join("") +
+      `</select>${_ATL_SVG("M6 9l6 6 6-6", 15)}</span>` +
+      `<button type="button" class="atl-chip atl-ico atl-kb-b" data-act="bold" aria-pressed="false" ${lab("cfg.bold", "Жирный")}>B</button>` +
+      `<button type="button" class="atl-chip atl-ico atl-kb-i" data-act="italic" aria-pressed="false" ${lab("cfg.italic", "Курсив")}>I</button>` +
+      `<input type="color" id="atl-kcolor" class="atl-dot" value="#000000" ${lab("cfg.textColor", "Цвет текста")} />` +
+    "</div></div>";
+}
+
+/** Opens the bar on the selected text layer. err: the empty-text look (cart refused). */
+function atlTextOpen(err) {
+  const el = selectedElement();
+  if (!_atl() || !el || el.type !== "text") return false;
+  if (_atlSh) atlSheetClose(false);
+  if (!flatMode) setFlatMode(true);
+  _atlKb = true;
+  document.documentElement.classList.add("atl-typing");
+  document.getElementById("atl-kb").hidden = false;
+  atlKbSync(el);
+  atlKbErr(!!err);
+  // Focus inside the tap itself: iOS opens the keyboard for no other focus.
+  document.getElementById("atl-tin").focus({ preventScroll: true });
+  atlSyncStrip(); // hides the corner buttons and places the bar (atlSyncSel)
+  return true;
+}
+
+/** Closes the bar; the layer stays selected. focus: to the selection (keyboard users). */
+function atlTextClose(focus = true) {
+  if (!_atlKb) return;
+  _atlKb = false;
+  const tin = document.getElementById("atl-tin");
+  if (document.activeElement === tin) tin.blur(); // the keyboard goes
+  atlKbErr(false);
+  const bar = document.getElementById("atl-kb");
+  bar.hidden = true;
+  bar.style.transform = "";
+  document.documentElement.classList.remove("atl-typing");
+  const ed = document.getElementById("flat-editor");
+  if (ed) ed.style.transform = "";
+  _atlKbDy = 0;
+  atlSyncStrip();
+  const hand = document.getElementById("atl-hand");
+  if (focus && hand && !hand.hidden) hand.focus({ preventScroll: true });
+}
+
+/** The bar's controls show the layer. */
+function atlKbSync(el) {
+  const tin = document.getElementById("atl-tin");
+  const v = el.placeholder ? "" : el.content;
+  if (tin.value !== v) tin.value = v;
+  document.getElementById("atl-kfont").value = el.font;
+  document.getElementById("atl-kcolor").value = el.color;
+  document.querySelector("#atl-kb .atl-kb-b").setAttribute("aria-pressed", String(!!el.bold));
+  document.querySelector("#atl-kb .atl-kb-i").setAttribute("aria-pressed", String(!!el.italic));
+}
+
+function atlKbErr(on) {
+  const tin = document.getElementById("atl-tin");
+  const p = document.getElementById("atl-kb-err");
+  tin.classList.toggle("is-err", on);
+  if (on) tin.setAttribute("aria-invalid", "true");
+  else tin.removeAttribute("aria-invalid");
+  p.hidden = !on;
+  const text = on ? CT("cfg.untouchedTextCart", "Введите текст или удалите этот текстовый слой, чтобы добавить товар в корзину.") : "";
+  if (p.textContent !== text) p.textContent = text;
+  atlKbPlace(); // the bar's height changed
+}
+
+/** The bar on the visual viewport's bottom edge; the editor slides the layer above it. */
+function atlKbPlace() {
+  const bar = document.getElementById("atl-kb");
+  if (!_atlKb || !bar) return;
+  const vv = window.visualViewport;
+  const lift = vv ? Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height)) : 0;
+  bar.style.transform = lift ? `translateY(${-lift}px)` : "";
+  bar.classList.toggle("up", lift > 0); // no home-indicator inset over a keyboard
+  const ed = document.getElementById("flat-editor");
+  const el = _flatActiveEl();
+  const b = el && _flatCv && _flatBoxes[el.id];
+  if (!ed || !b) return;
+  // Measured as if not slid, so a re-run lands on the same place.
+  const cr = _flatCv.getBoundingClientRect();
+  const ys = _flatCorners(b, ATL_SEL_PAD, ATL_SEL_MIN).map((p) => cr.top + _atlKbDy + p.y);
+  const top = document.getElementById("atl-top");
+  const lo = Math.max(vv ? vv.offsetTop : 0, top ? top.getBoundingClientRect().bottom : 0) + 4;
+  const hi = bar.getBoundingClientRect().top - 8;
+  // Up until the layer's bottom clears the bar, never past its top under the top row.
+  const dy = Math.round(Math.max(0, Math.min(Math.max(...ys) - hi, Math.min(...ys) - lo)));
+  if (dy === _atlKbDy) return;
+  _atlKbDy = dy;
+  ed.style.transform = dy ? `translateY(${-dy}px)` : "";
+}
+
+function bindAtelyeKb() {
+  const bar = document.getElementById("atl-kb");
+  const tin = document.getElementById("atl-tin");
+  tin.addEventListener("input", () => {
+    const o = document.getElementById("text-content-input");
+    if (!o) return;
+    o.value = tin.value;
+    o.dispatchEvent(new Event("input"));
+    if (tin.value.trim()) atlKbErr(false);
+  });
+  tin.addEventListener("keydown", (e) => {
+    if (e.isComposing) return; // an IME is still choosing
+    if (e.key === "Enter") { e.preventDefault(); atlTextClose(); } // Esc: the bar's own handler
+  });
+  // B, I and Tayyor keep the focus in the field, so the keyboard stays up.
+  bar.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
+  bar.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.act === "done") return atlTextClose();
+    const o = document.getElementById(b.dataset.act === "bold" ? "btn-bold" : "btn-italic");
+    if (o) o.click();
+    const el = selectedElement();
+    if (el) atlKbSync(el);
+  });
+  bar.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); atlTextClose(); } });
+  const feed = (id, origId, type) => document.getElementById(id).addEventListener(type, (e) => {
+    const o = document.getElementById(origId);
+    if (!o) return;
+    o.value = e.target.value;
+    o.dispatchEvent(new Event(type));
+  });
+  feed("atl-kfont", "font-family-select", "change");
+  feed("atl-kcolor", "text-color-picker", "input");
+  // A tap on the garment closes the bar and is used up: the layer stays
+  // selected. Window capture runs before the editor's own handlers.
+  window.addEventListener("pointerdown", (e) => {
+    if (!_atlKb || bar.contains(e.target)) return;
+    if (e.target.closest && e.target.closest("#flat-editor, #three-container")) {
+      e.preventDefault();
+      e.stopPropagation();
+      atlTextClose(false);
+    } else {
+      atlTextClose(false); // the top row: its own tap runs too
+    }
+  }, true);
+  const vv = window.visualViewport;
+  if (vv) { vv.addEventListener("resize", atlKbPlace); vv.addEventListener("scroll", atlKbPlace); }
+  window.addEventListener("resize", atlKbPlace);
 }
 
 /** The previous page, or the catalogue when the page was opened directly (OPEN-3). */
@@ -7393,6 +7568,14 @@ async function addToCart(opts) {
   for (const view of ["front", "back"]) {
     const pending = elementsOf(view).find((el) => el.type === "text" && el.placeholder);
     if (!pending) continue;
+    if (_atl()) { // LOOM-313: the bar opens on that layer, the field in its error look
+      if (designState.activeView !== view) setActiveView(view);
+      designState[view].selId = pending.id;
+      syncPanelFromState();
+      redrawActive();
+      atlTextOpen(true);
+      return false;
+    }
     setStep("design");
     if (_isSheetLayout()) setSheetOpen(true);
     if (designState.activeView !== view) setActiveView(view);

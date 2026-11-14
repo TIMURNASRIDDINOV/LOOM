@@ -9,12 +9,13 @@
    bar). LOOM-308: the tool rail (right) and the colour stack (left).
    LOOM-309: the context strip and its tag. LOOM-310: the corner buttons on
    the selected print. LOOM-311: the bottom sheet. LOOM-312: strip messages
-   and the toast. Telegram comes in LOOM-314.
+   and the toast. LOOM-313: the text bar on the keyboard. Telegram comes in
+   LOOM-314.
    ═══════════════════════════════════════════════════════════════════ */
 
 /* The Atelye rows exist only while the flag is on; outside the mode
    (desktop, or before the class lands) they are never drawn. */
-.atl-top, .atl-bar, .atl-rail, .atl-col, .atl-strip, .atl-tag, .atl-hand, .atl-sh, .atl-shade, .atl-up-ph, .atl-toast { display: none; }
+.atl-top, .atl-bar, .atl-rail, .atl-col, .atl-strip, .atl-tag, .atl-hand, .atl-sh, .atl-shade, .atl-up-ph, .atl-toast, .atl-kb { display: none; }
 
 @media (max-width: 900px) {
   html.cfg-atelye {
@@ -158,6 +159,7 @@
     html.cfg-atelye .atl-chip:not(:disabled):not([aria-pressed="true"]):hover { background: var(--surface2); }
     html.cfg-atelye .atl-sw:not(:disabled):hover i { transform: scale(1.06); }
     html.cfg-atelye .atl-cb:hover i { background: var(--mut); }
+    html.cfg-atelye .atl-kb-done:hover { background: var(--cta-press); }
   }
   /* A garment sold without print: only Kiyim (R-13). */
   html.cfg-atelye body.blank-only .atl-print { display: none; }
@@ -432,6 +434,54 @@
   html.cfg-atelye body.kb-open .atl-strip,
   html.cfg-atelye body.kb-open .atl-tag { display: none; }
 
+  /* ── LOOM-313: text bar on the keyboard top ─────────────────────
+     Fixed to the layout viewport's bottom; configurator.js lifts it by the
+     keyboard height (visualViewport) with a transform. */
+  html.cfg-atelye .atl-kb {
+    position: fixed; z-index: 62; left: 0; right: 0; bottom: 0; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 7px;
+    padding: 7px max(10px, env(safe-area-inset-right, 0px)) calc(7px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+    background: var(--surface); color: var(--ink); box-shadow: 0 -1px 0 var(--ln);
+    font-family: var(--f);
+  }
+  html.cfg-atelye .atl-kb.up { padding-bottom: 7px; }
+  html.cfg-atelye .atl-kb[hidden],
+  html.cfg-atelye .atl-kb-err[hidden] { display: none; }
+  html.cfg-atelye .atl-kb-r { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  html.cfg-atelye .atl-kb-r + .atl-kb-r { overflow-x: auto; scrollbar-width: none; }
+  html.cfg-atelye .atl-kb-r::-webkit-scrollbar { display: none; }
+  /* 16 px: iOS zooms the page into a smaller field. */
+  html.cfg-atelye .atl-kb-in {
+    flex: 1 1 auto; min-width: 0; box-sizing: border-box; height: 44px; margin: 0; padding: 0 12px;
+    border: 0; border-radius: var(--r-chip); outline: none;
+    background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink);
+    font: 500 16px var(--f); caret-color: var(--ink);
+  }
+  html.cfg-atelye .atl-kb-in::placeholder { color: var(--mut); opacity: 1; }
+  html.cfg-atelye .atl-kb-in:focus-visible { box-shadow: inset 0 0 0 2.5px var(--ink); }
+  html.cfg-atelye .atl-kb-in.is-err { box-shadow: inset 0 0 0 1.5px var(--alert); }
+  html.cfg-atelye .atl-kb-in.is-err:focus-visible { box-shadow: inset 0 0 0 2.5px var(--alert); }
+  html.cfg-atelye .atl-kb-err { margin: -2px 2px 0; color: var(--alert); font: 700 12.5px/1.3 var(--f); }
+  html.cfg-atelye .atl-kb-done {
+    all: unset; box-sizing: border-box; flex: none; height: 44px; padding: 0 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: var(--r-btn); background: var(--cta); color: var(--on-cta);
+    font: 700 13.5px var(--f); white-space: nowrap; cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  html.cfg-atelye .atl-kb-done:active { background: var(--cta-press); }
+  html.cfg-atelye .atl-kb-b { font-weight: 800; font-size: 15px; }
+  html.cfg-atelye .atl-kb-i { font-style: italic; font-size: 15px; font-family: Georgia, serif; }
+  html.cfg-atelye .atl-kb :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  html.cfg-atelye .atl-kb .atl-kb-in:focus-visible { outline: none; }
+  /* While it is open, the edge tools and the action bar step aside. */
+  html.cfg-atelye.atl-typing .atl-rail,
+  html.cfg-atelye.atl-typing .atl-col,
+  html.cfg-atelye.atl-typing .atl-strip,
+  html.cfg-atelye.atl-typing .atl-tag,
+  html.cfg-atelye.atl-typing .atl-hand,
+  html.cfg-atelye.atl-typing .atl-bar { display: none; }
+
   /* No double-tap zoom delay and no grey flash on the Atelye controls. */
   html.cfg-atelye .atl-top button,
   html.cfg-atelye .atl-bar button,
@@ -439,7 +489,10 @@
   html.cfg-atelye .atl-col button,
   html.cfg-atelye .atl-strip button,
   html.cfg-atelye .atl-strip select,
-  html.cfg-atelye .atl-strip input { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  html.cfg-atelye .atl-strip input,
+  html.cfg-atelye .atl-kb button,
+  html.cfg-atelye .atl-kb select,
+  html.cfg-atelye .atl-kb input { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
   /* Focus: 2 px, visible on every surface (R-16). */
   html.cfg-atelye .atl-top :focus-visible,
@@ -463,7 +516,8 @@
 @media (max-width: 900px) and (prefers-reduced-motion: reduce) {
   html.cfg-atelye .atl-top *, html.cfg-atelye .atl-bar *,
   html.cfg-atelye .atl-rail *, html.cfg-atelye .atl-col *,
-  html.cfg-atelye .atl-strip *, html.cfg-atelye .atl-hand * { transition: none !important; animation: none !important; }
+  html.cfg-atelye .atl-strip *, html.cfg-atelye .atl-hand *,
+  html.cfg-atelye .atl-kb * { transition: none !important; animation: none !important; }
   html.cfg-atelye .atl-sh, html.cfg-atelye .atl-sh * { transition: none !important; animation: none !important; }
   html.cfg-atelye .atl-toast, html.cfg-atelye .atl-up-ph, html.cfg-atelye .atl-up-ph::after,
   html.cfg-atelye .atl-top .surface-btn.atl-busy::after { transition: none !important; animation: none !important; }

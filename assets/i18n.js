@@ -210,6 +210,9 @@
     'cfg.rotate15':     { uz: 'Burish, 15 daraja', ru: 'Повернуть на 15 градусов', en: 'Rotate 15 degrees' },
     'cfg.resize':       { uz: 'O‘lchamni o‘zgartirish', ru: 'Изменить размер', en: 'Resize' },
     'cfg.editText':     { uz: 'Matnni tahrirlash', ru: 'Изменить текст', en: 'Edit text' },
+    'cfg.done':         { uz: 'Tayyor', ru: 'Готово', en: 'Done' },
+    'cfg.bold':         { uz: 'Qalin', ru: 'Жирный', en: 'Bold' },
+    'cfg.italic':       { uz: 'Kursiv', ru: 'Курсив', en: 'Italic' },
     'cfg.layerImageAria': { uz: 'Rasm qatlami, {w} × {h} sm', ru: 'Слой с картинкой, {w} × {h} см', en: 'Image layer, {w} × {h} cm' },
     'cfg.layerTextAria': { uz: 'Matn qatlami: {text}', ru: 'Текстовый слой: {text}', en: 'Text layer: {text}' },
     // LOOM-311: the Atelye bottom sheets. ru and en are drafts for Content.
