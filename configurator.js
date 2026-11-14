@@ -1697,6 +1697,8 @@ function refreshPriceLabels() {
   document.querySelectorAll(".cta-price").forEach((el) => {
     el.textContent = numFmt + " " + CT("cfg.currency", "сум");
   });
+  const atl = document.getElementById("atl-price"); // LOOM-307, flag on only
+  if (atl) atl.textContent = numFmt + " " + CT("cfg.currency", "сум");
   tmaSync(); // LOOM-297: the price on Telegram's MainButton
 }
 
@@ -3646,6 +3648,7 @@ function initUI() {
   bindMoreMenu();
   bindFullscreen();
   bindCart();
+  bindAtelye();
   bindSizeGuide();
   bindLangChange();
   syncPanelFromState();
@@ -4911,6 +4914,8 @@ const P3_HINT = {
 };
 
 function phoneFlowEnabled() {
+  // LOOM-307: the Atelye phone UI replaces this flow whatever cfgPhone says.
+  if (atelyeEnabled()) return false;
   try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgPhone); } catch (e) { return false; }
 }
 function _p3() { return phoneFlowEnabled() && _isSheetLayout(); }
@@ -4944,6 +4949,106 @@ function p3Sync() {
   });
   p3SyncPlace();
   tmaSync();
+}
+
+// ── LOOM-307: Atelye phone shell (LOOM_FLAGS.cfgAtelye, PRD-215) ──
+// Below 901px with the flag on, html.cfg-atelye (assets/cfg-atelye.css)
+// shows the garment full screen under a top row (Orqaga, 2D / 3D) and over
+// an action bar (price, Hozir sotib olish, Savatga qo'shish). The bar holds
+// today's #btn-place-order and #btn-add-to-cart and the row today's
+// .surface-toggle, moved in while the mode applies and put back when the
+// window widens past 900px, so their handlers, busy state and labels stay
+// the ones the flag-off page runs. cfgPhone is ignored while this is on.
+function atelyeEnabled() {
+  try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgAtelye); } catch (e) { return false; }
+}
+function _atl() { return atelyeEnabled() && _isSheetLayout(); }
+
+const _ATL_BACK_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
+let _atlHomes = null; // [element, placeholder comment] pairs while moved
+
+function bindAtelye() {
+  if (!atelyeEnabled()) return;
+  const studio = document.querySelector(".studio");
+  if (!studio || document.getElementById("atl-bar")) return;
+  studio.insertAdjacentHTML("beforeend",
+    '<div class="atl-top" id="atl-top" data-ov>' +
+      `<button type="button" class="atl-ibtn" id="atl-back" data-i18n-attr="aria-label:cfg.back" aria-label="${_esc(CT("cfg.back", "Назад"))}">${_ATL_BACK_ICON}</button>` +
+    '</div>' +
+    '<div class="atl-bar" id="atl-bar" data-ov>' +
+      '<p class="atl-pr"><b id="atl-price"></b><span id="atl-cap"></span></p>' +
+    '</div>');
+  document.getElementById("atl-back").addEventListener("click", atlBack);
+  window.addEventListener("loom:langchange", () => { atlSyncCaption(); refreshPriceLabels(); }); // the currency word
+  const mq = window.matchMedia("(max-width: 900px)");
+  const apply = () => {
+    atlPlace(mq.matches);
+    updateCartCta();
+    refreshPriceLabels();
+    atlSyncCaption();
+    atlSyncSurface();
+  };
+  mq.addEventListener("change", apply);
+  apply();
+}
+
+/** Move the shared controls into the Atelye rows (on) or back home (off). */
+function atlPlace(on) {
+  const root = document.documentElement;
+  root.classList.toggle("cfg-atelye", on);
+  if (on && !_atlHomes) {
+    const top = document.getElementById("atl-top");
+    const bar = document.getElementById("atl-bar");
+    const moves = [
+      [document.querySelector(".surface-toggle"), top],
+      [document.getElementById("btn-place-order"), bar],
+      [document.getElementById("btn-add-to-cart"), bar],
+    ].filter(([el]) => el);
+    _atlHomes = moves.map(([el, dest]) => {
+      const home = document.createComment("atl-home");
+      el.parentNode.insertBefore(home, el);
+      dest.appendChild(el);
+      return [el, home];
+    });
+  } else if (!on && _atlHomes) {
+    _atlHomes.forEach(([el, home]) => { home.parentNode.insertBefore(el, home); home.remove(); });
+    _atlHomes = null;
+  }
+}
+
+/** The 2D / 3D pair is a pressed-button group in this mode, tabs elsewhere. */
+function atlSyncSurface() {
+  if (!atelyeEnabled()) return;
+  const on = _atl();
+  const group = document.querySelector(".surface-toggle");
+  if (group) group.setAttribute("role", on ? "group" : "tablist");
+  document.querySelectorAll(".surface-btn").forEach((b) => {
+    if (on) {
+      b.removeAttribute("role");
+      b.setAttribute("aria-pressed", String(b.getAttribute("aria-selected") === "true"));
+    } else {
+      b.setAttribute("role", "tab");
+      b.removeAttribute("aria-pressed");
+    }
+  });
+}
+
+/** "M · Oq" under the price, or "o'lcham yo'q" in the alert colour. */
+function atlSyncCaption() {
+  const cap = document.getElementById("atl-cap");
+  if (!cap) return;
+  cap.classList.toggle("warn", !selectedSize);
+  cap.textContent = selectedSize
+    ? [selectedSize, getColorName(designState.shirtColor)].filter(Boolean).join(" · ")
+    : CT("cfg.noSize", "размер не выбран");
+}
+
+/** The previous page, or the catalogue when the page was opened directly (OPEN-3). */
+function atlBack() {
+  let sameSite = false;
+  try { sameSite = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) { /* bad referrer */ }
+  if (sameSite && history.length > 1) history.back();
+  else location.href = "catalog.html";
 }
 
 // ── LOOM-298: desktop accordion stepper (LOOM_FLAGS.cfgDesktop) ──
@@ -5785,7 +5890,8 @@ function updateCartCta() {
   if (!label) return;
   // A blank product (LOOM-226) is sold without a print by design, so on the
   // phone's step 1 (LOOM-293) its button simply adds it to the bag.
-  if (_blankOnly && _flow3()) {
+  // LOOM-307: the Atelye bar always says "Savatga qo'shish".
+  if (_atl() || (_blankOnly && _flow3())) {
     label.setAttribute("data-i18n", "cfg.addToBag");
     label.textContent = CT("cfg.addToBag", "Добавить в корзину");
     btn.classList.remove("is-blank");
@@ -5900,6 +6006,7 @@ function setFlatMode(on) {
     b.classList.toggle("active", on2);
     b.setAttribute("aria-selected", String(on2));
   });
+  atlSyncSurface();
   p3SyncPlace(); // LOOM-295: step 3 in 3D is look-only
 
   if (flatMode) {
@@ -6552,6 +6659,7 @@ function syncPickers() {
   const hex = String(designState.shirtColor || "").toUpperCase();
   _syncRadios("color-swatches", ".swatch-btn", "selected", (b) => String(b.dataset.hex).toUpperCase() === hex);
   _syncRadios("size-selector", ".size-btn", "active", (b) => b.dataset.size === selectedSize);
+  atlSyncCaption();
 }
 
 function _syncRadios(id, sel, cls, isOn) {
