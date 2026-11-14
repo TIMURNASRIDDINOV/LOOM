@@ -207,6 +207,11 @@
     'cfg.pickSize':     { uz: 'O‘lchamni tanlang', ru: 'Выберите размер', en: 'Choose a size' },
     'cfg.sizeN':        { uz: 'O‘lcham {size}', ru: 'Размер {size}', en: 'Size {size}' },
     'cfg.edit':         { uz: 'Tahrirlash', ru: 'Изменить', en: 'Edit' },
+    'cfg.rotate15':     { uz: 'Burish, 15 daraja', ru: 'Повернуть на 15 градусов', en: 'Rotate 15 degrees' },
+    'cfg.resize':       { uz: 'O‘lchamni o‘zgartirish', ru: 'Изменить размер', en: 'Resize' },
+    'cfg.editText':     { uz: 'Matnni tahrirlash', ru: 'Изменить текст', en: 'Edit text' },
+    'cfg.layerImageAria': { uz: 'Rasm qatlami, {w} × {h} sm', ru: 'Слой с картинкой, {w} × {h} см', en: 'Image layer, {w} × {h} cm' },
+    'cfg.layerTextAria': { uz: 'Matn qatlami: {text}', ru: 'Текстовый слой: {text}', en: 'Text layer: {text}' },
     // LOOM-295: the phone's step 3 (Joylash). ru and en are drafts for Content.
     'cfg.more':         { uz: 'Ko‘proq', ru: 'Ещё', en: 'More' },
     'cfg.presetS':      { uz: 'Kichik 10 sm', ru: 'Малый 10 см', en: 'Small 10 cm' },

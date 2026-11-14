@@ -3516,7 +3516,8 @@ function _onEdKeyDown(e) {
     return;
   }
   // The desktop flow steps 1 cm of the platen; the old flow steps 1 px.
-  const r = d3 ? PLATEN_CM : (_flatRect || printRect());
+  // LOOM-310: Atelye steps 1 cm too.
+  const r = d3 || _atl() ? PLATEN_CM : (_flatRect || printRect());
   const du = (e.shiftKey ? 10 : 1) / r.w;
   const dv = (e.shiftKey ? 10 : 1) / r.h;
   if (e.key === "ArrowLeft") el.nx -= du;
@@ -4242,7 +4243,11 @@ function renderFlatEditor() {
   if (cmOut) cmOut.textContent = cm;
   // Step 3 copies this canvas when the 3D preview has not been opened. Keep
   // the selection in state, but leave its editing chrome out of that picture.
-  if (cm && currentStep !== "order") {
+  if (cm && _atl()) {
+    // LOOM-310: the outline only; the corner buttons and the tag are DOM.
+    // Nothing while a sheet is open.
+    if (!document.documentElement.classList.contains("atl-sheet")) _atlDrawOutline(ctx, _flatBoxes[active]);
+  } else if (cm && currentStep !== "order") {
     _flatDrawChrome(ctx, _flatBoxes[active]);
     // The size badge belongs to the editing step only.
     if (currentStep === "design") _flatDrawCm(ctx, _flatBoxes[active], cm, W, H);
@@ -4251,6 +4256,7 @@ function renderFlatEditor() {
 
   _flatSyncEmptyState();
   updateViewToggleMarkers();
+  atlSyncSel();
 }
 
 /** The print rect inside a drawn garment box, in the same px as the box. */
@@ -4329,13 +4335,19 @@ function _flatDrawLabel(ctx, rect) {
  * ponytail: clips the unrotated box only; a rotated element shows its full size.
  */
 function _flatCmText(b, rect) {
+  const s = _flatCmSize(b, rect);
+  return `${s[0]} × ${s[1]} ${CT("cfg.cm", "см")}`;
+}
+
+/** [width, height] in whole cm, as _flatCmText prints them. */
+function _flatCmSize(b, rect) {
   let w = b.w, h = b.h;
   if (!b.rot) {
     w = Math.min(b.cx + b.w / 2, rect.x + rect.w) - Math.max(b.cx - b.w / 2, rect.x);
     h = Math.min(b.cy + b.h / 2, rect.y + rect.h) - Math.max(b.cy - b.h / 2, rect.y);
   }
   const cm = (v, px, platen) => Math.max(0, Math.round((v / px) * platen));
-  return `${cm(w, rect.w, PLATEN_CM.w)} × ${cm(h, rect.h, PLATEN_CM.h)} ${CT("cfg.cm", "см")}`;
+  return [cm(w, rect.w, PLATEN_CM.w), cm(h, rect.h, PLATEN_CM.h)];
 }
 
 /** The size tag under the selection box, kept inside the canvas. */
@@ -4380,9 +4392,10 @@ function _flatActiveEl() {
 }
 
 /** Box corners (TL,TR,BR,BL) in CSS px, rotated. */
-function _flatCorners(b) {
+function _flatCorners(b, pad, min) {
   const rot = b.rot || 0, cs = Math.cos(rot), sn = Math.sin(rot);
-  const hw = b.w / 2 + 4, hh = b.h / 2 + 4;
+  if (pad == null) pad = 4;
+  const hw = Math.max(b.w / 2 + pad, min || 0), hh = Math.max(b.h / 2 + pad, min || 0);
   return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([dx, dy]) => ({
     x: b.cx + dx * cs - dy * sn,
     y: b.cy + dx * sn + dy * cs,
@@ -4457,8 +4470,9 @@ function _flatLocal(e) {
 function _flatHitTest(x, y) {
   if (!_flatUI) return null;
   const R = _coarsePointer() ? 24 : 16;
-  if (Math.hypot(x - _flatUI.rotate.x, y - _flatUI.rotate.y) <= R) return { type: "rotate" };
-  for (let i = 0; i < 4; i++) {
+  // LOOM-310: no canvas handles in Atelye (rotate is null), the box only moves.
+  if (_flatUI.rotate && Math.hypot(x - _flatUI.rotate.x, y - _flatUI.rotate.y) <= R) return { type: "rotate" };
+  for (let i = 0; _flatUI.rotate && i < 4; i++) {
     const c = _flatUI.corners[i];
     if (Math.hypot(x - c.x, y - c.y) <= R) return { type: "scale", corner: i };
   }
@@ -4688,7 +4702,7 @@ function _flatCloseAddSheet() {
 // ── Wiring ──────────────────────────────────────────────────────
 
 function bindFlatEditor() {
-  window.addEventListener("loom:themechange", () => { _flatSelect = ""; renderFlatEditor(); });
+  window.addEventListener("loom:themechange", () => { _flatSelect = ""; _atlSelCol = null; renderFlatEditor(); });
   const cv = document.getElementById("flat-canvas");
   if (!cv) return;
   _flatCv = cv;
@@ -4980,13 +4994,14 @@ function bindAtelye() {
     '</div>' +
     atlRailHtml() +
     `<div class="atl-col" id="atl-col" data-ov role="group" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="${_esc(CT("cfg.colorChoice", "Выбор цвета"))}"></div>` +
-    atlStripHtml());
+    atlStripHtml() + atlSelHtml());
   // LOOM-308: Ko'proq opens the step 3 sheet, which the phone flow builds
   // only when cfgPhone runs (it is off while this mode is on).
   if (!document.getElementById("p3-sheet")) {
     p3BuildSheet(studio, (k, fb) => `<span data-i18n="${k}">${CT(k, fb)}</span>`);
   }
   document.getElementById("atl-back").addEventListener("click", atlBack);
+  bindAtelyeSel();
   bindAtelyeStrip(); // before the rail: its first sync draws the strip
   bindAtelyeRail();
   atlBuildColors();
@@ -5163,6 +5178,192 @@ function atlSyncTools() {
   atlSyncStrip(); // LOOM-309: an empty design shows the sizes
 }
 
+// ── LOOM-310: corner buttons on the selected print ──
+// In 2D the selected element carries four DOM buttons on the corners of its
+// outline (O'chirish, Burish, resize, Ko'proq or "Matnni tahrirlash"), a size
+// tag under it, and is itself one focusable group. The canvas draws only the
+// outline (_atlDrawOutline). A tap runs the step (15°, 10 → 20 → 28 cm); a
+// drag that starts on Burish or resize becomes today's rotate / scale gesture
+// (_flatGesture), so the window's pointer handlers finish it. The buttons are
+// kept inside the free area between the top row, the rail and the strip.
+const ATL_SEL_PAD = 8;   // gap between the element and its outline (CSS px)
+const ATL_SEL_MIN = 24;  // smallest half-side: 44 px targets stay 4 px apart
+const ATL_CM_STEPS = [10, 20, 28];
+const _ATL_CB_IC = {
+  del: '<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/>',
+  rot: '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/>',
+  scale: '<path d="M5 19 19 5M13 5h6v6M11 19H5v-6"/>',
+  more: _ATL_IC.more,
+  edit: _ATL_IC.text,
+};
+// Corner order of _flatCorners: top-left, top-right, bottom-right, bottom-left.
+const _ATL_CB = [
+  ["del", "cfg.remove", "Удалить"],
+  ["rot", "cfg.rotate15", "Повернуть на 15 градусов"],
+  ["scale", "cfg.resize", "Изменить размер"],
+  ["more", "cfg.more", "Ещё"],
+];
+const _ATL_CB_EDIT = ["edit", "cfg.editText", "Изменить текст"];
+let _atlSelCol = null; // { th, ink, sur }: the outline colours of the current theme
+
+function atlSelHtml() {
+  return '<div class="atl-hand" id="atl-hand" role="group" tabindex="0" hidden><i class="atl-hand-ring"></i>' +
+    _ATL_CB.map(([act, k, fb]) =>
+      `<button type="button" class="atl-cb" data-ov data-act="${act}" data-i18n-attr="aria-label:${k}" aria-label="${_esc(CT(k, fb))}">` +
+        `<i><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${_ATL_CB_IC[act]}</svg></i></button>`).join("") +
+    '<span class="atl-hand-tag" id="atl-hand-tag" data-ov aria-hidden="true" hidden></span></div>';
+}
+
+function _atlDrawOutline(ctx, b) {
+  const root = document.documentElement;
+  const th = root.getAttribute("data-theme") || "";
+  if (!_atlSelCol || _atlSelCol.th !== th) {
+    const cs = getComputedStyle(root);
+    _atlSelCol = { th, ink: cs.getPropertyValue("--ink").trim() || "#14171a", sur: cs.getPropertyValue("--surface").trim() || "#ffffff" };
+  }
+  const c = _flatCorners(b, ATL_SEL_PAD, ATL_SEL_MIN);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(c[0].x, c[0].y);
+  for (let i = 1; i < 4; i++) ctx.lineTo(c[i].x, c[i].y);
+  ctx.closePath();
+  ctx.lineWidth = 3.4; ctx.strokeStyle = _atlSelCol.sur; ctx.stroke();
+  ctx.lineWidth = 1.3; ctx.strokeStyle = _atlSelCol.ink; ctx.stroke();
+  ctx.restore();
+  _flatUI = { corners: c, rotate: null }; // the box moves the element; no canvas handles
+}
+
+/** The free area for the buttons: under the top row, over the strip / bar, left of the rail. */
+function _atlSelSafe() {
+  const edge = (id, side, fb) => {
+    const e = document.getElementById(id);
+    return e && e.getClientRects().length ? e.getBoundingClientRect()[side] : fb;
+  };
+  return {
+    l: edge("atl-col", "right", 0) + 4,
+    t: edge("atl-top", "bottom", 0) + 4,
+    r: edge("atl-rail", "left", window.innerWidth) - 4,
+    b: Math.min(edge("atl-strip", "top", Infinity), edge("atl-bar", "top", window.innerHeight)) - 4,
+  };
+}
+
+/** Place the group, its four buttons and the tag on the drawn selection, or hide them. */
+function atlSyncSel() {
+  const box = document.getElementById("atl-hand");
+  if (!box) return;
+  const el = _atl() && flatMode && !document.documentElement.classList.contains("atl-sheet") ? _flatActiveEl() : null;
+  const b = el && _flatCv && _flatRect && _flatBoxes[el.id];
+  box.hidden = !b;
+  if (!b) return;
+  const text = el.type === "text";
+  const size = _flatCmSize(b, _flatRect);
+  box.setAttribute("aria-label", text
+    ? CT("cfg.layerTextAria", "Текстовый слой: {text}").replace("{text}", el.content)
+    : CT("cfg.layerImageAria", "Слой с картинкой, {w} × {h} см").replace("{w}", size[0]).replace("{h}", size[1]));
+  // Bottom-left: Ko'proq on an image, "Matnni tahrirlash" on text.
+  const btns = box.querySelectorAll(".atl-cb");
+  const bl = text ? _ATL_CB_EDIT : _ATL_CB[3];
+  if (btns[3].dataset.act !== bl[0]) {
+    btns[3].dataset.act = bl[0];
+    btns[3].setAttribute("data-i18n-attr", "aria-label:" + bl[1]);
+    btns[3].querySelector("svg").innerHTML = _ATL_CB_IC[bl[0]];
+  }
+  btns[3].setAttribute("aria-label", CT(bl[1], bl[2]));
+
+  const cr = _flatCv.getBoundingClientRect();
+  const c = _flatCorners(b, ATL_SEL_PAD, ATL_SEL_MIN);
+  const safe = _atlSelSafe();
+  const fit = (v, lo, hi) => Math.round(Math.max(lo, Math.min(hi, v)));
+  btns.forEach((btn, i) => {
+    const x = fit(cr.left + c[i].x, safe.l + 22, safe.r - 22);
+    const y = fit(cr.top + c[i].y, safe.t + 22, safe.b - 22);
+    btn.style.transform = `translate(${x - 22}px, ${y - 22}px)`;
+  });
+  const hw = Math.max(b.w / 2 + ATL_SEL_PAD, ATL_SEL_MIN), hh = Math.max(b.h / 2 + ATL_SEL_PAD, ATL_SEL_MIN);
+  const ring = box.querySelector(".atl-hand-ring");
+  ring.style.width = hw * 2 + "px";
+  ring.style.height = hh * 2 + "px";
+  ring.style.transform = `translate(${cr.left + b.cx - hw}px, ${cr.top + b.cy - hh}px) rotate(${b.rot || 0}rad)`;
+
+  const tag = document.getElementById("atl-hand-tag");
+  tag.hidden = text;
+  if (text) return;
+  tag.textContent = _flatCmText(b, _flatRect);
+  const tw = tag.offsetWidth, thh = tag.offsetHeight;
+  const ys = c.map((p) => cr.top + p.y);
+  // Under the buttons; over them when there is no room below.
+  let ty = Math.max(...ys) + 22;
+  if (ty + thh > safe.b) ty = Math.max(safe.t, Math.min(...ys) - 22 - thh);
+  const tx = fit(cr.left + b.cx - tw / 2, safe.l, safe.r - tw);
+  tag.style.transform = `translate(${tx}px, ${Math.round(ty)}px)`;
+}
+
+/** A tap on a corner button (or Enter / Space on it). */
+function atlSelAct(act, byKey) {
+  const el = _flatActiveEl();
+  if (!el) return;
+  if (act === "del") {
+    deleteElement(el.id);
+    // The buttons are gone with the last layer: a keyboard user lands on the rail.
+    const first = byKey && document.getElementById("atl-hand").hidden && document.querySelector("#atl-rail button");
+    if (first) first.focus();
+  } else if (act === "rot") {
+    const deg = Math.round((el.rotation || 0) * 18000 / Math.PI) / 100;
+    el.rotation = ((((deg + 15) % 360) + 360) % 360) * Math.PI / 180;
+    redrawActive();
+  } else if (act === "scale") {
+    const now = p3WidthCm(el);
+    const steps = ATL_CM_STEPS.map((v) => Math.min(v, PLATEN_CM.w));
+    const want = steps.find((v) => v > now + 0.5) || steps[0];
+    p3SetWidthCm(el, want);
+    // The scale limits stopped it short of the preset: start over at the smallest.
+    if (want > now && p3WidthCm(el) < now + 0.1) p3SetWidthCm(el, steps[0]);
+  } else if (act === "more") {
+    p3SheetOpen();
+  }
+  // "edit": the text bar arrives with LOOM-313.
+}
+
+function bindAtelyeSel() {
+  const box = document.getElementById("atl-hand");
+  let press = null;     // { id, x, y, type, on }: a press on Burish / resize that may turn into a drag
+  let dragged = false;  // the click after a drag is not a tap
+  box.addEventListener("click", (e) => {
+    const b = e.target.closest(".atl-cb");
+    if (!b) return;
+    const byKey = e.detail === 0; // Enter / Space: never the click that ends a drag
+    if (dragged && !byKey) { dragged = false; return; }
+    dragged = false;
+    atlSelAct(b.dataset.act, byKey);
+  });
+  box.addEventListener("pointerdown", (e) => {
+    dragged = false;
+    const b = e.target.closest(".atl-cb");
+    const type = b && { rot: "rotate", scale: "scale" }[b.dataset.act];
+    if (!type || _flatGesture || (e.pointerType === "mouse" && e.button)) return;
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, type, on: false };
+    try { b.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  box.addEventListener("pointermove", (e) => {
+    if (!press || press.on || e.pointerId !== press.id) return;
+    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < 6) return;
+    const el = _flatActiveEl();
+    const b = el && _flatBoxes[el.id];
+    if (!b) return;
+    // From here it is today's handle gesture, measured from this point so
+    // nothing jumps; the window's pointermove / pointerup run and end it.
+    const p = _flatLocal(e);
+    _flatGesture = press.type === "scale"
+      ? { type: "scale", d0: Math.max(8, Math.hypot(p.x - b.cx, p.y - b.cy)), startSize: el.type === "text" ? el.size : el.scalePct }
+      : { type: "rotate", a0: Math.atan2(p.y - b.cy, p.x - b.cx), startRot: el.rotation || 0 };
+    _flatPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    press.on = dragged = true;
+  });
+  box.addEventListener("pointerup", (e) => { if (press && e.pointerId === press.id) press = null; });
+  // No click follows a cancelled touch.
+  box.addEventListener("pointercancel", (e) => { if (press && e.pointerId === press.id) { press = null; dragged = false; } });
+}
+
 // ── LOOM-309: the context strip over the action bar ──
 // One strip, its content following the state: the sizes (empty design, or a
 // cart / buy tap refused for a missing size), the cm presets and Markazga
@@ -5270,6 +5471,7 @@ function atlStripMode() {
 }
 
 function atlSyncStrip() {
+  atlSyncSel(); // LOOM-310: surface, selection and language changes land here
   const strip = document.getElementById("atl-strip");
   if (!strip) return;
   const mode = _atl() ? atlStripMode() : "";
@@ -5752,6 +5954,7 @@ function p3SheetOpen() {
   p3SheetView(false);
   sheet.classList.add("open");
   document.documentElement.classList.add("atl-sheet"); // LOOM-308: rail and stack step aside
+  if (_atl()) renderFlatEditor(); // LOOM-310: the selection outline and its buttons hide
   const more = _p3MoreBtn();
   if (more) more.setAttribute("aria-expanded", "true");
   row("layers").focus();
@@ -5762,6 +5965,7 @@ function p3SheetClose() {
   if (!sheet || !sheet.classList.contains("open")) return;
   sheet.classList.remove("open");
   document.documentElement.classList.remove("atl-sheet");
+  if (_atl()) renderFlatEditor();
   const more = _p3MoreBtn();
   if (!more) return;
   more.setAttribute("aria-expanded", "false");
