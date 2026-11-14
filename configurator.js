@@ -5032,6 +5032,7 @@ function bindAtelye() {
   if (!_p3Base) _p3SnapshotBase(); // LOOM-311: p3PickGarment's base (bindPhoneFlow skips it in this mode)
   atlBuildColors();
   window.addEventListener("loom:langchange", () => { atlSyncCaption(); refreshPriceLabels(); }); // the currency word
+  bindTmaButtons(); // LOOM-314: inside Telegram, its own buttons replace the bar
   const mq = window.matchMedia("(max-width: 900px)");
   const apply = () => {
     if (!mq.matches) { atlSheetClose(false); atlTextClose(false); } // LOOM-311, LOOM-313: phone-only
@@ -5279,6 +5280,7 @@ function _atlSelSafe() {
 function atlSyncSel() {
   const box = document.getElementById("atl-hand");
   if (!box) return;
+  tmaBackSync(); // LOOM-314: selection, sheet and text bar changes all land here
   if (_atlKb) { // LOOM-313: the bar edits the selected text layer only
     const t = _atl() && flatMode ? _flatActiveEl() : null;
     if (!t || t.type !== "text") atlTextClose(false);
@@ -5862,10 +5864,15 @@ function bindAtelyeKb() {
 
 /** The previous page, or the catalogue when the page was opened directly (OPEN-3). */
 function atlBack() {
+  if (_atlHasPrev()) history.back();
+  else location.href = "catalog.html";
+}
+
+/** Did the visitor come here from another page of the site? */
+function _atlHasPrev() {
   let sameSite = false;
   try { sameSite = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) { /* bad referrer */ }
-  if (sameSite && history.length > 1) history.back();
-  else location.href = "catalog.html";
+  return sameSite && history.length > 1;
 }
 
 // ── LOOM-298: desktop accordion stepper (LOOM_FLAGS.cfgDesktop) ──
@@ -6047,6 +6054,13 @@ function bindPhoneFlow() {
 }
 
 // ── LOOM-297: the phone shell inside Telegram ──────────────────
+// LOOM-314: the Atelye shell (cfgAtelye) uses the same binding. There
+// html.tma-atl hides the action bar and Orqaga: MainButton is always
+// "Savatga qo'shish · <price>" in #D93529, SecondaryButton (7.10+) is
+// Hozir sotib olish (older clients keep it in the page, html.tma-atl-buy),
+// and BackButton closes the text bar, else the sheet, else the selection,
+// else goes back a page; with nothing to close and no page behind it is
+// hidden, so Telegram shows its own close control.
 // Telegram's MainButton mirrors the bar's primary CTA, SecondaryButton
 // (Bot API 7.10+) is Buy now, BackButton goes back a step; html.tma-cfg hides
 // the site header and the bar. Bound only inside Telegram with cfgPhone on,
@@ -6063,13 +6077,22 @@ function bindTmaButtons() {
     if (_tma || !W || !W.MainButton) return;
     _tma = W;
     const buyStep = () => currentStep === "order" || _blankOnly;
+    // Atelye: a press with no size asks on the strip; the size tap replays it.
+    const atlCart = () => { if (!_tmaBusy) tmaRun(W.MainButton, () => { trackStep("cfg_cart"); return addToCart(); }); };
+    const atlBuy = () => { if (!_tmaBusy) tmaRun(W.SecondaryButton, buyNow); };
     W.MainButton.onClick(() => {
       if (!_tmaOn || _tmaBusy) return;
+      if (_atl()) { if (!atlAskSize(atlCart)) atlCart(); return; }
       if (!buyStep()) { document.getElementById("btn-step-next")?.click(); return; }
       tmaRun(W.MainButton, () => { trackStep("cfg_cart"); return addToCart(); });
     });
-    if (W.SecondaryButton) W.SecondaryButton.onClick(() => { if (_tmaOn && !_tmaBusy) tmaRun(W.SecondaryButton, buyNow); });
+    if (W.SecondaryButton) W.SecondaryButton.onClick(() => {
+      if (!_tmaOn || _tmaBusy) return;
+      if (_atl()) { if (!atlAskSize(atlBuy)) atlBuy(); return; }
+      tmaRun(W.SecondaryButton, buyNow);
+    });
     W.BackButton.onClick(() => {
+      if (_tmaOn && !_tmaBusy && _atl()) return atlTmaBack();
       const i = P3_STEPS.indexOf(currentStep);
       if (_tmaOn && !_tmaBusy && i > 0) setStep(P3_STEPS[i - 1]);
     });
@@ -6084,6 +6107,7 @@ function bindTmaButtons() {
       W.BackButton.hide();
       if (W.SecondaryButton) W.SecondaryButton.hide();
       _tmaOn = false;
+      _tmaBack = null;
     });
     window.addEventListener("pageshow", (e) => { if (e.persisted) tmaSync(); });
     tmaSync();
@@ -6110,17 +6134,19 @@ function tmaSync() {
   const W = _tma;
   if (!W || _tmaBusy) return;
   const root = document.documentElement;
-  const on = _p3();
+  const atl = _atl(); // LOOM-314
+  const on = _p3() || atl;
   const hasSec = !!W.SecondaryButton && W.isVersionAtLeast("7.10");
   if (!on) {
     if (!_tmaOn) return;
-    root.classList.remove("tma-cfg", "tma-buy");
+    root.classList.remove("tma-cfg", "tma-buy", "tma-atl", "tma-atl-buy");
     root.style.removeProperty("--tma-top");
     root.style.removeProperty("--tma-bottom");
     W.MainButton.hide();
     W.BackButton.hide();
     if (hasSec) W.SecondaryButton.hide();
     _tmaOn = false;
+    _tmaBack = null;
     return;
   }
   // Inset API is 8.0+; without it the CSS falls back to env(safe-area-inset-*).
@@ -6129,8 +6155,21 @@ function tmaSync() {
     root.style.setProperty("--tma-top", ((s.top || 0) + (c.top || 0)) + "px");
     root.style.setProperty("--tma-bottom", ((s.bottom || 0) + (c.bottom || 0)) + "px");
   }
-  root.classList.add("tma-cfg");
   _tmaOn = true;
+  if (atl) {
+    root.classList.add("tma-atl");
+    const price = document.getElementById("atl-price");
+    W.MainButton.setParams({
+      text: [CT("cfg.addToBag", "Добавить в корзину"), price && price.textContent].filter(Boolean).join(" · "),
+      color: "#D93529", text_color: "#ffffff", is_active: true, is_visible: true,
+    });
+    if (hasSec) W.SecondaryButton.setParams({ text: CT("cfg.buyNow", "Купить сейчас"), position: "left", is_active: true, is_visible: true });
+    root.classList.toggle("tma-atl-buy", !hasSec); // old client: Hozir sotib olish stays in the page
+    _tmaBack = null;
+    tmaBackSync();
+    return;
+  }
+  root.classList.add("tma-cfg");
   const buy = currentStep === "order" || _blankOnly;
   const src = document.getElementById(buy ? "btn-add-to-cart" : "btn-step-next");
   const label = src && src.querySelector("span[data-i18n]");
@@ -6145,6 +6184,26 @@ function tmaSync() {
     W.SecondaryButton.setParams({ text: t ? t.textContent : "", position: "left", is_active: true, is_visible: buy });
   }
   root.classList.toggle("tma-buy", buy && !hasSec); // old client: Buy now stays in the page
+}
+
+let _tmaBack = null; // LOOM-314: BackButton shown (true) / hidden (false); null = unknown
+
+/** Atelye: show BackButton while something can close or a page lies behind. */
+function tmaBackSync() {
+  if (!_tma || !_tmaOn || _tmaBusy || !_atl()) return;
+  const on = _atlKb || !!_atlSh || (flatMode && !!selectedElement()) || _atlHasPrev();
+  if (on === _tmaBack) return;
+  _tmaBack = on;
+  if (on) _tma.BackButton.show(); else _tma.BackButton.hide();
+}
+
+/** Atelye BackButton: text bar, then sheet, then selection, then the previous page (LOOM-306:A-8). */
+function atlTmaBack() {
+  if (_atlKb) atlTextClose();
+  else if (_atlSh) atlSheetClose();
+  else if (flatMode && selectedElement()) { selectElement(null); renderFlatEditor(); }
+  else if (_atlHasPrev()) history.back();
+  tmaBackSync();
 }
 
 // ── LOOM-295: step 3 Joylash ───────────────────────────────────
