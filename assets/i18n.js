@@ -212,6 +212,14 @@
     'cfg.editText':     { uz: 'Matnni tahrirlash', ru: 'Изменить текст', en: 'Edit text' },
     'cfg.layerImageAria': { uz: 'Rasm qatlami, {w} × {h} sm', ru: 'Слой с картинкой, {w} × {h} см', en: 'Image layer, {w} × {h} cm' },
     'cfg.layerTextAria': { uz: 'Matn qatlami: {text}', ru: 'Текстовый слой: {text}', en: 'Text layer: {text}' },
+    // LOOM-311: the Atelye bottom sheets. ru and en are drafts for Content.
+    'cfg.sheetResize':  { uz: 'Varaq balandligini o‘zgartirish', ru: 'Изменить высоту панели', en: 'Resize the sheet' },
+    'cfg.noPrint':      { uz: 'bosmasiz', ru: 'без принта', en: 'no print' },
+    'cfg.sizeTable':    { uz: 'O‘lchamlar jadvali', ru: 'Таблица размеров', en: 'Size table' },
+    'cfg.zoomIn':       { uz: 'Yaqinlashtirish', ru: 'Приблизить', en: 'Zoom in' },
+    'cfg.savePngShort': { uz: 'PNG saqlash', ru: 'Сохранить PNG', en: 'Save PNG' },
+    'cfg.faceFront':    { uz: 'Old tomon', ru: 'Перед', en: 'Front side' },
+    'cfg.faceBack':     { uz: 'Orqa tomon', ru: 'Спина', en: 'Back side' },
     // LOOM-295: the phone's step 3 (Joylash). ru and en are drafts for Content.
     'cfg.more':         { uz: 'Ko‘proq', ru: 'Ещё', en: 'More' },
     'cfg.presetS':      { uz: 'Kichik 10 sm', ru: 'Малый 10 см', en: 'Small 10 cm' },

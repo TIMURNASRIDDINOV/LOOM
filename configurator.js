@@ -4690,6 +4690,7 @@ function _flatSyncEmptyState() {
 }
 
 function _flatOpenAddSheet() {
+  if (_atl()) return atlSheetOpen("add", document.getElementById("flat-empty")); // LOOM-311
   const sheet = document.getElementById("flat-add-sheet");
   if (sheet) sheet.classList.add("open");
 }
@@ -4994,7 +4995,7 @@ function bindAtelye() {
     '</div>' +
     atlRailHtml() +
     `<div class="atl-col" id="atl-col" data-ov role="group" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="${_esc(CT("cfg.colorChoice", "Выбор цвета"))}"></div>` +
-    atlStripHtml() + atlSelHtml());
+    atlStripHtml() + atlSelHtml() + atlSheetHtml());
   // LOOM-308: Ko'proq opens the step 3 sheet, which the phone flow builds
   // only when cfgPhone runs (it is off while this mode is on).
   if (!document.getElementById("p3-sheet")) {
@@ -5004,10 +5005,13 @@ function bindAtelye() {
   bindAtelyeSel();
   bindAtelyeStrip(); // before the rail: its first sync draws the strip
   bindAtelyeRail();
+  bindAtelyeSheet();
+  if (!_p3Base) _p3SnapshotBase(); // LOOM-311: p3PickGarment's base (bindPhoneFlow skips it in this mode)
   atlBuildColors();
   window.addEventListener("loom:langchange", () => { atlSyncCaption(); refreshPriceLabels(); }); // the currency word
   const mq = window.matchMedia("(max-width: 900px)");
   const apply = () => {
+    if (!mq.matches) atlSheetClose(false); // LOOM-311: the sheets are phone-only
     atlPlace(mq.matches);
     updateCartCta();
     refreshPriceLabels();
@@ -5095,7 +5099,7 @@ function atlRailHtml() {
   return `<div class="atl-rail" id="atl-rail" data-ov role="toolbar" aria-orientation="vertical" data-i18n-attr="aria-label:cfg.tools" aria-label="${_esc(CT("cfg.tools", "Инструменты"))}">` +
     ATL_RAIL.map(([act, k, fb]) =>
       `<button type="button" class="atl-tool${act === "garment" ? "" : " atl-print"}" id="atl-${act}" data-act="${act}"` +
-        (act === "more" ? ' aria-haspopup="dialog" aria-expanded="false"' : "") + ">" +
+        (act === "more" || act === "garment" ? ' aria-haspopup="dialog" aria-expanded="false"' : "") + ">" +
         `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${_ATL_IC[act]}</svg>` +
         `<span data-i18n="${k}">${CT(k, fb)}</span></button>`).join("") +
     "</div>";
@@ -5118,9 +5122,10 @@ function bindAtelyeRail() {
       if (!flatMode) setFlatMode(true);
       setActiveView(designState.activeView === "front" ? "back" : "front");
     } else if (act === "more") {
-      p3SheetOpen();
+      p3SheetOpen(b);
+    } else if (act === "garment") {
+      atlSheetOpen("garment", b); // LOOM-311
     }
-    // "garment": the Kiyim sheet arrives with LOOM-311.
   });
   // The arrow keys move along the toolbar too (WAI-ARIA toolbar pattern).
   rail.addEventListener("keydown", (e) => {
@@ -5159,7 +5164,7 @@ function atlBuildColors() {
 
 function atlSyncColors() {
   const hex = String(designState.shirtColor || "").toUpperCase();
-  document.querySelectorAll("#atl-col .atl-sw").forEach((b) => {
+  document.querySelectorAll("#atl-col .atl-sw, #atl-sh .atl-sw").forEach((b) => {
     b.setAttribute("aria-pressed", String(String(b.dataset.hex).toUpperCase() === hex));
   });
 }
@@ -5319,7 +5324,7 @@ function atlSelAct(act, byKey) {
     // The scale limits stopped it short of the preset: start over at the smallest.
     if (want > now && p3WidthCm(el) < now + 0.1) p3SetWidthCm(el, steps[0]);
   } else if (act === "more") {
-    p3SheetOpen();
+    p3SheetOpen(document.querySelector('#atl-hand .atl-cb[data-act="more"]'));
   }
   // "edit": the text bar arrives with LOOM-313.
 }
@@ -5481,6 +5486,8 @@ function atlSyncStrip() {
   strip.classList.toggle("need", !!_atlNeed);
   strip.querySelectorAll(".atl-grp").forEach((g) => { g.hidden = g.dataset.strip !== mode; });
   if (mode === "sizes") atlSyncSizes(strip.querySelector('[data-strip="sizes"]'));
+  const shSizes = document.querySelector("#atl-sh [data-sizes]"); // LOOM-311: the Kiyim sheet's size row
+  if (shSizes) atlSyncSizes(shSizes);
   else if (mode === "presets") {
     const el = selectedElement();
     const cm = p3WidthCm(el);
@@ -5868,6 +5875,246 @@ function p3BuildPlace() {
   });
 }
 
+// ── LOOM-311: the Atelye bottom sheet ──────────────────────────
+// One sheet, five contents: Kiyim, Ko'proq, Qatlamlar, O'lchamlar jadvali
+// and "Nima qo'shamiz?". It opens at peek (160 px; the size table at half),
+// the grabber cycles peek → half → full and a drag snaps to the nearest
+// height. A transparent shade under it takes the tap on the garment (close)
+// and keeps the page still. While it is open html.atl-sheet hides the rail,
+// the strip and the corner buttons. Every tile runs today's function.
+const ATL_SH_LVLS = ["peek", "half", "full"];
+const ATL_SH_TITLE = {
+  garment: ["cfg.stepGarment", "Одежда"],
+  more: ["cfg.more", "Ещё"],
+  layers: ["cfg.layers", "Слои"],
+  size: ["cfg.sizeTable", "Таблица размеров"],
+  add: ["cfg.addWhat", "Что добавим?"],
+};
+// Ko'proq: the six tools, icons from the step 3 list (P3_MORE).
+const ATL_SH_MORE = [
+  ["layers", "cfg.layers", "Слои"],
+  ["zoom", "cfg.zoomIn", "Приблизить"],
+  ["png", "cfg.savePngShort", "Сохранить PNG"],
+  ["save", "cfg.saveLayout", "Сохранить макет"],
+  ["load", "cfg.loadLayout", "Открыть макет"],
+  ["reset", "cfg.resetLayout", "Сброс"],
+];
+let _atlSh = null; // { view, trigger } while open
+
+function atlSheetHtml() {
+  return '<div class="atl-shade" id="atl-shade" hidden></div>' +
+    '<div class="atl-sh" id="atl-sh" data-ov role="dialog" aria-modal="true" aria-labelledby="atl-sh-title" data-lvl="peek" hidden>' +
+      // The grabber spans the head row beside the aside (a 44 px band), the title drawn under it.
+      '<div class="atl-sh-head">' +
+        `<button type="button" class="atl-grab" id="atl-grab" data-i18n-attr="aria-label:cfg.sheetResize" aria-label="${_esc(CT("cfg.sheetResize", "Изменить высоту панели"))}"></button>` +
+        '<h2 class="atl-sh-title" id="atl-sh-title"></h2><span class="atl-sh-aside" id="atl-sh-aside"></span>' +
+      "</div>" +
+      '<div class="atl-sh-body" id="atl-sh-body"></div>' +
+    "</div>";
+}
+
+const _atlShSpan = (k, fb) => `<span data-i18n="${k}">${CT(k, fb)}</span>`;
+const _atlShIc = (d, w) => `<svg viewBox="0 0 24 24" width="${w || 20}" height="${w || 20}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+
+function atlSheetOpen(view, trigger) {
+  const sh = document.getElementById("atl-sh");
+  if (!sh || !_atl()) return;
+  const was = !!_atlSh;
+  if (!was) {
+    // One sheet at a time: today's sheets give way.
+    p3SheetClose();
+    _flatCloseAddSheet();
+    _atlSh = { trigger: trigger || null };
+  }
+  _atlSh.view = view;
+  sh.dataset.lvl = view === "size" ? "half" : "peek";
+  atlSheetRender();
+  if (!was) {
+    sh.hidden = false;
+    document.getElementById("atl-shade").hidden = false;
+    void sh.offsetHeight; // start the slide from below
+    sh.classList.add("open");
+    document.documentElement.classList.add("atl-sheet");
+    renderFlatEditor(); // the selection outline and its buttons step aside
+    if (trigger && trigger.hasAttribute("aria-expanded")) trigger.setAttribute("aria-expanded", "true");
+  }
+  const first = document.querySelector("#atl-sh-body button:not([aria-disabled='true'])") || document.getElementById("atl-grab");
+  first.focus({ preventScroll: true });
+}
+
+/** Close; `restore` puts the focus back on the button that opened it. */
+function atlSheetClose(restore = true) {
+  if (!_atlSh) return;
+  const trigger = _atlSh.trigger;
+  _atlSh = null;
+  const sh = document.getElementById("atl-sh");
+  sh.classList.remove("open");
+  sh.style.height = "";
+  document.getElementById("atl-shade").hidden = true;
+  // Hidden once it has slid out (120 ms), unless it opened again meanwhile.
+  setTimeout(() => { if (!_atlSh) sh.hidden = true; }, 160);
+  document.documentElement.classList.remove("atl-sheet");
+  renderFlatEditor();
+  if (!trigger) return;
+  if (trigger.hasAttribute("aria-expanded")) trigger.setAttribute("aria-expanded", "false");
+  if (restore && trigger.isConnected && trigger.getClientRects().length) trigger.focus({ preventScroll: true });
+}
+
+function atlSheetRender() {
+  if (!_atlSh) return;
+  const view = _atlSh.view;
+  const t = ATL_SH_TITLE[view];
+  const title = document.getElementById("atl-sh-title");
+  title.setAttribute("data-i18n", t[0]); // i18n.apply re-translates it
+  title.textContent = CT(t[0], t[1]);
+  const aside = document.getElementById("atl-sh-aside");
+  const body = document.getElementById("atl-sh-body");
+  const sh = document.getElementById("atl-sh");
+  // A re-render (the list arrived, a language change) keeps the focus inside.
+  const refocus = sh.contains(document.activeElement) && document.activeElement.id !== "atl-grab";
+  aside.innerHTML = "";
+  body.className = "atl-sh-body atl-sh-" + view;
+  if (view === "garment") {
+    aside.innerHTML = `<button type="button" class="atl-sh-link" data-view="size">${_atlShSpan("cfg.sizeTable", "Таблица размеров")}</button>`;
+    p3EnsureGarments(); // fetches the list once; p3RenderGarments re-renders this
+    // The list from GET /api/products; the current garment alone when it failed.
+    const list = _p3Products.length ? _p3Products : currentProduct ? [currentProduct] : [];
+    const slug = currentProduct && currentProduct.slug;
+    body.innerHTML =
+      '<div class="atl-gt">' + list.map((p) =>
+        `<button type="button" class="atl-gtile" data-slug="${_esc(p.slug)}" aria-pressed="${p.slug === slug}">` +
+          _atlShIc(_ATL_IC.garment) +
+          `<span><b>${_esc(productName(p))}</b>` +
+          (p.product_type === "blank" ? `<i data-i18n="cfg.noPrint">${CT("cfg.noPrint", "без принта")}</i>` : "") +
+        "</span></button>").join("") + "</div>" +
+      `<div class="atl-sh-row" data-colors role="group" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="${_esc(CT("cfg.colorChoice", "Выбор цвета"))}">` +
+        SHIRT_COLORS.map((def) =>
+          `<button type="button" class="atl-sw" data-hex="${_esc(def.hex)}" aria-label="${_esc(colorLabel(def))}"${def.available === false ? " disabled" : ""}>` +
+          `<i style="background-color:${_esc(def.hex)}"></i></button>`).join("") + "</div>" +
+      `<div class="atl-sh-row" data-sizes role="group" data-i18n-attr="aria-label:cfg.sizeChoice" aria-label="${_esc(CT("cfg.sizeChoice", "Выбор размера"))}"></div>`;
+    atlSyncColors();
+    atlSyncSizes(body.querySelector("[data-sizes]"));
+  } else if (view === "more") {
+    const icon = (id) => P3_MORE.find((m) => m[0] === id)[3];
+    const ready = _preview3DReady;
+    body.innerHTML = '<div class="atl-gt">' + ATL_SH_MORE.map(([id, k, fb]) =>
+      `<button type="button" class="atl-gtile" data-item="${id}"` +
+        (id === "zoom" ? ` aria-pressed="${flatMode && _flatZoomOn}"` : "") +
+        (id === "png" && !ready ? ' aria-disabled="true" aria-describedby="atl-sh-hint"' : "") + ">" +
+        _atlShIc(`<path d="${icon(id)}"/>`, 18) + `<span><b>${_atlShSpan(k, fb)}</b></span></button>`).join("") + "</div>" +
+      (ready ? "" : `<p class="atl-sh-note" id="atl-sh-hint" data-i18n="cfg.exportPngNeeds3d">${CT("cfg.exportPngNeeds3d", "Откройте 3D-превью, чтобы сохранить PNG")}</p>`);
+  } else if (view === "layers") {
+    const front = designState.activeView === "front";
+    const fk = front ? ["cfg.faceFront", "Перед"] : ["cfg.faceBack", "Спина"];
+    aside.innerHTML = _atlShSpan(fk[0], fk[1]);
+    const st = designState[designState.activeView];
+    const rows = st.elements.filter((e) => (e.type === "text" ? !!e.content : !!e.img)).reverse(); // topmost first
+    body.innerHTML = rows.length ? rows.map((el) => {
+      const text = el.type === "text";
+      const k = text ? ["cfg.layerText", "Текст"] : ["cfg.railImage", "Картинка"];
+      const b = _flatBoxes[el.id];
+      const sub = text ? el.content
+        : b && _flatRect ? _flatCmText(b, _flatRect)
+        : `${Math.round(p3WidthCm(el))} ${CT("cfg.cm", "см")}`;
+      return `<button type="button" class="atl-lrow" data-id="${_esc(el.id)}"${el.id === st.selId ? ' aria-current="true"' : ""}>` +
+        _atlShIc(text ? _ATL_IC.text : _ATL_IC.image) +
+        `<span><b>${_atlShSpan(k[0], k[1])}</b><i>${_esc(sub)}</i></span></button>`;
+    }).join("") : `<p class="atl-sh-note" data-i18n="cfg.layerEmpty">${CT("cfg.layerEmpty", "Добавьте текст или логотип на эту сторону")}</p>`;
+  } else if (view === "size") {
+    // Today's size guide, as it reads in the page language now.
+    const src = document.getElementById("sizeGuideBody");
+    body.innerHTML = src ? src.innerHTML : "";
+  } else if (view === "add") {
+    const row = (act, k, fb, sk, sfb, ic) =>
+      `<button type="button" class="atl-lrow big" data-add="${act}">${_atlShIc(_ATL_IC[ic])}` +
+      `<span><b>${_atlShSpan(k, fb)}</b><i data-i18n="${sk}">${CT(sk, sfb)}</i></span></button>`;
+    body.innerHTML = row("image", "cfg.addImage", "Загрузить картинку", "cfg.addImageSub", "Фото, логотип или рисунок", "image") +
+      row("text", "cfg.addTextOpt", "Написать текст", "cfg.addTextSub", "Имя, надпись или пожелание", "text");
+  }
+  if (refocus && !sh.contains(document.activeElement)) (body.querySelector("button") || document.getElementById("atl-grab")).focus({ preventScroll: true });
+}
+
+/** The height the grabber steps to, or the nearest after a drag. */
+function _atlShLvlPx(lvl) {
+  const h = window.innerHeight;
+  return lvl === "peek" ? 160 : lvl === "half" ? h * 0.5 : h * 0.92;
+}
+
+function bindAtelyeSheet() {
+  const sh = document.getElementById("atl-sh");
+  const grab = document.getElementById("atl-grab");
+  document.getElementById("atl-shade").addEventListener("click", () => atlSheetClose());
+  sh.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || b === grab || b.disabled || b.getAttribute("aria-disabled") === "true") return;
+    if (b.dataset.view) return atlSheetOpen(b.dataset.view);
+    if (b.dataset.slug) {
+      const p = _p3Products.find((x) => x.slug === b.dataset.slug);
+      atlSheetClose();
+      if (p) p3PickGarment(p); // the design keeps its normalised place (PRD-214 A-2)
+      return;
+    }
+    if (b.dataset.hex) return selectShirtColor(b.dataset.hex, null);
+    if (b.dataset.size) return atlPickSize(b.dataset.size);
+    if (b.dataset.item) {
+      if (b.dataset.item === "layers") return atlSheetOpen("layers");
+      atlSheetClose();
+      return p3RunItem(b.dataset.item);
+    }
+    if (b.dataset.id) {
+      atlSheetClose();
+      return selectElement(b.dataset.id);
+    }
+    if (b.dataset.add) {
+      atlSheetClose(false);
+      document.getElementById("atl-" + b.dataset.add).click(); // as Rasm / Matn on the rail
+    }
+  });
+  // Esc closes; Tab stays inside the sheet.
+  window.addEventListener("keydown", (e) => {
+    if (!_atlSh) return;
+    if (e.key === "Escape") { e.preventDefault(); atlSheetClose(); return; }
+    if (e.key !== "Tab") return;
+    const f = [...sh.querySelectorAll("button")].filter((x) => !x.disabled && x.getClientRects().length);
+    const i = f.indexOf(document.activeElement);
+    e.preventDefault();
+    f[e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i + 1) % f.length].focus();
+  });
+  // Grabber: a tap steps the height, a drag follows the finger and snaps.
+  let drag = null; // { y, h, moved }
+  grab.addEventListener("pointerdown", (e) => {
+    drag = { y: e.clientY, h: sh.getBoundingClientRect().height, moved: false };
+    grab.setPointerCapture(e.pointerId);
+  });
+  grab.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dy = drag.y - e.clientY;
+    if (!drag.moved && Math.abs(dy) < 6) return;
+    drag.moved = true;
+    sh.classList.add("drag");
+    sh.style.height = Math.max(80, Math.min(window.innerHeight * 0.92, drag.h + dy)) + "px";
+  });
+  const end = () => {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    sh.classList.remove("drag");
+    if (!moved) return; // the click that follows steps the height
+    const h = sh.getBoundingClientRect().height;
+    sh.dataset.lvl = ATL_SH_LVLS.reduce((a, l) => (Math.abs(_atlShLvlPx(l) - h) < Math.abs(_atlShLvlPx(a) - h) ? l : a));
+    sh.style.height = "";
+    grab.dataset.dragged = "1";
+  };
+  grab.addEventListener("pointerup", end);
+  grab.addEventListener("pointercancel", () => { end(); delete grab.dataset.dragged; }); // no click follows
+  grab.addEventListener("click", () => {
+    if (grab.dataset.dragged) { delete grab.dataset.dragged; return; }
+    const i = ATL_SH_LVLS.indexOf(sh.dataset.lvl);
+    sh.dataset.lvl = ATL_SH_LVLS[(i + 1) % ATL_SH_LVLS.length];
+  });
+  window.addEventListener("loom:langchange", () => { if (_atlSh) atlSheetRender(); });
+}
+
 // ── LOOM-296: the "Ko'proq" sheet ──────────────────────────────
 // Step 3's rare tools, one row each, each running today's function. The
 // camera presets and Reset view are the camera row's (LOOM-295), not here.
@@ -5923,19 +6170,25 @@ function p3BuildSheet(studio, span) {
     if (id === "layers") return p3SheetView(true);
     if (t.getAttribute("aria-disabled") === "true") return; // its hint is on the row
     p3SheetClose();
-    if (id === "zoom") {
-      // The print area is a 2D view: from the 3D, go to the 2D zoomed in.
-      if (!flatMode) { _flatZoomOn = false; setFlatMode(true); }
-      document.getElementById("btn-flat-zoom").click();
-    } else if (id === "png") document.getElementById("btn-save-design").click();
-    else if (id === "save") saveLayout();
-    else if (id === "load") loadLayout();
-    else if (id === "reset") resetDesign();
-    else if (id === "fs") document.getElementById("btn-fullscreen").click();
+    p3RunItem(id);
   });
 }
 
-function p3SheetOpen() {
+/** One Ko'proq tool: today's function. Shared with the Atelye sheet (LOOM-311). */
+function p3RunItem(id) {
+  if (id === "zoom") {
+    // The print area is a 2D view: from the 3D, go to the 2D zoomed in.
+    if (!flatMode) { _flatZoomOn = false; setFlatMode(true); }
+    document.getElementById("btn-flat-zoom").click();
+  } else if (id === "png") document.getElementById("btn-save-design").click();
+  else if (id === "save") saveLayout();
+  else if (id === "load") loadLayout();
+  else if (id === "reset") resetDesign();
+  else if (id === "fs") document.getElementById("btn-fullscreen").click();
+}
+
+function p3SheetOpen(trigger) {
+  if (_atl()) return atlSheetOpen("more", trigger || _p3MoreBtn()); // LOOM-311
   const sheet = document.getElementById("p3-sheet");
   if (!sheet) return;
   // The 3D, the zoom and full screen change between opens: read them now.
@@ -6164,6 +6417,7 @@ function p3RenderGarments() {
     _p3Garments.appendChild(b);
   });
   p3SyncGarments();
+  if (_atlSh && _atlSh.view === "garment") atlSheetRender(); // LOOM-311: the list arrived
 }
 
 function p3SyncGarments() {

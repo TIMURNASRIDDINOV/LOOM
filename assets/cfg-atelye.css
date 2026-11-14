@@ -8,12 +8,12 @@
    LOOM-307: tokens, Archivo, the shell (full-bleed canvas, top row, action
    bar). LOOM-308: the tool rail (right) and the colour stack (left).
    LOOM-309: the context strip and its tag. LOOM-310: the corner buttons on
-   the selected print. Sheets and Telegram come in LOOM-311..314.
+   the selected print. LOOM-311: the bottom sheet. Telegram comes in LOOM-314.
    ═══════════════════════════════════════════════════════════════════ */
 
 /* The Atelye rows exist only while the flag is on; outside the mode
    (desktop, or before the class lands) they are never drawn. */
-.atl-top, .atl-bar, .atl-rail, .atl-col, .atl-strip, .atl-tag, .atl-hand { display: none; }
+.atl-top, .atl-bar, .atl-rail, .atl-col, .atl-strip, .atl-tag, .atl-hand, .atl-sh, .atl-shade { display: none; }
 
 @media (max-width: 900px) {
   html.cfg-atelye {
@@ -265,6 +265,102 @@
     pointer-events: none;
   }
 
+  /* ── Bottom sheet: Kiyim, Ko'proq, Qatlamlar, size table, add ──
+     Peek 160 px, half 50 %, full 92 % of the window (a fixed box's % is
+     the viewport's). It covers the strip and the action bar; the shade
+     under it takes the tap on the garment. */
+  html.cfg-atelye .atl-shade { position: fixed; inset: 0; z-index: 64; display: block; touch-action: none; }
+  html.cfg-atelye .atl-shade[hidden],
+  html.cfg-atelye .atl-sh[hidden] { display: none; }
+  html.cfg-atelye.atl-sheet body { overflow: hidden; }
+  html.cfg-atelye .atl-sh {
+    position: fixed; z-index: 65; left: 0; right: 0; bottom: 0; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 4px;
+    height: calc(160px + env(safe-area-inset-bottom, 0px));
+    padding: 0 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface); color: var(--ink); font-family: var(--f);
+    border-radius: var(--r-sheet) var(--r-sheet) 0 0; box-shadow: var(--e2);
+    overflow: hidden; overscroll-behavior: contain;
+    transform: translateY(100%);
+    transition: transform 120ms var(--ease-out), height var(--t-sheet) var(--ease);
+  }
+  html.cfg-atelye .atl-sh.open { transform: none; transition: transform var(--t-sheet) var(--ease), height var(--t-sheet) var(--ease); }
+  html.cfg-atelye .atl-sh[data-lvl="half"] { height: 50%; }
+  html.cfg-atelye .atl-sh[data-lvl="full"] { height: 92%; }
+  html.cfg-atelye .atl-sh.drag { transition: none; }
+  /* The grabber's bar, centred on the sheet whatever the head holds. */
+  html.cfg-atelye .atl-sh::before {
+    content: ""; position: absolute; left: 50%; top: 9px; width: 38px; height: 4px; margin-left: -19px;
+    border-radius: 2px; background: var(--mut); opacity: .55; pointer-events: none;
+  }
+  html.cfg-atelye .atl-sh-head {
+    flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px;
+    height: 44px; align-items: end;
+  }
+  html.cfg-atelye .atl-grab {
+    all: unset; grid-area: 1 / 1; align-self: stretch; box-sizing: border-box; margin-left: -12px;
+    cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent;
+  }
+  html.cfg-atelye .atl-sh-title {
+    grid-area: 1 / 1; margin: 0 0 2px; min-width: 0; pointer-events: none;
+    font: 700 15px/20px var(--f); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  html.cfg-atelye .atl-sh-aside { grid-area: 1 / 2; align-self: stretch; display: flex; align-items: flex-end; padding-bottom: 2px; font: 500 12.5px/20px var(--f); color: var(--mut); }
+  html.cfg-atelye .atl-sh-link {
+    all: unset; box-sizing: border-box; height: 44px; margin-bottom: -2px; padding: 0 2px 4px;
+    display: flex; align-items: flex-end; cursor: pointer; color: var(--ink);
+    font: 600 12.5px/1.2 var(--f); text-decoration: underline; text-underline-offset: 3px;
+  }
+  html.cfg-atelye .atl-sh-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    display: flex; flex-direction: column; gap: 6px; padding: 2px 0;
+  }
+  html.cfg-atelye .atl-gt { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; flex: none; }
+  html.cfg-atelye .atl-gtile {
+    all: unset; box-sizing: border-box; min-height: 46px; min-width: 0; padding: 4px 6px;
+    display: flex; align-items: center; gap: 5px; border-radius: var(--r-chip);
+    box-shadow: inset 0 0 0 1px var(--ln); color: var(--ink); cursor: pointer; text-align: left;
+    font: 600 12px/1.15 var(--f); transition: background var(--t-fast) var(--ease);
+  }
+  html.cfg-atelye .atl-sh-more .atl-gtile { font-size: 11.5px; gap: 4px; padding: 4px 5px; }
+  html.cfg-atelye .atl-gtile svg { flex: none; }
+  html.cfg-atelye .atl-gtile span { display: flex; flex-direction: column; min-width: 0; }
+  html.cfg-atelye .atl-gtile b { font-weight: 600; overflow-wrap: anywhere; }
+  html.cfg-atelye .atl-gtile i { font-style: normal; font-size: 10.5px; font-weight: 400; color: var(--mut); }
+  html.cfg-atelye .atl-gtile[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+  html.cfg-atelye .atl-gtile[aria-disabled="true"] { opacity: .38; cursor: default; }
+  html.cfg-atelye .atl-gtile:not([aria-disabled="true"]):active,
+  html.cfg-atelye .atl-lrow:active { background: var(--surface2); }
+  html.cfg-atelye .atl-sh-row { display: flex; flex-wrap: wrap; gap: 4px; flex: none; }
+  html.cfg-atelye .atl-lrow {
+    all: unset; box-sizing: border-box; flex: none; width: 100%; min-height: 44px; padding: 4px 8px;
+    display: flex; align-items: center; gap: 12px; border-radius: var(--r-chip); color: var(--ink);
+    cursor: pointer; text-align: left; transition: background var(--t-fast) var(--ease);
+  }
+  html.cfg-atelye .atl-lrow svg { flex: none; }
+  html.cfg-atelye .atl-lrow span { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.2; }
+  html.cfg-atelye .atl-lrow b { font: 600 14px/1.2 var(--f); }
+  html.cfg-atelye .atl-lrow i { font: 400 12px/1.25 var(--f); font-style: normal; color: var(--mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  html.cfg-atelye .atl-lrow[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+  html.cfg-atelye .atl-lrow.big { min-height: 52px; box-shadow: inset 0 0 0 1px var(--ln); }
+  html.cfg-atelye .atl-sh-note { margin: 0; padding: 4px 8px; font: 400 13px/1.35 var(--f); color: var(--mut); }
+  /* The size table: today's guide content in Atelye type. */
+  html.cfg-atelye .atl-sh-size { display: block; font-size: 13px; line-height: 1.45; }
+  html.cfg-atelye .atl-sh-size .size-guide-intro,
+  html.cfg-atelye .atl-sh-size .size-guide-notes { color: var(--mut); font-size: 12.5px; }
+  html.cfg-atelye .atl-sh-size .size-guide-sub { margin: 10px 0 4px; font: 700 13px var(--f); color: var(--ink); text-transform: none; letter-spacing: 0; }
+  html.cfg-atelye .atl-sh-size .size-guide-scroll { overflow-x: auto; }
+  html.cfg-atelye .atl-sh-size table { border-collapse: collapse; font: 400 13px var(--f); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  html.cfg-atelye .atl-sh-size th,
+  html.cfg-atelye .atl-sh-size td { padding: 8px 10px 8px 0; text-align: left; border: 0; border-bottom: 1px solid var(--ln); background: none; color: var(--ink); }
+  html.cfg-atelye .atl-sh-size th:first-child,
+  html.cfg-atelye .atl-sh-size td:first-child { position: sticky; left: 0; background: var(--surface); font-weight: 600; }
+  html.cfg-atelye .atl-sh-size th { font-weight: 600; color: var(--mut); }
+  html.cfg-atelye .atl-sh-size ul { margin: 0; padding-left: 18px; }
+  html.cfg-atelye .atl-sh button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  html.cfg-atelye .atl-sh :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 2px var(--surface); }
+  html.cfg-atelye .atl-sh .atl-grab:focus-visible { outline-offset: -2px; }
+
   /* A sheet or the keyboard owns the screen: the edge tools step aside. */
   html.cfg-atelye.atl-sheet .atl-rail,
   html.cfg-atelye.atl-sheet .atl-col,
@@ -308,4 +404,5 @@
   html.cfg-atelye .atl-top *, html.cfg-atelye .atl-bar *,
   html.cfg-atelye .atl-rail *, html.cfg-atelye .atl-col *,
   html.cfg-atelye .atl-strip *, html.cfg-atelye .atl-hand * { transition: none !important; animation: none !important; }
+  html.cfg-atelye .atl-sh, html.cfg-atelye .atl-sh * { transition: none !important; animation: none !important; }
 }
