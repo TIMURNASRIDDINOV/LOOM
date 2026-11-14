@@ -7,13 +7,13 @@
    and no bare dynamic-viewport unit here (LOOM-304, LOOM-305).
    LOOM-307: tokens, Archivo, the shell (full-bleed canvas, top row, action
    bar). LOOM-308: the tool rail (right) and the colour stack (left).
-   LOOM-309: the context strip and its tag. Sheets and Telegram come in
-   LOOM-310..314.
+   LOOM-309: the context strip and its tag. LOOM-310: the corner buttons on
+   the selected print. Sheets and Telegram come in LOOM-311..314.
    ═══════════════════════════════════════════════════════════════════ */
 
 /* The Atelye rows exist only while the flag is on; outside the mode
    (desktop, or before the class lands) they are never drawn. */
-.atl-top, .atl-bar, .atl-rail, .atl-col, .atl-strip, .atl-tag { display: none; }
+.atl-top, .atl-bar, .atl-rail, .atl-col, .atl-strip, .atl-tag, .atl-hand { display: none; }
 
 @media (max-width: 900px) {
   html.cfg-atelye {
@@ -150,6 +150,7 @@
     html.cfg-atelye .atl-tool:hover,
     html.cfg-atelye .atl-chip:not(:disabled):not([aria-pressed="true"]):hover { background: var(--surface2); }
     html.cfg-atelye .atl-sw:not(:disabled):hover i { transform: scale(1.06); }
+    html.cfg-atelye .atl-cb:hover i { background: var(--mut); }
   }
   /* A garment sold without print: only Kiyim (R-13). */
   html.cfg-atelye body.blank-only .atl-print { display: none; }
@@ -226,11 +227,51 @@
   }
   html.cfg-atelye .atl-tag.note { background: var(--surface); color: var(--ink); box-shadow: var(--e1); }
 
+  /* ── Corner buttons on the selected print (2D) ────────────────
+     The layer itself is the focusable group; it takes no pointer, so the
+     print under it still drags. Each button is a 32 px circle in a 44 px
+     target, placed by configurator.js (atlSyncSel) on a corner of the
+     outline the canvas draws. Only these are round: part of the print. */
+  html.cfg-atelye .atl-hand {
+    position: fixed; z-index: 50; left: 0; top: 0; width: 0; height: 0; display: block;
+    pointer-events: none; outline: 0; font-family: var(--f);
+  }
+  html.cfg-atelye .atl-hand[hidden],
+  html.cfg-atelye .atl-hand-tag[hidden] { display: none; }
+  html.cfg-atelye .atl-hand-ring {
+    position: absolute; left: 0; top: 0; box-sizing: border-box; display: none;
+    transform-origin: 50% 50%; pointer-events: none;
+    outline: 2px solid var(--ink); outline-offset: 3px; box-shadow: 0 0 0 3px var(--surface);
+  }
+  html.cfg-atelye .atl-hand:focus-visible .atl-hand-ring { display: block; }
+  html.cfg-atelye .atl-cb {
+    all: unset; box-sizing: border-box; position: absolute; left: 0; top: 0;
+    width: 44px; height: 44px; display: grid; place-items: center;
+    pointer-events: auto; cursor: pointer; touch-action: none;
+    -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
+  }
+  html.cfg-atelye .atl-cb i {
+    width: 32px; height: 32px; box-sizing: border-box; display: grid; place-items: center;
+    border-radius: 50%; background: var(--ink); color: var(--surface);
+    box-shadow: 0 0 0 1.6px var(--surface);
+    transition: background var(--t-fast) var(--ease);
+  }
+  html.cfg-atelye .atl-cb:active i { background: var(--mut); }
+  html.cfg-atelye .atl-cb:focus-visible i { outline: 2px solid var(--ink); outline-offset: 3px; }
+  html.cfg-atelye .atl-hand-tag {
+    position: absolute; left: 0; top: 0; display: block; padding: 3px 8px;
+    border-radius: 3px; background: var(--ink); color: var(--surface);
+    font: 600 11.5px/1.25 var(--f); font-variant-numeric: tabular-nums; white-space: nowrap;
+    pointer-events: none;
+  }
+
   /* A sheet or the keyboard owns the screen: the edge tools step aside. */
   html.cfg-atelye.atl-sheet .atl-rail,
   html.cfg-atelye.atl-sheet .atl-col,
   html.cfg-atelye.atl-sheet .atl-strip,
   html.cfg-atelye.atl-sheet .atl-tag,
+  html.cfg-atelye.atl-sheet .atl-hand,
+  html.cfg-atelye body.kb-open .atl-hand,
   html.cfg-atelye body.kb-open .atl-rail,
   html.cfg-atelye body.kb-open .atl-col,
   html.cfg-atelye body.kb-open .atl-strip,
@@ -266,5 +307,5 @@
 @media (max-width: 900px) and (prefers-reduced-motion: reduce) {
   html.cfg-atelye .atl-top *, html.cfg-atelye .atl-bar *,
   html.cfg-atelye .atl-rail *, html.cfg-atelye .atl-col *,
-  html.cfg-atelye .atl-strip * { transition: none !important; animation: none !important; }
+  html.cfg-atelye .atl-strip *, html.cfg-atelye .atl-hand * { transition: none !important; animation: none !important; }
 }
