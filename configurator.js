@@ -4979,13 +4979,15 @@ function bindAtelye() {
       '<p class="atl-pr"><b id="atl-price"></b><span id="atl-cap"></span></p>' +
     '</div>' +
     atlRailHtml() +
-    `<div class="atl-col" id="atl-col" data-ov role="group" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="${_esc(CT("cfg.colorChoice", "Выбор цвета"))}"></div>`);
+    `<div class="atl-col" id="atl-col" data-ov role="group" data-i18n-attr="aria-label:cfg.colorChoice" aria-label="${_esc(CT("cfg.colorChoice", "Выбор цвета"))}"></div>` +
+    atlStripHtml());
   // LOOM-308: Ko'proq opens the step 3 sheet, which the phone flow builds
   // only when cfgPhone runs (it is off while this mode is on).
   if (!document.getElementById("p3-sheet")) {
     p3BuildSheet(studio, (k, fb) => `<span data-i18n="${k}">${CT(k, fb)}</span>`);
   }
   document.getElementById("atl-back").addEventListener("click", atlBack);
+  bindAtelyeStrip(); // before the rail: its first sync draws the strip
   bindAtelyeRail();
   atlBuildColors();
   window.addEventListener("loom:langchange", () => { atlSyncCaption(); refreshPriceLabels(); }); // the currency word
@@ -4996,6 +4998,7 @@ function bindAtelye() {
     refreshPriceLabels();
     atlSyncCaption();
     atlSyncSurface();
+    atlSyncStrip();
   };
   mq.addEventListener("change", apply);
   apply();
@@ -5157,6 +5160,162 @@ function atlSyncTools() {
   label.textContent = CT(k[0], k[1]);
   const any = elementsOf("front").length + elementsOf("back").length > 0;
   document.getElementById("atl-col").hidden = any;
+  atlSyncStrip(); // LOOM-309: an empty design shows the sizes
+}
+
+// ── LOOM-309: the context strip over the action bar ──
+// One strip, its content following the state: the sizes (empty design, or a
+// cart / buy tap refused for a missing size), the cm presets and Markazga
+// (image selected, 2D), the text options (text selected, 2D) or the camera
+// row (3D, model on screen). Nothing selected: the sizes while none is
+// chosen, else no strip. A tag above it asks
+// for the size, or says a blank product is sold without print (R-13).
+// Every control runs today's code: the size buttons click #size-selector's,
+// the presets p3SetWidthCm, the camera p3Camera, the font and colour feed
+// today's #font-family-select and #text-color-picker.
+let _atlNeed = null;     // { run } while a cart / buy tap waits for a size; run null = not replayable
+let _atlMode = "";       // the strip content last drawn
+let _atlCam = "front";   // the camera preset last snapped to
+const _ATL_SVG = (d, w) => `<svg viewBox="0 0 24 24" width="${w || 19}" height="${w || 19}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+
+function atlStripHtml() {
+  const span = (k, fb) => `<span data-i18n="${k}">${CT(k, fb)}</span>`;
+  const lab = (k, fb) => `data-i18n-attr="aria-label:${k}" aria-label="${_esc(CT(k, fb))}"`;
+  return '<p class="atl-tag" id="atl-tag" data-ov role="status" hidden></p>' +
+    '<div class="atl-strip" id="atl-strip" data-ov hidden>' +
+      `<div class="atl-grp" data-strip="sizes" role="group" ${lab("cfg.sizeChoice", "Выбор размера")}></div>` +
+      `<div class="atl-grp" data-strip="presets" role="group" ${lab("cfg.sizeSlider", "Размер")}>` +
+        P3_PRESETS.map(([cm, k, fb]) => `<button type="button" class="atl-chip" data-cm="${cm}" aria-pressed="false">${span(k, fb)}</button>`).join("") +
+        `<button type="button" class="atl-chip atl-ico" data-act="center" ${lab("cfg.center", "По центру")}>${_ATL_SVG("M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4M12 5.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13z")}</button>` +
+      "</div>" +
+      '<div class="atl-grp" data-strip="text">' +
+        // "Tahrirlash" opens the text bar, which arrives with LOOM-313.
+        `<button type="button" class="atl-chip" data-act="edit">${_ATL_SVG("M5 7V5h14v2M12 5v14M9 19h6", 17)}${span("cfg.edit", "Изменить")}</button>` +
+        `<span class="atl-sel"><select id="atl-font" class="atl-chip" ${lab("cfg.font", "Шрифт")}>` +
+          FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}">${_esc(label)}</option>`).join("") +
+        `</select>${_ATL_SVG("M6 9l6 6 6-6", 15)}</span>` +
+        `<input type="color" id="atl-tcolor" class="atl-dot" value="#000000" ${lab("cfg.textColor", "Цвет текста")} />` +
+      "</div>" +
+      `<div class="atl-grp" data-strip="cam" role="group" ${lab("cfg.preview", "Предпросмотр")}>` +
+        [["front", "cfg.viewFront", "Перед"], ["side", "cfg.camSide", "Сбоку"], ["back", "cfg.viewBack", "Зад"]]
+          .map(([c, k, fb]) => `<button type="button" class="atl-chip" data-cam="${c}" aria-pressed="false">${span(k, fb)}</button>`).join("") +
+        `<button type="button" class="atl-chip atl-ico" data-cam="reset" ${lab("cfg.resetView", "Сброс вида")}>${_P3_RESET_ICON}</button>` +
+      "</div>" +
+    "</div>";
+}
+
+function bindAtelyeStrip() {
+  const strip = document.getElementById("atl-strip");
+  strip.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || b.disabled) return;
+    if (b.dataset.size) return atlPickSize(b.dataset.size);
+    if (b.dataset.cam) {
+      p3Camera(b.dataset.cam);
+      _atlCam = b.dataset.cam === "reset" ? "front" : b.dataset.cam;
+      return atlSyncStrip();
+    }
+    const el = selectedElement();
+    if (!el) return;
+    if (b.dataset.cm) return p3SetWidthCm(el, +b.dataset.cm);
+    if (b.dataset.act === "center") return centerSelected();
+  });
+  // Font and colour write today's controls, so today's handlers apply them.
+  const feed = (id, origId, type) => document.getElementById(id).addEventListener(type, (e) => {
+    const o = document.getElementById(origId);
+    if (!o) return;
+    o.value = e.target.value;
+    o.dispatchEvent(new Event(type));
+  });
+  feed("atl-font", "font-family-select", "change");
+  feed("atl-tcolor", "text-color-picker", "input");
+  // A tap on the garment drops a refused cart / buy tap.
+  ["flat-editor", "three-container"].forEach((id) => {
+    const c = document.getElementById(id);
+    if (c) c.addEventListener("pointerdown", () => {
+      if (!_atlNeed) return;
+      _atlNeed = null;
+      atlSyncStrip();
+    }, true); // capture: the editor's own pointer handlers stop propagation
+  });
+  window.addEventListener("loom:langchange", atlSyncStrip); // the "O'lcham M" labels
+}
+
+/** A strip size: today's size button picks it, then a refused cart / buy tap runs once. */
+function atlPickSize(sz) {
+  const orig = [...document.querySelectorAll("#size-selector .size-btn")].find((b) => b.dataset.size === sz);
+  if (orig) orig.click();
+  const need = _atlNeed;
+  _atlNeed = null;
+  atlSyncStrip();
+  if (need && need.run && selectedSize) need.run();
+}
+
+/** Cart or buy with no size: ask on the strip and keep `run` for the size tap. True = refused. */
+function atlAskSize(run) {
+  if (!_atl() || selectedSize) return false;
+  _atlNeed = { run };
+  atlSyncStrip();
+  return true;
+}
+
+function atlStripMode() {
+  if (_atlNeed) return "sizes";
+  if (elementsOf("front").length + elementsOf("back").length === 0) return "sizes";
+  if (!flatMode) return _preview3DReady ? "cam" : "";
+  const el = selectedElement();
+  // Nothing selected: the garment gets the space once a size is chosen.
+  if (!el) return selectedSize ? "" : "sizes";
+  return el.type === "text" ? "text" : "presets";
+}
+
+function atlSyncStrip() {
+  const strip = document.getElementById("atl-strip");
+  if (!strip) return;
+  const mode = _atl() ? atlStripMode() : "";
+  if (mode === "cam" && _atlMode !== "cam") _atlCam = designState.activeView; // 3D opens on the face being edited
+  _atlMode = mode;
+  strip.hidden = !mode;
+  strip.classList.toggle("need", !!_atlNeed);
+  strip.querySelectorAll(".atl-grp").forEach((g) => { g.hidden = g.dataset.strip !== mode; });
+  if (mode === "sizes") atlSyncSizes(strip.querySelector('[data-strip="sizes"]'));
+  else if (mode === "presets") {
+    const el = selectedElement();
+    const cm = p3WidthCm(el);
+    strip.querySelectorAll("[data-cm]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(Math.abs(cm - Math.min(+b.dataset.cm, PLATEN_CM.w)) < 0.5));
+    });
+  } else if (mode === "text") {
+    const el = selectedElement();
+    document.getElementById("atl-font").value = el.font;
+    document.getElementById("atl-tcolor").value = el.color;
+  } else if (mode === "cam") {
+    strip.querySelectorAll("[data-cam]").forEach((b) => {
+      if (b.dataset.cam !== "reset") b.setAttribute("aria-pressed", String(b.dataset.cam === _atlCam));
+    });
+  }
+  // The tag: the size prompt (cta red), or the blank note (ink on surface).
+  const tag = document.getElementById("atl-tag");
+  const text = mode !== "sizes" ? ""
+    : !selectedSize ? CT("cfg.pickSize", "Выберите размер")
+    : _blankOnly ? unsoldText("print_unavailable") : "";
+  tag.hidden = !text;
+  tag.classList.toggle("note", !!selectedSize);
+  if (tag.textContent !== text) tag.textContent = text;
+}
+
+/** The product's sizes from #size-selector, in its order; pressed, disabled and labels mirrored. */
+function atlSyncSizes(grp) {
+  const src = [...document.querySelectorAll("#size-selector .size-btn")];
+  if ([...grp.children].map((b) => b.dataset.size).join() !== src.map((b) => b.dataset.size).join()) {
+    grp.innerHTML = src.map((b) => `<button type="button" class="atl-chip atl-sz" data-size="${_esc(b.dataset.size)}">${_esc(b.dataset.size)}</button>`).join("");
+  }
+  grp.querySelectorAll("button").forEach((b, i) => {
+    const o = src[i];
+    b.disabled = o.disabled || o.getAttribute("aria-disabled") === "true"; // out of stock, as today
+    b.setAttribute("aria-pressed", String(o.dataset.size === selectedSize));
+    b.setAttribute("aria-label", CT("cfg.sizeN", "Размер {size}").replace("{size}", o.dataset.size));
+  });
 }
 
 /** The previous page, or the catalogue when the page was opened directly (OPEN-3). */
@@ -5713,6 +5872,7 @@ function p3Camera(which) {
 
 /** html.p3-3d, the camera row and the presets follow the surface, the step and the selection. */
 function p3SyncPlace() {
+  atlSyncStrip(); // LOOM-309: selection, surface, 3D ready and width changes land here
   if (!phoneFlowEnabled() && !desktopFlowEnabled()) return;
   d3Sync(); // LOOM-298: a removed layer leaves step 2's summary line
   document.documentElement.classList.toggle("p3-3d", !flatMode);
@@ -6728,13 +6888,18 @@ async function addToCart(opts) {
 // "Купить сейчас" — Amazon-style buy-now: add the live design to the bag,
 // then jump straight to checkout (skipping the drawer).
 async function buyNow() {
+  if (atlAskSize(buyNow)) return; // LOOM-309: runs again on the size tap
   trackStep("cfg_checkout_submit");
   const ok = await addToCart({ openDrawer: false });
   if (ok) location.href = "checkout.html";
 }
 function bindCart() {
   // drawer, badge, checkout handoff → assets/cart.js; we only own "add"
-  document.getElementById("btn-add-to-cart")?.addEventListener("click", () => { trackStep("cfg_cart"); addToCart(); });
+  document.getElementById("btn-add-to-cart")?.addEventListener("click", function cart() {
+    if (atlAskSize(cart)) return; // LOOM-309: runs again on the size tap
+    trackStep("cfg_cart");
+    addToCart();
+  });
 }
 
 // ----------------------------------------------------------------
@@ -6785,6 +6950,7 @@ function syncPickers() {
   _syncRadios("size-selector", ".size-btn", "active", (b) => b.dataset.size === selectedSize);
   atlSyncCaption();
   atlSyncColors();
+  atlSyncStrip(); // LOOM-309: the strip's size buttons and tag
 }
 
 function _syncRadios(id, sel, cls, isOn) {
@@ -6845,6 +7011,11 @@ function bindSizeSelector() {
  */
 function sizeChosen() {
   if (selectedSize) return true;
+  if (_atl()) { // LOOM-309: the strip asks for the size; no step, no toast
+    if (!_atlNeed) _atlNeed = { run: null };
+    atlSyncStrip();
+    return false;
+  }
   if (currentStep !== "color") setStep("color");
   const row = document.getElementById("size-selector");
   if (row) {

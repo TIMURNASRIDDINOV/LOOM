@@ -203,6 +203,10 @@
     // LOOM-308: the Atelye tool rail. ru and en are drafts for Content.
     'cfg.tools':        { uz: 'Asboblar', ru: 'Инструменты', en: 'Tools' },
     'cfg.railImage':    { uz: 'Rasm', ru: 'Картинка', en: 'Image' },
+    // LOOM-309: the Atelye context strip. ru and en are drafts for Content.
+    'cfg.pickSize':     { uz: 'O‘lchamni tanlang', ru: 'Выберите размер', en: 'Choose a size' },
+    'cfg.sizeN':        { uz: 'O‘lcham {size}', ru: 'Размер {size}', en: 'Size {size}' },
+    'cfg.edit':         { uz: 'Tahrirlash', ru: 'Изменить', en: 'Edit' },
     // LOOM-295: the phone's step 3 (Joylash). ru and en are drafts for Content.
     'cfg.more':         { uz: 'Ko‘proq', ru: 'Ещё', en: 'More' },
     'cfg.presetS':      { uz: 'Kichik 10 sm', ru: 'Малый 10 см', en: 'Small 10 cm' },
