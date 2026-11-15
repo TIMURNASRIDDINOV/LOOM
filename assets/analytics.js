@@ -188,7 +188,7 @@
     if (started) gtag('event', 'ui_click', clickParams(el));
   }, true);
 
-  /* Funnel bridge: same event names in GA4, once per session (the
+  /* Funnel bridge: same event names in GA4 and as Metrika goals, once per session (the
      sessionStorage key is track.js's own dedupe), no change to track.js. */
   var T = w.LOOM_TRACK;
   if (T && typeof T.event === 'function') {
@@ -197,7 +197,10 @@
       var first = true;
       try { first = !sessionStorage.getItem('loom_evt_' + name); } catch (e) { /* private mode */ }
       orig(name);
-      if (name && first && started) gtag('event', name);
+      if (name && first && started) {
+        gtag('event', name);
+        if (YM_ID) w.ym(YM_ID, 'reachGoal', name); // LOOM-339: one JS-event goal per name in Metrika
+      }
     };
   }
 
