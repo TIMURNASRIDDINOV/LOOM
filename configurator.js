@@ -11,11 +11,6 @@
 
 const TEX_SIZE = 2048; // Offscreen texture canvas dimensions (2048 for crisp logo quality)
 
-// The default garment, meshopt-compressed: 1.60 MB instead of the 6.79 MB
-// uncompressed export. See assets/models/README.md for how it is encoded and
-// which gltf-transform flags must never be used on it.
-const DEFAULT_MODEL_URL = "assets/models/t_shirt.meshopt.glb?v=1";
-
 // ── Print geometry ───────────────────────────────────────────────
 // The print rect is the DTG platen projected into texture space. It cannot be one
 // shared constant: normalizeModelUVsGlobally() packs every UV island into one
@@ -38,19 +33,17 @@ const REF_RECT = { w: LEGACY_PRINT_AREA.w, h: LEGACY_PRINT_AREA.h };
 
 // Resolved per view once the model's mesh is available (see resolvePrintRects).
 //
-// Seeded with the values resolvePrintRects() measures off the bundled garment
-// (DEFAULT_MODEL_URL), rather than with LEGACY_PRINT_AREA. The 3D model is only
-// loaded when the user opens the preview, but the FLAT editor derives its
+// Seeded with the values resolvePrintRects() measured off the tee that used
+// to be bundled here (removed in LOOM-337), rather than with LEGACY_PRINT_AREA.
+// The 3D model is only loaded when the user opens the preview, but the FLAT editor derives its
 // print-band aspect from these (_flatPrintRectIn: `rect.h = rect.w / (pr.w / pr.h)`),
 // and it is on screen from the first frame. Seeding with LEGACY's 0.8286 would
 // show a 10.5% too-tall band until the preview was opened.
 //
 // Every product now brings its own model, so these are only the seed:
 // applyPrintArea sets the product's platen on them, and the product's own mesh
-// re-measures them when the preview opens. The bundled garment is the fallback
-// when a product has no model or the catalogue call fails. Re-measure with
-// `JSON.stringify(PRINT_RECTS)` in the console after the bundled garment loads
-// if it is ever replaced.
+// re-measures them when the preview opens. With no product model (no glb_url,
+// or the catalogue call failed) there is no 3D and these seeds stay as they are.
 const DEFAULT_PRINT_RECTS = {
   front: { x: 621.4077537536621, y: 449.80019195556645, w: 769.0009597778321, h: 1025.3346130371094 },
   back:  { x: 669.6164901733398, y: 322.6587879943848,  w: 768.8689483642579, h: 1025.1585978190105 },
@@ -553,9 +546,6 @@ let _preview3D = null;    // single in-flight promise for the whole boot
 let _threeBooted = false;  // renderer, textures and render loop exist (once per page)
 let _preview3DReady = false; // the model is on screen; Save PNG is available
 let _pendingGlbUrl = null; // resolved by loadProductFromSlug, consumed on open
-// LOOM-199: the loaded GLB is the CC BY 4.0 tee (its asset.extras name the
-// Sketchfab source), so #model-credit must show while the 3D is on screen.
-let _modelCredited = false;
 let _productReady = null;  // loadProductFromSlug's promise; gates the model URL
 
 function _loadChunk(src) {
@@ -616,12 +606,12 @@ function ensurePreview3D() {
         animate();
         _threeBooted = true;
       }
-      // Wait for ?slug= to resolve so a custom product model isn't loaded on
-      // top of the default one. Already settled in the common case; its own
-      // failures are swallowed there and fall back to the bundled garment.
+      // Wait for ?slug= to resolve so the model URL is known. Already settled
+      // in the common case; its own failures are swallowed there and leave no
+      // model, so loadShirtModel() rejects and the customer stays in 2D.
       return (_productReady || Promise.resolve()).catch(() => {});
     })
-    .then(() => loadShirtModel(_pendingGlbUrl || DEFAULT_MODEL_URL))
+    .then(() => loadShirtModel(_pendingGlbUrl))
     // Open on the side picked in 2D before the 3D existed.
     .then(() => {
       setCameraView(designState.activeView);
@@ -729,7 +719,7 @@ function prefetchPreview3D() {
   // it sends Sec-Purpose: prefetch, which Cloudflare refuses on Worker routes
   // (503, "cf-speculation-refused", no CORS headers), so a product model on
   // api.loomdesign.uz was never warmed. Safari ignores rel=prefetch anyway.
-  [_pendingGlbUrl || DEFAULT_MODEL_URL, THREE_CHUNKS[0]].forEach((href) => {
+  [_pendingGlbUrl, THREE_CHUNKS[0]].filter(Boolean).forEach((href) => {
     fetch(href, { priority: "low" }).then((r) => r.blob()).catch(() => {});
   });
 }
@@ -1804,12 +1794,12 @@ async function applyPendingArtwork() {
 
 async function loadProductFromSlug() {
   const slug = new URLSearchParams(window.location.search).get("slug");
-  let glbUrl = DEFAULT_MODEL_URL;
+  let glbUrl = null;
 
   if (!slug) {
-    // No slug → take name, fabric and model from the default garment. The
-    // bundled DEFAULT_MODEL_URL stays as fallback when the catalog call fails
-    // or times out (5s), or the product has no glb_url.
+    // No slug → take name, fabric and model from the default garment. When the
+    // catalog call fails or times out (5s), or the product has no glb_url,
+    // there is no model and the configurator stays in 2D (LOOM-337).
     try {
       const def = await fetchDefaultProduct();
       if (def) {
@@ -1826,8 +1816,8 @@ async function loadProductFromSlug() {
 
   if (slug) {
     try {
-      // 5s cap — on a stalled mobile connection the default model must
-      // still appear instead of an endless spinner
+      // 5s cap — on a stalled mobile connection the configurator must stay
+      // usable in 2D instead of an endless spinner
       const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
       if (ctrl) setTimeout(() => ctrl.abort(), 5000);
       const res = await fetch(getApiBase() + "/api/products/" + encodeURIComponent(slug), ctrl ? { signal: ctrl.signal } : undefined);
@@ -1847,7 +1837,7 @@ async function loadProductFromSlug() {
         showProductUnavailable(); // disabled or removed: never sold as the default garment
       }
     } catch (e) {
-      console.warn("Product fetch failed, using default model:", e);
+      console.warn("Product fetch failed, no 3D model:", e);
     }
   }
 
@@ -1980,7 +1970,7 @@ function buildSizeButtons(sizes) {
 }
 
 /**
- * Register the decoder for the compressed geometry in DEFAULT_MODEL_URL.
+ * Register the decoder for meshopt-compressed product models.
  *
  * Deliberately the only place a codec is named: one vendored file
  * (assets/vendor/meshopt_decoder.js), one function, one call site. Swapping
@@ -1988,7 +1978,7 @@ function buildSizeButtons(sizes) {
  * should touch this function, the <script> tag in configurator.html, and
  * nothing else.
  *
- * Product models fetched from R2 via product.glb_url may be uncompressed.
+ * Product models fetched from R2 via product.glb_url may also be uncompressed.
  * GLTFLoader only calls a registered decoder when the file actually declares
  * EXT_meshopt_compression, so registering unconditionally leaves them alone.
  */
@@ -2009,17 +1999,15 @@ function loadShirtModel(glbUrl) {
 
   // Returns a promise so ensurePreview3D() can sequence on it. A model that
   // fails REJECTS: no stand-in garment, the customer stays in 2D and the next
-  // 3D tap retries (ensurePreview3D's catch).
+  // 3D tap retries (ensurePreview3D's catch). So does a product with no model.
+  if (!glbUrl) return Promise.reject(new Error("no 3D model for this product"));
   return new Promise((resolve, reject) => {
   loader.load(
-    glbUrl || DEFAULT_MODEL_URL,
+    glbUrl,
 
     // onLoad
     function (gltf) {
       const object = gltf.scene;
-      const extras = (gltf.asset && gltf.asset.extras) || {};
-      _modelCredited = String(extras.source || "").indexOf("c1a3e5eb9b5445f4b7d4be82f1127eba") !== -1;
-      syncModelCredit();
 
       // Reset material collections before assigning materials for this model.
       shirtMaterials = [];
@@ -7347,8 +7335,6 @@ function p3DropModel() {
   shirtObject = null;
   _preview3D = null;
   _preview3DReady = false;
-  _modelCredited = false;
-  syncModelCredit();
   p3SyncPlace();
 }
 
@@ -7385,7 +7371,7 @@ async function p3PickGarment(p) {
     paintShirtColor(DEFAULT_SHIRT_COLOR); // the product's first colour
     setFabricPreset(fabricForProduct(p));
     applyProductToHeader(p);
-    _pendingGlbUrl = p.glb_url || DEFAULT_MODEL_URL;
+    _pendingGlbUrl = p.glb_url || null;
     _prefetched = false;
     p3DropModel();
 
@@ -7646,7 +7632,6 @@ function setFlatMode(on) {
   const three = document.getElementById("three-container");
   if (flat) flat.style.display = flatMode ? "block" : "none";
   if (three) three.style.display = flatMode ? "none" : "block";
-  syncModelCredit();
   _flatSyncZoomBtn();
 
   document.querySelectorAll(".surface-btn").forEach((b) => {
@@ -7677,12 +7662,6 @@ function setFlatMode(on) {
     if (!flatMode && typeof onWindowResize === "function") onWindowResize();
   }).catch(() => {});
   if (renderer && typeof onWindowResize === "function") onWindowResize();
-}
-
-/** LOOM-199: the CC BY credit shows with the 3D, and only for the model it credits. */
-function syncModelCredit() {
-  const el = document.getElementById("model-credit");
-  if (el) el.hidden = flatMode || !_modelCredited;
 }
 
 function toggleFlatMode() {

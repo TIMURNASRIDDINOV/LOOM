@@ -1,5 +1,11 @@
 # 3D models — provenance and encoding
 
+> **LOOM-337 (2026-11-15): `t_shirt.glb` and `t_shirt.meshopt.glb` were deleted.**
+> They were the CC BY 4.0 "T Shirt" model by funlab117, which LOOM no longer uses.
+> Every product now loads its own model from R2 (`products.glb_key`); with no
+> model the configurator stays in 2D. The notes below are kept because the
+> encoding and node-name rules still apply to product models.
+
 ## `t_shirt.glb` — source of truth, 6,786,916 bytes
 
 Sketchfab export (generator `Sketchfab-14.32.1`). f32 POSITION/NORMAL/TEXCOORD_0,
