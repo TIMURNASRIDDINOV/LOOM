@@ -5,22 +5,17 @@
    (after config.js / i18n.js / auth.js; layout.js provides the nav
    button #navCartBtn + badge #cartCount).
 
-   Owns: cart state, API calls, the full-screen drawer (markup is
-   injected here — pages carry no drawer HTML), line-item editing
-   (quantity steppers → PATCH, remove → DELETE, "edit design" →
-   configurator.html?item=ID), authenticated mockup thumbnails, and
-   the checkout handoff (checkout.html).
+   Owns: cart state, API calls (quantity → PATCH, remove → DELETE),
+   authenticated mockup thumbnails and the background 3D model upload.
+   The cart UI is one page for every entry point: cart.html
+   (assets/cart-page.js). open() goes there (LOOM-325).
 
    Public API: window.LOOM_CART = { load, sync, add, remove, setQty,
-   uploadModel, open, close, state, updateBadge }
+   uploadModel, open, state, updateBadge }
 
    state = { items, total (items only), delivery, payable (items +
    delivery), failed (true when the last load could not reach the
    server) }. Every change fires `loom:cart` on window.
-
-   Atelye pages (they load assets/atelye.css) get no drawer: the old
-   drawer has no styles there and the Savat tab is cart.html. open()
-   goes to cart.html instead.
 ================================================================ */
 'use strict';
 (function () {
@@ -42,11 +37,6 @@
       var s = window.LOOM_I18N && window.LOOM_I18N.t(key);
       return s && s !== key ? s : fallback;
     } catch (e) { return fallback; }
-  }
-  function esc(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
   function fmt(n) {
     try {
@@ -92,46 +82,6 @@
     }, 2600);
   }
 
-  /* ── drawer markup (injected once) ──────────────────────────── */
-  function ensureDrawer() {
-    if (document.getElementById('cartDrawer')) return;
-    var html =
-      '<div class="drawer-backdrop" id="cartBackdrop"></div>' +
-      '<aside class="cart-drawer" id="cartDrawer" aria-label="Cart" aria-hidden="true" inert>' +
-        '<div class="cart-head">' +
-          '<h2 class="cart-title"><span data-i18n="cfg.cartTitle">Корзина</span><span class="cart-title-slash">/</span></h2>' +
-          '<button class="mobile-menu-close" id="cartClose" aria-label="Close">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-          '</button>' +
-        '</div>' +
-        '<div class="cart-body" id="cartBody">' +
-          '<p class="cart-empty" data-i18n="cfg.cartEmpty">Корзина пуста</p>' +
-        '</div>' +
-        '<div class="cart-foot" id="cartFoot" style="display:none">' +
-          '<div class="cart-total-row">' +
-            '<span class="cart-total-label" data-i18n="cfg.total">Итого</span>' +
-            '<span class="cart-total-val"><span id="cartTotal">0</span> <span data-i18n="cfg.currency">сум</span></span>' +
-          '</div>' +
-          '<button class="btn-primary-full" id="cartCheckoutBtn" type="button" data-i18n="cfg.checkout">Оформить заказ</button>' +
-        '</div>' +
-      '</aside>';
-    document.body.insertAdjacentHTML('beforeend', html);
-    if (window.LOOM_I18N && window.LOOM_I18N.apply) window.LOOM_I18N.apply();
-    document.getElementById('cartClose').addEventListener('click', function () { close(); });
-    document.getElementById('cartBackdrop').addEventListener('click', function () { close(); });
-    document.getElementById('cartDrawer').addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') close();
-    });
-    document.getElementById('cartCheckoutBtn').addEventListener('click', function () {
-      if (!state.items.length) { toast(t('cfg.cartEmpty', 'Корзина пуста'), 'error'); return; }
-      if (window.LOOM_TRACK) window.LOOM_TRACK.event('cfg_checkout_submit');
-      close();
-      // A 3D model still being built would be lost with the page: wait for it (≤ 5 s).
-      Promise.race([saving, new Promise(function (r) { setTimeout(r, 5000); })])
-        .then(function () { location.href = 'checkout.html'; });
-    });
-  }
-
   /* ── badge ──────────────────────────────────────────────────── */
   function updateBadge() {
     var n = state.items.reduce(function (s, i) { return s + (i.quantity || 1); }, 0);
@@ -144,7 +94,6 @@
   function sync(json) {
     if (json && Array.isArray(json.items)) state = json;
     updateBadge();
-    render();
     return state;
   }
   async function load() {
@@ -154,7 +103,6 @@
       else { state = EMPTY(); state.failed = res.status !== 401; }
     } catch (e) { state = EMPTY(); state.failed = true; }
     updateBadge();
-    render();
     return state;
   }
   async function add(payload) {
@@ -184,7 +132,6 @@
     state.total = state.items.reduce(function (s, i) { return s + i.unit_price * i.quantity; }, 0);
     state.payable = state.total + (state.delivery || 0);
     updateBadge();
-    renderTotals();
     clearTimeout(qtyTimers[id]);
     qtyTimers[id] = setTimeout(async function () {
       try {
@@ -294,153 +241,19 @@
     var lang = window.LOOM_I18N && window.LOOM_I18N.getLang ? window.LOOM_I18N.getLang() : 'ru';
     return item['product_name_' + lang] || item.product_name_ru || item.product_name || item.product_name_en || item.product_name_uz || t('cart.item', 'Футболка');
   }
-  function hasDesign(item) {
-    try {
-      var d = JSON.parse(item.design_json || '{}');
-      return !d.plain;
-    } catch (e) { return true; }
-  }
 
-  /* ── render ─────────────────────────────────────────────────── */
-  function renderTotals() {
-    var totalEl = document.getElementById('cartTotal');
-    if (totalEl) totalEl.textContent = new Intl.NumberFormat('ru-RU').format(state.total || 0);
-    state.items.forEach(function (it) {
-      var row = document.querySelector('.cart-item[data-id="' + it.id + '"]');
-      if (!row) return;
-      var q = row.querySelector('.cart-qty-val');
-      if (q) q.textContent = it.quantity;
-      var p = row.querySelector('.cart-item-price');
-      if (p) p.textContent = new Intl.NumberFormat('ru-RU').format(it.unit_price * it.quantity) + ' ' + t('cfg.currency', 'сум');
-    });
+  /* ── open: the one cart page ──────────────────────────────────
+     A 3D model still being kept on the device would be lost with the
+     page: wait for it (≤ 5 s), then go. */
+  function open() {
+    return Promise.race([saving, new Promise(function (r) { setTimeout(r, 5000); })])
+      .then(function () { location.href = 'cart.html'; });
   }
-  function render() {
-    var body = document.getElementById('cartBody');
-    var foot = document.getElementById('cartFoot');
-    if (!body) return;
-    if (!state.items.length) {
-      body.innerHTML = '<p class="cart-empty">' + esc(t('cfg.cartEmpty', 'Корзина пуста')) + '</p>';
-      if (foot) foot.style.display = 'none';
-      return;
-    }
-    var cur = t('cfg.currency', 'сум');
-    body.innerHTML = state.items.map(function (it) {
-      var meta = summarize(it.design_json).map(esc).join(' · ');
-      var editBtn = hasDesign(it)
-        ? '<a class="cart-item-edit" href="configurator.html?item=' + it.id + '">' +
-            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
-            '<span>' + esc(t('cart.edit', 'Изменить')) + '</span></a>'
-        : '';
-      return (
-        '<div class="cart-item" data-id="' + it.id + '">' +
-          '<div class="cart-item-thumb">' +
-            '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>' +
-            '<img alt="" loading="lazy" style="display:none">' +
-          '</div>' +
-          '<div class="cart-item-info">' +
-            '<span class="cart-item-name">' + esc(productName(it)) + '</span>' +
-            (meta ? '<span class="cart-item-meta">' + meta + '</span>' : '') +
-            '<div class="cart-item-row">' +
-              '<div class="cart-qty" role="group" aria-label="Quantity">' +
-                '<button class="cart-qty-btn" data-act="dec" aria-label="−">−</button>' +
-                '<span class="cart-qty-val">' + it.quantity + '</span>' +
-                '<button class="cart-qty-btn" data-act="inc" aria-label="+">+</button>' +
-              '</div>' +
-              editBtn +
-            '</div>' +
-            '<span class="cart-item-price">' + new Intl.NumberFormat('ru-RU').format(it.unit_price * it.quantity) + ' ' + cur + '</span>' +
-          '</div>' +
-          '<button class="cart-item-remove" data-id="' + it.id + '" aria-label="' + esc(t('cart.remove', 'Удалить')) + '">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
-          '</button>' +
-        '</div>');
-    }).join('');
-
-    state.items.forEach(function (it) {
-      var row = body.querySelector('.cart-item[data-id="' + it.id + '"]');
-      thumbInto(row.querySelector('.cart-item-thumb img'), it);
-      row.querySelectorAll('.cart-qty-btn').forEach(function (b) {
-        b.addEventListener('click', function () {
-          var item = state.items.find(function (i) { return i.id === it.id; });
-          if (!item) return;
-          setQty(it.id, item.quantity + (b.dataset.act === 'inc' ? 1 : -1));
-        });
-      });
-      row.querySelector('.cart-item-remove').addEventListener('click', function () { remove(it.id); });
-    });
-
-    var totalEl = document.getElementById('cartTotal');
-    if (totalEl) totalEl.textContent = new Intl.NumberFormat('ru-RU').format(state.total || 0);
-    if (foot) foot.style.display = 'flex';
-  }
-
-  /* ── open / close (iOS scroll lock + Android back button) ───── */
-  var scrollY = 0;
-  var opener = null;
-  /* Closed drawer is off-screen only by transform: inert keeps its controls
-     out of Tab order and the a11y tree (LOOM-321). */
-  function setOpen(drawer, on) {
-    if (on) drawer.removeAttribute('inert'); else drawer.setAttribute('inert', '');
-    drawer.setAttribute('aria-hidden', on ? 'false' : 'true');
-  }
-  function openDrawer() {
-    ensureDrawer();
-    var drawer = document.getElementById('cartDrawer');
-    if (drawer.classList.contains('active')) return;
-    opener = document.activeElement;
-    setOpen(drawer, true);
-    drawer.classList.add('active');
-    document.getElementById('cartBackdrop').classList.add('active');
-    document.body.classList.add('menu-open');
-    scrollY = window.scrollY || 0;
-    document.body.style.position = 'fixed';
-    document.body.style.top = -scrollY + 'px';
-    document.body.style.left = '0';
-    document.body.style.right = '0';
-    document.body.style.width = '100%';
-    try { history.pushState({ loomBag: 1 }, ''); } catch (e) {}
-    document.getElementById('cartClose').focus({ preventScroll: true });
-  }
-  async function open() {
-    if (ATELYE) { location.href = 'cart.html'; return; }
-    ensureDrawer();
-    await load();
-    openDrawer();
-  }
-  function close(fromPopstate) {
-    var drawer = document.getElementById('cartDrawer');
-    if (!drawer || !drawer.classList.contains('active')) return;
-    drawer.classList.remove('active');
-    setOpen(drawer, false);
-    var bd = document.getElementById('cartBackdrop');
-    if (bd) bd.classList.remove('active');
-    document.body.classList.remove('menu-open');
-    document.body.style.position = '';
-    document.body.style.top = '';
-    document.body.style.left = '';
-    document.body.style.right = '';
-    document.body.style.width = '';
-    window.scrollTo(0, scrollY);
-    if (opener && opener.isConnected && opener.focus) opener.focus({ preventScroll: true });
-    opener = null;
-    if (!fromPopstate && history.state && history.state.loomBag) {
-      try { history.back(); } catch (e) {}
-    }
-  }
-  window.addEventListener('popstate', function () {
-    var drawer = document.getElementById('cartDrawer');
-    if (drawer && drawer.classList.contains('active')) close(true);
-  });
 
   /* ── boot ───────────────────────────────────────────────────── */
   function boot() {
-    if (!ATELYE) {
-      ensureDrawer();
-      var btn = document.getElementById('navCartBtn');
-      if (btn) btn.addEventListener('click', open);
-      /* language switch: item meta lines are JS-rendered */
-      window.addEventListener('loom:langchange', render);
-    }
+    var btn = document.getElementById('navCartBtn');
+    if (btn) btn.addEventListener('click', open);
     /* checkout.js and cart-page.js own the cart fetch on their pages
        (checkout must load AFTER the auth gate; loading here too would
        duplicate the request and race a not-yet-logged-in 401 into the
@@ -455,7 +268,7 @@
   window.LOOM_CART = {
     productName: productName,
     load: load, sync: sync, add: add, remove: remove, setQty: setQty, uploadModel: uploadModel,
-    open: open, close: close, updateBadge: updateBadge, toast: toast,
+    open: open, updateBadge: updateBadge, toast: toast,
     thumbInto: thumbInto, summarize: summarize,
     get state() { return state; },
   };
