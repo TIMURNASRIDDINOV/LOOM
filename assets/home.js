@@ -29,6 +29,7 @@
   function money(n) { return I() ? I().formatPrice(n) : Number(n).toLocaleString('ru-RU') + ' so‘m'; }
   var q = new URLSearchParams(location.search);
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var desk = window.matchMedia && matchMedia('(min-width: 900px)').matches;
 
   /* ── 1. Intro loader ─────────────────────────────────────────── */
   var afterIntro = [];
@@ -41,7 +42,9 @@
     window.scrollTo(0, 0);
     var hold = !!window.__atlIntroHold;
     var coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-    var D = reduce ? 0 : (coarse ? 1100 : 1600);
+    /* desktop: the whole intro (count + wipe) stays within 1.2 s */
+    var D = reduce ? 0 : desk ? 600 : (coarse ? 1100 : 1600);
+    var WIPE = desk ? 480 : 880;
     el.style.setProperty('--atl-intro-d', D + 'ms');
     var n = $('atl-splash-n'), t0 = performance.now(), raf = 0, ended = false;
 
@@ -64,15 +67,15 @@
         { transform: 'translateY(100%)' },
         { transform: 'translateY(0)', offset: 0.5 },
         { transform: 'translateY(-100%)' }
-      ], { duration: 880, easing: 'cubic-bezier(.2, 0, 0, 1)' });
+      ], { duration: WIPE, easing: 'cubic-bezier(.2, 0, 0, 1)' });
       setTimeout(function () {
         el.style.background = 'none';
         [].forEach.call(el.children, function (c) { if (c !== cur) c.style.visibility = 'hidden'; });
-      }, 440);
+      }, WIPE / 2);
       wipe.onfinish = off;
     }
     el.addEventListener('click', finish);
-    if (!hold) setTimeout(finish, D + 120);
+    if (!hold) setTimeout(finish, desk ? D : D + 120);
   }
 
   /* ── 2. Onboarding ───────────────────────────────────────────── */
@@ -110,7 +113,41 @@
       return (href ? '<a class="atl-btn ' + cls + '" href="' + href + '"' : '<button type="button" class="atl-btn ' + cls + '"') +
         ' ' + (attr || '') + '>' + esc(t(key, fb)) + (href ? '</a>' : '</button>');
     }
+    /* desktop: one dialog, the three cards side by side */
+    function renderDesk(focus) {
+      box.classList.add('atl-onb-d');
+      $('atl-onb-art').hidden = true;
+      $('atl-onb-dots').hidden = true;
+      $('atl-onb-skip').hidden = true;
+      $('atl-onb-l').hidden = true;
+      $('atl-onb-h').textContent = t('atl.onb.title', 'LOOM qanday ishlaydi');
+      var cur = I() ? I().getLang() : 'ru';
+      [].forEach.call($('atl-onb-lang').children, function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-lang') === cur));
+      });
+      var top = box.querySelector('.atl-onb-top');
+      if (!top.querySelector('[data-onb-x]')) {
+        top.insertAdjacentHTML('beforeend', '<button type="button" class="atl-ib" data-onb-close data-onb-x>' +
+          '<svg class="atl-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>');
+      }
+      top.querySelector('[data-onb-x]').setAttribute('aria-label', t('atl.close', 'Yopish'));
+      var cards = $('atl-onb-cards');
+      if (!cards) {
+        cards = document.createElement('div');
+        cards.id = 'atl-onb-cards';
+        cards.className = 'atl-onb-cards';
+        $('atl-onb-l').parentNode.insertBefore(cards, $('atl-onb-btns'));
+      }
+      cards.innerHTML = ART.map(function (a, i) {
+        return '<div class="atl-onb-card"><span class="atl-cv">' + a + '</span>' +
+          '<b class="atl-t3">' + esc(t('atl.onb.t' + (i + 1), '')) + '</b><p>' + esc(t('atl.onb.l' + (i + 1), '')) + '</p></div>';
+      }).join('');
+      $('atl-onb-btns').innerHTML = btn('', '', 'atl.skip', 'O‘tkazib yuborish', 'data-onb-close') +
+        btn('atl-btn-p', 'configurator.html', 'atl.nav.create', 'Dizayn yaratish', 'data-onb-done');
+      if (focus) $('atl-onb-h').focus();
+    }
     function render(focus) {
+      if (desk) return renderDesk(focus);
       $('atl-onb-art').innerHTML = ART[card - 1];
       $('atl-onb-h').textContent = t('atl.onb.t' + card, '');
       $('atl-onb-l').textContent = t('atl.onb.l' + card, '');
@@ -232,7 +269,47 @@
     }).catch(function () { /* secondary content: stays hidden */ });
   }
 
+  /* Desktop, signed in: a dark strip under the header while an order
+     still waits for its card transfer (links to the payment screen). */
+  var unpaid = null;
+  function paintStrip() {
+    var old = $('home-strip');
+    if (old) old.remove();
+    if (!unpaid) return;
+    var min = Math.ceil((unpaid.pay_deadline - Date.now()) / 60000);
+    if (min < 1) return;
+    var el = document.createElement('div');
+    el.id = 'home-strip';
+    el.className = 'atl-home-strip';
+    el.setAttribute('role', 'status');
+    el.innerHTML = '<svg class="atl-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2"/></svg>' +
+      '<span>' + esc(t('atl.home.unpaid', 'Buyurtma {id}: {left}').replace('{id}', '#' + unpaid.id)
+        .replace('{left}', t('atl.orders.payWithin', '{min} daqiqa ichida to‘lang').replace('{min}', min))) + '</span>' +
+      '<a class="atl-btn atl-btn-p" href="order.html?id=' + encodeURIComponent(unpaid.id) + '">' + esc(t('atl.co.toPay', 'To‘lovga o‘tish')) + '</a>';
+    var hd = document.querySelector('.atl-hdr');
+    if (hd) hd.parentNode.insertBefore(el, hd.nextSibling);
+  }
+  function loadUnpaid() {
+    var tok = window.LOOM_AUTH && window.LOOM_AUTH.getToken && window.LOOM_AUTH.getToken();
+    var cached = false;
+    try { cached = !!sessionStorage.getItem('loom_user'); } catch (e) { /* private mode */ }
+    if (!desk || d.classList.contains('tma') || (!tok && !cached)) return;
+    fetch(api() + '/api/me/orders', { credentials: 'include', headers: tok ? { Authorization: 'Bearer ' + tok } : {} })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var now = Date.now();
+        unpaid = ((j && j.orders) || []).filter(function (o) {
+          return o.payment_method === 'p2p' && o.status === 'new' &&
+            (o.payment_status === 'unpaid' || o.payment_status === 'failed') && o.pay_deadline > now;
+        }).sort(function (a, b) { return a.pay_deadline - b.pay_deadline; })[0] || null;
+        paintStrip();
+      })
+      .catch(function () { /* no strip */ });
+  }
+  window.addEventListener('loom:langchange', paintStrip);
+
   window.addEventListener('loom:langchange', renderGarments);
+  loadUnpaid();
   loadGarments();
   loadWorks();
 })();

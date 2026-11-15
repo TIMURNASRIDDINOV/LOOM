@@ -1719,6 +1719,8 @@ function refreshPriceLabels() {
   });
   const atl = document.getElementById("atl-price"); // LOOM-307, flag on only
   if (atl) atl.textContent = numFmt + " " + CT("cfg.currency", "сум");
+  const atd = document.getElementById("atd-price"); // PRD-218: Jami in the desktop order list
+  if (atd) atd.textContent = numFmt + " " + CT("cfg.currency", "сум");
   tmaSync(); // LOOM-297: the price on Telegram's MainButton
 }
 
@@ -3526,7 +3528,7 @@ function _onEdKeyDown(e) {
   // they must never move or delete the artwork behind it.
   if (ae && ae.closest && ae.closest('[role="radiogroup"], [role="menu"], [role="dialog"], dialog')) return;
   // LOOM-299: the desktop flow adds Enter (primary CTA) and arrows in 3D.
-  const d3 = _d3();
+  const d3 = _d3() || _atlD(); // PRD-218: the Atelye desktop layout keeps LOOM-299's keys
   if (d3 && e.key === "Enter" && _d3Enter(e, ae)) return;
   if (!flatMode) { if (d3) _d3Orbit(e); return; }
   const el = _flatActiveEl();
@@ -4209,7 +4211,7 @@ function renderFlatEditor() {
   // Only the zoom button zooms, and only in step 1: steps 2 and 3 show the
   // whole shirt, because picking a colour needs it. LOOM-296: the phone's
   // step 3 zooms too, from its "Ko'proq" sheet.
-  const zoomed = _flatZoomOn && (currentStep === "design" || (currentStep === "order" && _flow3()));
+  const zoomed = _flatZoomOn && (currentStep === "design" || (currentStep === "order" && _flow3()) || _atlD());
   if (zoomed) _flatZoomBox(face, box, W, H);
   _flatSyncZoomBtn();
   _flatBox = box;
@@ -4493,7 +4495,7 @@ function _flatHitTest(x, y) {
   const R = _coarsePointer() ? 24 : 16;
   // LOOM-310: no canvas handles in Atelye (rotate is null), the box only moves.
   if (_flatUI.rotate && Math.hypot(x - _flatUI.rotate.x, y - _flatUI.rotate.y) <= R) return { type: "rotate" };
-  for (let i = 0; _flatUI.rotate && i < 4; i++) {
+  for (let i = 0; _flatUI.rotate && !_flatUI.noScale && i < 4; i++) {
     const c = _flatUI.corners[i];
     if (Math.hypot(x - c.x, y - c.y) <= R) return { type: "scale", corner: i };
   }
@@ -4681,7 +4683,7 @@ function _flatSyncEmptyState() {
   if (!btn || !_flatRect) return;
   // Not while a layer (an emptied text) is selected in step 1: it is being
   // edited, and the prompt would cover it.
-  const editing = currentStep === "design" && !!selectedElement(designState.activeView);
+  const editing = (currentStep === "design" || _atlD()) && !!selectedElement(designState.activeView);
   const empty = !_blankOnly && !editing && !_viewHasContent(designState.activeView);
   btn.style.display = empty ? "flex" : "none";
   if (!empty) return;
@@ -4957,6 +4959,7 @@ function phoneFlowEnabled() {
 function _p3() { return phoneFlowEnabled() && _isSheetLayout(); }
 // LOOM-298: the same three steps on desktop (LOOM_FLAGS.cfgDesktop, >= 901px).
 function desktopFlowEnabled() {
+  if (atelyeDeskEnabled()) return false; // PRD-218: the Atelye desktop layout replaces it
   try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgDesktop); } catch (e) { return false; }
 }
 function _d3() { return desktopFlowEnabled() && !_isSheetLayout(); }
@@ -4998,13 +5001,19 @@ function p3Sync() {
 function atelyeEnabled() {
   try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgAtelye); } catch (e) { return false; }
 }
-function _atl() { return atelyeEnabled() && _isSheetLayout(); }
+// PRD-218: the same shell from 901px (LOOM_FLAGS.cfgAtelyeDesktop); missing = off.
+function atelyeDeskEnabled() {
+  try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgAtelyeDesktop); } catch (e) { return false; }
+}
+/** The Atelye desktop layout applies now (html.cfg-atelye-d). */
+function _atlD() { return atelyeDeskEnabled() && !_isSheetLayout(); }
+function _atl() { return _isSheetLayout() ? atelyeEnabled() : atelyeDeskEnabled(); }
 
 const _ATL_BACK_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
 let _atlHomes = null; // [element, placeholder comment] pairs while moved
 
 function bindAtelye() {
-  if (!atelyeEnabled()) return;
+  if (!atelyeEnabled() && !atelyeDeskEnabled()) return;
   const studio = document.querySelector(".studio");
   if (!studio || document.getElementById("atl-bar")) return;
   studio.insertAdjacentHTML("beforeend",
@@ -5036,7 +5045,8 @@ function bindAtelye() {
   const mq = window.matchMedia("(max-width: 900px)");
   const apply = () => {
     if (!mq.matches) { atlSheetClose(false); atlTextClose(false); } // LOOM-311, LOOM-313: phone-only
-    atlPlace(mq.matches);
+    else if (atelyeDeskEnabled()) atlSheetClose(false); // PRD-218: a desktop dialog does not follow onto the phone
+    atlPlace(_atl());
     updateCartCta();
     refreshPriceLabels();
     atlSyncCaption();
@@ -5050,30 +5060,40 @@ function bindAtelye() {
 /** Move the shared controls into the Atelye rows (on) or back home (off). */
 function atlPlace(on) {
   const root = document.documentElement;
-  root.classList.toggle("cfg-atelye", on);
-  if (on && !_atlHomes) {
+  // PRD-218: from 901px the same shell is html.cfg-atelye-d; the buy buttons
+  // go to the order list's foot and 2D / 3D stays on the stage.
+  const mode = !on ? "" : _atlD() ? "d" : "p";
+  root.classList.toggle("cfg-atelye", mode === "p");
+  root.classList.toggle("cfg-atelye-d", mode === "d");
+  if (_atlHomes && _atlHomes.mode !== mode) {
+    _atlHomes.forEach(([el, home]) => { home.parentNode.insertBefore(el, home); home.remove(); });
+    _atlHomes = null;
+  }
+  if (mode && !_atlHomes) {
+    if (mode === "d") atdBuild();
     const top = document.getElementById("atl-top");
-    const bar = document.getElementById("atl-bar");
-    const moves = [
+    const bar = document.getElementById(mode === "d" ? "atd-foot" : "atl-bar");
+    const moves = (mode === "d" ? [
+      [document.getElementById("btn-add-to-cart"), bar],
+      [document.getElementById("btn-place-order"), bar],
+    ] : [
       [document.querySelector(".surface-toggle"), top],
       [document.getElementById("btn-place-order"), bar],
       [document.getElementById("btn-add-to-cart"), bar],
-    ].filter(([el]) => el);
+    ]).filter(([el, dest]) => el && dest);
     _atlHomes = moves.map(([el, dest]) => {
       const home = document.createComment("atl-home");
       el.parentNode.insertBefore(home, el);
       dest.appendChild(el);
       return [el, home];
     });
-  } else if (!on && _atlHomes) {
-    _atlHomes.forEach(([el, home]) => { home.parentNode.insertBefore(el, home); home.remove(); });
-    _atlHomes = null;
+    _atlHomes.mode = mode;
   }
 }
 
 /** The 2D / 3D pair is a pressed-button group in this mode, tabs elsewhere. */
 function atlSyncSurface() {
-  if (!atelyeEnabled()) return;
+  if (!atelyeEnabled() && !atelyeDeskEnabled()) return;
   const on = _atl();
   const group = document.querySelector(".surface-toggle");
   if (group) group.setAttribute("role", on ? "group" : "tablist");
@@ -5183,12 +5203,13 @@ function atlBuildColors() {
     b.addEventListener("click", () => selectShirtColor(def.hex, null));
     col.appendChild(b);
   });
+  atdBuildColors(); // PRD-218: the order list's Rang row, every colour
   atlSyncColors();
 }
 
 function atlSyncColors() {
   const hex = String(designState.shirtColor || "").toUpperCase();
-  document.querySelectorAll("#atl-col .atl-sw, #atl-sh .atl-sw").forEach((b) => {
+  document.querySelectorAll("#atl-col .atl-sw, #atl-sh .atl-sw, #atd-colors .atl-sw").forEach((b) => {
     b.setAttribute("aria-pressed", String(String(b.dataset.hex).toUpperCase() === hex));
   });
 }
@@ -5224,6 +5245,8 @@ const _ATL_CB_IC = {
   scale: '<path d="M5 19 19 5M13 5h6v6M11 19H5v-6"/>',
   more: _ATL_IC.more,
   edit: _ATL_IC.text,
+  dup: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 5.5v-1a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h1"/>',
+  replace: '<path d="M4 8.5h14l-3.5-3.5M20 15.5H6l3.5 3.5"/>',
 };
 // Corner order of _flatCorners: top-left, top-right, bottom-right, bottom-left.
 const _ATL_CB = [
@@ -5233,6 +5256,8 @@ const _ATL_CB = [
   ["more", "cfg.more", "Ещё"],
 ];
 const _ATL_CB_EDIT = ["edit", "cfg.editText", "Изменить текст"];
+const _ATL_CB_DUP = ["dup", "cfg.duplicate", "Дублировать"];        // PRD-218, desktop
+const _ATL_CB_REPLACE = ["replace", "cfg.replace", "Заменить"];     // PRD-218, desktop
 let _atlSelCol = null; // { th, ink, sur }: the outline colours of the current theme
 
 function atlSelHtml() {
@@ -5258,12 +5283,29 @@ function _atlDrawOutline(ctx, b) {
   ctx.closePath();
   ctx.lineWidth = 3.4; ctx.strokeStyle = _atlSelCol.sur; ctx.stroke();
   ctx.lineWidth = 1.3; ctx.strokeStyle = _atlSelCol.ink; ctx.stroke();
+  // PRD-218: desktop keeps today's rotate handle (a circle over the top edge).
+  let rot = null;
+  if (_atlD()) {
+    const tm = { x: (c[0].x + c[1].x) / 2, y: (c[0].y + c[1].y) / 2 };
+    const bm = { x: (c[2].x + c[3].x) / 2, y: (c[2].y + c[3].y) / 2 };
+    const l = Math.hypot(tm.x - bm.x, tm.y - bm.y) || 1;
+    rot = { x: tm.x + (tm.x - bm.x) / l * FLAT_ROTATE_OFFSET, y: tm.y + (tm.y - bm.y) / l * FLAT_ROTATE_OFFSET };
+    ctx.beginPath(); ctx.moveTo(tm.x, tm.y); ctx.lineTo(rot.x, rot.y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(rot.x, rot.y, FLAT_HANDLE_R, 0, Math.PI * 2);
+    ctx.fillStyle = _atlSelCol.sur; ctx.fill();
+    ctx.lineWidth = 1.6; ctx.stroke();
+  }
   ctx.restore();
-  _flatUI = { corners: c, rotate: null }; // the box moves the element; no canvas handles
+  // The box moves the element; the corners are DOM buttons, never canvas handles.
+  _flatUI = { corners: c, rotate: rot, noScale: true };
 }
 
 /** The free area for the buttons: under the top row, over the strip / bar, left of the rail. */
 function _atlSelSafe() {
+  if (_atlD()) { // PRD-218: the stage right of the order list
+    const r = document.getElementById("flat-editor").getBoundingClientRect();
+    return { l: r.left + 4, t: r.top + 4, r: r.right - 4, b: r.bottom - 4 };
+  }
   const edge = (id, side, fb) => {
     const e = document.getElementById(id);
     return e && e.getClientRects().length ? e.getBoundingClientRect()[side] : fb;
@@ -5289,21 +5331,26 @@ function atlSyncSel() {
   const el = _atl() && flatMode && !document.documentElement.classList.contains("atl-sheet") ? _flatActiveEl() : null;
   const b = el && _flatCv && _flatRect && _flatBoxes[el.id];
   box.hidden = !b;
-  if (!b) return;
+  if (!b) { atdBarPlace(null); return; }
   const text = el.type === "text";
   const size = _flatCmSize(b, _flatRect);
   box.setAttribute("aria-label", text
     ? CT("cfg.layerTextAria", "Текстовый слой: {text}").replace("{text}", el.content)
     : CT("cfg.layerImageAria", "Слой с картинкой, {w} × {h} см").replace("{w}", size[0]).replace("{h}", size[1]));
   // Bottom-left: Ko'proq on an image, "Matnni tahrirlash" on text.
+  // PRD-218, desktop: Nusxa olish top-right; bottom-left Almashtirish on an image.
   const btns = box.querySelectorAll(".atl-cb");
-  const bl = text ? _ATL_CB_EDIT : _ATL_CB[3];
-  if (btns[3].dataset.act !== bl[0]) {
-    btns[3].dataset.act = bl[0];
-    btns[3].setAttribute("data-i18n-attr", "aria-label:" + bl[1]);
-    btns[3].querySelector("svg").innerHTML = _ATL_CB_IC[bl[0]];
-  }
-  btns[3].setAttribute("aria-label", CT(bl[1], bl[2]));
+  const desk = _atlD();
+  const setCb = (btn, cb) => {
+    if (btn.dataset.act !== cb[0]) {
+      btn.dataset.act = cb[0];
+      btn.setAttribute("data-i18n-attr", "aria-label:" + cb[1]);
+      btn.querySelector("svg").innerHTML = _ATL_CB_IC[cb[0]];
+    }
+    btn.setAttribute("aria-label", CT(cb[1], cb[2]));
+  };
+  setCb(btns[3], text ? _ATL_CB_EDIT : desk ? _ATL_CB_REPLACE : _ATL_CB[3]);
+  if (desk || btns[1].dataset.act !== "rot") setCb(btns[1], desk ? _ATL_CB_DUP : _ATL_CB[1]);
 
   const cr = _flatCv.getBoundingClientRect();
   const c = _flatCorners(b, ATL_SEL_PAD, ATL_SEL_MIN);
@@ -5320,6 +5367,7 @@ function atlSyncSel() {
   ring.style.height = hh * 2 + "px";
   ring.style.transform = `translate(${cr.left + b.cx - hw}px, ${cr.top + b.cy - hh}px) rotate(${b.rot || 0}rad)`;
 
+  if (desk) atdBarPlace(el, b, c, cr, safe);
   const tag = document.getElementById("atl-hand-tag");
   tag.hidden = text;
   if (text) return;
@@ -5340,7 +5388,8 @@ function atlSelAct(act, byKey) {
   if (act === "del") {
     deleteElement(el.id);
     // The buttons are gone with the last layer: a keyboard user lands on the rail.
-    const first = byKey && document.getElementById("atl-hand").hidden && document.querySelector("#atl-rail button");
+    const first = byKey && document.getElementById("atl-hand").hidden &&
+      (_atlD() ? document.getElementById("atd-add-image") : document.querySelector("#atl-rail button"));
     if (first) first.focus();
   } else if (act === "rot") {
     const deg = Math.round((el.rotation || 0) * 18000 / Math.PI) / 100;
@@ -5357,6 +5406,10 @@ function atlSelAct(act, byKey) {
     p3SheetOpen(document.querySelector('#atl-hand .atl-cb[data-act="more"]'));
   } else if (act === "edit") {
     atlTextOpen(); // LOOM-313
+  } else if (act === "dup") {
+    atdDuplicate(el);
+  } else if (act === "replace") {
+    p3Replace(el);
   }
 }
 
@@ -5501,11 +5554,13 @@ function atlAskSize(run) {
   if (!_atl() || selectedSize) return false;
   _atlNeed = { run };
   atlSyncStrip();
+  atdFocusSizes(); // PRD-218: desktop asks in the order list's size row
   return true;
 }
 
 function atlStripMode() {
   if (_atlMsg) return "msg"; // LOOM-312
+  if (_atlD()) return ""; // PRD-218: sizes are in the order list, tools under the print
   if (_atlNeed) return "sizes";
   if (elementsOf("front").length + elementsOf("back").length === 0) return "sizes";
   if (!flatMode) return _preview3DReady ? "cam" : "";
@@ -5552,6 +5607,7 @@ function atlSyncStrip() {
   tag.hidden = !text;
   tag.classList.toggle("note", !!selectedSize);
   if (tag.textContent !== text) tag.textContent = text;
+  atdSync(); // PRD-218: the desktop order list follows the same changes
 }
 
 /** The product's sizes from #size-selector, in its order; pressed, disabled and labels mirrored. */
@@ -5731,6 +5787,7 @@ function atlKbHtml() {
 function atlTextOpen(err) {
   const el = selectedElement();
   if (!_atl() || !el || el.type !== "text") return false;
+  if (_atlD()) return atdTextFocus(err); // PRD-218: the field in the bar under the print
   if (_atlSh) atlSheetClose(false);
   if (!flatMode) setFlatMode(true);
   _atlKb = true;
@@ -5875,6 +5932,455 @@ function _atlHasPrev() {
   return sameSite && history.length > 1;
 }
 
+// ── PRD-218: Atelye on desktop (LOOM_FLAGS.cfgAtelyeDesktop) ──
+// From 901px with the flag on, html.cfg-atelye-d (assets/cfg-atelye.css)
+// replaces today's panel with an order list on the left: Kiyim, Rang,
+// O'lcham, Dizayn, Jami and the two buy buttons (today's, moved in by
+// atlPlace). The list never changes shape: the tools of a print are a small
+// bar under it on the stage, shown only while it is selected, next to the
+// corner buttons (LOOM-310) and today's rotate handle. The sheets (LOOM-311)
+// are centred dialogs, the strip (LOOM-312) only carries messages. Every
+// control runs the function the phone shell runs. Built on the first switch
+// to this layout, so a phone never carries the markup.
+const _ATD_D = {
+  chev: "M9 6l6 6-6 6",
+  plus: "M12 5v14M5 12h14",
+  zoom: "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM21 21l-4.35-4.35M11 8v6M8 11h6",
+  reset: "M3 12a9 9 0 1 0 3-6.7M3 4v6h6",
+  more: "M5.5 12h.01M12 12h.01M18.5 12h.01",
+  up: "M12 16V4M7 9l5-5 5 5M5 20h14",
+  x: "M6 6l12 12M18 6L6 18",
+};
+let _atdSig = null; // the Dizayn list last drawn
+let _atdBarT = 0;   // the bar's closing timer
+let _atdDrag = 0;   // dragenter depth while a file is over the stage
+let _atdNew = [];   // cart line ids the last "Savatga qo'shish" added
+
+function atdBuild() {
+  const studio = document.querySelector(".studio");
+  if (!studio || document.getElementById("atd-panel")) return;
+  const span = (k, fb) => `<span data-i18n="${k}">${CT(k, fb)}</span>`;
+  const lab = (k, fb) => `data-i18n-attr="aria-label:${k}" aria-label="${_esc(CT(k, fb))}"`;
+  const tip = (k, fb) => `data-i18n-attr="aria-label:${k};title:${k}" aria-label="${_esc(CT(k, fb))}" title="${_esc(CT(k, fb))}"`;
+  const row = (id, k, fb, right, body) =>
+    `<section class="atd-row" data-row="${id}"><div class="atd-row-h"><h2 data-i18n="${k}">${CT(k, fb)}</h2>${right}</div>${body}</section>`;
+  const fonts = FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}">${_esc(label)}</option>`).join("");
+  studio.insertAdjacentHTML("beforeend",
+    `<aside class="atd-panel" id="atd-panel" ${lab("cfg.settingsPanel", "Панель настройки")}>` +
+      `<h1 class="atd-vh" data-i18n="cfg.panelProduct">${CT("cfg.panelProduct", "Создайте свой дизайн")}</h1>` +
+      '<div class="atd-rows">' +
+        row("garment", "cfg.stepGarment", "Одежда",
+          `<button type="button" class="atd-link" id="atd-garment" aria-haspopup="dialog" aria-expanded="false"><b id="atd-gname"></b>${_ATL_SVG(_ATD_D.chev, 16)}</button>`, "") +
+        row("color", "cfg.shirtColor", "Цвет", '<span class="atd-val" id="atd-cname"></span>',
+          `<div class="atd-colors" id="atd-colors" role="group" ${lab("cfg.colorChoice", "Выбор цвета")}></div>`) +
+        row("size", "cfg.size", "Размер",
+          `<button type="button" class="atd-link atd-u" id="atd-table" aria-haspopup="dialog" aria-expanded="false">${span("cfg.sizeTable", "Таблица размеров")}</button>`,
+          `<div class="atd-sizes" id="atd-sizes" role="group" ${lab("cfg.sizeChoice", "Выбор размера")}></div>` +
+          `<p class="atd-err" id="atd-size-err" role="alert" hidden>${_ATL_SVG(_ATL_ALERT, 16)}<span></span></p>`) +
+        row("design", "cfg.stepDesign", "Дизайн", '<span class="atd-val" id="atd-count"></span>',
+          '<div class="atd-layers" id="atd-layers"></div>' +
+          '<p class="atd-note" id="atd-note"></p>' +
+          `<p class="atd-err" id="atd-up-err" role="alert" hidden>${_ATL_SVG(_ATL_ALERT, 16)}<span></span></p>` +
+          '<div class="atd-add" id="atd-add">' +
+            `<button type="button" class="atd-btn" id="atd-add-image">${_ATL_SVG(_ATD_D.plus, 16)}${span("cfg.railImage", "Картинка")}</button>` +
+            `<button type="button" class="atd-btn" id="atd-add-text">${_ATL_SVG(_ATD_D.plus, 16)}${span("cfg.addText", "Текст")}</button>` +
+          "</div>") +
+      "</div>" +
+      '<div class="atd-foot" id="atd-foot">' +
+        `<p class="atd-total">${span("cfg.total", "Итого")}<b id="atd-price"></b></p>` +
+      "</div>" +
+    "</aside>" +
+    `<div class="atd-side" id="atd-side" role="group" ${lab("cfg.viewMode", "Вид")}>` +
+      [["front", "cfg.viewFront", "Перед"], ["back", "cfg.viewBack", "Зад"]].map(([v, k, fb]) =>
+        `<button type="button" data-view="${v}" aria-pressed="false">${span(k, fb)}<i aria-hidden="true"></i></button>`).join("") +
+    "</div>" +
+    '<div class="atd-view" id="atd-view">' +
+      `<button type="button" class="atd-ib" id="atd-zoom" aria-pressed="false" ${tip("cfg.zoomPrint", "Приблизить область печати")}>${_ATL_SVG(_ATD_D.zoom, 18)}</button>` +
+      `<button type="button" class="atd-ib" id="atd-reset" ${tip("cfg.resetView", "Сброс вида")}>${_ATL_SVG(_ATD_D.reset, 18)}</button>` +
+      `<button type="button" class="atd-ib" id="atd-more" aria-haspopup="dialog" aria-expanded="false" ${tip("cfg.more", "Ещё")}>${_ATL_SVG(_ATD_D.more, 18)}</button>` +
+    "</div>" +
+    '<p class="atd-hint" id="atd-hint" hidden></p>' +
+    `<div class="atd-drop" id="atd-drop" aria-hidden="true">${_ATL_SVG(_ATD_D.up, 22)}${span("cfg.dropHere", "Перетащите файл сюда")}</div>` +
+    `<div class="atd-bar" id="atd-bar" role="toolbar" data-origin="top-center" ${lab("cfg.tools", "Инструменты")}>` +
+      '<div class="atd-g" data-g="image">' +
+        `<span class="atd-low" id="atd-low" hidden>${_ATL_SVG(_ATL_ALERT, 15)}${span("cfg.lowTag", "Низкое качество")}</span>` +
+        `<button type="button" class="atd-tb atd-sq" data-act="minus" ${lab("cfg.narrower", "Уменьшить")}>−</button>` +
+        `<output class="atd-cm" id="atd-cm" ${lab("cfg.width", "Ширина")}></output>` +
+        `<button type="button" class="atd-tb atd-sq" data-act="plus" ${lab("cfg.wider", "Увеличить")}>+</button>` +
+        '<i class="atd-sep"></i>' +
+        `<button type="button" class="atd-tb" data-act="center">${span("cfg.center", "По центру")}</button>` +
+        `<button type="button" class="atd-tb" data-act="replace">${span("cfg.replace", "Заменить")}</button>` +
+      "</div>" +
+      '<div class="atd-g" data-g="text">' +
+        '<input type="text" id="atd-tin" name="print-text" class="atd-tin" autocomplete="off" spellcheck="false"' +
+          ` data-i18n-attr="aria-label:cfg.layerText;placeholder:cfg.textPlaceholder" aria-label="${_esc(CT("cfg.layerText", "Текст"))}" placeholder="${_esc(CT("cfg.textPlaceholder", "Введите текст…"))}" />` +
+        `<span class="atl-sel"><select id="atd-font" class="atd-tb" ${lab("cfg.font", "Шрифт")}>${fonts}</select>${_ATL_SVG("M6 9l6 6 6-6", 15)}</span>` +
+        '<i class="atd-sep"></i>' +
+        `<button type="button" class="atd-tb atd-sq atd-b" data-act="bold" aria-pressed="false" ${lab("cfg.bold", "Жирный")}>B</button>` +
+        `<button type="button" class="atd-tb atd-sq atd-i" data-act="italic" aria-pressed="false" ${lab("cfg.italic", "Курсив")}>I</button>` +
+        '<i class="atd-sep"></i>' +
+        `<input type="color" id="atd-tcolor" class="atl-dot" value="#000000" ${lab("cfg.textColor", "Цвет текста")} />` +
+      "</div>" +
+    "</div>");
+  const $ = (id) => document.getElementById(id);
+  // The dialog's close button: a sheet has its grabber, a dialog has this.
+  const head = document.querySelector("#atl-sh .atl-sh-head");
+  if (head) head.insertAdjacentHTML("beforeend", `<button type="button" class="atd-x" id="atd-x" ${lab("cfg.close", "Закрыть")}>${_ATL_SVG(_ATD_D.x, 20)}</button>`);
+
+  $("atd-panel").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || b.disabled || b.closest("#atd-foot")) return;
+    if (b.id === "atd-garment") return atlSheetOpen("garment", b);
+    if (b.id === "atd-table") return atlSheetOpen("size", b);
+    // As Rasm / Matn on the phone rail.
+    if (b.id === "atd-add-image" || b.id === "atd-add-text") return $(b.id === "atd-add-image" ? "atl-image" : "atl-text").click();
+    if (b.dataset.hex) return selectShirtColor(b.dataset.hex, null);
+    if (b.dataset.size) return atlPickSize(b.dataset.size);
+    if (b.dataset.layer) {
+      if (!flatMode) setFlatMode(true);
+      if (designState.activeView !== b.dataset.view) setActiveView(b.dataset.view);
+      selectElement(b.dataset.layer);
+    }
+  });
+  $("atd-side").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (!flatMode) setFlatMode(true); // the faces are edited in 2D
+    if (designState.activeView !== b.dataset.view) setActiveView(b.dataset.view);
+    atdSync();
+  });
+  $("atd-zoom").addEventListener("click", () => { p3RunItem("zoom"); atdSync(); });
+  $("atd-reset").addEventListener("click", () => {
+    if (!flatMode) return p3Camera("reset");
+    _flatZoomOn = false;
+    renderFlatEditor();
+    atdSync();
+  });
+  $("atd-more").addEventListener("click", (e) => atlSheetOpen("more", e.currentTarget));
+
+  // The bar under the selected print: each control runs today's function.
+  const bar = $("atd-bar"), tin = $("atd-tin");
+  bar.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) e.preventDefault(); }); // the text field keeps the focus
+  bar.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    const el = selectedElement();
+    if (!b || b.disabled || !el) return;
+    const act = b.dataset.act;
+    if (act === "minus" || act === "plus") return p3SetWidthCm(el, Math.max(1, Math.round(p3WidthCm(el)) + (act === "plus" ? 1 : -1)));
+    if (act === "center") return centerSelected();
+    if (act === "replace") return p3Replace(el);
+    const o = $(act === "bold" ? "btn-bold" : "btn-italic");
+    if (o) o.click();
+    renderFlatEditor();
+  });
+  const feed = (id, origId, type) => $(id).addEventListener(type, (e) => {
+    const o = $(origId);
+    if (!o) return;
+    o.value = e.target.value;
+    o.dispatchEvent(new Event(type));
+  });
+  feed("atd-tin", "text-content-input", "input");
+  feed("atd-font", "font-family-select", "change");
+  feed("atd-tcolor", "text-color-picker", "input");
+  tin.addEventListener("input", () => { if (tin.value.trim()) atdTextErr(false); });
+  // Enter or Esc end the typing; the layer stays selected.
+  tin.addEventListener("keydown", (e) => {
+    if (e.isComposing || (e.key !== "Enter" && e.key !== "Escape")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const hand = $("atl-hand");
+    if (hand && !hand.hidden) hand.focus({ preventScroll: true }); else tin.blur();
+  });
+
+  // A file dragged from the desktop lands anywhere on the stage. Capture, so
+  // the 3D stage's own drop (bindImageControls) does not add it twice.
+  const files = (e) => !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files");
+  studio.addEventListener("dragenter", (e) => {
+    if (!_atlD() || !files(e)) return;
+    if (!_atdDrag++ && !_blankOnly) atdDrop(true);
+  }, true);
+  studio.addEventListener("dragover", (e) => {
+    if (!_atlD() || !files(e)) return;
+    e.preventDefault(); // also keeps the browser from opening the file
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = _blankOnly ? "none" : "copy";
+  }, true);
+  studio.addEventListener("dragleave", () => { if (_atdDrag && !--_atdDrag) atdDrop(false); }, true);
+  studio.addEventListener("drop", (e) => {
+    if (!_atlD() || !files(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    _atdDrag = 0;
+    atdDrop(false);
+    const f = e.dataTransfer.files[0];
+    if (!f || _blankOnly) return;
+    if (!flatMode) setFlatMode(true);
+    _pendingLogoIsNew = true; // always a new layer, as "Rasm"
+    handleImageFile(f);
+  }, true);
+
+  window.addEventListener("loom:langchange", () => { _atdSig = null; atdSync(); });
+  window.addEventListener("loom:cart", atdMarkNew); // after cart.js repaints its drawer
+  window.addEventListener("resize", () => { if (_atlD()) atlSyncSel(); });
+  atdBuildColors();
+  atlSyncColors();
+}
+
+/** The Rang row: every colour of the product (the phone stack shows five). */
+function atdBuildColors() {
+  const box = document.getElementById("atd-colors");
+  if (!box) return;
+  box.innerHTML = SHIRT_COLORS.map((def) =>
+    `<button type="button" class="atl-sw" data-hex="${_esc(def.hex)}" aria-label="${_esc(colorLabel(def))}" title="${_esc(colorLabel(def))}"${def.available === false ? " disabled" : ""}>` +
+    `<i style="background-color:${_esc(def.hex)}"></i></button>`).join("");
+}
+
+/** The order list and the stage controls follow the state (called by atlSyncStrip). */
+function atdSync() {
+  const panel = document.getElementById("atd-panel");
+  if (!panel || !_atlD()) return;
+  const $ = (id) => document.getElementById(id);
+  const set = (el, text) => { if (el.textContent !== text) el.textContent = text; };
+  const change = CT("cfg.changeGarment", "Сменить товар");
+  const gname = currentProduct ? productName(currentProduct) : change;
+  set($("atd-gname"), gname);
+  $("atd-garment").setAttribute("aria-label", currentProduct ? change + ": " + gname : change);
+  set($("atd-cname"), getColorName(designState.shirtColor) || "");
+
+  // O'lcham: a refused cart / buy tap outlines the free sizes and says why.
+  atlSyncSizes($("atd-sizes"));
+  const need = !!_atlNeed && !selectedSize;
+  panel.classList.toggle("need", need);
+  const serr = $("atd-size-err");
+  set(serr.lastElementChild, need ? CT("cfg.needSizeCart", "Выберите размер — и мы добавим в корзину") : "");
+  serr.hidden = !need;
+
+  // Dizayn: every print of both faces, the topmost first.
+  const up = !!_atlMsg && _atlMsg.kind === "load";
+  const drawable = (e) => (e.type === "text" ? !!e.content : !!e.img);
+  const rows = _blankOnly ? [] : ["front", "back"].flatMap((v) =>
+    elementsOf(v).filter(drawable).reverse().map((el) => [v, el]));
+  const isSel = (v, el) => flatMode && v === designState.activeView && el.id === designState[v].selId;
+  const sig = [up, _blankOnly].concat(rows.map(([v, el]) =>
+    [v, el.id, el.type === "text" ? el.content : el.name, isSel(v, el)].join("\u0001"))).join("\u0002");
+  if (sig !== _atdSig) {
+    _atdSig = sig;
+    const list = $("atd-layers");
+    const keep = list.contains(document.activeElement) ? document.activeElement.dataset.layer : null;
+    const side = { front: ["cfg.viewFront", "Перед"], back: ["cfg.viewBack", "Зад"] };
+    list.innerHTML =
+      (up ? '<div class="atd-lrow atd-up" role="status"><span class="atd-th"><i class="atl-spin"></i></span>' +
+        `<span><b data-i18n="cfg.uploading">${CT("cfg.uploading", "Загружаем картинку…")}</b><span class="atd-prog"><i></i></span></span></div>` : "") +
+      rows.map(([v, el]) => {
+        const text = el.type === "text";
+        const k = text ? null : ["cfg.railImage", "Картинка"];
+        const name = text ? _esc(el.content) : el.name ? _esc(el.name) : `<span data-i18n="${k[0]}">${CT(k[0], k[1])}</span>`;
+        return `<button type="button" class="atd-lrow" data-layer="${_esc(el.id)}" data-view="${v}"${isSel(v, el) ? ' aria-current="true"' : ""}>` +
+          `<span class="atd-th">${text ? "<b>Aa</b>" : '<img alt="" width="36" height="36" decoding="async" />'}</span>` +
+          `<span><b>${name}</b><i data-i18n="${side[v][0]}">${CT(side[v][0], side[v][1])}</i></span></button>`;
+      }).join("");
+    rows.forEach(([, el]) => {
+      if (el.type !== "image") return;
+      const img = list.querySelector(`[data-layer="${el.id}"] img`);
+      if (img) img.src = el.img.src;
+    });
+    const again = keep && list.querySelector(`[data-layer="${keep}"]`);
+    if (again) again.focus({ preventScroll: true });
+  }
+  set($("atd-count"), _blankOnly ? CT("lab.soon", "Скоро") : rows.length ? String(rows.length) : "");
+  set($("atd-note"), _blankOnly ? unsoldText("print_unavailable")
+    : rows.length || up ? "" : CT("cfg.step1Lead", "Загрузите картинку или напишите текст — вы сразу увидите её на одежде."));
+  $("atd-note").hidden = !$("atd-note").textContent;
+  const uerr = $("atd-up-err");
+  const utext = _atlMsg && _atlMsg.kind === "err" && /^cfg\.uploadErr/.test(_atlMsg.key) ? CT(_atlMsg.key, _atlMsg.fb) : "";
+  set(uerr.lastElementChild, utext);
+  uerr.hidden = !utext;
+  $("atd-add").hidden = _blankOnly;
+
+  // Stage: Old / Orqa with their layer counts, the zoom, the hint.
+  $("atd-side").hidden = _blankOnly;
+  $("atd-side").querySelectorAll("button").forEach((b) => {
+    const n = elementsOf(b.dataset.view).filter(drawable).length;
+    b.setAttribute("aria-pressed", String(flatMode && b.dataset.view === designState.activeView));
+    set(b.lastElementChild, n ? String(n) : "");
+    b.setAttribute("aria-label", b.firstElementChild.textContent + (n ? ", " + CT("cfg.layers", "Слои") + ": " + n : ""));
+  });
+  $("atd-zoom").hidden = $("atd-more").hidden = _blankOnly; // nothing to zoom to, save or reset
+  $("atd-zoom").setAttribute("aria-pressed", String(flatMode && _flatZoomOn));
+  $("atd-reset").hidden = flatMode ? !_flatZoomOn : !_preview3DReady;
+  const hk = _atlMsg || _blankOnly ? null
+    : !flatMode ? (_preview3DReady ? ["cfg.hint3d", "Тяните мышью, чтобы повернуть. Редактирование — в 2D."] : null)
+    : _viewHasContent(designState.activeView) && !selectedElement() ? ["cfg.flatHint", "Тяните дизайн — двигать · углы — размер · кружок — поворот"] : null;
+  set($("atd-hint"), hk ? CT(hk[0], hk[1]) : "");
+  $("atd-hint").hidden = !hk;
+}
+
+/** A refused cart / buy tap moves the focus to the size row. */
+function atdFocusSizes() {
+  if (!_atlD()) return;
+  const b = document.querySelector("#atd-sizes button:not(:disabled)");
+  if (b) b.focus();
+}
+
+/** Show or hide the bar under the print (open 250 ms, close 150 ms; CSS .is-open / .is-closing). */
+function atdBarShow(on) {
+  const bar = document.getElementById("atd-bar");
+  if (on === bar.classList.contains("is-open")) return;
+  clearTimeout(_atdBarT);
+  bar.classList.toggle("is-open", on);
+  bar.classList.toggle("is-closing", !on);
+  if (on) return;
+  if (bar.contains(document.activeElement)) document.activeElement.blur();
+  _atdBarT = setTimeout(() => bar.classList.remove("is-closing"), 150);
+}
+
+/**
+ * Place the bar under the selected print (over it when there is no room
+ * below) and show the print in its controls. No box: hidden, unless the
+ * selected text is empty for a moment while it is being retyped.
+ */
+function atdBarPlace(el, b, c, cr, safe) {
+  const bar = document.getElementById("atd-bar");
+  if (!bar) return;
+  let cx, lo, hi; // the print's centre, and its top and bottom edge with the buttons on them
+  if (b) {
+    const ys = c.map((p) => cr.top + p.y);
+    cx = cr.left + b.cx;
+    lo = Math.min(...ys) - FLAT_ROTATE_OFFSET - FLAT_HANDLE_R;
+    hi = Math.max(...ys) + 22;
+  } else {
+    el = _atlD() && flatMode && !_atlSh && _flatCv && _flatRect ? selectedElement() : null;
+    if (!el || el.type !== "text") return atdBarShow(false);
+    cr = _flatCv.getBoundingClientRect();
+    safe = _atlSelSafe();
+    cx = cr.left + _flatRect.x + _flatRect.w / 2;
+    lo = hi = cr.top + _flatRect.y + _flatRect.h * 0.4;
+  }
+  const text = el.type === "text";
+  bar.dataset.g = text ? "text" : "image";
+  if (text) {
+    const tin = document.getElementById("atd-tin");
+    const v = el.placeholder ? "" : el.content;
+    if (document.activeElement !== tin && tin.value !== v) tin.value = v;
+    document.getElementById("atd-font").value = el.font;
+    document.getElementById("atd-tcolor").value = el.color;
+    bar.querySelector(".atd-b").setAttribute("aria-pressed", String(!!el.bold));
+    bar.querySelector(".atd-i").setAttribute("aria-pressed", String(!!el.italic));
+  } else {
+    const cm = _flatCmSize(b, _flatRect)[0];
+    const out = document.getElementById("atd-cm");
+    const t = cm + " " + CT("cfg.cm", "см");
+    if (out.textContent !== t) out.textContent = t;
+    bar.querySelector('[data-act="plus"]').disabled = cm >= PLATEN_CM.w;
+    bar.querySelector('[data-act="minus"]').disabled = cm <= 1;
+    document.getElementById("atd-low").hidden = !el._lowDpi;
+  }
+  const w = bar.offsetWidth, h = bar.offsetHeight;
+  let top = hi + 10, origin = "top-center";
+  if (top + h > safe.b) { top = Math.max(safe.t, lo - 10 - h); origin = "bottom-center"; }
+  bar.dataset.origin = origin;
+  bar.style.left = Math.round(Math.max(safe.l, Math.min(safe.r - w, cx - w / 2))) + "px";
+  bar.style.top = Math.round(top) + "px";
+  atdBarShow(true);
+}
+
+/** Typing starts in the bar's field. err: the empty-text look (cart refused). */
+function atdTextFocus(err) {
+  if (_atlSh) atlSheetClose(false);
+  if (!flatMode) setFlatMode(true);
+  renderFlatEditor(); // the bar lands on the layer
+  const tin = document.getElementById("atd-tin");
+  if (!tin) return false;
+  atdTextErr(!!err);
+  if (err) atlToast(CT("cfg.untouchedTextCart", "Введите текст или удалите этот текстовый слой, чтобы добавить товар в корзину."), "error");
+  tin.focus({ preventScroll: true });
+  return true;
+}
+
+function atdTextErr(on) {
+  const tin = document.getElementById("atd-tin");
+  tin.classList.toggle("is-err", on);
+  if (on) tin.setAttribute("aria-invalid", "true"); else tin.removeAttribute("aria-invalid");
+}
+
+/** Nusxa olish: the same print again, a step down and right, selected. */
+function atdDuplicate(el) {
+  const st = designState[designState.activeView];
+  markUndo("duplicate");
+  const copy = Object.assign({}, el, { id: _uid(), nx: Math.min(1, el.nx + 0.06), ny: Math.min(1, el.ny + 0.06) });
+  st.elements.push(copy);
+  st.selId = copy.id;
+  if (uploadedFileData[el.id]) uploadedFileData[copy.id] = uploadedFileData[el.id];
+  syncPanelFromState();
+  redrawActive();
+  updateViewToggleMarkers();
+  refreshPriceLabels();
+}
+
+/** The print area lights up while a file is over the stage. */
+function atdDrop(on) {
+  document.documentElement.classList.toggle("atd-drag", on);
+  const d = document.getElementById("atd-drop");
+  if (!on || !d) return;
+  const r = flatMode && _flatCv && _flatRect;
+  const cr = r ? _flatCv.getBoundingClientRect() : document.getElementById("three-container").getBoundingClientRect();
+  // In 3D there is no print rectangle on screen: the middle of the stage.
+  const box = r ? { x: cr.left + _flatRect.x, y: cr.top + _flatRect.y, w: _flatRect.w, h: _flatRect.h }
+    : { x: cr.left + cr.width * 0.33, y: cr.top + cr.height * 0.27, w: cr.width * 0.34, h: cr.height * 0.46 };
+  d.style.left = Math.round(box.x) + "px";
+  d.style.top = Math.round(box.y) + "px";
+  d.style.width = Math.round(box.w) + "px";
+  d.style.height = Math.round(box.h) + "px";
+}
+
+/** Mahsulotni o'zgartirish: every active product, a picture, its price. */
+function atdGarmentDialog(body) {
+  p3EnsureGarments(); // fetches the list once; p3RenderGarments re-renders this
+  const list = _p3Products.length ? _p3Products : currentProduct ? [currentProduct] : [];
+  const slug = currentProduct && currentProduct.slug;
+  const cur = CT("cfg.currency", "сум");
+  body.innerHTML = '<div class="atd-gt">' + list.map((p) =>
+    `<button type="button" class="atd-gtile" data-slug="${_esc(p.slug)}" aria-pressed="${p.slug === slug}">` +
+      '<span class="atd-gimg"><img alt="" width="112" height="112" decoding="async" /></span>' +
+      `<span class="atd-gtx"><b>${_esc(productName(p))}</b><span>${_esc(new Intl.NumberFormat("ru-RU").format(p.price))} ${_esc(cur)}</span></span>` +
+      (p.product_type === "blank" ? `<i data-i18n="cfg.blankNote">${CT("cfg.blankNote", "Этот товар продаётся без принта")}</i>` : "") +
+    "</button>").join("") + "</div>" +
+    `<p class="atl-sh-note" data-i18n="cfg.garmentMove">${CT("cfg.garmentMove", "Ваш дизайн перейдёт на новую одежду. Кепка и брюки пока без принта.")}</p>`;
+  // The photo when there is one, else the product's flat art (as the phone cards).
+  body.querySelectorAll(".atd-gtile").forEach((b, i) => {
+    const p = list[i], img = b.querySelector("img");
+    const fa = p.config && p.config.flat_art && p.config.flat_art.front;
+    let fb = (fa && (fa.src_small || fa.src)) || (_p3Base && _p3Base.art.front.srcSmall);
+    img.addEventListener("error", () => { if (fb) { img.src = fb; fb = null; } else img.remove(); });
+    img.src = p.thumbnail_url || fb || "";
+  });
+}
+
+/**
+ * Savatga qo'shish on desktop: the header's cart drawer (cart.js, LOOM-333)
+ * with the new line marked. False = no drawer here (inside Telegram, or an
+ * older cart.js): the caller opens the cart as today.
+ */
+function atdHandoff(had, from) {
+  const C = window.LOOM_CART;
+  if (!had || !_atlD() || !C.openDrawer || document.documentElement.classList.contains("tma")) return false;
+  _atdNew = ((C.state || {}).items || []).map((i) => String(i.id)).filter((id) => had.indexOf(id) < 0);
+  C.openDrawer(from);
+  atdMarkNew();
+  return true;
+}
+
+function atdMarkNew() {
+  const p = _atdNew.length && document.querySelector(".atl-drw");
+  if (!p) { _atdNew = []; return; }
+  p.querySelectorAll("[data-id]").forEach((r) => {
+    if (_atdNew.indexOf(r.getAttribute("data-id")) < 0 || r.classList.contains("atd-new")) return;
+    r.classList.add("atd-new");
+    const tx = r.querySelector(".atl-drw-top"); // its own line under the name and the price
+    if (tx) tx.insertAdjacentHTML("afterend", `<span class="atd-newtag" data-i18n="cfg.justAdded">${CT("cfg.justAdded", "только что добавлено")}</span>`);
+  });
+}
+
 // ── LOOM-298: desktop accordion stepper (LOOM_FLAGS.cfgDesktop) ──
 // One header per step over today's panel bodies (step 1 #tab-color, step 2
 // the design dock, step 3 #tab-summary); CSS under html.cfg-desk3 orders
@@ -5923,7 +6429,7 @@ function _d3Enter(e, ae) {
   if (e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return false;
   // A focused control keeps its own Enter: a button clicks itself.
   if (ae && ae !== document.body && ae.closest('button, a[href], summary, [contenteditable="true"], [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="radio"], [role="option"], [role="menuitem"], [role="switch"]')) return false;
-  if (document.querySelector(".flat-add-sheet.open")) return false;
+  if (document.querySelector(".flat-add-sheet.open") || _atlSh) return false;
   const cta = ["btn-step-next", "btn-add-to-cart"].map((id) => document.getElementById(id))
     .find((b) => b && !b.disabled && b.getClientRects().length);
   if (!cta) return false;
@@ -6330,7 +6836,9 @@ function atlSheetOpen(view, trigger) {
     renderFlatEditor(); // the selection outline and its buttons step aside
     if (trigger && trigger.hasAttribute("aria-expanded")) trigger.setAttribute("aria-expanded", "true");
   }
-  const first = document.querySelector("#atl-sh-body button:not([aria-disabled='true'])") || document.getElementById("atl-grab");
+  // PRD-218: a desktop dialog has no grabber; its close button takes the focus instead.
+  const first = document.querySelector("#atl-sh-body button:not([aria-disabled='true'])") ||
+    (_atlD() && document.getElementById("atd-x")) || document.getElementById("atl-grab");
   first.focus({ preventScroll: true });
 }
 
@@ -6355,7 +6863,8 @@ function atlSheetClose(restore = true) {
 function atlSheetRender() {
   if (!_atlSh) return;
   const view = _atlSh.view;
-  const t = ATL_SH_TITLE[view];
+  // PRD-218: the desktop dialog is named after the row that opens it.
+  const t = view === "garment" && _atlD() ? ["cfg.changeGarment", "Сменить товар"] : ATL_SH_TITLE[view];
   const title = document.getElementById("atl-sh-title");
   title.setAttribute("data-i18n", t[0]); // i18n.apply re-translates it
   title.textContent = CT(t[0], t[1]);
@@ -6366,7 +6875,10 @@ function atlSheetRender() {
   const refocus = sh.contains(document.activeElement) && document.activeElement.id !== "atl-grab";
   aside.innerHTML = "";
   body.className = "atl-sh-body atl-sh-" + view;
-  if (view === "garment") {
+  if (_atlD()) sh.dataset.view = view; // PRD-218: the dialog's width follows its content
+  if (view === "garment" && _atlD()) {
+    atdGarmentDialog(body); // PRD-218: tiles with a picture and a price; colour and size are in the order list
+  } else if (view === "garment") {
     aside.innerHTML = `<button type="button" class="atl-sh-link" data-view="size">${_atlShSpan("cfg.sizeTable", "Таблица размеров")}</button>`;
     p3EnsureGarments(); // fetches the list once; p3RenderGarments re-renders this
     // The list from GET /api/products; the current garment alone when it failed.
@@ -6389,7 +6901,9 @@ function atlSheetRender() {
   } else if (view === "more") {
     const icon = (id) => P3_MORE.find((m) => m[0] === id)[3];
     const ready = _preview3DReady;
-    body.innerHTML = '<div class="atl-gt">' + ATL_SH_MORE.map(([id, k, fb]) =>
+    // PRD-218, desktop: Qatlamlar is the order list's Dizayn row and the zoom is on the stage.
+    const items = _atlD() ? ATL_SH_MORE.filter((m) => m[0] !== "layers" && m[0] !== "zoom") : ATL_SH_MORE;
+    body.innerHTML = '<div class="atl-gt">' + items.map(([id, k, fb]) =>
       `<button type="button" class="atl-gtile" data-item="${id}"` +
         (id === "zoom" ? ` aria-pressed="${flatMode && _flatZoomOn}"` : "") +
         (id === "png" && !ready ? ' aria-disabled="true" aria-describedby="atl-sh-hint"' : "") + ">" +
@@ -6439,6 +6953,7 @@ function bindAtelyeSheet() {
   sh.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b || b === grab || b.disabled || b.getAttribute("aria-disabled") === "true") return;
+    if (b.id === "atd-x") return atlSheetClose(); // PRD-218: the desktop dialog's close button
     if (b.dataset.view) return atlSheetOpen(b.dataset.view);
     if (b.dataset.slug) {
       const p = _p3Products.find((x) => x.slug === b.dataset.slug);
@@ -7688,6 +8203,7 @@ async function addToCart(opts) {
     const designJson = _blankOnly
       ? JSON.stringify({ plain: true, shirtColor: designState.shirtColor, size: selectedSize })
       : _buildDesignJson();
+    const had = _atlD() ? ((window.LOOM_CART.state || {}).items || []).map((i) => String(i.id)) : null; // PRD-218
     try {
       await window.LOOM_CART.add({
         productId: currentProduct ? currentProduct.id : null,
@@ -7727,7 +8243,7 @@ async function addToCart(opts) {
     } else {
       showToast(CT("cfg.toastAddedCart", "Добавлено в корзину"));
     }
-    if (opts.openDrawer !== false) window.LOOM_CART.open();
+    if (opts.openDrawer !== false) { if (!atdHandoff(had, btn)) window.LOOM_CART.open(); }
     // buyNow leaves the page next: wait until the .glb is kept on the device
     // (not uploaded), for at most what is left of 8 s (G5 is 10 s on a
     // mid-range phone; 2 s stay for the checkout load).
@@ -7873,6 +8389,7 @@ function sizeChosen() {
   if (_atl()) { // LOOM-309: the strip asks for the size; no step, no toast
     if (!_atlNeed) _atlNeed = { run: null };
     atlSyncStrip();
+    atdFocusSizes(); // PRD-218
     return false;
   }
   if (currentStep !== "color") setStep("color");
@@ -8421,7 +8938,8 @@ function _p3FlagOffFit() {
   root.classList.remove(...flagClasses);
   // LOOM-317: the Atelye shell is html.cfg-atelye plus the 2D / 3D pill moved
   // off the stage, and the fit measures that pill (chipBand), so put both home.
-  const atl = root.classList.contains("cfg-atelye");
+  // PRD-218: the desktop Atelye layout (html.cfg-atelye-d) likewise.
+  const atl = root.classList.contains("cfg-atelye") || root.classList.contains("cfg-atelye-d");
   const focused = document.activeElement; // moving a focused button blurs it
   if (atl) atlPlace(false);
   const w = box.clientWidth, h = box.clientHeight; // forces the flag-off layout

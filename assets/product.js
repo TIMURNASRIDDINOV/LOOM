@@ -165,10 +165,11 @@
     root.innerHTML =
       '<div class="atl-two atl-two-left">' +
         '<div class="atl-stick pd-info">' +
+          '<nav class="atl-only-d pd-crumb"><a href="catalog.html">' + esc(t('atl.nav.catalog', 'Katalog')) + '</a><span aria-hidden="true">/</span><span>' + esc(nm) + '</span></nav>' +
           '<div class="pd-head"><h1 class="atl-t1">' + esc(nm) + '</h1>' +
             '<p class="atl-t2 atl-num">' + esc(pr) + '</p>' +
             (tag ? '<span class="atl-tag">' + esc(tag) + '</span>' : '') + '</div>' +
-          (cols.length ? '<div class="atl-grp"><h2 id="pd-col-h">' + esc(t('atl.prod.color', 'Rang: {color}').replace('{color}', col ? colorName(col) : '')) + '</h2>' +
+          (cols.length ? '<div class="atl-grp pd-col-grp"><h2 id="pd-col-h">' + esc(t('atl.prod.color', 'Rang: {color}').replace('{color}', col ? colorName(col) : '')) + '</h2>' +
             '<div class="atl-szs" role="group" aria-labelledby="pd-col-h">' +
               cols.map(function (c, i) {
                 return '<button type="button" class="atl-sw" data-col="' + i + '" aria-pressed="' + (i === S.color) + '" aria-label="' + esc(colorName(c)) + '">' +
@@ -232,7 +233,7 @@
     if (key) { var el = root.querySelector(key); if (el) el.focus(); }
   }
 
-  function toast(msg, err) {
+  function toast(msg, err, link) {
     var old = document.getElementById('pd-toast');
     if (old) old.remove();
     var el = document.createElement('div');
@@ -240,8 +241,9 @@
     el.className = 'atl-toast' + (err ? ' atl-toast-err' : '');
     el.setAttribute('role', err ? 'alert' : 'status');
     el.textContent = msg;
+    if (link) el.insertAdjacentHTML('beforeend', link);
     body.appendChild(el);
-    setTimeout(function () { el.remove(); }, 2800);
+    setTimeout(function () { el.remove(); }, link && window.matchMedia('(min-width: 900px)').matches ? 5000 : 2800);
   }
 
   function toLogin() {
@@ -285,9 +287,13 @@
           return;
         }
         var items = (res.j && res.j.items) || [];
+        // desktop cart drawer (cart.js) shows the server cart just returned
+        if (window.LOOM_CART && res.j && Array.isArray(res.j.items)) window.LOOM_CART.sync(res.j);
         if (window.LOOM_SHELL) window.LOOM_SHELL.setCount(items.reduce(function (s, i) { return s + (i.quantity || 1); }, 0));
         if (window.LOOM_TRACK) window.LOOM_TRACK.event('cfg_cart');
-        toast(t('cart.added', 'Savatga qo‘shildi') + ' · ' + S.size);
+        // desktop only: a link that opens the cart drawer (phones keep the plain toast)
+        toast(t('cart.added', 'Savatga qo‘shildi') + ' · ' + S.size, false,
+          '<a class="atl-only-d pd-toast-lnk" href="cart.html" data-atl-cart-link>' + esc(t('atl.cart.goCart', 'Savatga o‘tish')) + '</a>');
       })
       .catch(function () { toast(t('atl.state.offline', 'Internet yo‘q.'), true); })
       .then(function () { S.busy = false; update(); });

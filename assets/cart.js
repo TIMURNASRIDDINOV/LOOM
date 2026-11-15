@@ -87,6 +87,8 @@
     var n = state.items.reduce(function (s, i) { return s + (i.quantity || 1); }, 0);
     var el = document.getElementById('cartCount');
     if (el) { el.textContent = n; el.classList.toggle('show', n > 0); }
+    // pages without the bottom nav (product, order) have no #cartCount: tell the shell
+    else if (window.LOOM_SHELL && window.LOOM_SHELL.setCount) window.LOOM_SHELL.setCount(n);
     try { window.dispatchEvent(new CustomEvent('loom:cart', { detail: state })); } catch (e) { /* old browser */ }
   }
 
@@ -250,6 +252,145 @@
       .then(function () { location.href = 'cart.html'; });
   }
 
+  /* ── desktop drawer (LOOM-333) ────────────────────────────────
+     From 900 px on an Atelye page, the header Savat link opens a 460 px
+     drawer instead of leaving the page: lines, the server's totals and
+     Rasmiylashtirish directly under Jami. Focus moves in and is kept
+     there; Esc, the dimmer and the close button shut it and focus goes
+     back to the link. Phones and the cart/checkout pages keep the link. */
+  var DESK = '(min-width: 900px)';
+  var dr = null, drOpener = null;
+  var DI = {
+    x: 'M6 6l12 12M18 6L6 18',
+    shirt: 'M8 4l-5 3 2 4 2-1v10h10V10l2 1 2-4-5-3a4 4 0 01-8 0z',
+    edit: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
+    trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  };
+  function dic(n, small) { return '<svg class="atl-ic' + (small ? ' atl-ic-s' : '') + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + DI[n] + '"/></svg>'; }
+  function desc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function drawerOn() {
+    var page = document.body.getAttribute('data-page');
+    return ATELYE && page !== 'cart' && page !== 'checkout' &&
+      !document.documentElement.classList.contains('tma') &&
+      !!(window.matchMedia && window.matchMedia(DESK).matches);
+  }
+  function drawerHtml() {
+    var items = state.items || [];
+    var n = items.reduce(function (s, i) { return s + (i.quantity || 1); }, 0);
+    var title = n ? t('atl.cart.titleN', 'Savat · {n}').replace('{n}', n) : t('atl.cart.title', 'Savat');
+    var head = '<div class="atl-drw-hd"><h2 class="atl-t3" id="atl-drw-h">' + desc(title) + '</h2>' +
+      '<button type="button" class="atl-ib" data-drw-close aria-label="' + desc(t('atl.close', 'Yopish')) + '">' + dic('x') + '</button></div>';
+    if (!items.length) {
+      return head + '<div class="atl-drw-bd"><div class="atl-empty">' +
+        '<p class="atl-t3">' + desc(t('atl.cart.empty', 'Savat bo‘sh')) + '</p>' +
+        '<p class="atl-sm">' + desc(t('atl.cart.emptyLead', '')) + '</p>' +
+        '<div class="atl-btns" style="width:100%"><a class="atl-btn atl-btn-p" href="configurator.html">' + desc(t('atl.nav.create', 'Dizayn yaratish')) + '</a>' +
+        '<a class="atl-btn" href="catalog.html">' + desc(t('atl.cart.toCatalog', 'Katalogga o‘tish')) + '</a></div></div></div>';
+    }
+    var lines = items.map(function (it) {
+      var meta = summarize(it.design_json).join(' · ');
+      var design = true;
+      try { design = !JSON.parse(it.design_json || '{}').plain; } catch (e) { design = true; }
+      return '<div class="atl-row atl-drw-row" data-id="' + desc(it.id) + '">' +
+        '<span class="atl-cv atl-thumb">' + dic('shirt', 1) + '<img alt="" decoding="async" style="display:none"></span>' +
+        '<span class="atl-row-tx"><span class="atl-drw-top"><b>' + desc(productName(it)) + '</b><b class="atl-num">' + desc(fmt(it.unit_price * it.quantity)) + '</b></span>' +
+          (meta ? '<i>' + desc(meta) + '</i>' : '') +
+          (it.unavailable ? '<span class="atl-warn">' + desc(t('cfg.productUnavailable', 'Bu mahsulot hozir mavjud emas')) + '</span>' : '') +
+          '<span class="atl-drw-ctl"><span class="atl-qty" role="group">' +
+            '<button type="button" data-drw="dec" aria-label="' + desc(t('atl.cart.dec', 'Kamaytirish')) + '"' + (it.quantity <= 1 ? ' disabled' : '') + '>−</button>' +
+            '<output>' + desc(it.quantity) + '</output>' +
+            '<button type="button" data-drw="inc" aria-label="' + desc(t('atl.cart.inc', 'Ko‘paytirish')) + '"' + (it.quantity >= 99 ? ' disabled' : '') + '>+</button></span>' +
+            (design ? '<a class="atl-ib" href="configurator.html?item=' + encodeURIComponent(it.id) + '" aria-label="' + desc(t('atl.cart.edit', 'O‘zgartirish')) + '">' + dic('edit', 1) + '</a>' : '') +
+            '<button type="button" class="atl-ib" data-drw="del" aria-label="' + desc(t('atl.cart.remove', 'O‘chirish')) + '">' + dic('trash', 1) + '</button>' +
+          '</span></span></div>';
+    }).join('');
+    var delivery = state.delivery || 0;
+    var payable = typeof state.payable === 'number' ? state.payable : (state.total || 0) + delivery;
+    return head + '<div class="atl-drw-bd atl-lst">' + lines + '</div>' +
+      '<div class="atl-drw-ft"><div class="atl-price-lines">' +
+        '<div><span>' + desc(t('atl.sum.items', 'Mahsulotlar')) + '</span><span>' + desc(fmt(state.total || 0)) + '</span></div>' +
+        '<div><span>' + desc(t('atl.sum.delivery', 'Yetkazib berish')) + '</span><span>' + desc(fmt(delivery)) + '</span></div>' +
+        '<div class="atl-price-tot"><span>' + desc(t('atl.sum.total', 'Jami')) + '</span><span>' + desc(fmt(payable)) + '</span></div></div>' +
+        '<a class="atl-btn atl-btn-p atl-btn-w" href="checkout.html">' + desc(t('atl.cart.checkout', 'Rasmiylashtirish')) + '</a>' +
+        '<p class="atl-sm">' + desc(t('atl.cart.prepayNote', '')) + '</p></div>';
+  }
+  function paintDrawer() {
+    if (!dr) return;
+    var a = document.activeElement, keep = null;
+    if (a && dr.panel.contains(a)) {
+      var row = a.closest('[data-id]');
+      keep = a.hasAttribute('data-drw') && row ? '[data-id="' + row.getAttribute('data-id') + '"] [data-drw="' + a.getAttribute('data-drw') + '"]' : null;
+    }
+    dr.panel.innerHTML = drawerHtml();
+    (state.items || []).forEach(function (it) {
+      var img = dr.panel.querySelector('[data-id="' + it.id + '"] img');
+      if (!img) return;
+      img.addEventListener('load', function () { var svg = img.previousElementSibling; if (svg) svg.remove(); }, { once: true });
+      thumbInto(img, it);
+    });
+    var f = keep && dr.panel.querySelector(keep);
+    if (a && dr.panel.contains(a) && !document.contains(a)) (f && !f.disabled ? f : dr.panel.querySelector('[data-drw-close]')).focus();
+  }
+  function focusables() {
+    return Array.prototype.filter.call(dr.panel.querySelectorAll('a[href],button:not([disabled])'), function (el) { return el.offsetParent !== null; });
+  }
+  function openDrawer(from) {
+    if (dr) return;
+    drOpener = from || null;
+    var dim = document.createElement('div');
+    dim.className = 'atl-dim atl-drw-dim';
+    var panel = document.createElement('aside');
+    panel.className = 'atl-drw';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'atl-drw-h');
+    document.body.appendChild(dim);
+    document.body.appendChild(panel);
+    dr = { dim: dim, panel: panel };
+    paintDrawer();
+    dim.addEventListener('click', closeDrawer);
+    panel.addEventListener('click', function (e) {
+      if (e.target.closest('[data-drw-close]')) return closeDrawer();
+      var b = e.target.closest('button[data-drw]');
+      if (!b || b.disabled) return;
+      var id = b.closest('[data-id]').getAttribute('data-id');
+      var it = state.items.find(function (i) { return String(i.id) === id; });
+      if (!it) return;
+      var act = b.getAttribute('data-drw');
+      if (act === 'del') { b.disabled = true; remove(it.id); }
+      else setQty(it.id, it.quantity + (act === 'inc' ? 1 : -1));
+    });
+    panel.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); return closeDrawer(); }
+      if (e.key !== 'Tab') return;
+      var all = focusables();
+      if (!all.length) return;
+      var first = all[0], last = all[all.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    document.documentElement.classList.add('atl-drw-open');
+    panel.querySelector('[data-drw-close]').focus();
+  }
+  function closeDrawer() {
+    if (!dr) return;
+    dr.dim.remove();
+    dr.panel.remove();
+    dr = null;
+    document.documentElement.classList.remove('atl-drw-open');
+    var o = drOpener && document.contains(drOpener) ? drOpener : document.querySelector('.atl-hdr [data-atl-cart-link]');
+    if (o) o.focus();
+  }
+  window.addEventListener('loom:cart', paintDrawer);
+  window.addEventListener('loom:langchange', paintDrawer);
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[data-atl-cart-link]');
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || !drawerOn()) return;
+    e.preventDefault();
+    // the toast's link: hand focus back to the header link, not the vanishing toast
+    openDrawer(a.closest('.atl-toast') ? document.querySelector('.atl-hdr [data-atl-cart-link]') : a);
+  });
+
   /* ── boot ───────────────────────────────────────────────────── */
   function boot() {
     var btn = document.getElementById('navCartBtn');
@@ -268,7 +409,7 @@
   window.LOOM_CART = {
     productName: productName,
     load: load, sync: sync, add: add, remove: remove, setQty: setQty, uploadModel: uploadModel,
-    open: open, updateBadge: updateBadge, toast: toast,
+    open: open, updateBadge: updateBadge, toast: toast, openDrawer: openDrawer, closeDrawer: closeDrawer,
     thumbInto: thumbInto, summarize: summarize,
     get state() { return state; },
   };

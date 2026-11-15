@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/atelye.css?v=2" />
+  <link rel="stylesheet" href="assets/atelye.css?v=3" />
   <style>
     /* Product page only. Phone: garment on top, one action bar at the
        bottom. Desktop: panel left, garment right (atl-two-left). */
@@ -49,6 +49,39 @@
     .pd-404 { font: 800 34px var(--f); font-stretch: 125%; }
     .pd-nf-btns { width: 100%; max-width: 420px; }
     html.tma-main .atl-abar .pd-main { display: none; }
+    /* Desktop (LOOM-333): full-bleed panel left in the order-list style
+       (rows Rang / O‘lcham, then the actions), garment canvas right. */
+    @media (min-width: 900px) {
+      body[data-page="product"] main.atl-wrap { max-width: none; padding: 0; }
+      #pd-root > .atl-empty { max-width: 1200px; margin: 0 auto; padding: 48px 40px; }
+      #pd-root > .atl-two-left { grid-template-columns: 440px minmax(0, 1fr); gap: 0; min-height: calc(100vh - 68px); align-items: stretch; }
+      .pd-info { position: static; background: var(--surface); box-shadow: 1px 0 0 var(--ln); padding: 28px 36px 40px; gap: 0; }
+      .pd-crumb { display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--mut); margin-bottom: 14px; min-width: 0; }
+      .pd-crumb a { min-height: 44px; display: inline-flex; align-items: center; }
+      .pd-crumb span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pd-head { gap: 4px; padding-bottom: 22px; }
+      .pd-head .atl-t1 { font-size: 30px; }
+      .pd-head .atl-t2 { font: 600 16px var(--f); color: var(--mut); }
+      .pd-info > .atl-grp { gap: 12px; padding: 18px 0; box-shadow: 0 -1px 0 var(--ln); }
+      .pd-info > .pd-col-grp { flex-direction: row; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+      .pd-info > .atl-grp + .atl-only-d { box-shadow: 0 -1px 0 var(--ln); padding-top: 22px; }
+      #pd-size-grp .atl-szs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+      #pd-size-grp .atl-sz { width: auto; height: 48px; }
+      .pd-info .atl-only-d .atl-btns { flex-direction: column; gap: 6px; }
+      .pd-info .atl-only-d .atl-btns > * { flex: none; width: 100%; }
+      .pd-info .atl-only-d .atl-btn:not(.atl-btn-p) { box-shadow: none; height: 44px; text-decoration: underline; text-underline-offset: 3px; }
+      .pd-info > .atl-lead { font-size: 14px; padding-top: 18px; }
+      .pd-info > .atl-lst { padding-top: 18px; gap: 6px; }
+      .pd-info > .atl-lst .atl-row { min-height: 0; padding: 0; border: 0; }
+      .pd-info > .atl-lst .atl-row-ico { display: none; }
+      .pd-info > .atl-lst .atl-row-tx { flex-direction: row; flex-wrap: wrap; gap: 0 6px; font-size: 13px; line-height: 1.5; color: var(--mut); }
+      .pd-info > .atl-lst .atl-row-tx b { font-size: 13px; font-weight: 600; color: var(--ink); }
+      .pd-info > .atl-lst .atl-row-tx i { font-size: 13px; }
+      .pd-stage { position: sticky; top: 68px; height: calc(100vh - 68px); max-height: none; aspect-ratio: auto; border-radius: initial; padding: 6%; }
+      #pd-root > .atl-two-left > .pd-info:first-child:has(.atl-skel) { padding-top: 40px; gap: 16px; }
+      #pd-sizes { width: min(640px, calc(100% - 48px)); }
+      .pd-toast-lnk { color: inherit; font-weight: 700; text-decoration: underline; min-height: 24px; display: inline-flex; align-items: center; }
+    }
   </style>
 </head>
 <body data-page="product" data-title="Katalog" data-back="catalog.html" data-no-nav>
@@ -96,13 +129,14 @@
     </ul>
   </div>
 
-  <script src="assets/config.js?v=9"></script>
-  <script src="assets/i18n.js?v=61"></script>
+  <script src="assets/config.js?v=10"></script>
+  <script src="assets/i18n.js?v=62"></script>
   <script src="assets/auth.js?v=6"></script>
   <script src="assets/tma.js?v=5"></script>
-  <script src="assets/shell.js?v=3"></script>
+  <script src="assets/shell.js?v=4"></script>
   <script defer src="assets/track.js?v=6"></script>
   <script defer src="assets/analytics.js?v=4"></script>
-  <script src="assets/product.js?v=1"></script>
+  <script src="assets/cart.js?v=11"></script>
+  <script src="assets/product.js?v=2"></script>
 </body>
 </html>
