@@ -43,10 +43,11 @@ const user = (id) => ({ Authorization: `Bearer ${token(id)}` })
 const admin = (id) => ({ Cookie: `admin_token=${token(id, 'admin')}` })
 async function call(method, path, { status = 200, headers = {}, body, form, on = mf } = {}) {
   const init = { method, headers: { ...headers } }
-  if (form) { // Miniflare 4 does not serialise a Node FormData on every Node version (CI runs 22): encode the multipart body here.
-    const encoded = new Response(form)
-    init.headers['Content-Type'] = encoded.headers.get('content-type')
-    init.body = Buffer.from(await encoded.arrayBuffer())
+  if (form) { // `form` is the receipt bytes. Encoded by hand: a Node FormData does not survive Miniflare 4.
+    const b = 'loomtestboundary'
+    const head = `--${b}\r\nContent-Disposition: form-data; name="file"; filename="receipt.png"\r\nContent-Type: application/octet-stream\r\n\r\n`
+    init.body = Buffer.concat([Buffer.from(head), Buffer.from(form), Buffer.from(`\r\n--${b}--\r\n`)])
+    init.headers['Content-Type'] = `multipart/form-data; boundary=${b}`
   } else if (body !== undefined) { init.body = JSON.stringify(body); init.headers['Content-Type'] = 'application/json' }
   const res = await on.dispatchFetch(`http://localhost${path}`, init)
   const data = await res.json().catch(() => null)
@@ -55,7 +56,7 @@ async function call(method, path, { status = 200, headers = {}, body, form, on =
   return data
 }
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
-const receipt = (bytes = PNG) => { const f = new FormData(); f.append('file', new Blob([bytes]), 'receipt.png'); return f }
+const receipt = (bytes = PNG) => bytes
 /** Background (waitUntil) work has no handle: poll until it shows. */
 async function until(probe, message) {
   for (let i = 0; i < 100; i++) { if (await probe()) return; await new Promise((r) => setTimeout(r, 10)) }
@@ -141,7 +142,8 @@ try {
 
   // ── "Paid" needs a receipt; the receipt must really be an image ──
   eq((await call('POST', `/api/me/orders/${id}/paid`, { status: 409, headers: user(1) })).code, 'receipt_required')
-  eq((await call('POST', `/api/me/orders/${id}/receipt`, { status: 400, headers: user(1), form: receipt(new TextEncoder().encode('<html>not an image</html>')) })).code, 'receipt_invalid')
+  const notImage = await call('POST', `/api/me/orders/${id}/receipt`, { status: 400, headers: user(1), form: receipt(new TextEncoder().encode('<html>not an image</html>')) })
+  eq(notImage.code, 'receipt_invalid', JSON.stringify(notImage))
   await call('POST', `/api/me/orders/${id}/receipt`, { status: 400, headers: user(1), body: {} })
   eq((await row(id)).receipt_key, null)
   await call('POST', `/api/me/orders/${id}/receipt`, { status: 201, headers: user(1), form: receipt() })
