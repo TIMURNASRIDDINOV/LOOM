@@ -1,888 +1,158 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uz">
 <head>
-  <meta charset="UTF-8" />
-  <!-- Favicon (pencil mark) -->
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
-  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
-  <meta name="robots" content="noindex, follow" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#f4f2ed" />
-  <title>LOOM — Личный кабинет</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=12" />
-  <link rel="stylesheet" href="assets/nav.css?v=13" />
-  <link rel="stylesheet" href="assets/auth.css?v=13" />
-  <!-- warm the socket for the lazily-fetched map library -->
-  <link rel="preconnect" href="https://unpkg.com" crossorigin />
-  <script src="assets/boot.js?v=9"></script>
-
-  <!-- Page scripts: deferred, document order preserved. -->
-  <script defer src="assets/vendor/gsap.min.js?v=1"></script>
-  <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
-  <script defer src="assets/vendor/lenis.min.js?v=1"></script>
-  <script defer src="assets/config.js?v=9"></script>
-  <script defer src="assets/layout.js?v=7"></script>
-  <script defer src="assets/i18n.js?v=57"></script>
-  <script defer src="assets/auth.js?v=5"></script>
-  <script defer src="assets/tma.js?v=4"></script>
-  <script defer src="assets/nav.js?v=2"></script>
-  <script defer src="assets/motion.js?v=11"></script>
-  <script defer src="assets/designer.js?v=2"></script>
-  <script defer src="assets/account.js?v=10"></script>
-  <script defer src="assets/map-picker.js?v=2"></script>
-  <script defer src="assets/analytics.js?v=3"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Profil — LOOM</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <script src="assets/boot.js?v=10"></script>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/atelye.css?v=1">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    /* ══════════════════════════════════════════════════════════════
-       The cabinet, in the site's own voice.
-       Tokens come from assets/theme.css (§11 exports --rule / --hard /
-       --hard-sm / --hard-accent); nothing here reinvents a value.
-       ═══════════════════════════════════════════════════════════ */
-    :root {
-      --bg: var(--paper); --panel: var(--paper-3); --hairline: var(--line-soft);
-      --muted: var(--ink-55); --mono: var(--font-mono);
-      --map-scrim: rgba(244,242,237,0.97);
-    }
-    :root[data-theme="dark"] { --map-scrim: rgba(21,20,18,0.97); }
-    body { font-family: var(--font-body); background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; }
-    /* theme.css puts overflow-x:clip on <html> to kill sideways wiggle. Chrome
-       propagates that to the viewport and leaves <body> computing as
-       `hidden auto` — a scroll container, which silently kills position:sticky
-       on body's children. The tab rail has to stick, and the sideways clip
-       stays on <html>, so opt this page's body back out. */
-    body { overflow: visible; }
-    a { text-decoration: none; color: inherit; }
-
-    /* ── Masthead ─────────────────────────────────────────────────
-       The name is the headline, the way the market and home heroes
-       put their subject at display size. */
-    .acc-mast { padding: calc(var(--nav-h) + clamp(2.25rem, 6vw, 4rem)) 0 clamp(1.5rem, 3vw, 2.25rem); }
-    .acc-mast__back {
-      display: inline-block; margin-bottom: clamp(1.4rem, 3vw, 2rem);
-      font-family: var(--font-mono); font-size: var(--text-label);
-      letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-55);
-      transition: color 0.15s;
-    }
-    .acc-mast__back:hover { color: var(--accent-deep); }
-    .acc-mast__eyebrow { display: block; margin-bottom: clamp(1rem, 2.4vw, 1.5rem); }
-    .acc-mast__id { display: flex; align-items: flex-end; gap: clamp(1.25rem, 2.5vw, 1.9rem); flex-wrap: wrap; }
-    .acc-mast__name {
-      font-family: var(--font-display); font-weight: 700;
-      font-size: clamp(2.6rem, 8vw, 5.5rem); line-height: 0.86;
-      letter-spacing: -0.045em; overflow-wrap: anywhere;
-    }
-    .acc-mast__facts { display: flex; flex-wrap: wrap; gap: 0.35rem 1.5rem; min-width: 0; }
-    .acc-mast__meta {
-      display: flex; align-items: baseline; justify-content: space-between;
-      gap: 0.6rem 1.5rem; flex-wrap: wrap;
-      margin-top: clamp(1.5rem, 3.2vw, 2.2rem); padding-bottom: 1rem;
-      border-bottom: var(--rule);
-      font-family: var(--font-mono); font-size: var(--text-label);
-      letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-55);
-    }
-    .acc-mast__cta { color: var(--accent-deep); transition: color 0.15s; }
-    .acc-mast__cta:hover { color: var(--accent); }
-
-    /* ── Avatar: a stamped square, not a bubble ──────────────────── */
-    .avatar-wrap { position: relative; flex-shrink: 0; }
-    .avatar-img, .avatar-placeholder {
-      width: clamp(72px, 10vw, 112px); height: clamp(72px, 10vw, 112px);
-      border-radius: 0; object-fit: cover; display: block;
-      border: var(--rule); box-shadow: var(--hard);
-      background: var(--paper-2);
-    }
-    .avatar-placeholder {
-      display: flex; align-items: center; justify-content: center;
-      background: var(--accent); color: var(--on-accent);
-      font-family: var(--font-display); font-weight: 700;
-      font-size: clamp(1.6rem, 3.2vw, 2.5rem); letter-spacing: -0.03em;
-    }
-    .avatar-upload-btn {
-      position: absolute; bottom: -9px; right: -9px;
-      width: 30px; height: 30px; border-radius: 0;
-      background: var(--ink); color: var(--paper); border: var(--rule); cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.18s, color 0.18s, transform 0.12s ease;
-    }
-    .avatar-upload-btn:hover { background: var(--accent); color: var(--on-accent); border-color: var(--ink); }
-    /* keep the 30px visual square, give thumbs a ~46px hit area */
-    .avatar-upload-btn::before { content: ''; position: absolute; inset: -8px; }
-    #avatar-input { display: none; }
-    .avatar-meta { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
-    /* the address is a fact, not a shout — it keeps its own case in the meta row */
-    .avatar-email { text-transform: none; letter-spacing: 0.04em; overflow-wrap: anywhere; }
-
-    /* ── Figures band ─────────────────────────────────────────────
-       The cabinet's headline numbers, inverted and set at display
-       size — the same device the home page uses for its counters. */
-    .acc-figures {
-      background: var(--surface-ink); color: var(--on-ink);
-      border-top: var(--rule); border-bottom: var(--rule);
-    }
-    .acc-figures__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .figure { padding: clamp(1.2rem, 3vw, 2rem) 0; min-width: 0; }
-    .figure + .figure {
-      border-left: 1px solid var(--on-ink-line);
-      padding-left: clamp(0.9rem, 3vw, 2.25rem);
-    }
-    .figure__label {
-      font-family: var(--font-mono); font-size: var(--text-label);
-      letter-spacing: 0.2em; text-transform: uppercase; color: var(--on-ink-55);
-      margin-bottom: clamp(0.55rem, 1.5vw, 0.9rem);
-    }
-    .figure__value {
-      font-family: var(--font-display); font-weight: 700;
-      font-size: clamp(1.55rem, 5vw, 3.75rem); line-height: 0.9;
-      letter-spacing: -0.045em; overflow-wrap: break-word;
-    }
-    @media (max-width: 560px) {
-      .figure__value { font-size: clamp(1.1rem, 4.4vw, 1.55rem); }
-      .figure__label { letter-spacing: 0.12em; }
-    }
-
-    /* ── Tab rail: slabs that stick under the nav ────────────────── */
-    .acc-nav {
-      position: sticky; top: var(--nav-h); z-index: 20;
-      background: var(--paper); border-bottom: var(--rule);
-      padding: 0.8rem 0;
-    }
-    .tabs {
-      display: flex; gap: 0.5rem; overflow-x: auto;
-      overscroll-behavior-x: contain; scrollbar-width: none;
-      /* room for the hard shadows, which sit outside the button box */
-      padding: 0.15rem 0.3rem 0.35rem 0;
-    }
-    .tabs::-webkit-scrollbar { display: none; }
-    .tab-btn {
-      flex-shrink: 0; min-height: 44px; padding: 0.5rem 1.15rem;
-      border: var(--rule); border-radius: 0; background: var(--paper-3); color: var(--ink);
-      font-family: var(--font-display); font-size: 0.78rem; font-weight: 700;
-      letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
-      cursor: pointer; box-shadow: var(--hard-sm);
-      transition: background 0.18s, color 0.18s, transform 0.12s ease, box-shadow 0.12s ease;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .tab-btn:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
-    .tab-btn:active { transform: translate(2px, 2px); box-shadow: none; }
-    .tab-btn.active {
-      background: var(--accent); color: var(--on-accent); border-color: var(--ink);
-      box-shadow: var(--hard);
-    }
-    @media (max-width: 430px) { .tab-btn { padding: 0.5rem 0.85rem; font-size: 0.74rem; } }
-
-    /* ── Panels ──────────────────────────────────────────────────── */
-    .acc-body { counter-reset: acard; padding: clamp(2rem, 5vw, 3.5rem) 0 clamp(4rem, 9vw, 7rem); }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    /* Two-up where the content earns it; one column when it doesn't fit.
-       Explicit tracks, not auto-fit: cards here are toggled on and off by
-       JS (no password card for Telegram accounts), and an auto-fit track
-       kept alive by a spanning item strands the whole second column. */
-    .acc-split { display: grid; gap: clamp(1rem, 2.2vw, 1.6rem); align-items: start; }
-    @media (min-width: 900px) { .acc-split { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); } }
-    .acc-col { display: grid; gap: clamp(1rem, 2.2vw, 1.6rem); align-content: start; }
-
-    /* ── Card ────────────────────────────────────────────────────── */
-    .card {
-      background: var(--paper-3); border: var(--rule); border-radius: 0;
-      box-shadow: var(--hard); padding: clamp(1.25rem, 2.6vw, 1.9rem);
-    }
-    .card + .card { margin-top: clamp(1rem, 2.2vw, 1.6rem); }
-    .acc-col > .card + .card, .acc-split > .card + .card { margin-top: 0; }
-    .card-title {
-      display: flex; align-items: baseline; gap: 0.7rem;
-      font-family: var(--font-display); font-size: clamp(1.1rem, 1.9vw, 1.45rem);
-      font-weight: 700; letter-spacing: -0.03em; color: var(--ink);
-      padding-bottom: 0.85rem; margin-bottom: clamp(1.1rem, 2.2vw, 1.5rem);
-      border-bottom: var(--rule);
-    }
-    /* Numbered section indices, same device as the configurator rail.
-       Panels that are display:none do not increment, so every tab
-       starts its own count at 01. */
-    .card-title::before {
-      counter-increment: acard;
-      content: counter(acard, decimal-leading-zero);
-      flex-shrink: 0;
-      background: var(--accent); color: var(--on-accent);
-      font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;
-      padding: 0.18rem 0.42rem; letter-spacing: 0.02em;
-    }
-
-    /* ── Form fields ─────────────────────────────────────────────── */
-    .field { margin-bottom: 1rem; }
-    .field:last-child { margin-bottom: 0; }
-    .field-label {
-      display: block; margin-bottom: 0.45rem;
-      font-family: var(--font-mono); font-size: 0.68rem;
-      letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-70);
-    }
-    .field-input {
-      width: 100%; padding: 0.7rem 0.9rem; border-radius: 0;
-      border: var(--rule); box-shadow: var(--hard-sm);
-      background: var(--field-bg); color: var(--ink);
-      font-family: inherit; font-size: 0.9rem; outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    .field-input::placeholder { color: var(--ink-38); }
-    .field-input:focus { border-color: var(--accent); box-shadow: var(--hard-accent); }
-    /* below 16px iOS Safari zoom-jumps the page on focus */
-    @media (max-width: 767px) { .field-input { font-size: 1rem; } }
-    .field-hint { font-size: 0.72rem; color: var(--ink-38); margin-top: 0.3rem; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    @media (max-width: 560px) { .form-row { grid-template-columns: 1fr; } }
-
-    /* ── Buttons ─────────────────────────────────────────────────── */
-    .btn-primary, .btn-ghost {
-      display: inline-flex; align-items: center; justify-content: center;
-      min-height: 46px; border: var(--rule); border-radius: 0;
-      font-family: var(--font-display); font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      cursor: pointer; box-shadow: var(--hard-sm);
-      transition: background 0.18s, color 0.18s, transform 0.12s ease, box-shadow 0.12s ease;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .btn-primary { padding: 0.6rem 1.6rem; background: var(--ink); color: var(--paper); font-size: 0.8rem; }
-    .btn-ghost { padding: 0.5rem 1.05rem; background: var(--paper-3); color: var(--ink-70); font-size: 0.74rem; gap: 0.45rem; }
-    .btn-ghost .ico { width: 15px; height: 15px; flex-shrink: 0; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); border-color: var(--ink); }
-    .btn-ghost:hover { color: var(--ink); }
-    .btn-primary:hover:not(:disabled), .btn-ghost:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
-    .btn-primary:active:not(:disabled), .btn-ghost:active { transform: translate(2px, 2px); box-shadow: none; }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-    .form-actions { display: flex; align-items: center; gap: 0.75rem 1rem; margin-top: clamp(1.1rem, 2.2vw, 1.5rem); flex-wrap: wrap; }
-
-    /* Status messages are written by JS; an empty one must not draw a box. */
-    .msg-ok, .msg-err {
-      font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 0.04em;
-      border: 1.5px solid currentColor; border-radius: 0; padding: 0.45rem 0.7rem;
-    }
-    .msg-ok  { color: var(--ok); }
-    .msg-err { color: var(--danger); }
-    .msg-ok:empty, .msg-err:empty { display: none; }
-
-    /* ── Location section ────────────────────────────────────────── */
-    .location-preview {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.8rem 0.9rem; border-radius: 0;
-      background: var(--paper-2); border: var(--rule);
-      margin-bottom: 0.9rem;
-    }
-    .location-icon { color: var(--accent); flex-shrink: 0; }
-    .location-text { font-size: 0.88rem; flex: 1; }
-    .location-sub { font-size: 0.72rem; color: var(--ink-55); margin-top: 0.2rem; font-family: var(--font-mono); }
-
-    .geocode-result {
-      margin: 0.6rem 0 0.9rem; padding: 0.8rem 1rem; border-radius: 0;
-      border: var(--rule); background: var(--paper-2); display: none;
-    }
-    .geocode-result.visible { display: block; }
-    .geocode-found-addr { font-size: 0.85rem; color: var(--ink); margin-bottom: 0.35rem; }
-    .geocode-coords { font-size: 0.73rem; color: var(--ink-55); font-family: var(--font-mono); margin-bottom: 0.45rem; }
-    .geocode-map-link { font-family: var(--font-mono); font-size: 0.73rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-deep); border-bottom: 1px solid var(--accent-55); transition: color 0.15s; }
-    .geocode-map-link:hover { color: var(--accent); }
-    .geocode-error { font-size: 0.8rem; color: var(--danger); }
-
-    /* ── Orders ledger ───────────────────────────────────────────── */
-    #orders-container { overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
-    .orders-table { width: 100%; min-width: 420px; border-collapse: collapse; }
-    .orders-table th {
-      padding: 0 0.6rem 0.7rem; text-align: left;
-      font-family: var(--font-mono); font-size: var(--text-label); font-weight: 500;
-      letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-55);
-      border-bottom: var(--rule);
-    }
-    .orders-table td { padding: 0.95rem 0.6rem; font-size: 0.88rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
-    .orders-table td:first-child { font-family: var(--font-mono); font-weight: 500; }
-    .orders-table tr:last-child td { border-bottom: none; }
-    .orders-table tbody tr:hover td { background: var(--hover-wash); }
-    @media (max-width: 560px) {
-      .orders-table th, .orders-table td { padding-left: 0.4rem; padding-right: 0.4rem; }
-    }
-    /* JS paints the status colours inline; the shape is ours. */
-    .status-badge {
-      display: inline-block; border-radius: 0; padding: 0.16rem 0.5rem;
-      font-family: var(--font-mono); font-size: 0.68rem; font-weight: 700;
-      letter-spacing: 0.1em; text-transform: uppercase;
-    }
-
-    /* Nothing here yet — say so in the page's own register. */
-    .empty-state, .notif-empty {
-      padding: clamp(1.6rem, 4vw, 2.5rem) 1rem; border: 1.5px dashed var(--line); border-radius: 0;
-      font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 0.12em;
-      text-transform: uppercase; color: var(--ink-38); text-align: center;
-    }
-
-    /* ── Quick links: destination slabs ──────────────────────────── */
-    .quick-links { display: grid; gap: clamp(1rem, 2.2vw, 1.6rem); align-content: start; }
-    .quick-link {
-      display: flex; align-items: flex-end; min-height: clamp(96px, 13vw, 132px);
-      padding: clamp(1rem, 2.2vw, 1.4rem);
-      border: var(--rule); border-radius: 0; box-shadow: var(--hard);
-      background: var(--paper-3); color: var(--ink);
-      font-family: var(--font-display); font-weight: 700;
-      font-size: clamp(1.1rem, 1.9vw, 1.5rem); letter-spacing: -0.03em; line-height: 1.05;
-      transition: background 0.18s, color 0.18s, transform 0.12s ease, box-shadow 0.12s ease;
-    }
-    .quick-link:hover {
-      background: var(--accent); color: var(--on-accent);
-      transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--ink);
-    }
-    .quick-link:active { transform: translate(2px, 2px); box-shadow: none; }
-
-    /* ── Notifications ───────────────────────────────────────────── */
-    .notif-item {
-      padding: clamp(0.9rem, 2vw, 1.2rem);
-      border: var(--rule); box-shadow: var(--hard-sm); background: var(--paper-3);
-    }
-    .notif-item + .notif-item { margin-top: 0.8rem; }
-    .notif-meta { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-55); margin-top: 0.5rem; }
-    .notif-btn {
-      display: inline-flex; align-items: center; min-height: 42px; margin-top: 0.6rem;
-      padding: 0.45rem 1rem; border: var(--rule); border-radius: 0; box-shadow: var(--hard-sm);
-      background: var(--paper-3); color: var(--ink-70);
-      font-family: var(--font-display); font-weight: 700; font-size: 0.74rem;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      transition: background 0.18s, color 0.18s, transform 0.12s ease, box-shadow 0.12s ease;
-    }
-    .notif-btn:hover { background: var(--accent); color: var(--on-accent); transform: translate(-1px, -1px); box-shadow: var(--hard); }
-    #notif-pagination { font-family: var(--font-mono); }
-    #notif-prev-btn, #notif-next-btn { min-width: 46px; }
-
-    /* ── Danger zone / sign-in note ──────────────────────────────── */
-    .card--danger { border-color: var(--danger); box-shadow: 3px 3px 0 var(--danger); }
-    .card--danger .card-title { border-bottom-color: var(--danger); }
-    .card--danger .card-title::before { background: var(--danger); }
-    .btn-danger { color: var(--danger); border-color: var(--danger); box-shadow: 2px 2px 0 var(--danger); }
-    .btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); box-shadow: 3px 3px 0 var(--danger); }
-    .btn-danger.is-armed { background: var(--danger); color: #fff; }
-    .msg-note {
-      padding: 0.85rem 1rem; border: var(--rule); background: var(--paper-2);
-      font-size: 0.86rem; line-height: 1.55; color: var(--ink-70);
-    }
-
-    /* ── Designer studio ─────────────────────────────────────────── */
-    .dz-lead { margin: 0 0 1.2rem; font-size: 0.95rem; line-height: 1.6; color: var(--ink-70); max-width: 62ch; }
-    .dz-hint { margin: 0.4rem 0 0; font-size: 0.75rem; line-height: 1.5; color: var(--muted); }
-
-    .dz-steps { list-style: none; margin: 0 0 1.5rem; padding: 0; display: grid; gap: 0.75rem; }
-    .dz-steps li { display: flex; align-items: flex-start; gap: 0.75rem; font-size: 0.9rem; line-height: 1.5; color: var(--ink-70); }
-    .dz-step-n {
-      flex-shrink: 0; width: 24px; height: 24px; display: inline-flex;
-      align-items: center; justify-content: center;
-      border: var(--rule); border-color: var(--accent);
-      font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;
-      background: var(--accent); color: var(--on-accent);
-    }
-
-    .dz-handle-row { display: flex; align-items: stretch; }
-    .dz-at {
-      display: inline-flex; align-items: center; padding: 0 0.75rem;
-      border: var(--rule); border-right: none; background: var(--paper-2);
-      box-shadow: var(--hard-sm);
-      font-family: var(--font-mono); font-size: 0.95rem; color: var(--muted);
-    }
-    .dz-handle-row .field-input { flex: 1; min-width: 0; }
-
-    .dz-identity { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: flex-start; margin-bottom: 1.3rem; }
-    .dz-identity-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .dz-handle-view { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: clamp(1.4rem, 3vw, 2.1rem); letter-spacing: -0.04em; color: var(--accent-deep); }
-    .dz-bio-view { margin: 0.4rem 0 0; font-size: 0.88rem; line-height: 1.55; color: var(--ink-70); max-width: 52ch; }
-
-    /* Designer's own figures — the ink band's language, at card scale. */
-    .stats-strip {
-      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-      border: var(--rule); background: var(--surface-ink); color: var(--on-ink);
-    }
-    .stat-item { padding: clamp(0.9rem, 2vw, 1.3rem) clamp(0.7rem, 1.6vw, 1.1rem); min-width: 0; }
-    .stat-item + .stat-item { border-left: 1px solid var(--on-ink-line); }
-    .stat-label {
-      font-family: var(--font-mono); font-size: var(--text-label);
-      letter-spacing: 0.18em; text-transform: uppercase; color: var(--on-ink-55);
-      margin-bottom: 0.5rem;
-    }
-    .stat-value {
-      font-family: var(--font-display); font-weight: 700;
-      font-size: clamp(1.3rem, 3vw, 2.1rem); line-height: 0.95;
-      letter-spacing: -0.04em; overflow-wrap: anywhere;
-    }
-
-    /* Upload target — big, obvious, and it shows what you picked */
-    .dz-drop {
-      position: relative; display: flex; align-items: center; justify-content: center;
-      min-height: 200px; padding: 1.5rem; margin-bottom: 0.9rem; cursor: pointer;
-      border: 1.5px dashed var(--line); background: var(--paper-2);
-      transition: border-color 0.18s ease, background 0.18s ease;
-    }
-    .dz-drop:hover, .dz-drop:focus-visible, .dz-drop.is-over { border-color: var(--accent); background: var(--accent-tint); outline: none; }
-    .dz-drop-empty { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center; color: var(--muted); font-size: 0.88rem; }
-    .dz-drop-empty svg { width: 32px; height: 32px; opacity: 0.6; }
+    /* account.html only (LOOM-323 phase 12): profile hub + settings sections. */
+    .atl-acc-me { display: flex; gap: 14px; align-items: center; }
+    .atl-acc-me > div { min-width: 0; }
+    .atl-acc-del { display: flex; flex-direction: column; gap: 12px; }
+    .atl-acc-del ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+    .atl-acc-dg { color: var(--alert); box-shadow: inset 0 0 0 1.5px var(--alert); }
+    .atl-acc-dg-f { background: var(--alert); color: var(--surface); box-shadow: none; }
+    .atl-acc-dg-f:hover, .atl-acc-dg-f:active { background: var(--alert); opacity: .88; }
+    .atl-acc-opts { display: flex; flex-direction: column; gap: 8px; }
+    .atl-acc-ta { height: auto; min-height: 96px; padding: 12px; resize: vertical; }
+    .atl-acc-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .atl-acc-stats b { display: block; font: 700 20px/1.2 var(--f); font-variant-numeric: tabular-nums; }
+    .atl-acc-ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+    /* designer studio: classes designer.js toggles or renders */
+    .dz-drop { width: 100%; min-height: 160px; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1.5px var(--ln); padding: 20px; display: grid; place-items: center; text-align: center; cursor: pointer; }
+    .dz-drop:hover, .dz-drop.is-over { box-shadow: inset 0 0 0 2px var(--ink); }
+    .dz-drop-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--mut); }
     .dz-drop img { display: none; max-height: 260px; max-width: 100%; object-fit: contain; }
     .dz-drop.has-file img { display: block; }
     .dz-drop.has-file .dz-drop-empty { display: none; }
-
-    #dz-category-error, #dz-category-retry { margin-top: 0.6rem; }
-    /* .btn-ghost's inline-flex would otherwise beat the hidden attribute */
-    #dz-category-retry[hidden] { display: none; }
-
-    /* Submissions */
-    .dz-work {
-      display: flex; gap: 0.9rem; align-items: flex-start; padding: 0.85rem;
-      border: var(--rule); box-shadow: var(--hard-sm); margin-bottom: 0.8rem;
-      background: var(--paper-3);
-    }
-    .dz-work-thumb {
-      width: 76px; height: 76px; flex-shrink: 0; object-fit: contain;
-      background: var(--paper-2); border: var(--rule);
-    }
+    .dz-work { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ln); }
+    .dz-work:last-child { border-bottom: 0; }
+    .dz-work-thumb { width: 64px; height: 64px; border-radius: 8px; object-fit: contain; background: var(--surface2); flex: none; }
     .dz-work-body { flex: 1; min-width: 0; }
-    .dz-work-title { margin: 0 0 0.3rem; font-family: var(--font-display); font-weight: 700; font-size: 1rem; letter-spacing: -0.02em; }
-    .dz-work-meta { margin: 0; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-    .dz-work-note { margin: 0.4rem 0 0; font-size: 0.8rem; color: var(--danger); }
-
-    /* ── Notification preference rows ────────────────────────────── */
-    .pref-list { display: flex; flex-direction: column; gap: 0.75rem; }
-    .pref {
-      display: flex; align-items: center; gap: 0.85rem; cursor: pointer;
-      padding: 0.85rem 1rem; border: var(--rule); background: var(--paper-3);
-      transition: background 0.15s;
-    }
-    .pref:hover { background: var(--accent-tint); }
-    .pref input { accent-color: var(--accent); width: 17px; height: 17px; flex-shrink: 0; }
-    .pref-title { font-size: 0.88rem; font-weight: 600; }
-    .pref-sub { font-size: 0.74rem; color: var(--muted); margin-top: 0.15rem; }
-
-    /* ── Map picker modal ────────────────────────────────────────── */
-    #map-picker-modal {
-      display: none; position: fixed; inset: 0; z-index: 2000;
-      background: var(--map-scrim); flex-direction: column;
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    #map-picker-modal.open { display: flex; }
-    #map-picker-bar {
-      padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem;
-      background: var(--paper-3); border-bottom: var(--rule);
-      flex-shrink: 0;
-    }
-    #map-picker-hint { font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-55); flex: 1; }
-    #map-picker-selected { font-size: 0.8rem; color: var(--ink-70); flex: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #map-el { flex: 1; }
-    @media (max-width: 560px) {
-      /* two flexible texts + two buttons never fit one 375px row */
-      #map-picker-bar { flex-wrap: wrap; row-gap: 0.5rem; }
-      #map-picker-hint { flex-basis: 100%; order: 3; }
-      #map-picker-selected { flex-basis: 100%; order: 4; }
-      #map-confirm-btn { margin-left: auto; min-height: 44px; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .tab-btn, .btn-primary, .btn-ghost, .quick-link, .notif-btn, .avatar-upload-btn {
-        transition: background 0.18s, color 0.18s;
-      }
-      .tab-btn:hover, .tab-btn:active,
-      .btn-primary:hover:not(:disabled), .btn-primary:active:not(:disabled),
-      .btn-ghost:hover, .btn-ghost:active,
-      .quick-link:hover, .quick-link:active, .notif-btn:hover { transform: none; }
-    }
+    .dz-work-title { font-weight: 700; }
+    .dz-work-meta { font-size: 13px; color: var(--mut); }
+    .dz-work-note { font-size: 13px; color: var(--alert); }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: var(--r-chip); font-size: 12px; font-weight: 700; }
+    .empty-state { color: var(--mut); }
   </style>
 </head>
-<body data-page="account" class="ym-hide-content" data-clarity-mask="true">
-
-  <!-- Header + footer injected by assets/layout.js -->
-
-  <!-- ── Masthead ──────────────────────────────────────────────── -->
-  <header class="acc-mast">
-    <div class="container">
-      <a href="index.html" class="acc-mast__back" data-i18n="nav.backToStore">← Вернуться на сайт</a>
-      <span class="eyebrow acc-mast__eyebrow">LOOM<span class="slash">/</span> <span data-i18n="acc.pageTitle">Личный кабинет</span></span>
-
-      <div class="acc-mast__id">
-        <div class="avatar-wrap">
-          <div class="avatar-placeholder" id="avatar-placeholder">—</div>
-          <img class="avatar-img" id="avatar-img" src="" alt="" style="display:none" />
-          <button class="avatar-upload-btn" id="avatar-btn" title="Изменить фото">
-            <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
-              <path d="M1 9l2.5-2.5 5.5-5.5L11 3 5.5 8.5 3 11zm0 0L3 8.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/webp" />
-        </div>
-        <div class="avatar-meta">
-          <h1 class="acc-mast__name" id="profile-name">—</h1>
-        </div>
-      </div>
-
-      <div class="acc-mast__meta">
-        <span class="acc-mast__facts">
-          <span class="avatar-email" id="profile-email">—</span>
-          <span id="profile-since"></span>
-        </span>
-        <a class="acc-mast__cta" href="configurator.html" data-i18n="acc.designLink">Создать дизайн →</a>
-      </div>
-    </div>
-  </header>
-
-  <!-- ── Headline figures ──────────────────────────────────────── -->
-  <section class="acc-figures">
-    <div class="container">
-      <div class="acc-figures__grid">
-        <div class="figure">
-          <p class="figure__label" data-i18n="acc.statOrders">Заказов</p>
-          <p class="figure__value" id="stat-orders">—</p>
-        </div>
-        <div class="figure">
-          <p class="figure__label" data-i18n="acc.statSpent">Потрачено</p>
-          <p class="figure__value" id="stat-spent">—</p>
-        </div>
-        <div class="figure">
-          <p class="figure__label" data-i18n="acc.statSince">С нами с</p>
-          <p class="figure__value" id="stat-since">—</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Section tabs ──────────────────────────────────────────── -->
-  <nav class="acc-nav">
-    <div class="container">
-      <div class="tabs" role="tablist">
-        <button class="tab-btn active" role="tab" data-tab="profile" data-i18n="acc.tabProfile">Профиль</button>
-        <button class="tab-btn" role="tab" data-tab="orders" data-i18n="acc.tabOrders">Заказы</button>
-        <button class="tab-btn" role="tab" data-tab="designer" id="designer-tab-btn" data-i18n="acc.tabDesigner">Дизайнер</button>
-        <button class="tab-btn" role="tab" data-tab="notifications" id="notif-tab-btn" data-i18n="acc.tabNotif">Уведомления</button>
-        <button class="tab-btn" role="tab" data-tab="settings" id="settings-tab" data-i18n="acc.tabSettings">Настройки</button>
-      </div>
-    </div>
-  </nav>
-
-  <main class="acc-body">
-    <div class="container">
-
-    <!-- ── TAB: Profile ──────────────────────────────── -->
-    <div class="tab-panel active" id="tab-profile">
-      <div class="acc-split">
-
-        <!-- Preset location -->
-        <div class="card">
-          <p class="card-title" data-i18n="acc.defaultAddr">Адрес доставки (по умолчанию)</p>
-          <div id="location-preview" style="display:none" class="location-preview">
-            <svg class="location-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 1a5 5 0 0 1 5 5c0 3.5-5 9-5 9S3 9.5 3 6a5 5 0 0 1 5-5z" stroke="currentColor" stroke-width="1.3" fill="none"/>
-              <circle cx="8" cy="6" r="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
-            </svg>
-            <div>
-              <div class="location-text" id="location-address"></div>
-              <div class="location-sub" id="location-coords"></div>
-            </div>
-          </div>
-
-          <!-- Address search input -->
-          <div class="field">
-            <label class="field-label" for="loc-address" data-i18n="acc.enterAddr">Введите адрес</label>
-            <div style="display:flex;gap:0.5rem">
-              <input id="loc-address" class="field-input" placeholder="Ташкент, Юнусабадский р-н, ул. Амира Темура 1" style="flex:1" />
-              <button type="button" class="btn-ghost" id="loc-search-btn" style="white-space:nowrap;flex-shrink:0" data-i18n="acc.find">Найти</button>
-            </div>
-          </div>
-
-          <!-- Geocode result + map controls -->
-          <div class="geocode-result" id="geocode-result">
-            <div class="geocode-found-addr" id="geocode-addr"></div>
-            <div class="geocode-coords" id="geocode-coords-text"></div>
-            <a class="geocode-map-link" id="geocode-map-link" target="_blank" rel="noopener" style="margin-right:1rem">Яндекс Карты →</a>
-          </div>
-          <div style="margin-bottom:0.5rem">
-            <button type="button" class="btn-ghost" id="open-map-btn">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21.5s7-6.4 7-11.5a7 7 0 1 0-14 0c0 5.1 7 11.5 7 11.5z"/><circle cx="12" cy="10" r="2.6"/></svg>
-              <span data-i18n="acc.pickOnMap">Выбрать на карте</span>
-            </button>
-          </div>
-
-          <!-- Hidden lat/lng for form submission -->
-          <input id="loc-lat" type="hidden" />
-          <input id="loc-lng" type="hidden" />
-
-          <div class="form-actions">
-            <button class="btn-primary" id="save-location-btn" data-i18n="acc.saveAddr">Сохранить адрес</button>
-            <button class="btn-ghost" id="clear-location-btn" data-i18n="acc.clear">Очистить</button>
-            <button class="btn-ghost" id="req-geo-btn" data-i18n="acc.myGeo">Моя геолокация</button>
-            <span class="msg-ok" id="location-msg"></span>
-          </div>
-        </div>
-
-        <!-- Quick actions -->
-        <div class="quick-links">
-          <a href="catalog.html" class="quick-link" data-i18n="acc.catalogLink">Каталог →</a>
-          <a href="configurator.html" class="quick-link" data-i18n="acc.designLink">Создать дизайн →</a>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ── TAB: Orders ───────────────────────────────── -->
-    <div class="tab-panel" id="tab-orders">
-      <div class="card">
-        <p class="card-title" data-i18n="acc.orderHistory">История заказов</p>
-        <div id="orders-container"><p class="empty-state" data-i18n="acc.loading">Загрузка…</p></div>
-      </div>
-    </div>
-
-    <!-- ── TAB: Notifications ─────────────────────── -->
-    <div class="tab-panel" id="tab-notifications">
-      <div class="card">
-        <p class="card-title" data-i18n="acc.notifTitle">Уведомления от LOOM</p>
-        <div id="notif-list"><p class="notif-empty" data-i18n="acc.loading">Загрузка…</p></div>
-        <div id="notif-pagination" style="display:none;margin-top:1rem;display:flex;align-items:center;gap:0.75rem">
-          <button class="btn-ghost" id="notif-prev-btn" disabled>←</button>
-          <span id="notif-page-info" style="font-size:0.78rem;color:var(--muted)"></span>
-          <button class="btn-ghost" id="notif-next-btn" disabled>→</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── TAB: Designer ─────────────────────────────
-         Two states in one panel: the pitch + application form for a shopper,
-         and the studio (stats, upload, submissions) once they are a designer.
-         assets/designer.js picks which one to show from /api/auth/me. -->
-    <div class="tab-panel" id="tab-designer">
-
-      <!-- State A — not a designer yet -->
-      <div class="card dz-pitch" id="dz-intro" style="display:none">
-        <p class="card-title" data-i18n="dz.becomeTitle">Станьте дизайнером LOOM</p>
-        <p class="dz-lead" data-i18n="dz.becomeLead">Загрузите свою графику. Мы проверим её, покажем в маркете — и вы получаете свою наценку с каждой проданной вещи.</p>
-
-        <ol class="dz-steps">
-          <li><span class="dz-step-n">1</span><span data-i18n="dz.step1">Придумайте ник — под ним ваши работы увидят покупатели.</span></li>
-          <li><span class="dz-step-n">2</span><span data-i18n="dz.step2">Загрузите файл и назначьте свою наценку.</span></li>
-          <li><span class="dz-step-n">3</span><span data-i18n="dz.step3">После проверки работа появится в маркете, а продажи — здесь.</span></li>
-        </ol>
-
-        <div class="field">
-          <label class="field-label" for="dz-handle" data-i18n="dz.handle">Ник дизайнера</label>
-          <div class="dz-handle-row">
-            <span class="dz-at" aria-hidden="true">@</span>
-            <input id="dz-handle" class="field-input" maxlength="24" placeholder="mystudio" autocomplete="off" />
-          </div>
-          <p class="dz-hint" data-i18n="dz.handleHint">3–24 символа: латиница, цифры, точка или подчёркивание.</p>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="dz-bio" data-i18n="dz.bio">О себе</label>
-          <textarea id="dz-bio" class="field-input" rows="3" maxlength="280" placeholder="Пара слов о вас и вашем стиле" data-i18n-attr="placeholder:dz.bioPh"></textarea>
-        </div>
-
-        <div class="form-actions">
-          <button class="btn-primary" id="dz-apply-btn" data-i18n="dz.apply">Стать дизайнером</button>
-          <span class="msg-ok" id="dz-apply-msg"></span>
-          <span class="msg-err" id="dz-apply-err"></span>
-        </div>
-      </div>
-
-      <!-- State B — the designer's own studio -->
-      <div class="card" id="dz-studio" style="display:none">
-        <div class="dz-identity">
-          <div>
-            <p class="card-title" style="margin-bottom:0.6rem" data-i18n="dz.studioTitle">Кабинет дизайнера</p>
-            <p class="dz-handle-view" id="dz-handle-view">—</p>
-            <p class="dz-bio-view" id="dz-bio-view"></p>
-          </div>
-          <div class="dz-identity-actions">
-            <a class="btn-ghost" id="dz-public-link" href="#" target="_blank" rel="noopener" data-i18n="dz.publicPage">Моя страница →</a>
-            <button class="btn-ghost" id="dz-edit-btn" data-i18n="dz.editProfile">Изменить</button>
-          </div>
-        </div>
-
-        <div class="stats-strip">
-          <div class="stat-item">
-            <div class="stat-label" data-i18n="dz.statWorks">Работ</div>
-            <div class="stat-value" id="dz-stat-works">—</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label" data-i18n="dz.statSold">Продано</div>
-            <div class="stat-value" id="dz-stat-sold">—</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label" data-i18n="dz.statEarned">Заработано</div>
-            <div class="stat-value" id="dz-stat-earned">—</div>
-          </div>
-        </div>
-        <p class="dz-hint" id="dz-commission-note"></p>
-      </div>
-
-      <!-- Upload -->
-      <div class="card" id="dz-upload-card" style="display:none">
-        <p class="card-title" data-i18n="dz.uploadTitle">Загрузить работу</p>
-
-        <div class="dz-drop" id="dz-drop" tabindex="0" role="button">
-          <img id="dz-preview" alt="" />
-          <div class="dz-drop-empty" id="dz-drop-empty">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15.5l-4.5-4.5L5.5 21"/></svg>
-            <span data-i18n="dz.dropLabel">Нажмите или перетащите файл</span>
-            <span class="dz-hint" data-i18n="dz.dropHint">PNG с прозрачным фоном · минимум 1500 px по длинной стороне</span>
-          </div>
-        </div>
-        <input type="file" id="dz-file" accept="image/png,image/jpeg,image/webp" style="display:none" />
-        <p class="dz-hint" id="dz-file-info"></p>
-
-        <div class="form-row">
-          <div class="field">
-            <label class="field-label" for="dz-title" data-i18n="dz.workTitle">Название</label>
-            <input id="dz-title" class="field-input" maxlength="80" placeholder="Ночной Ташкент" data-i18n-attr="placeholder:dz.workTitlePh" />
-          </div>
-          <div class="field">
-            <label class="field-label" for="dz-markup" data-i18n="dz.markup">Ваша наценка, сум</label>
-            <input id="dz-markup" class="field-input" type="number" min="0" max="200000" step="1" value="0" />
-          </div>
-        </div>
-        <div class="field">
-          <label class="field-label" for="dz-tags" data-i18n="dz.tags">Теги</label>
-          <input id="dz-tags" class="field-input" maxlength="200" placeholder="минимализм, город, линии" data-i18n-attr="placeholder:dz.tagsPh" />
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="dz-category" data-i18n="cat.label">Категория</label>
-          <select id="dz-category" class="field-input" required><option value="" data-i18n="cat.choose">Выберите категорию для дизайна</option></select>
-          <p id="dz-category-error" class="msg-err" role="alert" hidden></p>
-          <button type="button" class="btn-ghost" id="dz-category-retry" data-i18n="cat.retry" hidden>Повторить</button>
-        </div>
-        <div class="form-actions">
-          <button class="btn-primary" id="dz-submit-btn" data-i18n="dz.submitWork">Отправить на проверку</button>
-          <span class="msg-ok" id="dz-submit-msg"></span>
-          <span class="msg-err" id="dz-submit-err"></span>
-        </div>
-      </div>
-
-      <!-- Submissions -->
-      <div class="card" id="dz-works-card" style="display:none">
-        <p class="card-title" data-i18n="dz.myWorks">Мои работы</p>
-        <div id="dz-works"><p class="empty-state" data-i18n="acc.loading">Загрузка…</p></div>
-      </div>
-    </div>
-
-    <!-- ── TAB: Settings ────────────────────────────── -->
-    <div class="tab-panel" id="tab-settings">
-      <div class="acc-split">
-        <div class="acc-col">
-
-        <!-- Edit profile -->
-        <div class="card" id="settings">
-          <p class="card-title" data-i18n="acc.editProfile">Редактировать профиль</p>
-          <div class="form-row">
-            <div class="field">
-              <label class="field-label" for="edit-name" data-i18n="acc.fieldName">Имя</label>
-              <input id="edit-name" class="field-input" name="name" autocomplete="name" placeholder="Иван Иванов" />
-            </div>
-            <div class="field">
-              <label class="field-label" for="edit-phone" data-i18n="acc.fieldPhone">Телефон</label>
-              <input id="edit-phone" class="field-input" type="tel" name="tel" autocomplete="tel" placeholder="+998 90 123 45 67" />
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary" id="save-profile-btn" data-i18n="acc.save">Сохранить</button>
-            <span class="msg-ok" id="profile-msg"></span>
-            <span class="msg-err" id="profile-err"></span>
-          </div>
-        </div>
-
-        <!-- Change password -->
-        <div class="card" id="pw-card">
-          <p class="card-title" data-i18n="acc.changePw">Изменить пароль</p>
-          <div class="field">
-            <label class="field-label" for="pw-current" data-i18n="acc.pwCurrent">Текущий пароль</label>
-            <input id="pw-current" class="field-input" type="password" placeholder="••••••••" />
-          </div>
-          <div class="form-row">
-            <div class="field">
-              <label class="field-label" for="pw-new" data-i18n="acc.pwNew">Новый пароль</label>
-              <input id="pw-new" class="field-input" type="password" placeholder="мин. 8 символов" data-i18n-attr="placeholder:acc.pwMin" />
-            </div>
-            <div class="field">
-              <label class="field-label" for="pw-confirm" data-i18n="acc.pwConfirm">Подтвердить</label>
-              <input id="pw-confirm" class="field-input" type="password" placeholder="••••••••" />
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary" id="save-pw-btn" data-i18n="acc.pwUpdate">Обновить пароль</button>
-            <span class="msg-ok" id="pw-msg"></span>
-            <span class="msg-err" id="pw-err"></span>
-          </div>
-        </div>
-
-        <!-- Notifications -->
-        <div class="card">
-          <p class="card-title" data-i18n="acc.notifPrefs">Уведомления</p>
-          <div class="pref-list">
-            <label class="pref">
-              <input type="checkbox" id="notif-orders" checked />
-              <span>
-                <span class="pref-title" data-i18n="acc.notifOrder">Статус заказа</span>
-                <span class="pref-sub" style="display:block" data-i18n="acc.notifOrderSub">Когда ваш заказ перейдёт на новый этап</span>
-              </span>
-            </label>
-            <label class="pref">
-              <input type="checkbox" id="notif-promo" />
-              <span>
-                <span class="pref-title" data-i18n="acc.notifPromo">Акции и новинки</span>
-                <span class="pref-sub" style="display:block" data-i18n="acc.notifPromoSub">Новые продукты и специальные предложения</span>
-              </span>
-            </label>
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary" id="save-notif-btn" data-i18n="acc.save">Сохранить</button>
-            <span class="msg-ok" id="notif-msg"></span>
-          </div>
-        </div>
-
-        </div>
-
-        <div class="acc-col">
-
-        <!-- How this account signs in. Shown only when there is no password to
-             change — see applyAuthMethod() in assets/account.js. -->
-        <p class="msg-note" id="auth-method-note" style="display:none"></p>
-
-        <!-- Danger zone. Two presses, never one: the first arms it and says what
-             will happen, the second does it. -->
-        <div class="card card--danger">
-          <p class="card-title" data-i18n="acc.deleteTitle">Удалить аккаунт</p>
-          <p class="dz-lead" data-i18n="acc.deleteLead">
-            Профиль, адрес и загруженные файлы будут удалены безвозвратно.
-            Оформленные заказы останутся в бухгалтерии в обезличенном виде.
-          </p>
-          <p class="msg-err" id="delete-confirm" style="display:none" data-i18n="acc.deleteWarn">
-            Это действие нельзя отменить. Нажмите ещё раз, чтобы подтвердить.
-          </p>
-          <div class="form-actions">
-            <button class="btn-ghost btn-danger" id="delete-account-btn" data-i18n="acc.deleteBtn">Удалить аккаунт</button>
-            <span class="msg-err" id="delete-err"></span>
-          </div>
-        </div>
-
-        </div>
-      </div>
-    </div>
-
-    </div>
-  </main>
-
-  <!-- Map picker modal -->
-  <div id="map-picker-modal">
-    <div id="map-picker-bar">
-      <button type="button" class="btn-ghost" id="map-cancel-btn" style="flex-shrink:0">← Назад</button>
-      <span id="map-picker-hint">Нажмите на карту, чтобы выбрать место</span>
-      <span id="map-picker-selected"></span>
-      <button type="button" class="btn-primary" id="map-confirm-btn" style="flex-shrink:0" disabled>Выбрать это место</button>
-    </div>
-    <div id="map-el"></div>
+<body data-page="account" data-title="Profil">
+<main id="main" class="atl-wrap atl-wrap-narrow" aria-busy="true">
+  <div id="acc-view" class="atl-wrap" style="padding:0">
+    <span class="atl-skel" style="height:56px;width:60%"></span>
+    <span class="atl-skel" style="height:180px"></span>
+    <span class="atl-skel" style="height:180px"></span>
   </div>
 
-  <!-- Leaflet is NOT loaded here: map-picker.js fetches it the first time
-       the customer opens the location picker. -->
+  <!-- Designer studio: static because assets/designer.js binds these ids on load.
+       account.js shows it on #designer. -->
+  <section id="tab-designer" class="atl-wrap" style="padding:0" hidden>
+    <div class="atl-card" id="dz-intro" style="display:none">
+      <h2 class="atl-t2" data-i18n="dz.becomeTitle">LOOM dizayneri bo‘ling</h2>
+      <p class="atl-lead" data-i18n="dz.becomeLead">Grafikangizni yuklang. Biz tekshiramiz, marketda ko‘rsatamiz — har bir sotilgan kiyimdan ustamangizni olasiz.</p>
+      <ol class="atl-acc-ol">
+        <li data-i18n="dz.step1">Nik o‘ylab toping.</li>
+        <li data-i18n="dz.step2">Fayl yuklang va ustamangizni belgilang.</li>
+        <li data-i18n="dz.step3">Tekshiruvdan keyin ish marketda chiqadi.</li>
+      </ol>
+      <div class="atl-form">
+        <div class="atl-field">
+          <label class="atl-field-l" for="dz-handle" data-i18n="dz.handle">Dizayner nigi</label>
+          <span class="atl-inp"><span class="atl-inp-pre" aria-hidden="true">@</span><input id="dz-handle" maxlength="24" placeholder="mystudio" autocomplete="off" aria-describedby="dz-handle-hint"></span>
+          <span class="atl-hint" id="dz-handle-hint" data-i18n="dz.handleHint">3–24 belgi: lotin harflari, raqamlar, nuqta yoki pastki chiziq.</span>
+        </div>
+        <div class="atl-field">
+          <label class="atl-field-l" for="dz-bio" data-i18n="dz.bio">O‘zingiz haqingizda</label>
+          <textarea id="dz-bio" class="atl-inp atl-acc-ta" rows="3" maxlength="280" data-i18n-attr="placeholder:dz.bioPh"></textarea>
+        </div>
+        <button type="button" class="atl-btn atl-btn-g" id="dz-apply-btn" data-i18n="dz.apply">Dizayner bo‘lish</button>
+        <span class="atl-sm" id="dz-apply-msg" role="status"></span>
+        <span class="atl-ferr" id="dz-apply-err" role="alert"></span>
+      </div>
+    </div>
+
+    <div class="atl-card" id="dz-studio" style="display:none">
+      <div class="atl-hd">
+        <div style="min-width:0">
+          <h2 class="atl-t2" id="dz-handle-view">—</h2>
+          <p class="atl-sm" id="dz-bio-view"></p>
+        </div>
+      </div>
+      <div class="atl-btns">
+        <a class="atl-btn" id="dz-public-link" href="designers.html" target="_blank" rel="noopener" data-i18n="dz.publicPage">Mening sahifam</a>
+        <button type="button" class="atl-btn" id="dz-edit-btn" data-i18n="dz.editProfile">O‘zgartirish</button>
+      </div>
+      <div class="atl-acc-stats">
+        <div><span class="atl-sm" data-i18n="dz.statWorks">Ishlar</span><b id="dz-stat-works">—</b></div>
+        <div><span class="atl-sm" data-i18n="dz.statSold">Sotildi</span><b id="dz-stat-sold">—</b></div>
+        <div><span class="atl-sm" data-i18n="dz.statEarned">Topildi</span><b id="dz-stat-earned">—</b></div>
+      </div>
+      <p class="atl-sm" id="dz-commission-note"></p>
+    </div>
+
+    <div class="atl-card" id="dz-upload-card" style="display:none">
+      <h2 class="atl-t2" data-i18n="dz.uploadTitle">Ish yuklash</h2>
+      <div class="dz-drop" id="dz-drop" tabindex="0" role="button" aria-describedby="dz-file-info">
+        <img id="dz-preview" alt="">
+        <span class="dz-drop-empty" id="dz-drop-empty">
+          <span data-i18n="dz.dropLabel">Faylni bosing yoki shu yerga torting</span>
+          <span class="atl-sm" data-i18n="dz.dropHint">Shaffof fonli PNG, uzun tomoni kamida 1500 px</span>
+        </span>
+      </div>
+      <input type="file" id="dz-file" accept="image/png,image/jpeg,image/webp" hidden>
+      <p class="atl-sm" id="dz-file-info"></p>
+      <div class="atl-form">
+        <div class="atl-field">
+          <label class="atl-field-l" for="dz-title" data-i18n="dz.workTitle">Nomi</label>
+          <input id="dz-title" class="atl-inp" maxlength="80" data-i18n-attr="placeholder:dz.workTitlePh">
+        </div>
+        <div class="atl-field">
+          <label class="atl-field-l" for="dz-markup" data-i18n="dz.markup">Ustamangiz, so‘m</label>
+          <input id="dz-markup" class="atl-inp" type="number" inputmode="numeric" min="0" max="200000" step="1" value="0">
+        </div>
+        <div class="atl-field">
+          <label class="atl-field-l" for="dz-tags" data-i18n="dz.tags">Teglar</label>
+          <input id="dz-tags" class="atl-inp" maxlength="200" data-i18n-attr="placeholder:dz.tagsPh">
+        </div>
+        <div class="atl-field">
+          <label class="atl-field-l" for="dz-category" data-i18n="cat.label">Kategoriya</label>
+          <select id="dz-category" class="atl-inp" required><option value="" data-i18n="cat.choose">Kategoriyani tanlang</option></select>
+          <p id="dz-category-error" class="atl-ferr" role="alert" hidden></p>
+          <button type="button" class="atl-btn" id="dz-category-retry" data-i18n="cat.retry" hidden>Qayta urinish</button>
+        </div>
+        <button type="button" class="atl-btn atl-btn-g" id="dz-submit-btn" data-i18n="dz.submitWork">Tekshiruvga yuborish</button>
+        <span class="atl-sm" id="dz-submit-msg" role="status"></span>
+        <span class="atl-ferr" id="dz-submit-err" role="alert"></span>
+      </div>
+    </div>
+
+    <div class="atl-card" id="dz-works-card" style="display:none">
+      <h2 class="atl-t2" data-i18n="dz.myWorks">Mening ishlarim</h2>
+      <div id="dz-works"><p class="empty-state" data-i18n="atl.loading">Yuklanmoqda</p></div>
+    </div>
+  </section>
+</main>
+
+<script src="assets/config.js?v=9"></script>
+<script src="assets/i18n.js?v=58"></script>
+<script src="assets/auth.js?v=6"></script>
+<script src="assets/tma.js?v=5"></script>
+<script>
+  /* A section opened directly (account.html#profile) goes Back to the hub. */
+  if (location.hash.length > 1) document.body.setAttribute('data-back', 'account.html');
+</script>
+<script src="assets/shell.js?v=1"></script>
+<script src="assets/analytics.js?v=4"></script>
+<script src="assets/address-picker.js?v=3"></script>
+<script src="assets/designer.js?v=2"></script>
+<script src="assets/account.js?v=11"></script>
 </body>
 </html>

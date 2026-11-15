@@ -23,7 +23,8 @@ await build({ entryPoints: [join(root, 'src/index.ts')], outfile: join(scratch, 
 const serve = process.argv.includes('--serve')
 const mf = new Miniflare({ modules: true, modulesRoot: scratch, scriptPath: join(scratch, 'worker.mjs'), compatibilityDate: '2024-09-23', cf: false,
   ...(serve ? { port: 8787, host: 'localhost' } : {}), d1Databases: ['DB'], r2Buckets: ['LOOM_UPLOADS', 'LOOM_MODELS'], kvNamespaces: ['RATE_LIMIT'],
-  bindings: { JWT_SECRET: secret, ENVIRONMENT: 'test', TELEGRAM_BOT_TOKEN: '', BOT_USERNAME: '' } })
+  bindings: { JWT_SECRET: secret, ENVIRONMENT: 'test', TELEGRAM_BOT_TOKEN: '', BOT_USERNAME: '',
+    P2P_CARD_NUMBER: '0000000000000000', P2P_CARD_HOLDER: 'TEST' } }) // checkout is closed without a card (PRD-216)
 let checks = 0
 async function request(path, { method = 'GET', body, admin = 1, user, status = 200, anonymous = false, headers: extra = {} } = {}) {
   const headers = { 'Content-Type': 'application/json', ...extra }
@@ -65,7 +66,7 @@ try {
   let checkoutAttempt = 0
   const checkout = (user, status) => request('/api/cart/checkout', { method: 'POST', user,
     headers: { 'Idempotency-Key': `artwork-qa-${++checkoutAttempt}` },
-    body: { customerName: 'Test', customerPhone: '+998900000000', sessionId: `artwork-qa-${user}` }, status })
+    body: { customerName: 'Test', customerPhone: '+998900000000', paymentMethod: 'p2p', sessionId: `artwork-qa-${user}` }, status })
   const cats = await request('/api/artwork-categories', { anonymous: true })
   assert.equal(cats.items.length, 6)
   assert.equal((await request('/api/artworks', { anonymous: true })).items[0].category_id, null)

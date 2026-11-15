@@ -44,7 +44,7 @@
   document.head.appendChild(sdk)
 
   const API = () => (window.LOOM_CONFIG && window.LOOM_CONFIG.API_BASE) || 'https://api.loomdesign.uz'
-  const THEME_BG = { light: '#f4f2ed', dark: '#151412' }  // boot.js META_COLORS
+  const THEME_BG = { light: '#f5f5f2', dark: '#121315' }  // boot.js META_COLORS = Atelye --page
 
   function init() {
     const W = window.Telegram && window.Telegram.WebApp
@@ -157,30 +157,37 @@
     catch (e) { return fallback }
   }
 
+  // Atelye look (PRD-216): own rules with token fallbacks, so the sheet reads
+  // the same on Atelye pages (atelye.css tokens) and on the configurator.
   const SHEET_CSS = `
-.tma-sheet{position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center}
-.tma-sheet__scrim{position:absolute;inset:0;background:var(--scrim,rgba(19,19,17,.4));opacity:0;transition:opacity .28s var(--ease-out,ease)}
+.tma-sheet{position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;font-family:var(--f,'Archivo',system-ui,sans-serif)}
+.tma-sheet__scrim{position:absolute;inset:0;background:rgba(10,12,14,.38);opacity:0;transition:opacity .22s cubic-bezier(.2,0,0,1)}
 .tma-sheet.is-open .tma-sheet__scrim{opacity:1}
-.tma-sheet__panel{position:relative;width:100%;max-width:34rem;background:var(--paper-3,#fff);color:var(--ink,#131311);
-  border-radius:calc(var(--radius,2px) * 6) calc(var(--radius,2px) * 6) 0 0;
-  padding:1.6rem 1.4rem calc(1.4rem + env(safe-area-inset-bottom));
-  box-shadow:var(--menu-shadow,0 14px 40px rgba(19,19,17,.14));
-  transform:translateY(100%);transition:transform .34s var(--ease-out,cubic-bezier(.22,1,.36,1))}
+.tma-sheet__panel{position:relative;width:100%;max-width:34rem;background:var(--surface,#fff);color:var(--ink,#14171a);
+  border-radius:14px 14px 0 0;padding:0 16px calc(16px + var(--tma-bottom,env(safe-area-inset-bottom,0px)));
+  box-shadow:0 0 0 1px var(--ln,rgba(20,23,26,.16)),0 -14px 30px -12px rgba(14,18,24,.3);
+  transform:translateY(100%);transition:transform .22s cubic-bezier(.2,0,0,1)}
 .tma-sheet.is-open .tma-sheet__panel{transform:translateY(0)}
-.tma-sheet__grip{width:2.25rem;height:3px;border-radius:2px;background:var(--line,rgba(19,19,17,.16));margin:0 auto 1.15rem}
-.tma-sheet__title{font-family:var(--font-display,inherit);font-size:1.32rem;line-height:1.2;font-weight:600;margin:0 0 .5rem}
-.tma-sheet__sub{font-size:.9rem;line-height:1.5;color:var(--ink-70,rgba(19,19,17,.7));margin:0 0 1.25rem}
-.tma-sheet__label{display:block;font-family:var(--font-mono,inherit);font-size:.66rem;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--ink-55,rgba(19,19,17,.55));margin-bottom:.4rem}
-.tma-sheet .btn{width:100%;margin-top:1.15rem}
-.tma-sheet__hint{font-size:.76rem;line-height:1.45;color:var(--ink-55,rgba(19,19,17,.55));margin:.7rem 0 0;text-align:center}
-.tma-sheet__later{display:block;width:100%;margin:.9rem 0 0;padding:.55rem;background:none;border:0;
-  font-family:var(--font-body,inherit);font-size:.82rem;color:var(--ink-55,rgba(19,19,17,.55));text-decoration:underline;
-  text-underline-offset:3px;-webkit-tap-highlight-color:transparent}
-.tma-sheet__err{font-size:.8rem;color:var(--danger,#d6382d);margin:.7rem 0 0;text-align:center}
-.tma-sheet__done{text-align:center;padding:.4rem 0 .6rem}
-.tma-sheet__tick{width:2.6rem;height:2.6rem;margin:0 auto .9rem;border-radius:50%;background:var(--ok-tint,rgba(21,128,61,.08));
-  display:flex;align-items:center;justify-content:center;color:var(--ok,#15803d);font-size:1.3rem}
+.tma-sheet__grip{height:22px;display:grid;place-items:center}
+.tma-sheet__grip::before{content:"";width:38px;height:4px;border-radius:2px;background:var(--mut,#59616a);opacity:.55}
+.tma-sheet__title{font:700 22px/1.1 var(--f,inherit);margin:4px 0 8px}
+.tma-sheet__sub{font-size:15px;line-height:1.5;color:var(--mut,#59616a);margin:0 0 16px}
+.tma-sheet__label{display:block;font:600 13.5px var(--f,inherit);margin-bottom:6px}
+.tma-sheet__inp{display:block;width:100%;box-sizing:border-box;height:48px;border:0;border-radius:8px;padding:0 12px;
+  font:500 16px var(--f,inherit);color:inherit;background:var(--surface,#fff);box-shadow:inset 0 0 0 1.5px var(--ln,rgba(20,23,26,.16))}
+.tma-sheet__inp:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ink,#14171a)}
+.tma-sheet__btn{display:flex;align-items:center;justify-content:center;width:100%;height:48px;margin-top:16px;border:0;border-radius:8px;
+  font:700 14.5px var(--f,inherit);cursor:pointer;background:var(--cta,#d93529);color:var(--on-cta,#fff)}
+.tma-sheet__btn:disabled{opacity:.4;cursor:not-allowed}
+.tma-sheet__hint{font-size:13px;line-height:1.45;color:var(--mut,#59616a);margin:10px 0 0}
+.tma-sheet__later{display:flex;align-items:center;justify-content:center;width:100%;height:48px;margin:8px 0 0;border:0;border-radius:8px;
+  background:none;color:inherit;font:700 14.5px var(--f,inherit);box-shadow:inset 0 0 0 1.5px var(--ink,#14171a);cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+.tma-sheet__err{font-size:13px;font-weight:600;color:var(--alert,#c4291d);margin:10px 0 0}
+.tma-sheet__done{text-align:center;padding:12px 0 8px}
+.tma-sheet__tick{width:72px;height:72px;margin:0 auto 14px;border-radius:50%;background:var(--canvas,#e4e7ea);
+  display:grid;place-items:center;color:var(--ink,#14171a);font-size:28px}
+.tma-sheet button:focus-visible,.tma-sheet input:focus-visible{outline:2px solid var(--ink,#14171a);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){
   .tma-sheet__scrim,.tma-sheet__panel{transition:none}
 }`
@@ -215,9 +222,9 @@
           <h2 class="tma-sheet__title" id="tmaSheetTitle">${esc(T('tma.welcome', 'Добро пожаловать в LOOM'))}</h2>
           <p class="tma-sheet__sub">${esc(T('tma.sub', 'Вы вошли через Telegram. Проверьте данные — это имя мы укажем в заказе.'))}</p>
           <label class="tma-sheet__label" for="tmaName">${esc(T('tma.fullName', 'Полное имя'))}</label>
-          <input class="f-input" id="tmaName" type="text" autocomplete="name"
+          <input class="tma-sheet__inp" id="tmaName" type="text" autocomplete="name"
                  placeholder="${esc(T('tma.namePh', 'Имя и фамилия'))}" value="${esc(suggested)}" />
-          <button class="btn btn--solid" type="button" data-tma-share>${esc(T('tma.share', 'Поделиться номером'))}</button>
+          <button class="tma-sheet__btn" type="button" data-tma-share>${esc(T('tma.share', 'Поделиться номером'))}</button>
           <p class="tma-sheet__hint">${esc(T('tma.phoneWhy', 'Номер нужен для доставки. Можно добавить позже.'))}</p>
           <button class="tma-sheet__later" type="button" data-tma-later>${esc(T('tma.later', 'Позже'))}</button>
         </div>
@@ -231,7 +238,7 @@
 
     function close() {
       sheet.classList.remove('is-open')
-      setTimeout(() => { sheet.remove(); style.remove() }, 340)
+      setTimeout(() => { sheet.remove(); style.remove() }, 240)
     }
     sheet.querySelectorAll('[data-tma-later]').forEach((el) => el.addEventListener('click', close))
 

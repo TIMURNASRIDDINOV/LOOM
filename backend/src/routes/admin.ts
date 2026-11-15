@@ -26,6 +26,7 @@ import {
   clearAdminPermission,
   clearAllAdminPermissions,
   revokeAdminTokens,
+  finishScheduledDeletions,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { funnelRange, getFunnelStats } from '../db/funnel'
@@ -33,6 +34,8 @@ import { Ga4Error, ga4Days, ga4Report } from '../lib/ga4'
 import { clarityReadout } from '../lib/clarity'
 import { signToken, verifyToken } from '../lib/jwt'
 import { serveObject } from '../lib/r2'
+import { notifyCustomer, orderUrl, PAY_BUTTON, PAY_MESSAGES, REJECT_REASONS, type RejectReason } from '../lib/prepay'
+import { PAY_WINDOW_MS } from '../lib/pricing'
 import { clientIp, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
 import { requireAdmin, requireRole, requireCap } from '../middleware/requireAdmin'
 import {
@@ -363,12 +366,19 @@ admin.get('/orders/:id', requireAdmin, requireCap('orders.view'), async (c) => {
     const a = await getAdminById(c.env.DB, order.proof_approved_by)
     if (a) approvedBy = { id: a.id, email: a.email }
   }
+  // Card-transfer payment (PRD-216): the receipt image and who checked it.
+  const payChecker = order.pay_checked_by ? await getAdminById(c.env.DB, order.pay_checked_by) : null
+  const payment = {
+    receiptUrl: mediaUrl(order.receipt_key),
+    checkedBy: payChecker ? { id: payChecker.id, email: payChecker.email } : null,
+    canCheck: c.get('adminCaps').has('orders.approve'),
+  }
 
   // Marketplace artwork on this order and the designer credited for it — the
   // print shop needs to know the file is a designer's, finance needs the share.
   const designerSales = await getArtworkSalesByOrder(c.env.DB, id)
 
-  return c.json({ ...order, statusLog, ...proofUrls(order as unknown as Record<string, unknown>), approvedBy, items, designerSales })
+  return c.json({ ...order, statusLog, ...proofUrls(order as unknown as Record<string, unknown>), approvedBy, payment, items, designerSales })
 })
 
 // ─── POST /api/admin/orders/:id/approve  (owner/manager) ──────────────────────
@@ -395,6 +405,72 @@ admin.post('/orders/:id/approve', requireAdmin, requireCap('orders.approve'), as
     if (a) approvedBy = { id: a.id, email: a.email }
   }
   return c.json({ ok: true, approved, approvedAt: approved ? Date.now() : null, approvedBy })
+})
+
+// ─── POST /api/admin/orders/:id/payment  (owner/manager) ──────────────────────
+// Staff answer to a card-transfer receipt: { action: 'confirm' } or
+// { action: 'reject', reason: 'not_found' | 'amount_mismatch' }.
+// A person looking at the bank statement is the only way to 'paid'.
+// Both are one conditional UPDATE on payment_status = 'pending', so a double
+// click or two admins at once change the order once; the repeat of an action
+// that already happened answers 200 { already: true } and sends no message.
+
+admin.post('/orders/:id/payment', requireAdmin, requireCap('orders.approve'), async (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+  let body: Record<string, unknown>
+  try { body = (await c.req.json()) as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const action = body.action
+  if (action !== 'confirm' && action !== 'reject') return c.json({ error: "action must be 'confirm' or 'reject'" }, 400)
+  const reason = body.reason as RejectReason
+  if (action === 'reject' && !REJECT_REASONS.includes(reason)) {
+    return c.json({ error: `reason must be one of: ${REJECT_REASONS.join(', ')}`, code: 'reject_reason_required' }, 400)
+  }
+
+  const order = await getOrderById(c.env.DB, id)
+  if (!order) return c.json({ error: 'Not found' }, 404)
+  const now = Date.now()
+  const adminId = c.get('adminId')
+  const PENDING = "id = ? AND payment_method = 'p2p' AND payment_status = 'pending' AND status = 'new'"
+
+  if (action === 'confirm') {
+    const [update] = await c.env.DB.batch([
+      c.env.DB.prepare(
+        `UPDATE orders SET payment_status = 'paid', paid_at = ?1, status = 'confirmed', pay_checked_by = ?2,
+           pay_checked_at = ?1, pay_reject_reason = NULL, updated_at = ?1 WHERE ${PENDING.replace('?', '?3')}`,
+      ).bind(now, adminId, id),
+      c.env.DB.prepare(
+        `INSERT INTO order_status_log (order_id, old_status, new_status, changed_by, changed_at, note)
+         SELECT ?, 'new', 'confirmed', ?, ?, 'payment_confirmed' WHERE changes() > 0`,
+      ).bind(id, adminId, now),
+    ])
+    if (!update.meta.changes) {
+      const cur = await getOrderById(c.env.DB, id)
+      if (cur?.payment_method === 'p2p' && cur.payment_status === 'paid') return c.json({ ok: true, already: true, payment_status: 'paid', status: cur.status })
+      return c.json({ error: 'Этот заказ не ждёт проверки оплаты.', code: 'payment_not_pending' }, 409)
+    }
+    if (order.user_id) c.executionCtx.waitUntil(notifyCustomer(c.env, order.user_id, PAY_MESSAGES.confirmed(id), null, adminId))
+    return c.json({ ok: true, payment_status: 'paid', status: 'confirmed' })
+  }
+
+  // Reject: the customer gets a fresh window to send a correct receipt. The
+  // rejected image is removed; it is personal financial data with no further use.
+  const r = await c.env.DB.prepare(
+    `UPDATE orders SET payment_status = 'failed', pay_reject_reason = ?1, pay_checked_by = ?2, pay_checked_at = ?3,
+       receipt_key = NULL, receipt_at = NULL, pay_deadline = ?4, pay_reminded_at = NULL, updated_at = ?3
+     WHERE ${PENDING.replace('?', '?5')}`,
+  ).bind(reason, adminId, now, now + PAY_WINDOW_MS, id).run()
+  if (!r.meta.changes) {
+    const cur = await getOrderById(c.env.DB, id)
+    if (cur?.payment_method === 'p2p' && cur.payment_status === 'failed') return c.json({ ok: true, already: true, payment_status: 'failed', status: cur.status })
+    return c.json({ error: 'Этот заказ не ждёт проверки оплаты.', code: 'payment_not_pending' }, 409)
+  }
+  if (order.receipt_key) c.executionCtx.waitUntil(c.env.LOOM_UPLOADS.delete(order.receipt_key))
+  if (order.user_id) {
+    c.executionCtx.waitUntil(notifyCustomer(c.env, order.user_id, PAY_MESSAGES.rejected(id, reason),
+      { label: PAY_BUTTON, url: orderUrl(id) }, adminId))
+  }
+  return c.json({ ok: true, payment_status: 'failed', status: 'new' })
 })
 
 // ─── PATCH /api/admin/orders/:id/status ──────────────────────────────────────
@@ -431,6 +507,16 @@ admin.patch('/orders/:id/status', requireAdmin, requireCap('orders.status'), asy
     )
   }
 
+  // Prepayment gate (PRD-216): nothing is made or sent before staff confirmed
+  // the money. Old cash-on-delivery orders are paid on delivery and are exempt.
+  // 'confirmed' is gated too: only the payment confirm sets it for these orders.
+  if ((status === 'confirmed' || GATED_STATUSES.includes(status)) && order.payment_method === 'p2p' && order.payment_status !== 'paid') {
+    return c.json(
+      { error: 'Оплата не подтверждена. Сначала подтвердите оплату в блоке «Оплата».', code: 'payment_not_confirmed' },
+      409,
+    )
+  }
+
   await updateOrderStatus(c.env.DB, id, status)
   await insertOrderStatusLog(c.env.DB, {
     order_id: id,
@@ -450,6 +536,10 @@ admin.patch('/orders/:id/status', requireAdmin, requireCap('orders.status'), asy
         status: status as string,
         note: typeof note === 'string' ? note.trim() : null,
         adminId: c.get('adminId'),
+      }).then(async () => {
+        // A deletion the customer asked for while this order was open runs once
+        // their last open order is closed, after the message above went out.
+        if (status === 'delivered' || status === 'cancelled') await finishScheduledDeletions(c.env.DB, order.user_id!)
       }),
     )
   }

@@ -1,22 +1,21 @@
 /* ================================================================
-   LOOM — checkout page logic (checkout.html).
+   LOOM — checkout (checkout.html), Atelye skin (PRD-216, LOOM-323).
 
-   Flow: fire the network work immediately (payment methods need no
-   auth, so it starts before the auth gate resolves) → require auth →
-   load cart + user → prefill contact, lazy-load Leaflet and mount the
-   shared address picker (saved-address chips from the account preset)
-   → validate → POST /api/cart/checkout with the structured payload
-   (payment method, lat/lng, details) → success screen, or redirect to
-   the provider's payment URL.
+   Flow: payment methods are fetched at once (no auth needed) → auth
+   gate (no user = login.html?next=checkout.html) → cart → contact
+   prefill, address (saved address or the map picker, plain field
+   when the map cannot load), payment tiles → validate → POST
+   /api/cart/checkout with paymentMethod 'p2p' → order.html?id=<id>,
+   which is the payment screen.
 
-   Loading rules that matter here:
-   · Leaflet (CSS+JS) is fetched on demand by ensureLeaflet(), NOT as a
-     blocking tag. The auth/cart round trips no longer queue behind a
-     third-party CDN.
-   · If Leaflet never arrives (CDN blocked), the picker degrades to a
-     plain address field instead of hard-blocking the order.
-   · cart.js skips its own initial load on this page, so /api/cart is
-     fetched exactly once.
+   Money rules:
+   · Only a card transfer (p2p) can be ordered. Payme / Click / Uzum
+     are "Tez orada".
+   · No order unless GET /api/payments/methods says p2p:true. A site
+     deployed before its Worker would otherwise create COD orders
+     (plan R2). The check runs again on every submit.
+   · Delivery and every amount on screen come from the server cart
+     (delivery, payable); the server prices the order again anyway.
 ================================================================ */
 'use strict';
 (function () {
@@ -27,11 +26,12 @@
   }
   // Server refusal codes for an item that can no longer be sold (backend/src/lib/variant.ts).
   var UNSOLD = {
-    product_unavailable: ['cfg.productUnavailable', 'Этот товар сейчас недоступен'],
-    size_unavailable: ['cfg.sizeUnavailable', 'Этот размер недоступен — выберите другой'],
-    color_unavailable: ['cfg.colorUnavailable', 'Этот цвет недоступен — выберите другой'],
-    print_unavailable: ['cfg.blankNote', 'Этот товар продаётся без принта'],
+    product_unavailable: ['cfg.productUnavailable', 'Bu mahsulot hozir mavjud emas'],
+    size_unavailable: ['cfg.sizeUnavailable', 'Bu o‘lcham mavjud emas — boshqasini tanlang'],
+    color_unavailable: ['cfg.colorUnavailable', 'Bu rang mavjud emas — boshqasini tanlang'],
+    print_unavailable: ['cfg.blankNote', 'Bu mahsulot bosmasiz sotiladi'],
   };
+  var LOGIN = 'login.html?next=checkout.html';
 
   function t(key, fallback) {
     try {
@@ -44,7 +44,10 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-  function fmt(n) { return new Intl.NumberFormat('ru-RU').format(n) + ' ' + t('cfg.currency', 'сум'); }
+  function som(n) {
+    try { if (window.LOOM_I18N && window.LOOM_I18N.formatPrice) return window.LOOM_I18N.formatPrice(n); } catch (e) { /* fall through */ }
+    return new Intl.NumberFormat('ru-RU').format(n || 0) + ' so‘m';
+  }
   function authHeaders(json) {
     var h = json ? { 'Content-Type': 'application/json' } : {};
     var token = window.LOOM_AUTH && window.LOOM_AUTH.getToken && window.LOOM_AUTH.getToken();
@@ -52,15 +55,24 @@
     return h;
   }
   function $(id) { return document.getElementById(id); }
-  function show(id, mode) { var el = $(id); if (el) el.style.display = mode || 'block'; }
-  function hide(id) { var el = $(id); if (el) el.style.display = 'none'; }
+  function show(id, on) { var el = $(id); if (el) el.hidden = !on; }
+  function places() { return document.querySelectorAll('[data-co-place]'); }
+  var IC = {
+    alert: 'M12 8v5M12 16.5h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
+    shirt: 'M8 4l-5 3 2 4 2-1v10h10V10l2 1 2-4-5-3a4 4 0 01-8 0z',
+  };
+  function ic(n) { return '<svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="' + IC[n] + '"/></svg>'; }
 
   var picker = null;          // LOOM_ADDRESS instance, or null when degraded
-  var manualAddress = false;  // true → plain text field replaced the map
-  var payMethod = 'cod';
+  var manualAddress = false;  // true = plain text field replaced the map
+  var useSaved = false;       // the saved address option is chosen
+  var preset = null;          // user.location_preset {address, lat?, lng?}
   var user = null;
+  var methods = { p2p: false };
+  var methodsFailed = false;
   var placing = false;
 
+  /* ── idempotency: one key per (user, cart, form) attempt ─────── */
   var pendingAttempt = null;
   function checkoutKey(payload) {
     var body = Object.assign({}, payload); delete body.sessionId;
@@ -80,18 +92,23 @@
     try { sessionStorage.removeItem('loom_checkout_attempt'); } catch (_) {}
   }
 
-  /* ── Leaflet on demand ──────────────────────────────────────────
-     Both the stylesheet and the script are injected here so a page
-     that never mounts a map never pays for them, and so neither can
-     delay DOMContentLoaded / the checkout API calls. */
+  /* ── payment methods (no auth) ──────────────────────────────── */
+  function fetchMethods() {
+    return fetch(api() + '/api/payments/methods')
+      .then(function (r) { if (!r.ok) throw new Error('methods ' + r.status); return r.json(); })
+      .then(function (m) { methodsFailed = false; methods = m && typeof m === 'object' ? m : { p2p: false }; })
+      .catch(function () { methodsFailed = true; methods = { p2p: false }; });
+  }
+  var methodsPromise = fetchMethods();
+  function p2pOn() { return methods.p2p === true; }
+
+  /* ── Leaflet on demand (CSS + JS injected only when the map mounts) ── */
   var LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
   var LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
   var LEAFLET_JS_SRI = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
   var LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
   var leafletPromise = null;
-  /* NOT `typeof window.L !== 'undefined'` — the Lenis UMD bundle also
-     publishes a global `L`, so on any page carrying smooth scroll that
-     test passes while Leaflet is absent, and L.map() then throws. */
+  /* Not `typeof window.L`: the Lenis UMD bundle also publishes a global L. */
   function hasLeaflet() {
     return !!(window.L && typeof window.L.map === 'function' && typeof window.L.tileLayer === 'function');
   }
@@ -99,53 +116,76 @@
     if (hasLeaflet()) return Promise.resolve();
     if (leafletPromise) return leafletPromise;
     leafletPromise = new Promise(function (resolve, reject) {
-      /* Wait for the stylesheet too. A dynamically injected <link> does not
-         block anything, so the script can win the race and L.map() would
-         then measure a container with none of Leaflet's layout rules
-         applied — tiles land in the wrong place. */
+      /* wait for the stylesheet too, or tiles land in the wrong place */
       var cssDone = new Promise(function (done) {
-        var existing = document.querySelector('link[data-leaflet]');
-        if (existing) { existing.sheet ? done() : existing.addEventListener('load', done); return; }
         var css = document.createElement('link');
-        css.rel = 'stylesheet';
-        css.href = LEAFLET_CSS;
-        css.integrity = LEAFLET_CSS_SRI;
-        css.crossOrigin = '';
-        css.setAttribute('data-leaflet', '');
-        css.onload = done;
-        css.onerror = done;   // unstyled map beats no map at all
+        css.rel = 'stylesheet'; css.href = LEAFLET_CSS; css.integrity = LEAFLET_CSS_SRI; css.crossOrigin = '';
+        css.onload = done; css.onerror = done;   // unstyled map beats no map
         document.head.appendChild(css);
       });
       var s = document.createElement('script');
-      s.src = LEAFLET_JS;
-      s.integrity = LEAFLET_JS_SRI;
-      s.crossOrigin = '';
-      s.async = true;
+      s.src = LEAFLET_JS; s.integrity = LEAFLET_JS_SRI; s.crossOrigin = ''; s.async = true;
       s.onload = function () { cssDone.then(resolve); };
       s.onerror = function () { reject(new Error('leaflet failed to load')); };
       document.head.appendChild(s);
       // a hung CDN must not strand the customer on a map that never appears
-      setTimeout(function () {
-        if (!hasLeaflet()) reject(new Error('leaflet timed out'));
-      }, 12000);
+      setTimeout(function () { if (!hasLeaflet()) reject(new Error('leaflet timed out')); }, 12000);
     });
     return leafletPromise;
   }
 
-  /* Plain-text address fallback — the order must remain placeable
-     even when the map CDN is unreachable. */
+  /* ── address: saved option, map picker, or plain field ──────── */
   function mountManualAddress(host) {
     manualAddress = true;
+    picker = null;
     host.innerHTML =
-      '<div class="co-warn" style="margin:0 0 0.7rem">' +
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
-        '<span>' + esc(t('co.mapOffline', 'Карта недоступна. Введите адрес вручную — курьер свяжется с вами для уточнения.')) + '</span>' +
-      '</div>' +
-      '<input class="f-input" id="co-address-manual" autocomplete="street-address" placeholder="' +
-        esc(t('co.addrPh', 'Улица, дом, ориентир')) + '">';
+      '<div class="atl-field">' +
+        '<label class="atl-field-l" for="co-address-manual" data-i18n="atl.co.addr">' + esc(t('atl.co.addr', 'Manzil')) + '</label>' +
+        '<input class="atl-inp" id="co-address-manual" autocomplete="street-address" maxlength="300" aria-describedby="co-addr-err"' +
+          ' data-i18n-attr="placeholder:atl.co.addrPh" placeholder="' + esc(t('atl.co.addrPh', 'Ko‘cha, uy, mo‘ljal…')) + '">' +
+        '<span class="atl-hint" data-i18n="co.mapOffline">' + esc(t('co.mapOffline', 'Xarita mavjud emas. Manzilni qo‘lda kiriting — kuryer aniqlashtirish uchun bog‘lanadi.')) + '</span>' +
+      '</div>';
   }
-  /* One accessor for both modes → validate()/place() stay mode-agnostic. */
+  var mapMounting = null;
+  function mountMap() {
+    if (picker || manualAddress) return Promise.resolve();
+    if (mapMounting) return mapMounting;
+    var host = $('co-address');
+    var initial = preset && preset.lat && preset.lng ? { lat: preset.lat, lng: preset.lng } : null;
+    mapMounting = ensureLeaflet().then(function () {
+      picker = window.LOOM_ADDRESS ? window.LOOM_ADDRESS.mount(host, { initial: initial }) : null;
+      if (!picker) mountManualAddress(host);
+    }).catch(function () { mountManualAddress(host); });
+    return mapMounting;
+  }
+  function opt(name, value, title, sub, on, off, tag) {
+    return '<button type="button" class="atl-opt" role="radio" data-' + name + '="' + value + '" aria-checked="' + !!on + '"' +
+        (off ? ' aria-disabled="true"' : '') + ' tabindex="' + (on ? '0' : '-1') + '">' +
+      '<span class="atl-opt-rd"></span>' +
+      '<span class="atl-opt-tx"><b>' + esc(title) + '</b>' + (sub ? '<i>' + esc(sub) + '</i>' : '') + '</span>' +
+      (tag ? '<span class="atl-tag">' + esc(tag) + '</span>' : '') +
+    '</button>';
+  }
+  function renderAddrChoice() {
+    var box = $('co-addr-choice');
+    if (!preset || !preset.address) { box.hidden = true; return; }
+    box.hidden = false;
+    box.setAttribute('aria-label', t('atl.co.addr', 'Manzil'));
+    box.innerHTML =
+      opt('addr', 'saved', preset.address, t('atl.co.savedAddr', 'saqlangan manzil'), useSaved) +
+      opt('addr', 'other', t('atl.co.otherAddr', 'Boshqa manzil'), t('atl.co.otherAddrSub', 'Xaritada yoki qo‘lda kiriting'), !useSaved);
+  }
+  function chooseAddr(v) {
+    useSaved = v === 'saved';
+    renderAddrChoice();
+    $('co-address').hidden = useSaved;
+    fieldErr('co-addr-err', null);
+    if (!useSaved) mountMap().then(function () { if (picker && picker.invalidate) picker.invalidate(); });
+  }
   function readAddress() {
+    if (useSaved && preset && preset.address) {
+      return { lat: typeof preset.lat === 'number' ? preset.lat : null, lng: typeof preset.lng === 'number' ? preset.lng : null, address: preset.address };
+    }
     if (manualAddress) {
       var el = $('co-address-manual');
       var v = el ? el.value.trim() : '';
@@ -153,28 +193,46 @@
     }
     if (!picker) return null;
     var a = picker.get();
-    // settled but still reverse-geocoding → address is not known yet.
-    // Submitting here used to save an order with an empty address.
+    // settled but still reverse-geocoding: the address is not known yet
     return a && a.address ? a : null;
   }
   function addressPending() {
-    return !manualAddress && !!picker && !!picker.get() && !picker.get().address;
+    return !useSaved && !manualAddress && !!picker && !!picker.get() && !picker.get().address;
   }
 
-  /* ── phone mask: +998 XX XXX-XX-XX ──────────────────────────── */
-  function fmtPhone(digits) {
-    var d = digits.replace(/\D/g, '');
-    if (d.startsWith('998')) d = d.slice(3);
-    d = d.slice(0, 9);
-    var out = '+998';
-    if (d.length) out += ' ' + d.slice(0, 2);
-    if (d.length > 2) out += ' ' + d.slice(2, 5);
-    if (d.length > 5) out += '-' + d.slice(5, 7);
-    if (d.length > 7) out += '-' + d.slice(7, 9);
-    return out;
+  /* ── radio groups: click + arrow keys (role=radio buttons) ───── */
+  function wireRadios(box, attr, onPick) {
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('[role="radio"]');
+      if (!b || b.getAttribute('aria-disabled') === 'true') return;
+      onPick(b.getAttribute('data-' + attr));
+    });
+    box.addEventListener('keydown', function (e) {
+      if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].indexOf(e.key) < 0) return;
+      var all = Array.prototype.filter.call(box.querySelectorAll('[role="radio"]'), function (b) {
+        return b.getAttribute('aria-disabled') !== 'true';
+      });
+      if (all.length < 2) return;
+      e.preventDefault();
+      var i = all.indexOf(document.activeElement);
+      var next = all[(i + (e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : all.length - 1)) % all.length];
+      onPick(next.getAttribute('data-' + attr));
+      var again = box.querySelector('[data-' + attr + '="' + next.getAttribute('data-' + attr) + '"]');
+      if (again) again.focus();
+    });
   }
-  /* Reformatting on every keystroke used to shove the caret to the end,
-     making mid-number edits impossible. Re-anchor it to the same digit. */
+
+  /* ── phone: +998 is a fixed prefix, the field holds 9 digits ─── */
+  function nine(v) {
+    var d = String(v || '').replace(/\D/g, '');
+    if (d.length > 9 && d.indexOf('998') === 0) d = d.slice(3);
+    return d.slice(0, 9);
+  }
+  function fmtPhone(v) {
+    var d = nine(v);
+    return [d.slice(0, 2), d.slice(2, 5), d.slice(5, 7), d.slice(7, 9)].filter(Boolean).join(' ');
+  }
+  /* keep the caret on the same digit while the mask re-spaces the text */
   function applyPhoneMask(el) {
     var before = el.value;
     var caret = el.selectionStart == null ? before.length : el.selectionStart;
@@ -183,171 +241,161 @@
     if (next === before) return;
     el.value = next;
     var pos = 0, seen = 0;
-    while (pos < next.length && seen < digitsBefore) {
-      if (/\d/.test(next.charAt(pos))) seen++;
-      pos++;
-    }
+    while (pos < next.length && seen < digitsBefore) { if (/\d/.test(next.charAt(pos))) seen++; pos++; }
     try { el.setSelectionRange(pos, pos); } catch (e) { /* not a text input */ }
   }
-  function phoneDigits() {
-    var d = ($('co-phone').value || '').replace(/\D/g, '');
-    return d.startsWith('998') ? d : '998' + d;
+  function phoneValid() { return /^\d{9}$/.test(nine($('co-phone').value)); }
+  function verified() {
+    return !!(user && user.phone_verified) && user.phone && nine(user.phone) === nine($('co-phone').value);
   }
-  function phoneValid() { return /^998\d{9}$/.test(phoneDigits()); }
+  function paintVerified() {
+    var ok = verified();
+    show('co-phone-ok', ok);
+    show('co-verify', !ok && !(user && user.phone_verified));
+  }
 
   /* ── payment tiles ──────────────────────────────────────────── */
-  var PAY_LABELS = {
-    cod: { name: function () { return t('co.cod', 'При получении'); }, hint: function () { return t('co.codHint', 'Наличными или картой'); } },
-    payme: { name: function () { return 'Payme'; }, hint: function () { return ''; } },
-    click: { name: function () { return 'Click'; }, hint: function () { return ''; } },
-    uzum: { name: function () { return 'Uzum'; }, hint: function () { return ''; } },
-  };
-  function renderPayTiles(avail) {
-    var box = $('co-pay');
-    if (!box) return;
-    // a method that went unavailable between renders must not stay selected
-    if (!avail[payMethod]) payMethod = 'cod';
-    box.innerHTML = ['cod', 'payme', 'click', 'uzum'].map(function (m) {
-      var on = !!avail[m];
-      return (
-        '<label class="co-pay-tile' + (m === payMethod ? ' active' : '') + (on ? '' : ' disabled') + '" data-method="' + m + '">' +
-          '<input type="radio" name="co-pay" value="' + m + '"' + (on ? '' : ' disabled') + (m === payMethod ? ' checked' : '') + '>' +
-          '<span class="co-pay-mark"></span>' +
-          '<span style="min-width:0">' +
-            '<span class="co-pay-name">' + esc(PAY_LABELS[m].name()) + '</span>' +
-            (PAY_LABELS[m].hint() ? '<span class="co-pay-hint">' + esc(PAY_LABELS[m].hint()) + '</span>' : '') +
-          '</span>' +
-          (on ? '' : '<span class="co-soon">' + esc(t('co.soon', 'Скоро')) + '</span>') +
-        '</label>');
-    }).join('');
-    box.querySelectorAll('.co-pay-tile:not(.disabled)').forEach(function (tile) {
-      tile.addEventListener('click', function () {
-        payMethod = tile.dataset.method;
-        box.querySelectorAll('.co-pay-tile').forEach(function (x) {
-          x.classList.toggle('active', x === tile);
-        });
-      });
-    });
+  function renderPay() {
+    var soon = t('atl.soon', 'Tez orada');
+    var on = p2pOn();
+    $('co-pay').innerHTML =
+      opt('pay', 'p2p', t('atl.co.p2p', 'Kartaga o‘tkazma'), t('atl.co.p2pSub', 'LOOM kartasiga, buyurtmadan oldin to‘liq summa'), on, !on, on ? '' : soon) +
+      opt('pay', 'payme', 'Payme', '', false, true, soon) +
+      opt('pay', 'click', 'Click', '', false, true, soon) +
+      opt('pay', 'uzum', 'Uzum Bank', '', false, true, soon);
   }
 
-  /* ── order summary ──────────────────────────────────────────── */
+  /* ── summary + totals (all amounts from the server cart) ──────── */
   function renderSummary() {
+    var C = window.LOOM_CART, s = C.state;
     var box = $('co-items');
-    if (!box) return;
-    var items = window.LOOM_CART.state.items;
-    box.innerHTML = items.map(function (it) {
-      var meta = window.LOOM_CART.summarize(it.design_json).map(esc).join(' · ');
-      return (
-        '<div class="co-item" data-id="' + it.id + '">' +
-          '<div class="co-item-thumb">' +
-            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>' +
-            '<img alt="" loading="lazy" decoding="async" style="display:none">' +
-          '</div>' +
-          '<div class="co-item-info">' +
-            '<span class="co-item-name">' + esc(window.LOOM_CART.productName(it)) + (it.quantity > 1 ? ' ×' + it.quantity : '') + '</span>' +
-            (meta ? '<span class="co-item-meta">' + meta + '</span>' : '') +
-          '</div>' +
-          '<span class="co-item-price">' + fmt(it.unit_price * it.quantity) + '</span>' +
-        '</div>');
+    box.innerHTML = s.items.map(function (it) {
+      var name = C.productName(it) + (it.quantity > 1 ? ' × ' + it.quantity : '');
+      return '<div class="atl-row" data-id="' + esc(it.id) + '">' +
+          '<span class="atl-cv atl-thumb">' + ic('shirt') + '<img alt="" loading="lazy" decoding="async" style="display:none"></span>' +
+          '<span class="atl-row-tx"><b>' + esc(name) + '</b><i class="atl-num">' + esc(som(it.unit_price * it.quantity)) + '</i></span>' +
+        '</div>';
     }).join('');
-    items.forEach(function (it) {
-      var img = box.querySelector('.co-item[data-id="' + it.id + '"] img');
-      if (img) window.LOOM_CART.thumbInto(img, it);
+    s.items.forEach(function (it) {
+      var img = box.querySelector('[data-id="' + it.id + '"] img');
+      if (!img) return;
+      img.addEventListener('load', function () { var svg = img.previousElementSibling; if (svg) svg.remove(); }, { once: true });
+      C.thumbInto(img, it);
     });
-    $('co-subtotal').textContent = fmt(window.LOOM_CART.state.total);
-    $('co-total').textContent = fmt(window.LOOM_CART.state.total);
+    var delivery = s.delivery || 0;
+    var payable = typeof s.payable === 'number' ? s.payable : (s.total || 0) + delivery;
+    $('co-sub').textContent = som(s.total || 0);
+    $('co-deliv').textContent = som(delivery);
+    $('co-total').textContent = som(payable);
+    $('co-bar-total').textContent = som(payable);
+    $('co-delivery-lg').textContent = t('atl.co.delivery', 'Yetkazib berish · {amount}').replace('{amount}', som(delivery));
+    var sr = document.querySelector('[data-co-sr]');
+    if (sr) sr.textContent = ' · ' + som(payable);
   }
 
-  /* ── saved address chips ────────────────────────────────────── */
-  function renderSaved() {
-    var preset = null;
-    try { preset = user && user.location_preset ? JSON.parse(user.location_preset) : null; } catch (e) {}
-    if (!preset || !preset.address || manualAddress) return;
-    var box = $('co-saved');
-    box.style.display = 'flex';
-    box.innerHTML =
-      '<button type="button" class="co-saved-chip" id="co-saved-chip">' +
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>' +
-        '<span>' + esc(t('co.savedAddr', 'Сохранённый адрес')) + ': ' + esc(preset.address) + '</span>' +
-      '</button>';
-    $('co-saved-chip').addEventListener('click', function () {
-      this.classList.add('active');
-      if (picker && preset.lat && preset.lng) picker.set(preset.lat, preset.lng, 17);
-      else if (picker) {
-        // no coords stored — try searching the saved text
-        var input = document.querySelector('.addr-search-input');
-        if (input) { input.value = preset.address; input.dispatchEvent(new Event('input')); }
-      }
-    });
-  }
-
-  /* ── validation + submit ────────────────────────────────────── */
-  function banner(msg, actionHtml) {
+  /* ── messages ───────────────────────────────────────────────── */
+  function banner(msg) {
     var b = $('co-banner');
-    if (!b) return;
-    if (!msg) { b.classList.remove('show'); b.innerHTML = ''; return; }
-    b.innerHTML = '<span>' + esc(msg) + '</span>' + (actionHtml || '');
-    b.classList.add('show');
-    b.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!msg) { b.hidden = true; b.innerHTML = ''; return; }
+    b.innerHTML = ic('alert') + '<span class="atl-banner-tx">' + esc(msg) + '</span>';
+    b.hidden = false;
+    try { b.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { b.scrollIntoView(); }
   }
-  /* phone_not_verified is a hard server gate and the login modal is the
-     only place the Telegram link happens — hand the customer that door
-     instead of a message they cannot act on. */
-  function verifyPhoneBanner(msg) {
-    banner(msg, '<button type="button" class="btn btn--solid" id="co-verify-btn" style="margin-top:0.7rem">' +
-      esc(t('co.verifyCta', 'Подтвердить через Telegram')) + '</button>');
-    var btn = $('co-verify-btn');
-    if (!btn) return;
-    btn.addEventListener('click', async function () {
-      if (!window.LOOM_LOGIN_MODAL) return;
-      try {
-        var next = await window.LOOM_LOGIN_MODAL.open();
-        if (next) {
-          user = next;
-          if (user.phone_verified) {
-            hide('co-phone-warn');
-            show('co-phone-badge', 'inline-flex');
-            banner(null);
-          }
-        }
-      } catch (e) { /* customer closed the modal */ }
-    });
+  function toastErr(msg) {
+    var old = document.getElementById('co-toast');
+    if (old) old.remove();
+    var el = document.createElement('div');
+    el.id = 'co-toast';
+    el.className = 'atl-toast atl-toast-err';
+    el.setAttribute('role', 'alert');
+    el.innerHTML = ic('alert') + '<span>' + esc(msg) + '</span>';
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 4000);
   }
+  function fieldErr(id, msg, inputBox) {
+    var el = $(id);
+    el.hidden = !msg;
+    el.innerHTML = msg ? ic('alert') + '<span>' + esc(msg) + '</span>' : '';
+    if (inputBox) {
+      if (msg) inputBox.setAttribute('aria-invalid', 'true');
+      else inputBox.removeAttribute('aria-invalid');
+    }
+  }
+  /* payment closed: say so and keep the money buttons off */
+  function paintGate() {
+    var open = p2pOn();
+    Array.prototype.forEach.call(places(), function (b) { b.disabled = !open || placing; });
+    if (!open) banner(methodsFailed ? t('atl.co.noServer', 'Server bilan aloqa yo‘q. Qayta urinib ko‘ring.') : t('atl.co.p2pOff', 'To‘lov vaqtincha ishlamayapti. Bir necha daqiqadan keyin sahifani yangilang.'));
+  }
+
   function validate() {
     var ok = true;
-    banner(null);
     var name = $('co-name').value.trim();
-    $('co-name-err').textContent = name.length >= 2 ? '' : t('co.needName', 'Укажите имя');
+    fieldErr('co-name-err', name.length >= 2 ? null : t('co.needName', 'Ismingizni kiriting'), $('co-name'));
     if (name.length < 2) ok = false;
-    $('co-phone-err').textContent = phoneValid() ? '' : t('co.needPhone', 'Укажите корректный номер');
+    fieldErr('co-phone-err', phoneValid() ? null : t('co.needPhone', 'To‘g‘ri raqam kiriting'), $('co-phone-box'));
     if (!phoneValid()) ok = false;
     var addr = readAddress();
-    if (addr) {
-      $('co-addr-err').textContent = '';
-    } else {
-      /* separate key per mode — t() returns the catalogued string, so a
-         mode-dependent *fallback* would never actually surface */
-      $('co-addr-err').textContent = addressPending()
-        ? t('co.addrPending', 'Определяем адрес — подождите секунду')
-        : manualAddress
-          ? t('co.needAddrManual', 'Укажите адрес доставки')
-          : t('co.needAddr', 'Укажите адрес на карте');
+    if (addr) fieldErr('co-addr-err', null);
+    else {
+      fieldErr('co-addr-err', addressPending()
+        ? t('co.addrPending', 'Manzil aniqlanmoqda — bir soniya kuting')
+        : manualAddress ? t('atl.co.needAddr', 'Yetkazib berish manzilini kiriting') : t('co.needAddr', 'Xaritada manzilni belgilang'));
+      var mi = $('co-address-manual');
+      if (mi) mi.setAttribute('aria-invalid', 'true');
       ok = false;
+    }
+    if (!ok) {
+      if (!addr) banner(t('atl.co.notSent', 'Buyurtma yuborilmadi. Yetkazib berish manzilini kiriting.'));
+      var first = document.querySelector('#co-form [aria-invalid="true"]');
+      if (first) { var f = first.matches('input,textarea') ? first : first.querySelector('input'); if (f) f.focus({ preventScroll: true }); }
     }
     return ok;
   }
 
+  function setSending(on) {
+    placing = on;
+    Array.prototype.forEach.call(places(), function (b) {
+      b.disabled = on || !p2pOn();
+      if (on) b.setAttribute('aria-busy', 'true'); else b.removeAttribute('aria-busy');
+      var label = b.querySelector('[data-co-label]');
+      if (!label) return;
+      if (on) {
+        label.removeAttribute('data-i18n');
+        label.innerHTML = '<span class="atl-spin" aria-hidden="true"></span> ' + esc(t('atl.sending', 'Yuborilmoqda…'));
+      } else {
+        label.setAttribute('data-i18n', 'atl.co.toPay');
+        label.textContent = t('atl.co.toPay', 'To‘lovga o‘tish');
+      }
+    });
+  }
+
+  function sessionId() {
+    if (window.LOOM_TRACK && window.LOOM_TRACK.getSessionId) return window.LOOM_TRACK.getSessionId();
+    var sid = null;
+    try { sid = sessionStorage.getItem('loom_sid'); } catch (_) {}
+    if (!sid) {
+      sid = 'sid_' + Date.now().toString(36) + Math.random().toString(36).slice(2);
+      try { sessionStorage.setItem('loom_sid', sid); } catch (_) {}
+    }
+    return sid;
+  }
+
   async function place() {
-    if (placing) return;             // belt-and-braces against a double tap
+    if (placing) return;             // a double tap sends one order
+    banner(null);
+    // R2: re-ask the server; a closed card transfer never orders
+    if (!p2pOn()) {
+      setSending(true);
+      await fetchMethods();
+      setSending(false);
+      renderPay();
+      paintGate();
+      if (!p2pOn()) return;
+    }
     if (!validate()) return;
-    var btn = $('co-place');
-    var label = btn.innerHTML;
-    placing = true;
-    btn.disabled = true;
-    btn.innerHTML =
-      '<svg class="spinner" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg>' +
-      '<span>' + esc(t('co.placing', 'Оформляем…')) + '</span>';
-    var redirecting = false;
+    setSending(true);
+    var leaving = false;
     try {
       var addr = readAddress();
       var details = {
@@ -358,168 +406,134 @@
         note: $('co-courier').value.trim() || undefined,
       };
       Object.keys(details).forEach(function (k) { if (details[k] === undefined) delete details[k]; });
-
-      var fullName = ($('co-name').value.trim() + ' ' + $('co-surname').value.trim()).trim();
       var payload = {
-        customerName: fullName,
-        customerPhone: '+' + phoneDigits(),
+        customerName: $('co-name').value.trim(),
+        customerPhone: '+998' + nine($('co-phone').value),
         address: addr.address,
         addressDetails: Object.keys(details).length ? details : undefined,
-        comment: $('co-comment').value.trim() || undefined,
-        paymentMethod: payMethod,
+        paymentMethod: 'p2p',
+        platform: 'web',
       };
-      // manual fallback has no pin — omit rather than send nulls the
-      // backend would reject as non-numbers
+      // the plain field has no pin: omit rather than send nulls
       if (typeof addr.lat === 'number' && typeof addr.lng === 'number') {
         payload.addressLat = addr.lat;
         payload.addressLng = addr.lng;
       }
-
-      try { payload.sessionId = sessionStorage.getItem('loom_sid') || undefined; } catch (_) {}
-      if (window.LOOM_TRACK) {
-        window.LOOM_TRACK.event('cfg_checkout_submit'); window.LOOM_TRACK.event('cfg_order');
-        payload.sessionId = window.LOOM_TRACK.getSessionId();
-      } else {
-        try {
-          payload.sessionId = sessionStorage.getItem('loom_sid');
-          if (!payload.sessionId) { payload.sessionId = 'sid_' + Date.now().toString(36) + Math.random().toString(36).slice(2); sessionStorage.setItem('loom_sid', payload.sessionId); }
-        } catch (_) { payload.sessionId = 'sid_' + Date.now().toString(36) + Math.random().toString(36).slice(2); }
-      }
-      payload.platform = 'web';
+      if (window.LOOM_TRACK) { window.LOOM_TRACK.event('cfg_checkout_submit'); window.LOOM_TRACK.event('cfg_order'); }
+      payload.sessionId = sessionId();
       var headers = authHeaders(true);
       headers['Idempotency-Key'] = checkoutKey(payload);
       var res = await fetch(api() + '/api/cart/checkout', {
-        method: 'POST', headers: headers, credentials: 'include',
-        body: JSON.stringify(payload),
+        method: 'POST', headers: headers, credentials: 'include', body: JSON.stringify(payload),
       });
       var data = await res.json().catch(function () { return {}; });
-      if (!res.ok) {
-        if (data.code === 'price_changed') {
-          window.LOOM_CART.sync(data);
-          renderSummary();
-          banner(t('co.priceChanged', 'Prices changed. Review the new total and place the order again.'));
-        } else if (data.code === 'cart_changed') {
-          window.LOOM_CART.sync(data); renderSummary(); banner(t('co.errGeneric', 'Review the cart and try again.'));
-        } else if (data.code === 'phone_not_verified') {
-          show('co-phone-warn', 'flex');
-          verifyPhoneBanner(data.error || t('co.phoneWarn', 'Для заказа подтвердите номер через Telegram'));
-        } else if (data.code === 'artwork_price_changed') {
-          banner(data.artworkTitle
-            ? t('artwork_price_changed_title', 'Цена дизайна «{title}» изменилась. Удалите вещь с этим дизайном из корзины и добавьте её заново, чтобы увидеть новую цену.')
-              .replace('{title}', function () { return data.artworkTitle; })
-            : t('artwork_price_changed', data.error));
-        } else if (res.status === 401) {
-          banner(t('co.sessionLost', 'Сессия истекла. Войдите заново, чтобы оформить заказ.'));
-        } else if (UNSOLD[data.code]) {
-          // A bag item's product, size or colour was switched off (LOOM-166).
-          banner(t(UNSOLD[data.code][0], UNSOLD[data.code][1]));
-        } else {
-          banner(data.error || t('co.errGeneric', 'Не удалось оформить заказ. Попробуйте ещё раз.'));
-        }
-        return;
-      }
+      if (!res.ok) { refused(res.status, data); return; }
       clearCheckoutKey();
-      // paid online → provider page; COD → success screen
-      if (data.paymentUrl) { redirecting = true; location.href = data.paymentUrl; return; }
-      window.LOOM_CART.load(); // server cleared it — refresh the badge
-      hide('co-grid');
-      $('co-success-num').textContent = data.id
-        ? t('co.successNum', 'Номер заказа') + ' · #' + data.id
-        : '';
-      show('co-success');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (!data.id) { banner(t('co.errGeneric', 'Buyurtma yuborilmadi. Qayta urinib ko‘ring.')); return; }
+      leaving = true;
+      window.LOOM_CART.load();   // the server emptied the cart: refresh the badge
+      location.href = 'order.html?id=' + encodeURIComponent(data.id);
     } catch (e) {
-      banner(t('co.errNetwork', 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.'));
+      toastErr(t('atl.co.noServer', 'Server bilan aloqa yo‘q. Qayta urinib ko‘ring.'));
     } finally {
-      // leave the button spinning while the browser navigates away
-      if (!redirecting) {
-        placing = false;
-        btn.disabled = false;
-        btn.innerHTML = label;
-      }
+      if (!leaving) setSending(false);
     }
   }
 
-  /* ── boot ───────────────────────────────────────────────────── */
-  /* Payment methods need no auth, so this round trip runs in parallel
-     with (not after) the auth gate. Started at script-execute time. */
-  var DEFAULT_METHODS = { cod: true, payme: false, click: false, uzum: false };
-  var methodsPromise = fetch(api() + '/api/payments/methods')
-    .then(function (r) { return r.ok ? r.json() : DEFAULT_METHODS; })
-    .catch(function () { return DEFAULT_METHODS; });
+  /* every server refusal shows a message the customer can act on */
+  function refused(status, data) {
+    var code = data && data.code;
+    if (code === 'price_changed') {
+      window.LOOM_CART.sync(data); renderSummary();
+      banner(t('co.priceChanged', 'Narxlar o‘zgardi. Yangi summani tekshirib, buyurtmani qayta tasdiqlang.'));
+    } else if (code === 'cart_changed') {
+      (Array.isArray(data.items) ? Promise.resolve(window.LOOM_CART.sync(data)) : window.LOOM_CART.load()).then(renderSummary);
+      banner(t('co.errGeneric', 'Buyurtma yuborilmadi. Qayta urinib ko‘ring.'));
+    } else if (code === 'cart_empty') {
+      window.LOOM_CART.load().then(function () { showEmpty(); });
+    } else if (code === 'phone_not_verified') {
+      show('co-verify', true);
+      banner(t('atl.co.verifyBanner', 'Buyurtma uchun raqamni Telegram orqali tasdiqlang.'));
+    } else if (code === 'payment_method_unavailable') {
+      banner(t('atl.co.methodOff', 'Bu to‘lov usuli hozir ishlamaydi. Sahifani yangilab, qayta urinib ko‘ring.'));
+    } else if (code === 'artwork_price_changed') {
+      banner(data.artworkTitle
+        ? t('artwork_price_changed_title', 'Dizayn narxi o‘zgardi: «{title}». Bu buyumni savatdan olib tashlab, qayta qo‘shing.')
+          .replace('{title}', function () { return data.artworkTitle; })
+        : t('artwork_price_changed', data.error || ''));
+    } else if (status === 401) {
+      banner(t('co.sessionLost', 'Sessiya tugadi. Buyurtma berish uchun qayta kiring.'));
+      setTimeout(function () { location.href = LOGIN; }, 2500);
+    } else if (UNSOLD[code]) {
+      banner(t(UNSOLD[code][0], UNSOLD[code][1]));
+    } else {
+      banner(data && data.error || t('co.errGeneric', 'Buyurtma yuborilmadi. Qayta urinib ko‘ring.'));
+    }
+  }
 
-  function fatal(msg) {
-    hide('co-loading');
-    var el = $('co-error');
-    if (!el) return;
-    var textEl = $('co-error-text');
-    if (textEl && msg) textEl.textContent = msg;
-    el.style.display = 'block';
+  /* ── states ─────────────────────────────────────────────────── */
+  function hideAll() { ['co-loading', 'co-error', 'co-empty', 'co-grid', 'co-bar'].forEach(function (id) { show(id, false); }); document.body.classList.remove('atl-abar-on'); }
+  function showEmpty() { hideAll(); show('co-empty', true); }
+  function fatal() { hideAll(); show('co-error', true); }
+  function paintTitle() {
+    var h = document.querySelector('.atl-mbar h1');
+    if (h) h.textContent = t('atl.co.title', 'Rasmiylashtirish');
+    document.title = 'LOOM — ' + t('atl.co.title', 'Rasmiylashtirish');
   }
 
   async function boot() {
-    // 1. auth gate
-    try {
-      user = window.LOOM_LOGIN_MODAL
-        ? await window.LOOM_LOGIN_MODAL.requireAuth()
-        : (window.LOOM_AUTH ? await window.LOOM_AUTH.getCurrentUser() : null);
-    } catch (e) { user = null; }
-    if (!user) { location.href = 'index.html'; return; }
+    paintTitle();
+    var reload = document.querySelector('[data-co-reload]');
+    if (reload) reload.addEventListener('click', function () { location.reload(); });
 
-    // 2. cart + payment methods (cart.js deliberately skips its own
-    //    initial load here, so this is the page's only /api/cart call)
-    var results = await Promise.all([window.LOOM_CART.load(), methodsPromise]);
-    var methods = results[1] && typeof results[1] === 'object' ? results[1] : DEFAULT_METHODS;
+    // 1. auth gate: login comes back here
+    try { user = window.LOOM_AUTH ? await window.LOOM_AUTH.getCurrentUser() : null; } catch (e) { user = null; }
+    if (!user) { location.replace(LOGIN); return; }
 
-    hide('co-loading');
-    if (!window.LOOM_CART.state.items.length) {
-      show('co-empty');
-      return;
-    }
-    show('co-grid', 'grid');
+    // 2. cart + payment methods (cart.js skips its own load on this page)
+    await Promise.all([window.LOOM_CART.load(), methodsPromise]);
+    if (window.LOOM_CART.state.failed) { fatal(); return; }
+    hideAll();
+    if (!window.LOOM_CART.state.items.length) { showEmpty(); return; }
+    show('co-grid', true);
+    show('co-bar', true);
+    document.body.classList.add('atl-abar-on');
 
-    // 3. prefill contact
-    // Telegram/Mini App accounts carry first_name/last_name instead of name
-    var parts = (user.name || '').split(/\s+/);
-    $('co-name').value = parts[0] || user.first_name || '';
-    $('co-surname').value = parts.slice(1).join(' ') || user.last_name || '';
+    // 3. contact
+    $('co-name').value = (user.name || [user.first_name, user.last_name].filter(Boolean).join(' ') || '').trim();
     if (user.phone) $('co-phone').value = fmtPhone(user.phone);
-    if (user.phone_verified) show('co-phone-badge', 'inline-flex');
-    else show('co-phone-warn', 'flex');
-    $('co-phone').addEventListener('input', function () { applyPhoneMask(this); });
+    $('co-phone').addEventListener('input', function () { applyPhoneMask(this); paintVerified(); });
+    paintVerified();
 
-    // 4. payment + summary + submit — wired BEFORE the map so the form
-    //    is usable the moment it appears, even on a slow Leaflet fetch
-    renderPayTiles(methods);
+    // 4. payment, summary, submit: usable before the map arrives
+    renderPay();
     renderSummary();
+    paintGate();
+    wireRadios($('co-pay'), 'pay', function () { /* p2p is the only live method */ });
+    $('co-form').addEventListener('submit', function (e) { e.preventDefault(); place(); });
+    Array.prototype.forEach.call(places(), function (b) { b.addEventListener('click', place); });
     window.addEventListener('loom:langchange', function () {
-      renderPayTiles(methods);
-      renderSummary();
+      paintTitle(); renderPay(); renderSummary(); renderAddrChoice();
+      if (!p2pOn()) paintGate();
     });
-    $('co-place').addEventListener('click', place);
 
-    // 5. address picker (+ saved preset), lazily
-    var initial = null;
+    // 5. address: saved address first, the map only when needed
     try {
-      var preset = user.location_preset ? JSON.parse(user.location_preset) : null;
-      if (preset && preset.lat && preset.lng) initial = { lat: preset.lat, lng: preset.lng };
-    } catch (e) {}
-    var host = $('co-address');
-    try {
-      await ensureLeaflet();
-      picker = window.LOOM_ADDRESS ? window.LOOM_ADDRESS.mount(host, { initial: initial }) : null;
-      if (!picker) mountManualAddress(host);
-    } catch (e) {
-      mountManualAddress(host);
+      preset = user.location_preset;
+      if (typeof preset === 'string') preset = JSON.parse(preset);
+    } catch (e) { preset = null; }
+    if (preset && preset.address) {
+      wireRadios($('co-addr-choice'), 'addr', chooseAddr);
+      chooseAddr('saved');
+    } else {
+      await mountMap();
     }
-    renderSaved();
   }
 
   function start() {
     boot().catch(function (e) {
-      // never leave the customer on a blank page
       try { console.error('[checkout]', e); } catch (_) {}
-      fatal(t('co.errBoot', 'Не удалось загрузить оформление заказа. Обновите страницу.'));
+      fatal();
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

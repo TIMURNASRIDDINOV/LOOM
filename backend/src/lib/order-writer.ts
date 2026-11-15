@@ -4,6 +4,7 @@ import { artworkIdsIn } from './pricing'
 export type CheckoutOrder = {
   id: number; user_id: number; status: string; total_price: number
   payment_method: string; session_id: string | null
+  delivery_fee: number; pay_deadline: number | null
 }
 
 export function findCheckout(db: D1Database, userId: number, key: string) {
@@ -16,7 +17,9 @@ export async function checkoutItems(db: D1Database, id: number) {
 }
 
 type CheckoutInput = {
-  userId: number; key: string; sessionId: string | null; platform?: 'web' | 'app'; items: CartItem[]; total: number
+  userId: number; key: string; sessionId: string | null; platform?: 'web' | 'app'; items: CartItem[]
+  /** Items subtotal; the order row stores total + deliveryFee. */
+  total: number; deliveryFee: number; payDeadline: number
   customerName: string; customerPhone: string; address: string | null
   coordinates: string | null; comment: string | null; paymentMethod: string
   lat: number | null; lng: number | null; addressDetails: string | null; commission: number
@@ -32,8 +35,9 @@ export async function writeCheckout(db: D1Database, input: CheckoutInput) {
   const statements: D1PreparedStatement[] = [db.prepare(`
     INSERT INTO orders (user_id, product_id, customer_name, customer_phone, address, coordinates,
       comment, design_json, logo_key, total_price, status, created_at, updated_at,
-      payment_method, address_lat, address_lng, address_details, idempotency_key, session_id)
-    SELECT ?,?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?,?
+      payment_method, address_lat, address_lng, address_details, idempotency_key, session_id,
+      delivery_fee, pay_deadline)
+    SELECT ?,?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?,?,?,?
     WHERE NOT EXISTS (
       SELECT 1 FROM json_each(?) AS line
       LEFT JOIN cart_items ci ON ci.id = json_extract(line.value, '$.id') AND ci.user_id = ?
@@ -45,8 +49,8 @@ export async function writeCheckout(db: D1Database, input: CheckoutInput) {
           AND a.id IN (SELECT value FROM json_each(json_extract(line.value, '$.artworkIds')))), 0) != ci.unit_price
     )`).bind(userId, items[0].product_id, input.customerName, input.customerPhone, input.address,
       input.coordinates, input.comment, JSON.stringify({ multi: true, itemCount: items.length }),
-      items[0].logo_key, input.total, now, now, input.paymentMethod, input.lat, input.lng,
-      input.addressDetails, key, input.sessionId, guard, userId)]
+      items[0].logo_key, input.total + input.deliveryFee, now, now, input.paymentMethod, input.lat, input.lng,
+      input.addressDetails, key, input.sessionId, input.deliveryFee, input.payDeadline, guard, userId)]
   for (const item of items) {
     statements.push(db.prepare(`
       INSERT INTO order_items (order_id, product_id, product_name, design_json, logo_key, unit_price,

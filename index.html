@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#f4f2ed" />
+  <meta name="theme-color" content="#f5f5f2" />
   <title>LOOM — Custom Apparel</title>
   <meta name="description" content="Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану." />
 
@@ -61,731 +61,193 @@
   }
   </script>
 
-  <!-- Fonts: full Cyrillic coverage (Inter Tight / Inter / IBM Plex Mono) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/atelye.css?v=1" />
 
-  <!-- Design system -->
-  <link rel="stylesheet" href="assets/theme.css?v=12" />
-  <link rel="stylesheet" href="assets/nav.css?v=13" />
-  <link rel="stylesheet" href="assets/auth.css?v=13" />
-
-  <!-- Pre-paint guard (must be synchronous, before first render) -->
-  <script src="assets/boot.js?v=9" data-intro></script>
-
-  <!-- Page scripts: deferred so parsing is never blocked and the preload
-       scanner starts every download at byte 0. `defer` preserves document
-       order, which this stack depends on (GSAP → motion.js, config →
-       layout → i18n → auth → nav). -->
-  <script defer src="assets/vendor/gsap.min.js?v=1"></script>
-  <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
-  <script defer src="assets/vendor/lenis.min.js?v=1"></script>
-  <script defer src="assets/config.js?v=9"></script>
-  <script defer src="assets/layout.js?v=7"></script>
-  <script defer src="assets/i18n.js?v=57"></script>
-  <script defer src="assets/auth.js?v=5"></script>
-  <script defer src="assets/tma.js?v=4"></script>
-  <script defer src="assets/nav.js?v=2"></script>
-  <script defer src="assets/motion.js?v=11"></script>
-  <script defer src="assets/track.js?v=6"></script>
-  <script defer src="assets/analytics.js?v=3"></script>
+  <!-- Theme before first paint -->
+  <script src="assets/boot.js?v=10"></script>
+  <!-- Intro loader (kept from the old site, founder decision): plays on a
+       fresh open or refresh, not on back/forward, not with reduced motion,
+       not inside Telegram (Telegram shows its own loading screen).
+       ?intro holds it on screen until a tap (design checks). Decided here,
+       before first paint, so the page never flashes under it; the timeout
+       is the failsafe if assets/home.js never runs. -->
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, q = location.search;
+        var force = /[?&]intro\b/.test(q);
+        var nav = 'navigate';
+        try { var pe = performance.getEntriesByType('navigation')[0]; if (pe && pe.type) nav = pe.type; } catch (e) {}
+        var tg = /tgWebAppData/.test(location.hash);
+        try { tg = tg || !!sessionStorage.getItem('__telegram__initParams'); } catch (e) {}
+        var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (force || (!tg && !reduce && nav !== 'back_forward')) {
+          d.classList.add('atl-intro');
+          if (force) window.__atlIntroHold = true;
+          else window.__atlIntroFailsafe = setTimeout(function () { d.classList.remove('atl-intro'); }, 4000);
+        }
+      } catch (e) { /* never hold the page */ }
+    })();
+  </script>
 
   <style>
-    /* ============================================================
-       HOME — page-specific layout. Colors/type/motion come from
-       theme.css tokens only.
-    ============================================================ */
+    /* Home only. Components come from assets/atelye.css. */
 
-    /* ── Hero ──────────────────────────────────────────────── */
-    .hero {
-      min-height: 100svh;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      padding-top: var(--nav-h);
-      position: relative;
-    }
-    .hero__grid {
-      width: 100%;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: clamp(2rem, 5vw, 4rem);
-      align-items: end;
-      padding-bottom: clamp(2rem, 5vw, 3.5rem);
-    }
-    .hero__eyebrow { margin-bottom: 1.6rem; }
-    .hero__title { margin-bottom: 1.6rem; }
-    .hero__title .line { display: block; }
-    .hero__subtitle {
-      font-size: clamp(0.95rem, 1.15vw, 1.05rem);
-      color: var(--ink-55);
-      max-width: 430px;
-      line-height: 1.65;
-      margin-bottom: 2.4rem;
-    }
-    .hero__btns { display: flex; gap: 0.85rem; flex-wrap: wrap; }
+    /* Intro loader: wordmark, bar + counter, then the red curtain wipe. */
+    .atl-splash { display: none; }
+    html.atl-intro { overflow: hidden; }
+    html.atl-intro .atl-splash { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: var(--page); cursor: pointer; }
+    .atl-splash .atl-wm { font-size: 34px; }
+    .atl-splash .atl-wm i { width: 14px; height: 14px; }
+    .atl-splash-ld { width: 140px; height: 3px; border-radius: 2px; background: var(--surface2); overflow: hidden; }
+    .atl-splash-ld i { display: block; height: 100%; background: var(--ink); transform-origin: 0 0; animation: atl-fill var(--atl-intro-d, 1.6s) var(--ease) both; }
+    .atl-splash-cnt { font: 600 13px var(--f); color: var(--mut); display: flex; gap: 6px; }
+    .atl-splash-cur { position: fixed; inset: 0; background: var(--cta); transform: translateY(100%); }
+    @keyframes atl-fill { from { transform: scaleX(0); } }
 
-    /* right column: looping product video in a framed tile */
-    .hero__media { display: flex; flex-direction: column; gap: 0.7rem; }
-    .hero__video {
-      background: var(--media-bg);
-      border: 1px solid var(--line);
-      aspect-ratio: 6 / 5;
-      overflow: hidden;
-    }
-    .hero__video video { width: 100%; height: 100%; object-fit: cover; }
-    .hero__media-caption {
-      display: flex;
-      justify-content: space-between;
-      font-family: var(--font-mono);
-      font-size: 0.64rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--ink-38);
-    }
+    /* Hero: the workbench. A real garment on the grid canvas. */
+    .atl-hero { display: flex; flex-direction: column; gap: 16px; }
+    .atl-hero-tx { display: flex; flex-direction: column; gap: 14px; }
+    .atl-hero-cv { border-radius: var(--r-panel); height: 300px; display: grid; place-items: center; }
+    .atl-hero-g { position: relative; height: 86%; aspect-ratio: 1; }
+    .atl-hero-g img { position: absolute; display: block; }
+    .atl-hero-g > img:first-child { inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .atl-hero-pr { left: 36%; top: 27%; width: 28%; height: auto; filter: invert(1); mix-blend-mode: multiply; } /* the art files are white on black: print it as ink on the white tee */
 
-    /* bottom meta row pinned under the grid */
-    .hero__meta {
-      border-top: 1px solid var(--line);
-      padding: 0.85rem 0;
-    }
-    .hero__meta-inner {
-      display: flex;
-      justify-content: space-between;
-      gap: 1rem;
-      font-family: var(--font-mono);
-      font-size: 0.64rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--ink-38);
-    }
+    .atl-facts { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border-block: 1px solid var(--ln); }
+    .atl-facts li { padding: 12px 12px 12px 0; display: flex; flex-direction: column; gap: 2px; }
+    .atl-facts b { font: 700 18px/1.15 var(--f); font-stretch: 110%; }
+    .atl-facts span { font-size: 13px; color: var(--mut); }
 
-    @media (max-width: 860px) {
-      .hero__grid { grid-template-columns: 1fr; align-items: start; }
-      .hero__media { max-width: 450px; }   /* 6:5, 375px tall like the old 300x375 */
-      .hero__meta-inner span:nth-child(2) { display: none; }
-    }
-    @media (max-width: 620px) {
-      /* full-width stacked CTAs — taller tap area, clear hierarchy */
-      .hero__btns { flex-direction: column; align-items: stretch; gap: 0.7rem; }
-      .hero__btns .btn { width: 100%; padding: 1.05rem 1.5rem; }
-      /* the video becomes a full-width editorial block, not a 450px box */
-      .hero__media { max-width: none; }
-      /* phones keep the taller 4:5 tile; cover trims the 6:5 clip's sides,
-         so sleeves can clip in the widest turns (phones only) */
-      .hero__video { aspect-ratio: 4 / 5; }
-      .hero__grid { gap: 2.5rem; }
-    }
+    /* The three steps are a real sequence, so they are numbered. */
+    .atl-home-sec { display: flex; flex-direction: column; gap: 12px; }
 
-    /* ── Product grid (3 editorial cards) ──────────────────── */
-    .product-grid3 {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      border-left: 1px solid var(--line-soft);
-      border-top: 1px solid var(--line-soft);
-    }
-    @media (max-width: 960px) { .product-grid3 { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 620px) { .product-grid3 { grid-template-columns: 1fr; } }
-    .pcard[hidden] { display: none; }
+    /* First-visit onboarding: three skippable cards. */
+    .atl-onb { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; background: var(--page); padding-top: var(--atl-st); }
+    .atl-onb-art { flex: 1; min-height: 0; display: grid; place-items: center; padding: 24px; }
+    .atl-onb-g { position: relative; height: 100%; max-height: 300px; aspect-ratio: 1; }
+    .atl-onb-g img, .atl-onb-g svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .atl-onb-g .atl-hero-pr { inset: auto; left: 37%; top: 30%; width: 26%; height: auto; }
+    .atl-onb-tx { padding: 20px 16px calc(16px + var(--atl-sb)); display: flex; flex-direction: column; gap: 14px; }
+    .atl-onb-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; }
+    .atl-onb-dots { display: flex; gap: 6px; }
+    .atl-onb-dots i { width: 8px; height: 8px; border-radius: 4px; background: var(--ln); }
+    .atl-onb-dots i.atl-on { width: 22px; background: var(--ink); }
+    .atl-onb-lang { display: flex; gap: 4px; }
+    html.atl-onb-open .atl-bnav { display: none; }
+    .atl-hd .atl-lnk, .atl-onb-top .atl-lnk { justify-content: flex-end; }
 
-    /* ── Spotlight ─────────────────────────────────────────── */
-    .spotlight__grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: clamp(2.5rem, 6vw, 5.5rem);
-      align-items: center;
+    @media (min-width: 900px) {
+      .atl-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 48px; align-items: center; }
+      .atl-hero .atl-t1 { font-size: 56px; }
+      .atl-hero-cv { height: 460px; }
+      .atl-home-sec .atl-ol { grid-template-columns: repeat(3, 1fr); gap: 28px; }
+      .atl-onb { flex-direction: row; }
+      .atl-onb-art { flex: 1.2; }
+      .atl-onb-g { max-height: 460px; }
+      .atl-onb-tx { flex: 1; justify-content: center; padding: 60px; max-width: 620px; }
     }
-    .spotlight__photo {
-      background: var(--media-bg);
-      border: 1px solid var(--line);
-      aspect-ratio: 4 / 5;
-      overflow: hidden;
-      max-width: min(520px, 100%);   /* keep the frame from towering past the text column */
-      justify-self: center;
-      width: 100%;
-    }
-    .spotlight__photo img { width: 100%; height: 100%; object-fit: cover; }
-    .spotlight__eyebrow { margin-bottom: 1.3rem; display: block; }
-    .spotlight__title { margin-bottom: 1.8rem; }
-    .spotlight__title .line { display: block; }
-    .spotlight__details {
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
-      margin-bottom: 2.4rem;
-    }
-    .spotlight__detail {
-      font-family: var(--font-mono);
-      font-size: 0.78rem;
-      color: var(--ink-55);
-      letter-spacing: 0.04em;
-    }
-    .spotlight__detail strong { color: var(--ink); font-weight: 500; }
-    @media (max-width: 860px) {
-      .spotlight__grid { grid-template-columns: 1fr; }
-      .spotlight__photo { max-width: 440px; }
-    }
-
-    /* ── CTA (inverted ink block) ──────────────────────────── */
-    .cta { text-align: center; }
-    .cta__title { margin-bottom: 1.3rem; }
-    .cta__title .line { display: block; }
-    .cta__subtitle {
-      color: var(--on-ink-55);
-      max-width: 420px;
-      margin: 0 auto 2.5rem;
-      line-height: 1.65;
-      font-size: clamp(0.9rem, 1.1vw, 1rem);
-    }
-
-    /* ── LOOM LAB band ─────────────────────────────────────────
-       An inverted block, like the CTA, so the eye reads it as a different
-       kind of statement from the product sections above it. */
-    .lab {
-      background: var(--surface-ink);
-      color: var(--on-ink);
-      overflow: hidden;
-    }
-    .lab__grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-      gap: clamp(2rem, 6vw, 5rem);
-      align-items: center;
-    }
-    .lab__eyebrow { display: block; margin-bottom: 1.5rem; color: var(--accent); }
-    .lab__title .line { display: block; }
-    .lab__lead {
-      max-width: 46ch;
-      margin: 1.6rem 0 0;
-      font-size: var(--text-sm);
-      line-height: 1.75;
-      color: var(--on-ink-55);
-    }
-    .lab__list {
-      list-style: none;
-      margin: 2.2rem 0 0;
-      padding: 0;
-      display: grid;
-      gap: 0.9rem;
-      counter-reset: labstep;
-    }
-    .lab__list li {
-      display: flex;
-      align-items: baseline;
-      gap: 0.9rem;
-      font-size: var(--text-sm);
-      color: var(--on-ink);
-    }
-    .lab__list li::before {
-      counter-increment: labstep;
-      content: counter(labstep, decimal-leading-zero);
-      flex-shrink: 0;
-      padding: 0.18rem 0.42rem;
-      background: var(--accent);
-      color: var(--on-accent);
-      font-family: var(--font-mono);
-      font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-    .lab__actions { display: flex; align-items: center; gap: 1.1rem; margin-top: 2.6rem; flex-wrap: wrap; }
-    /* Accent as a field, not an outline — the badge is the section's stamp. */
-    .lab__badge {
-      padding: 0.5rem 0.85rem;
-      background: var(--accent);
-      color: var(--on-accent);
-      font-family: var(--font-mono);
-      font-weight: 700;
-      font-size: var(--text-label);
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }
-
-    /* Demo panel */
-    .lab__demo {
-      border: 2px solid var(--on-ink);
-      background: rgba(0, 0, 0, 0.35);
-      box-shadow: 6px 6px 0 var(--accent);
-      padding: clamp(1rem, 2.5vw, 1.6rem);
-      display: flex;
-      flex-direction: column;
-      gap: clamp(0.85rem, 1.6vw, 1.1rem);
-    }
-    .lab__prompt {
-      display: flex;
-      align-items: baseline;
-      gap: 0.7rem;
-      padding: 0.85rem 1rem;
-      border: 2px solid var(--on-ink-line);
-      background: rgba(0, 0, 0, 0.45);
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      min-height: 3.1em;
-    }
-    .lab__prompt-label {
-      flex-shrink: 0;
-      padding: 0.16rem 0.4rem;
-      background: var(--accent);
-      color: var(--on-accent);
-      font-size: var(--text-label);
-      font-weight: 700;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-    }
-    .lab__prompt-text { color: var(--on-ink); line-height: 1.5; }
-    .lab__caret {
-      display: inline-block;
-      width: 7px;
-      height: 1em;
-      margin-left: 1px;
-      background: var(--accent);
-      transform: translateY(2px);
-      animation: labBlink 1s steps(2, start) infinite;
-    }
-    @keyframes labBlink { 50% { opacity: 0; } }
-
-    /* A real product shot on a studio tile, framed the way every other
-       garment photo on the site is framed. The wireframe outline that used
-       to live here described a t-shirt; this one sells it. */
-    .lab__canvas {
-      position: relative;
-      aspect-ratio: 1 / 1;
-      border: 2px solid var(--on-ink-line);
-      background:
-        radial-gradient(120% 100% at 50% 30%, rgba(255,255,255,0.07), transparent 70%),
-        rgba(0, 0, 0, 0.28);
-      overflow: hidden;
-    }
-    /* The configurator's own flat tee — transparent PNG, so it sits straight
-       on the studio wash and the print lands exactly where it does in the
-       real 2D editor. */
-    .lab__garment {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-    /* The print area, marked out the way the configurator marks it, with the
-       image still being generated inside it — a band of light sweeping across.
-       It is sized and placed to land on the chest, not to cover the shirt. */
-    .lab__print {
-      position: absolute;
-      top: 36%;
-      left: 50%;
-      width: 30%;
-      aspect-ratio: 1 / 1;
-      transform: translateX(-50%);
-      border: 1.5px dashed var(--accent-55);
-      overflow: hidden;
-    }
-    .lab__scan {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(115deg,
-        rgba(252, 80, 68, 0.06) 0%,
-        rgba(252, 80, 68, 0.60) 45%,
-        rgba(252, 80, 68, 0.06) 90%);
-      background-size: 260% 100%;
-      animation: labSweep 2.8s linear infinite;
-      transition: opacity 0.45s var(--ease-out);
-    }
-    /* The sweep is the "working on it" state; once the print lands it goes. */
-    .lab__print.has-art .lab__scan { opacity: 0; }
-
-    /* The prints themselves: cream line art drawn on solid black, so `screen`
-       drops the black out and leaves the artwork sitting on the garment —
-       which is also the feature being described two columns to the left. */
-    .lab__art {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      /* The art is cream-on-black; inverted and multiplied it becomes dark
-         ink on a white tee, and picks up the fabric's own shading. */
-      filter: invert(1);
-      mix-blend-mode: multiply;
-      opacity: 0;
-      transition: opacity 0.5s var(--ease-out);
-    }
-    .lab__art.is-on { opacity: 1; }
-    @keyframes labSweep {
-      from { background-position: 160% 0; }
-      to   { background-position: -60% 0; }
-    }
-
-    @media (max-width: 900px) {
-      .lab__grid { grid-template-columns: 1fr; }
-      .lab__demo { order: -1; }
-    }
-    /* The panel shrinks faster than the artwork stays readable, so the print
-       takes a slightly larger share of the chest on phones. */
-    @media (max-width: 560px) {
-      .lab__print { width: 33%; top: 35%; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .lab__caret, .lab__scan { animation: none; }
-      .lab__art { transition: none; }
-    }
-
-    /* ══════════════════════════════════════════════════════════════
-       MAXIMALIST SKIN — home
-       Matches assets/theme.css §11 (tokens come from there). §11 already
-       gives .pcard a 2px right/bottom seam and .pcard__media a hard
-       shadow; these are the frames and seams it cannot reach from a
-       shared stylesheet, left at 1px and reading a weight too light.
-       Last in the block so it wins on order, not specificity.
-       ═══════════════════════════════════════════════════════════ */
-    /* Media frames are slabs, like every other framed thing on the site. */
-    .hero__video, .spotlight__photo { border: var(--rule); box-shadow: var(--hard); }
-    /* Seams: the grid's own outer edges were a third the weight of the
-       cell borders §11 draws, so the grid looked unfinished on two sides. */
-    .product-grid3 { border-left: var(--rule); border-top: var(--rule); }
-    .hero__meta { border-top: var(--rule); }
   </style>
 </head>
-<body data-page="home" data-preloader>
-  <!-- Header + footer are injected by assets/layout.js -->
+<body data-page="home">
+  <div class="atl-splash" id="atl-splash" aria-hidden="true">
+    <span class="atl-wm">LOOM<i></i></span>
+    <span class="atl-splash-ld"><i></i></span>
+    <span class="atl-splash-cnt"><span data-i18n="atl.loading">Yuklanmoqda</span><b class="atl-num" id="atl-splash-n">000</b></span>
+    <span class="atl-splash-cur"></span>
+  </div>
 
-  <!-- ============================================================
-       HERO
-  ============================================================ -->
-  <section class="hero">
-    <div class="container hero__grid">
-      <div class="hero__main">
-        <p class="hero__eyebrow eyebrow" data-reveal>LOOM<span class="slash">/</span> Custom Apparel — Tashkent</p>
-
-        <h1 class="hero__title display" data-reveal="mask">
-          <span class="line"><span data-i18n="hero.t1">Носи</span> <span class="slash">/</span></span>
-          <span class="line" data-i18n="hero.t2">то, что ты</span>
-          <span class="line" data-i18n="hero.t3">придумал.</span>
-        </h1>
-
-        <p class="hero__subtitle" data-reveal data-delay="0.15" data-i18n="hero.subtitle">
-          Создайте собственную одежду. Посмотрите её в 3D. Доставим по всему Узбекистану.
-        </p>
-
-        <div class="hero__btns" data-reveal data-delay="0.25">
-          <a href="configurator.html" class="btn btn--solid" data-i18n="hero.start">Создать дизайн</a>
-          <a href="catalog.html" class="btn btn--outline" data-i18n="hero.catalog">Смотреть каталог</a>
+  <main class="atl-wrap">
+    <section class="atl-hero">
+      <div class="atl-hero-tx">
+        <h1 class="atl-t1" data-i18n="atl.home.h1">O‘ylab topganingizni kiying.</h1>
+        <p class="atl-lead" data-i18n="atl.home.lead">Kiyimni tanlang, rasm yoki matn qo‘shing, 3D da ko‘ring. Butun O‘zbekiston bo‘ylab yetkazamiz.</p>
+        <div class="atl-btns">
+          <a class="atl-btn atl-btn-p" href="configurator.html" data-tma-main data-i18n="atl.nav.create">Dizayn yaratish</a>
+          <a class="atl-btn" href="catalog.html" data-i18n="atl.home.toCatalog">Katalogni ko‘rish</a>
         </div>
       </div>
+      <a class="atl-cv atl-hero-cv" href="configurator.html" aria-label="Konstruktorni ochish" data-i18n-attr="aria-label:atl.home.openCfg">
+        <span class="atl-hero-g">
+          <img src="configuratorprodutcs/tshirt_flat_white_600.png" alt="" width="600" height="600" fetchpriority="high" />
+          <img class="atl-hero-pr" src="images/lab/suzani.png" alt="" width="400" height="400" decoding="async" />
+        </span>
+      </a>
+    </section>
 
-      <figure class="hero__media" data-reveal data-delay="0.35">
-        <div class="hero__video">
-          <!-- 3D render of the white LOOM hoodie: the camera orbits it, moves
-               in close past the side to the back print, then pulls back. The
-               loop opens on the front view, so the poster shows the whole
-               hoodie. Pre-cropped to the 6:5 the tile shows (object-fit would
-               discard the rest anyway), 960x800: wide enough that the sleeves
-               stay in frame in every shot except the close-ups, which the
-               source itself crops. Poster is the clip's first frame and paints
-               before playback, so the tile never flashes --media-bg. New media
-               gets a new file name: /images/* is cached for 30 days. -->
-          <video src="images/hero-hoodie-3d-6x5.mp4" poster="images/hero-hoodie-3d-6x5.jpg"
-                 autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video>
-        </div>
-        <figcaption class="hero__media-caption">
-          <span>Apparel · 01</span>
-          <span>3D Preview</span>
-        </figcaption>
-      </figure>
-    </div>
+    <ul class="atl-facts">
+      <li><b data-i18n="atl.home.fact1">2–4 kun</b><span data-i18n="atl.home.fact1Sub">Toshkentda yetkazish, 30 000 so‘m</span></li>
+      <li><b data-i18n="atl.home.fact2">Oldindan to‘lov</b><span data-i18n="atl.home.fact2Sub">LOOM kartasiga o‘tkazma</span></li>
+      <li><b data-i18n="atl.home.fact3">30 × 40 sm</b><span data-i18n="atl.home.fact3Sub">bosma maydoni</span></li>
+    </ul>
 
-    <div class="hero__meta">
-      <div class="container hero__meta-inner">
-        <span>© 2026</span>
-        <span data-i18n="marquee.b">Создано, чтобы носить</span>
-        <span>loomdesign.uz</span>
+    <section class="atl-home-sec" aria-labelledby="home-garments-h">
+      <div class="atl-hd">
+        <h2 class="atl-t2" id="home-garments-h" data-i18n="atl.home.garments">Kiyimlar</h2>
+        <a class="atl-lnk" href="catalog.html" data-i18n="atl.home.seeAll">Hammasini ko‘rish</a>
       </div>
-    </div>
-  </section>
+      <!-- Grey blocks in the shape of the cards until GET /api/products
+           answers (assets/home.js); an error block with one retry if not. -->
+      <div class="atl-hscroll" id="home-garments" aria-busy="true">
+        <div class="atl-pc"><span class="atl-skel atl-gtile"></span><span class="atl-skel" style="height:14px"></span></div>
+        <div class="atl-pc"><span class="atl-skel atl-gtile"></span><span class="atl-skel" style="height:14px"></span></div>
+        <div class="atl-pc"><span class="atl-skel atl-gtile"></span><span class="atl-skel" style="height:14px"></span></div>
+      </div>
+    </section>
 
-  <!-- ============================================================
-       MARQUEE (content duplicated by motion.js)
-  ============================================================ -->
-  <div class="marquee" aria-hidden="true">
-    <div class="marquee__track">
-      <span class="marquee__item" data-i18n="marquee.a">Носи то, что ты придумал</span>
-      <span class="marquee__item marquee__dot">/</span>
-      <span class="marquee__item--mono">LOOM © 2026</span>
-      <span class="marquee__item" data-i18n="marquee.b">Создано, чтобы носить</span>
-      <span class="marquee__item marquee__dot">/</span>
-      <span class="marquee__item--mono">Tashkent, UZ</span>
-      <span class="marquee__item" data-i18n="marquee.c">Твой дизайн. В 3D</span>
-      <span class="marquee__item marquee__dot">/</span>
-      <span class="marquee__item--mono">Apparel · 01—09</span>
+    <section class="atl-home-sec" aria-labelledby="home-steps-h">
+      <h2 class="atl-t2" id="home-steps-h" data-i18n="atl.home.steps">Uch qadam</h2>
+      <ol class="atl-ol">
+        <li><b>1</b><span><b data-i18n="atl.home.s1">Kiyim va rang</b><i data-i18n="atl.home.s1Sub">Oq yoki qora, o‘lchamni keyin tanlaysiz.</i></span></li>
+        <li><b>2</b><span><b data-i18n="atl.home.s2">Rasm yoki matn</b><i data-i18n="atl.home.s2Sub">Yuklang, suring, kattalashtiring. 2D va 3D.</i></span></li>
+        <li><b>3</b><span><b data-i18n="atl.home.s3">Buyurtma</b><i data-i18n="atl.home.s3Sub">Kartaga o‘tkazma, chekni yuklaysiz, tasdiqlangach tikamiz.</i></span></li>
+      </ol>
+    </section>
+
+    <!-- Shown only when the market has approved prints. -->
+    <section class="atl-home-sec" id="home-works" aria-labelledby="home-works-h" hidden>
+      <div class="atl-hd">
+        <h2 class="atl-t2" id="home-works-h" data-i18n="atl.home.works">Dizaynerlar ishlari</h2>
+        <a class="atl-lnk" href="market.html" data-i18n="atl.home.toMarket">Marketga</a>
+      </div>
+      <div class="atl-hscroll" id="home-works-list"></div>
+    </section>
+
+    <a class="atl-row atl-panel" href="lab.html">
+      <span class="atl-row-ico"><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/></svg></span>
+      <span class="atl-row-tx"><b data-i18n="atl.nav.lab">LOOM Lab</b><i data-i18n="atl.home.labSub">So‘z bilan tasvirlang — printni Lab chizadi</i></span>
+      <span class="atl-tag" data-i18n="atl.soon">Tez orada</span>
+    </a>
+  </main>
+
+  <!-- First visit: three skippable cards (assets/home.js fills them). -->
+  <div class="atl-onb" id="atl-onb" role="dialog" aria-modal="true" aria-labelledby="atl-onb-h" hidden>
+    <div class="atl-onb-art atl-cv" id="atl-onb-art"></div>
+    <div class="atl-onb-tx">
+      <div class="atl-onb-top">
+        <span class="atl-onb-dots" id="atl-onb-dots"><i></i><i></i><i></i></span>
+        <span class="atl-onb-lang" id="atl-onb-lang" role="group" aria-label="Til / Язык / Language">
+          <button type="button" class="atl-chip" data-lang="uz" lang="uz">UZ</button>
+          <button type="button" class="atl-chip" data-lang="ru" lang="ru">RU</button>
+          <button type="button" class="atl-chip" data-lang="en" lang="en">EN</button>
+        </span>
+        <button type="button" class="atl-lnk" id="atl-onb-skip" data-onb-close data-i18n="atl.skip" hidden>O‘tkazib yuborish</button>
+      </div>
+      <h1 class="atl-t1" id="atl-onb-h" tabindex="-1"></h1>
+      <p class="atl-lead" id="atl-onb-l"></p>
+      <div class="atl-btns" id="atl-onb-btns"></div>
     </div>
   </div>
 
-  <!-- ============================================================
-       PRODUCTS — editorial cards with real photos
-  ============================================================ -->
-  <section class="sect">
-    <div class="container">
-      <div class="sect-head" data-reveal>
-        <span class="eyebrow" data-i18n="prod.sectionLabel">Товары</span>
-        <a href="catalog.html" class="link-arrow"><span data-i18n="prod.viewAll">Смотреть все →</span></a>
-      </div>
-
-      <div class="product-grid3" data-stagger>
-
-        <a href="configurator.html" class="pcard" data-slug="tshirt-regular">
-          <div class="pcard__media">
-            <img src="products/tshirt_regular_white_001.jpg" alt="Классическая футболка" loading="lazy" decoding="async" />
-            <div class="pcard__media-alt" aria-hidden="true">
-              <!-- data-src: motion.js hydrates on hover-capable devices, or lazily in-view on touch -->
-              <img data-src="products/tshirt_regular_white_002.jpg" alt="Классическая футболка — на модели" />
-            </div>
-            <span class="pcard__go" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
-            </span>
-          </div>
-          <p class="pcard__tag">Apparel · 01</p>
-          <h3 class="pcard__name" data-i18n="prod.t1.name">Классическая футболка</h3>
-          <p class="pcard__desc" data-i18n="prod.t1.desc">100% премиальный хлопок, унисекс крой, свободный фасон. Идеальный холст для вашего дизайна.</p>
-          <div class="pcard__foot">
-            <span class="pcard__price" data-price="265000">265 000 сум</span>
-            <span class="color-dots">
-              <span class="color-dot" style="background:#fff"></span>
-              <span class="color-dot" style="background:#1c1c1c"></span>
-              <span class="color-dot" style="background:#e2d9cc"></span>
-              <span class="color-dot" style="background:#9ba3af"></span>
-              <span class="color-dot" style="background:#2b3e5e"></span>
-            </span>
-          </div>
-        </a>
-
-        <a href="configurator.html" class="pcard" data-slug="hoodie-regular" hidden>
-          <div class="pcard__media">
-            <img src="products/hoodie_regular_white_001.jpg" alt="Тёплое худи" loading="lazy" decoding="async" />
-            <div class="pcard__media-alt" aria-hidden="true">
-              <img data-src="products/hoodie_regular_white_002.jpg" alt="Тёплое худи — на модели" />
-            </div>
-            <span class="pcard__go" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
-            </span>
-          </div>
-          <p class="pcard__tag">Apparel · 02</p>
-          <h3 class="pcard__name" data-i18n="prod.t2.name">Тёплое худи</h3>
-          <p class="pcard__desc" data-i18n="prod.t2.desc">Премиальная ткань с начёсом, двухслойный капюшон, свободный силуэт на все сезоны.</p>
-          <div class="pcard__foot">
-            <span class="pcard__price"></span>
-            <span class="color-dots">
-              <span class="color-dot" style="background:#fff"></span>
-              <span class="color-dot" style="background:#1c1c1c"></span>
-              <span class="color-dot" style="background:#8b7355"></span>
-              <span class="color-dot" style="background:#4d6642"></span>
-            </span>
-          </div>
-        </a>
-
-        <a href="configurator.html" class="pcard" data-slug="polo-regular" hidden>
-          <div class="pcard__media">
-            <img src="products/polo_regular_white_001.jpg" alt="Поло" loading="lazy" decoding="async" />
-            <div class="pcard__media-alt" aria-hidden="true">
-              <img data-src="products/polo_regular_white_002.jpg" alt="Поло — на модели" />
-            </div>
-            <span class="pcard__go" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
-            </span>
-          </div>
-          <p class="pcard__tag">Apparel · 03</p>
-          <h3 class="pcard__name" data-i18n="prod.t3.name">Поло</h3>
-          <p class="pcard__desc" data-i18n="prod.t3.desc">Хлопок пике, структурированный воротник, чистые линии. Smart casual без усилий.</p>
-          <div class="pcard__foot">
-            <span class="pcard__price"></span>
-            <span class="color-dots">
-              <span class="color-dot" style="background:#fff"></span>
-              <span class="color-dot" style="background:#1c1c1c"></span>
-              <span class="color-dot" style="background:#d0c4b2"></span>
-            </span>
-          </div>
-        </a>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SPOTLIGHT — best seller
-  ============================================================ -->
-  <section class="sect" style="padding-top: 0;">
-    <div class="container spotlight__grid">
-      <figure class="spotlight__photo" data-reveal>
-        <img src="products/tshirt_regular_white_001.jpg" alt="Классическая футболка LOOM" loading="lazy" decoding="async" />
-      </figure>
-
-      <div>
-        <span class="spotlight__eyebrow eyebrow" data-reveal data-i18n="spot.eyebrow">Хит продаж</span>
-        <h2 class="spotlight__title h2" data-reveal="mask">
-          <span class="line"><span data-i18n="spot.t1">Классическая</span> <span class="slash">/</span></span>
-          <span class="line" data-i18n="spot.t2">футболка.</span>
-        </h2>
-        <div class="spotlight__details" data-reveal data-delay="0.1">
-          <p class="spotlight__detail" data-i18n-html="spot.d1"><strong>100% хлопок</strong> · Унисекс крой</p>
-          <p class="spotlight__detail"><span data-i18n-html="spot.d2"><strong>5 базовых цветов</strong></span> · <span data-slug="tshirt-regular" data-price="265000">265 000 сум</span></p>
-        </div>
-        <a href="configurator.html" class="btn btn--outline" data-reveal data-delay="0.2" data-i18n="spot.customize">Настроить эту</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       LOOM LAB — the AI half of the product, announced before it ships.
-       It sits directly after the spotlight because that is where the page
-       stops describing what LOOM sells and starts describing what it is
-       becoming. Everything here is inert until LOOM_FLAGS.lab flips.
-  ============================================================ -->
-  <section class="sect lab" id="lab">
-    <div class="container lab__grid">
-      <div class="lab__copy">
-        <span class="eyebrow lab__eyebrow" data-reveal>LOOM<span class="slash">/</span> LAB</span>
-        <h2 class="lab__title h2" data-reveal="mask">
-          <span class="line" data-i18n="lab.t1">Опишите словами.</span>
-          <span class="line" data-i18n="lab.t2">Наденьте на себя.</span>
-        </h2>
-        <p class="lab__lead" data-reveal data-i18n="lab.lead">
-          LOOM Lab превращает фразу в готовый принт: рисует картинку, убирает фон
-          и подгоняет её под область печати — прямо в конструкторе.
-        </p>
-        <ul class="lab__list" data-stagger>
-          <li data-i18n="lab.f1">Принт из текстового описания</li>
-          <li data-i18n="lab.f2">Автоматическое удаление фона</li>
-          <li data-i18n="lab.f3">Готовое к печати разрешение</li>
-        </ul>
-        <div class="lab__actions" data-reveal data-delay="0.1">
-          <span class="lab__badge" data-i18n="lab.soon">Скоро</span>
-          <a href="lab.html" class="btn btn--on-ink"><span data-i18n="lab.more">Что это будет →</span></a>
-        </div>
-      </div>
-
-      <!-- A picture of the idea, not a working demo: a prompt line that types
-           itself and a shirt that never quite finishes rendering. -->
-      <div class="lab__demo" data-reveal data-delay="0.15" aria-hidden="true">
-        <div class="lab__prompt">
-          <span class="lab__prompt-label">prompt</span>
-          <span class="lab__prompt-text" id="labPrompt"></span><span class="lab__caret"></span>
-        </div>
-        <div class="lab__canvas">
-          <img class="lab__garment" src="configuratorprodutcs/tshirt_flat_white_600.png" alt="" width="600" height="600" loading="lazy" decoding="async" />
-          <div class="lab__print" id="labPrint">
-            <img class="lab__art" src="images/lab/tashkent.png" alt="" width="400" height="400" loading="lazy" decoding="async" />
-            <img class="lab__art" src="images/lab/suzani.png" alt="" width="400" height="400" loading="lazy" decoding="async" />
-            <img class="lab__art" src="images/lab/chimgan.png" alt="" width="400" height="400" loading="lazy" decoding="async" />
-            <span class="lab__scan"></span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       CTA — inverted ink block
-  ============================================================ -->
-  <section class="sect sect--ink cta">
-    <div class="container">
-      <h2 class="cta__title h2" data-reveal="mask">
-        <span class="line" data-i18n="cta.t1">Твой дизайн.</span>
-        <span class="line" data-i18n="cta.t2">Твои правила.</span>
-      </h2>
-      <p class="cta__subtitle" data-reveal data-i18n="cta.subtitle">
-        Начните с чистого холста. Добавьте текст, загрузите изображение, выберите цвета.
-      </p>
-      <a href="configurator.html" class="btn btn--on-ink" data-reveal data-delay="0.15" data-i18n="cta.open">Открыть конфигуратор →</a>
-    </div>
-  </section>
-
-  <!-- LOOM Lab: the prompt line types itself. Purely decorative — it
-       describes the feature rather than running it. -->
-  <script>
-  (function () {
-    var el = document.getElementById('labPrompt');
-    if (!el) return;
-    /* Each prompt has a print to go with it; the art lands when its phrase
-       finishes typing and lifts when the line starts erasing. */
-    var frame = document.getElementById('labPrint');
-    var arts = frame ? frame.querySelectorAll('.lab__art') : [];
-    function setArt(n) {
-      for (var a = 0; a < arts.length; a++) {
-        if (a === n) arts[a].classList.add('is-on');
-        else arts[a].classList.remove('is-on');
-      }
-      if (frame) {
-        if (n < 0) frame.classList.remove('has-art');
-        else frame.classList.add('has-art');
-      }
-    }
-
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      el.textContent = (window.LOOM_I18N && window.LOOM_I18N.t('lab.p1')) || 'хлопковая футболка с картой Ташкента';
-      setArt(0);
-      return;
-    }
-    var keys = ['lab.p1', 'lab.p2', 'lab.p3'];
-    var fallback = {
-      'lab.p1': 'карта Ташкента тонкими линиями',
-      'lab.p2': 'гранатовый узор в стиле сюзане',
-      'lab.p3': 'горы Чимгана на закате, минимализм'
-    };
-    function phrase(k) {
-      try { return (window.LOOM_I18N && window.LOOM_I18N.t(k)) || fallback[k]; }
-      catch (e) { return fallback[k]; }
-    }
-    var i = 0, j = 0, erasing = false;
-    (function tick() {
-      var text = phrase(keys[i]);
-      j += erasing ? -1 : 1;
-      el.textContent = text.slice(0, j);
-      var wait = erasing ? 22 : 52;
-      if (!erasing && j >= text.length) { erasing = true; wait = 2200; setArt(i); }
-      else if (erasing && j <= 0) { erasing = false; i = (i + 1) % keys.length; wait = 420; }
-      else if (erasing && j === text.length - 1) { setArt(-1); }
-      setTimeout(tick, wait);
-    })();
-  })();
-  </script>
-
-  <!-- ============================================================
-       Scripts are deferred from <head>; these inline hooks must wait
-       for that queue to drain, hence DOMContentLoaded.
-  ============================================================ -->
-  <script>document.addEventListener('DOMContentLoaded',function(){window.LOOM_AUTH&&window.LOOM_AUTH.renderAuthNav()})</script>
-  <!-- Featured-product prices come from GET /api/products, the same rows the
-       catalog renders and the Worker charges (backend/src/lib/pricing.ts).
-       The numbers in the markup are only the no-JS/offline fallback. A card
-       whose slug the API does not return is not on sale: it stays hidden. -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      function fmtPrices() {
-        if (!window.LOOM_I18N) return;
-        document.querySelectorAll('[data-price]').forEach(function (el) {
-          el.textContent = window.LOOM_I18N.formatPrice(el.getAttribute('data-price'));
-        });
-      }
-      fmtPrices();
-      window.addEventListener('loom:langchange', fmtPrices);
-      var api = (window.LOOM_CONFIG && window.LOOM_CONFIG.API_BASE) || 'https://api.loomdesign.uz';
-      fetch(api + '/api/products').then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      }).then(function (data) {
-        var price = {};
-        (data.products || []).forEach(function (p) { if (p.active) price[p.slug] = p.price; });
-        document.querySelectorAll('.pcard[data-slug]').forEach(function (card) {
-          var on = price[card.getAttribute('data-slug')] != null;
-          card.hidden = !on;
-          var el = card.querySelector('.pcard__price');
-          if (on) el.setAttribute('data-price', price[card.getAttribute('data-slug')]);
-        });
-        document.querySelectorAll('[data-price][data-slug]').forEach(function (el) {
-          var v = price[el.getAttribute('data-slug')];
-          if (v != null) el.setAttribute('data-price', v);
-        });
-        fmtPrices();
-      }).catch(function () { /* keep the fallback prices */ });
-    });
-  </script>
+  <script src="assets/config.js?v=9"></script>
+  <script src="assets/i18n.js?v=58"></script>
+  <script src="assets/auth.js?v=6"></script>
+  <script src="assets/tma.js?v=5"></script>
+  <script src="assets/shell.js?v=1"></script>
+  <script src="assets/home.js?v=1"></script>
+  <script src="assets/track.js?v=6"></script>
+  <script src="assets/analytics.js?v=4"></script>
 </body>
 </html>

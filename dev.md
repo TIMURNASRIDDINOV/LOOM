@@ -103,7 +103,7 @@ LOOM/
 │   ├── auth.js              # login/register + Telegram polling
 │   ├── account.js           # account page
 │   ├── config.js            # API_BASE endpoint config (only env switch)
-│   ├── map-picker.js        # delivery-address map picker
+│   ├── address-picker.js    # delivery-address map picker (checkout, account)
 │   └── track.js             # page analytics
 │
 ├── admin/                   # admin back office (static SPA)

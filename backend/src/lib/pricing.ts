@@ -1,5 +1,10 @@
 import { getActiveProducts, getArtworkById, getCartItems, getProductById, type CartItem } from '../db/queries'
 
+/** Flat delivery price in so'm. Priced here only; a client never sends it. */
+export const DELIVERY_FEE_UZS = 30000
+/** How long a new order waits for the card transfer before the sweep cancels it. */
+export const PAY_WINDOW_MS = 30 * 60 * 1000
+
 export function artworkIdsIn(designJson: string): number[] {
   let design: Record<string, unknown>
   try { design = JSON.parse(designJson) } catch { return [] }
@@ -46,5 +51,9 @@ export async function cartSnapshot(db: D1Database, userId: number) {
     }
   }
   if (updates.length) await db.batch(updates)
-  return { items, total: items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0), priceChanged }
+  // `total` stays the items subtotal (designer shares and old clients read it);
+  // `payable` is what the customer transfers.
+  const total = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
+  const delivery = items.length ? DELIVERY_FEE_UZS : 0
+  return { items, total, delivery, payable: total + delivery, priceChanged }
 }
