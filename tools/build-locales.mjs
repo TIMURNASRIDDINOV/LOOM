@@ -78,15 +78,77 @@ function setTag(html, re, value, what, file, optional) {
   return html.replace(re, (_, a, b) => a + value + b);
 }
 
+// ── structured data (LOOM-331) ──────────────────────────────────────────────
+// JSON-LD is built here from the same data-i18n keys as the visible text, so
+// FAQ answers, names and descriptions match the page word for word in every
+// language. Facts below were supplied by Tim on 2026-11-15; do not add any
+// that are not real (no phone, no legal entity, no ratings or reviews).
+// The only public contact linked on the site is the Telegram bot.
+const ORG_ID = `${ORIGIN}/#org`;
+const ORG_REF = { '@type': 'LocalBusiness', '@id': ORG_ID, name: 'LOOM', url: `${ORIGIN}/` };
+const ORG = {
+  ...ORG_REF,
+  alternateName: ['LOOM Design', 'loomdesign.uz'],
+  logo: `${ORIGIN}/images/icon-512.png`,
+  image: `${ORIGIN}/images/og-image.jpg`,
+  address: { '@type': 'PostalAddress', streetAddress: 'улица Ислама Каримова, 49', addressLocality: 'Ташкент', addressCountry: 'UZ' },
+  geo: { '@type': 'GeoCoordinates', latitude: 41.310253, longitude: 69.249640 },
+  areaServed: { '@type': 'Country', name: 'Uzbekistan' },
+  sameAs: ['https://t.me/looom_design_bot'],
+};
+
+function structuredData(page, lang, html, self, file) {
+  const graph = [];
+  const abs = (name) => ORIGIN + pageUrl(name, lang);
+  if (page === 'index') {
+    graph.push({ ...ORG, description: t('seo.org.desc', lang) });
+    graph.push({ '@type': 'WebSite', '@id': `${ORIGIN}/#website`, url: `${ORIGIN}/`, name: 'LOOM', inLanguage: LANGS, publisher: { '@id': ORG_ID } });
+  }
+  // visible breadcrumbs: "LOOM / Catalog" on the landing pages, then this page
+  const crumbs = /<nav class="atl-land-crumbs"[^>]*>([\s\S]*?)<\/nav>/.exec(html);
+  if (crumbs) {
+    const items = [...crumbs[1].matchAll(/<a href="([^"]+)\.html"(?: data-i18n="([^"]+)")?>([^<]*)<\/a>/g)]
+      .map(([, name, key, text]) => ({ name: key ? t(key, lang) : text, item: abs(name) }));
+    const here = /<body\b[^>]*\sdata-title-key="([^"]+)"/.exec(html);
+    if (!here) fail(`${file}: breadcrumbs but no data-title-key on <body> for the last crumb`);
+    else items.push({ name: t(here[1], lang), item: self });
+    graph.push({ '@type': 'BreadcrumbList', itemListElement: items.map((c, i) => ({ '@type': 'ListItem', position: i + 1, ...c })) });
+  }
+  // one garment with a visible price: Product + Offer (prices: tools/check-static-prices.mjs)
+  const price = /<b class="atl-land-pr" data-slug="([^"]+)" data-from="(\d+)">/.exec(html);
+  if (price) {
+    const name = /<body\b[^>]*\sdata-title-key="([^"]+)"/.exec(html);
+    const lead = /<p class="atl-lead" data-i18n="([^"]+)">/.exec(html);
+    const photo = /<img class="atl-land-ph" src="([^"]+)"/.exec(html);
+    if (!name || !lead || !photo) fail(`${file}: Product needs data-title-key, an atl-lead text and an atl-land-ph photo`);
+    else graph.push({
+      '@type': 'Product', '@id': `${self}#product`, name: t(name[1], lang), description: t(lead[1], lang),
+      image: `${ORIGIN}/${photo[1]}`, sku: price[1], brand: { '@type': 'Brand', name: 'LOOM' },
+      offers: { '@type': 'Offer', url: self, price: Number(price[2]), priceCurrency: 'UZS',
+        availability: 'https://schema.org/InStock', itemCondition: 'https://schema.org/NewCondition', seller: ORG_REF },
+    });
+  }
+  // visible FAQ, question and answer both plain data-i18n text
+  const faqs = (html.match(/<details class="atl-faq"/g) || []).length;
+  const qa = [...html.matchAll(/<details class="atl-faq"[^>]*>\s*<summary data-i18n="([^"]+)">[^<]*<\/summary>\s*<p data-i18n="([^"]+)">[^<]*<\/p>\s*<\/details>/g)];
+  if (qa.length !== faqs) fail(`${file}: ${faqs - qa.length} FAQ item(s) are not <summary data-i18n> + <p data-i18n>`);
+  if (qa.length) graph.push({ '@type': 'FAQPage', mainEntity: qa.map(([, q, a]) => ({
+    '@type': 'Question', name: t(q, lang), acceptedAnswer: { '@type': 'Answer', text: t(a, lang) } })) });
+  return graph.length ? { '@context': 'https://schema.org', '@graph': graph } : null;
+}
+
 function render(page, lang) {
   const file = `${page}.html`;
   let html = readFileSync(join(root, file), 'utf8');
   const self = ORIGIN + pageUrl(page, lang);
 
-  // JSON-LD first (it is a <script>, masked below)
-  html = html.replace(/(<script type="application\/ld\+json">)([\s\S]*?)(<\/script>)/g, (_, a, json, b) => a + json
-    .replace(/("inLanguage": ")[^"]*(")/g, (_m, x, y) => x + lang + y)
-    .replace(/("description": ")[^"]*(")/g, (_m, x, y) => x + JSON.stringify(t('seo.org.desc', lang)).slice(1, -1) + y) + b);
+  // JSON-LD first (it is a <script>, masked below): generated, never hand-edited
+  const ld = structuredData(page, lang, html, self, file);
+  const block = ld && `<script type="application/ld+json">\n${JSON.stringify(ld, null, 2)}\n</script>`;
+  const LD = /<script type="application\/ld\+json">[\s\S]*?<\/script>/;
+  if (!block) { if (LD.test(html)) fail(`${file}: has a JSON-LD block but no structured data to put in it`); }
+  else if (LD.test(html)) html = html.replace(LD, () => block);
+  else html = html.replace(/<\/head>/, () => `  <!-- Structured data: generated by tools/build-locales.mjs (LOOM-331) -->\n  ${block}\n</head>`);
 
   // inline scripts, styles and comments are not markup to translate
   // (<script src> stays: its URL is rewritten below)

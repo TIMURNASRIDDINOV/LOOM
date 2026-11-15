@@ -13,7 +13,7 @@
 // The server stays the source of prices; the static cards are display only.
 // The same checks run on the generated /uz/ and /en/ copies (LOOM-330), plus:
 // a static card name must equal the API name in that page's language.
-// Landing pages: see the data-from block below (LOOM-329).
+// Landing pages: see the data-from block below (LOOM-329); JSON-LD offers: LOOM-331.
 // Needs the network unless --api points at a saved JSON file. Node 18+.
 //
 // Usage:
@@ -89,6 +89,28 @@ for (const file of LOCALES.flatMap(([dir]) => htmlIn(dir))) {
     if (!allowed.has(v)) errors.push(`${file}: amount ${v} in the page's currency is neither a live price on this page nor delivery`);
   }
   console.log(`${file}: ${tags.length} landing prices`);
+}
+
+// JSON-LD (LOOM-331): every block parses, and each Product offer is the live
+// price of its sku, in UZS.
+for (const file of LOCALES.flatMap(([dir]) => htmlIn(dir))) {
+  const html = readFileSync(join(root, file), 'utf8');
+  let offers = 0;
+  for (const [, json] of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
+    let ld;
+    try { ld = JSON.parse(json); } catch (e) { errors.push(`${file}: JSON-LD does not parse: ${e.message}`); continue; }
+    for (const node of ld['@graph'] || [ld]) {
+      if (node['@type'] !== 'Product') continue;
+      for (const o of [].concat(node.offers || [])) {
+        offers++;
+        const p = bySlugAll.get(node.sku);
+        if (!p) errors.push(`${file}: JSON-LD Product sku ${node.sku} is not in the live catalogue`);
+        else if (Number(o.price) !== Number(p.price)) errors.push(`${file}: JSON-LD ${node.sku} price ${o.price} vs API ${p.price}`);
+        if (o.priceCurrency !== 'UZS') errors.push(`${file}: JSON-LD ${node.sku} priceCurrency ${o.priceCurrency}, not UZS`);
+      }
+    }
+  }
+  if (offers) console.log(`${file}: ${offers} JSON-LD offer(s)`);
 }
 
 if (errors.length) {
