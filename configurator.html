@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="assets/nav.css?v=13" />
     <link rel="stylesheet" href="assets/auth.css?v=13" />
     <link rel="stylesheet" href="assets/login-modal.css?v=6" />
-    <link rel="stylesheet" href="assets/cfg-atelye.css?v=13" />
+    <link rel="stylesheet" href="assets/cfg-atelye.css?v=14" />
     <script src="assets/boot.js?v=10"></script>
 
     <!-- three.js, its four example scripts and the meshopt decoder are NOT
@@ -45,15 +45,16 @@
          none of them blocks the parser. -->
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=11"></script>
-    <script defer src="assets/layout.js?v=7"></script>
     <script defer src="assets/i18n.js?v=63"></script>
     <script defer src="assets/auth.js?v=6"></script>
     <script defer src="assets/tma.js?v=5"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
+    <!-- LOOM-338: the Atelye site header, as on every other page (styles in cfg-atelye.css) -->
+    <script defer src="assets/shell.js?v=4"></script>
     <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=5"></script>
-    <script defer src="assets/cart.js?v=11"></script>
+    <script defer src="assets/cart.js?v=12"></script>
     <script defer src="configurator.js?v=111"></script>
 
     <style>
@@ -1799,7 +1800,7 @@
          is needed. All offsets come from three tokens on .studio. */
       @media (min-width: 901px) {
         .studio {
-          --nav-h: 64px;
+          --nav-h: 72px; /* LOOM-338: the Atelye header (shell.js) */
           --panel-w: clamp(300px, 26vw, 400px);
           --panel-inset: 16px;
           --stage-l: calc(2 * var(--panel-inset) + var(--panel-w));
@@ -2456,8 +2457,8 @@
     </style>
   </head>
 
-  <body data-page="configurator" data-cart data-no-footer data-no-smooth data-no-cursor>
-    <!-- Header injected by assets/layout.js (data-cart adds the cart button) -->
+  <body data-page="configurator" data-cart data-no-nav data-no-footer data-no-smooth data-no-cursor>
+    <!-- Header drawn by assets/shell.js (desktop only; phones use the configurator's own top row) -->
     <!-- Site links and contacts for crawlers and visitors without JS (LOOM-328).
          The configurator needs JS, so this never shows next to layout.js's header. -->
     <noscript>

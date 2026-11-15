@@ -1168,3 +1168,78 @@
   html.cfg-atelye-d .atl-up-ph,
   html.cfg-atelye-d .atl-up-ph::after { transition: none !important; animation: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Site header from assets/shell.js (LOOM-338)
+   The configurator draws the same desktop header as every Atelye page.
+   It cannot load atelye.css whole (its class names collide with the phone
+   block above), so the header's rules from atelye.css are repeated here,
+   each one under .atl-hdr, with the tokens on the header itself (the old
+   skin keeps its own on html). Fixed, not sticky: .studio is 100vh and
+   offsets everything by --nav-h (72 px, configurator.html). Below 901 px
+   the configurator's own top row is the header, so the shell's phone bar
+   never shows. "Dizayn yaratish" is hidden: this page is where it goes.
+   ponytail: a second copy of atelye.css's header rules; move both into one
+   shared file if the header changes again.
+   ═══════════════════════════════════════════════════════════════════ */
+.atl-mbar, .atl-hdr, .atl-offline { display: none; }
+.atl-skip { position: fixed; left: 8px; top: 8px; z-index: 300; transform: translateY(-200%); min-height: 44px; padding: 12px 16px; border-radius: 8px; background: #14171a; color: #fff; font: 700 15px var(--f, sans-serif); text-decoration: none; }
+.atl-skip:focus-visible { transform: none; }
+@keyframes atl-menu-in { from { opacity: 0; transform: translateY(-4px); } }
+
+@media (min-width: 901px) {
+  .atl-hdr {
+    --surface: #ffffff; --surface2: #e9ecef;
+    --ink: #14171a; --mut: #59616a; --ln: rgba(20, 23, 26, .16); --brand: #fc5044;
+    --r-chip: 6px; --r-panel: 12px; --t-fast: 100ms; --t-base: 140ms; --ease: cubic-bezier(.2, 0, 0, 1);
+    --f: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200; box-sizing: border-box;
+    display: flex; align-items: center; gap: 28px; height: 72px; padding: 0 max(40px, calc((100% - 1184px) / 2));
+    background: var(--surface); color: var(--ink); box-shadow: 0 1px 0 var(--ln); font: 400 15px/1.5 var(--f);
+  }
+  html[data-theme="dark"] .atl-hdr { --surface: #2a2e33; --surface2: #3a4047; --ink: #f0f2f4; --mut: #a3abb3; --ln: rgba(255, 255, 255, .16); }
+  .atl-hdr *, .atl-hdr *::before, .atl-hdr *::after { box-sizing: border-box; }
+  .atl-hdr [hidden] { display: none !important; }
+  .atl-hdr button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; margin: 0; text-align: inherit; }
+  .atl-hdr a { color: inherit; }
+  .atl-hdr :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+  .atl-hdr .atl-ic { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .atl-hdr .atl-ic-s { width: 18px; height: 18px; }
+  .atl-hdr .atl-wm { display: inline-flex; align-items: center; min-height: 44px; font: 800 20px/1 var(--f); font-stretch: 125%; letter-spacing: .14em; color: var(--ink); text-decoration: none; }
+  .atl-hdr .atl-wm i { font-style: normal; color: var(--brand); margin-left: .06em; }
+  .atl-hdr .atl-wm i::before { content: "/"; }
+  .atl-hdr .atl-ib { width: 44px; height: 44px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none; position: relative; color: var(--ink); text-decoration: none; }
+  .atl-hdr .atl-ib:hover, .atl-hdr .atl-ib:active { background: var(--surface2); }
+  .atl-hdr nav { display: flex; gap: 4px; flex: 1; min-width: 0; }
+  .atl-hdr nav a { height: 44px; min-width: 44px; justify-content: center; padding: 0 12px; border-radius: var(--r-chip); display: inline-flex; align-items: center; font: 600 14.5px var(--f); color: var(--mut); text-decoration: none; white-space: nowrap; transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+  .atl-hdr nav a:hover { color: var(--ink); background: var(--surface2); }
+  .atl-hdr-r { display: flex; gap: 8px; align-items: center; flex: none; }
+  .atl-hdr-r > .atl-btn-p { display: none; }
+  .atl-hdr .atl-hdr-btn, .atl-hdr .atl-hdr-cart { width: auto; min-width: 44px; padding: 0 10px; display: inline-flex; gap: 6px; font: 600 14px var(--f); white-space: nowrap; }
+  .atl-hdr-cart .atl-bdg { min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px; background: var(--ink); color: var(--surface); text-align: center; font: 700 11.5px/20px var(--f); font-variant-numeric: tabular-nums; }
+  .atl-hdr-av { width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: var(--surface); display: grid; place-items: center; font: 700 12px var(--f); }
+  .atl-hdr-pop { position: relative; }
+  .atl-hdr .atl-menu { position: absolute; top: calc(100% + 12px); right: 0; z-index: 25; min-width: 220px; padding: 6px; display: flex; flex-direction: column; background: var(--surface); border-radius: var(--r-panel); box-shadow: 0 0 0 1px var(--ln), 0 24px 48px -18px rgba(14, 18, 24, .4); animation: atl-menu-in var(--t-base) var(--ease); }
+  .atl-hdr .atl-menu > a, .atl-hdr .atl-menu > button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: var(--r-chip); font: 500 14.5px var(--f); color: var(--ink); text-decoration: none; text-align: left; white-space: nowrap; }
+  .atl-hdr .atl-menu > a:hover, .atl-hdr .atl-menu > button:hover, .atl-hdr .atl-menu > a:focus-visible, .atl-hdr .atl-menu > button:focus-visible { background: var(--surface2); }
+  .atl-hdr .atl-menu [aria-checked="true"] { font-weight: 700; }
+  .atl-hdr .atl-menu-ic { width: 18px; flex: none; }
+  .atl-hdr .atl-menu hr { border: 0; border-top: 1px solid var(--ln); margin: 4px 0; width: 100%; }
+  .atl-hdr .atl-menu-who { display: flex; flex-direction: column; padding: 8px 12px 10px; }
+  .atl-hdr .atl-menu-who span { font-size: 12.5px; color: var(--mut); }
+  .atl-hdr .atl-num { font-variant-numeric: tabular-nums; }
+  html.tma .atl-hdr { display: none; }
+}
+/* 901–1199 px: the full header does not fit (atelye.css drops Lab first). */
+@media (min-width: 901px) and (max-width: 1199px) {
+  .atl-hdr { gap: 12px; padding: 0 20px; }
+  .atl-hdr nav { gap: 0; }
+  .atl-hdr nav a { padding: 0 8px; }
+  .atl-hdr .atl-hdr-wide { display: none !important; }
+  .atl-hdr-r { gap: 2px; }
+  .atl-hdr-cart > [data-i18n] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .atl-hdr .atl-hdr-btn, .atl-hdr .atl-hdr-cart { padding: 0 6px; }
+}
+@media (min-width: 901px) and (prefers-reduced-motion: reduce) {
+  .atl-hdr nav a, .atl-hdr .atl-menu { transition: none; animation: none; }
+}
