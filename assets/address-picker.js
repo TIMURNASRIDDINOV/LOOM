@@ -10,22 +10,53 @@
      settle the pin location is reverse-geocoded (Nominatim) into a
      human address, so text and coordinates can never disagree
    · "locate me" button
-   · theme-aware tiles (CARTO light/dark), swaps live on theme change
+   · theme-aware OpenFreeMap vector map (positron / dark), swaps live on
+     theme change; attribution comes from the OpenFreeMap TileJSON
 
+   LOOM_ADDRESS.load() fetches MapLibre GL JS (CSS + JS) on demand.
    Returns { get, set, destroy }. get() → {lat, lng, address} | null.
-   Requires Leaflet (CSS+JS) on the page.
+   mount() returns null when MapLibre is missing or WebGL is unavailable,
+   so the caller can fall back to a plain address field.
 ================================================================ */
 'use strict';
 (function () {
   if (window.LOOM_ADDRESS) return;
 
-  var TASHKENT = [41.2995, 69.2401];
+  var TASHKENT = [69.2401, 41.2995]; // [lng, lat], MapLibre order
   var UZ_BBOX = '55.9,37.1,73.2,45.6'; // lon,lat,lon,lat — bias search to Uzbekistan
-  var TILES = {
-    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  var STYLES = {
+    light: 'https://tiles.openfreemap.org/styles/positron',
+    dark: 'https://tiles.openfreemap.org/styles/dark',
   };
-  var TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  /* MapLibre 5.x is the last line with a classic-script build (6.x is ESM
+     only). Verified byte-identical to the npm tarball. */
+  var ML = 'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.24.0/maplibre-gl';
+  var ML_JS_SRI = 'sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp';
+  var ML_CSS_SRI = 'sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK';
+
+  function hasLib() { return !!(window.maplibregl && typeof window.maplibregl.Map === 'function'); }
+  var loading = null;
+  function load() {
+    if (hasLib()) return Promise.resolve();
+    if (loading) return loading;
+    loading = new Promise(function (resolve, reject) {
+      /* wait for the stylesheet too, or controls land in the wrong place */
+      var cssDone = new Promise(function (done) {
+        var css = document.createElement('link');
+        css.rel = 'stylesheet'; css.href = ML + '.css'; css.integrity = ML_CSS_SRI; css.crossOrigin = 'anonymous';
+        css.onload = done; css.onerror = done;   // unstyled map beats no map
+        document.head.appendChild(css);
+      });
+      var s = document.createElement('script');
+      s.src = ML + '.js'; s.integrity = ML_JS_SRI; s.crossOrigin = 'anonymous'; s.async = true;
+      s.onload = function () { cssDone.then(resolve); };
+      s.onerror = function () { reject(new Error('maplibre failed to load')); };
+      document.head.appendChild(s);
+      // a hung CDN must not strand the customer on a map that never appears
+      setTimeout(function () { if (!hasLib()) reject(new Error('maplibre timed out')); }, 12000);
+    }).catch(function (e) { loading = null; throw e; });
+    return loading;
+  }
 
   function t(key, fallback) {
     try {
@@ -90,12 +121,7 @@
   function mount(container, opts) {
     opts = opts || {};
     if (typeof container === 'string') container = document.querySelector(container);
-    /* feature-test Leaflet rather than just `typeof L` — the Lenis UMD
-       bundle publishes its own global `L`, which would sail past a bare
-       existence check and then blow up on L.map(). Returning null lets
-       the caller degrade to a plain address field. */
-    if (!container) return null;
-    if (!window.L || typeof window.L.map !== 'function' || typeof window.L.tileLayer !== 'function') return null;
+    if (!container || !hasLib()) return null;
 
     var state = { lat: null, lng: null, address: '', settled: false };
     var destroyed = false;
@@ -126,15 +152,23 @@
     var lineText = container.querySelector('.atl-addr-line-text');
     var mapEl = container.querySelector('.atl-addr-map');
 
-    /* map + theme-aware tiles */
-    var initial = opts.initial && opts.initial.lat ? [opts.initial.lat, opts.initial.lng] : TASHKENT;
-    var map = L.map(mapEl, { center: initial, zoom: opts.initial && opts.initial.lat ? 16 : 12, zoomControl: true, attributionControl: true });
-    map.attributionControl.setPrefix(false);
+    /* map + theme-aware style */
+    var initial = opts.initial && opts.initial.lat ? [opts.initial.lng, opts.initial.lat] : TASHKENT;
     var theme = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'dark' : 'light';
-    var tiles = L.tileLayer(TILES[theme], { attribution: TILE_ATTR, maxZoom: 19 }).addTo(map);
+    var map;
+    try {
+      map = new maplibregl.Map({
+        container: mapEl, style: STYLES[theme], center: initial,
+        zoom: opts.initial && opts.initial.lat ? 16 : 12, maxZoom: 19,
+        attributionControl: { compact: false },
+        dragRotate: false, pitchWithRotate: false, touchPitch: false,
+      });
+    } catch (e) { container.innerHTML = ''; container.classList.remove('atl-addr'); return null; } // no WebGL
+    map.touchZoomRotate.disableRotation();
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
     function onTheme(e) {
       var next = (e.detail && e.detail.theme) === 'dark' ? 'dark' : 'light';
-      tiles.setUrl(TILES[next]);
+      if (next !== theme) { theme = next; map.setStyle(STYLES[next]); }
     }
     window.addEventListener('loom:themechange', onTheme);
 
@@ -188,7 +222,7 @@
             var it = items[+b.dataset.i];
             suggestBox.hidden = true;
             input.value = it.label + (it.sublabel ? ', ' + it.sublabel : '');
-            map.setView([it.lat, it.lng], 17); // fires moveend → reverse → state
+            map.jumpTo({ center: [it.lng, it.lat], zoom: 17 }); // fires moveend → reverse → state
           });
         });
       } catch (e) { suggestBox.hidden = true; }
@@ -207,14 +241,14 @@
       if (!navigator.geolocation) return;
       announce(t('addr.locating', 'Определяем адрес…'), 'busy');
       navigator.geolocation.getCurrentPosition(
-        function (pos) { map.setView([pos.coords.latitude, pos.coords.longitude], 17); },
+        function (pos) { map.jumpTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 17 }); },
         function () { announce(t('addr.geoFail', 'Не удалось определить местоположение'), 'error'); },
         { enableHighAccuracy: true, timeout: 8000 }
       );
     });
 
-    /* fix Leaflet sizing inside initially-hidden containers */
-    setTimeout(function () { map.invalidateSize(); }, 60);
+    /* fix sizing inside initially-hidden containers */
+    setTimeout(function () { if (!destroyed) map.resize(); }, 60);
 
     if (opts.initial && opts.initial.lat) settle();
 
@@ -223,8 +257,8 @@
         ? { lat: +state.lat.toFixed(6), lng: +state.lng.toFixed(6), address: state.address }
         : null;
     }
-    function set(lat, lng, zoom) { map.setView([lat, lng], zoom || 16); }
-    function invalidate() { map.invalidateSize(); }
+    function set(lat, lng, zoom) { map.jumpTo({ center: [lng, lat], zoom: zoom || 16 }); }
+    function invalidate() { map.resize(); }
     function destroy() {
       destroyed = true;
       window.removeEventListener('loom:themechange', onTheme);
@@ -234,5 +268,5 @@
     return { get: get, set: set, destroy: destroy, invalidate: invalidate, map: map };
   }
 
-  window.LOOM_ADDRESS = { mount: mount };
+  window.LOOM_ADDRESS = { mount: mount, load: load };
 })();

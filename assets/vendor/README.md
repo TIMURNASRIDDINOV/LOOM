@@ -79,9 +79,10 @@ newer bitstream correctly, are in `assets/models/README.md`.
 
 Deliberately out of scope for this pass — recorded so the list stays honest:
 
-- **Leaflet 1.9.4** (`unpkg.com`) — `assets/address-picker.js` (checkout, account),
-  `admin/order.html`, `admin/user-detail.html`. Lazy-loaded on demand, so it does not
-  appear on a normal page load, but it is a third origin when a map opens.
+- **MapLibre GL JS 5.24.0** (`cdnjs.cloudflare.com`) with **OpenFreeMap** vector tiles
+  (`tiles.openfreemap.org`) — `assets/address-picker.js` (checkout, account). Lazy-loaded
+  when the map opens. 5.x is the last line with a classic-script build (6.x is ESM only).
+- **Leaflet 1.9.4** (`unpkg.com`) — `admin/order.html`, `admin/user-detail.html` only.
 - **three 0.128.0** (`cdn.jsdelivr.net`) — `admin/order.html` still loads it from the CDN.
   The same files now exist here; pointing it at them would remove the duplication.
 - **Chart.js 4.4.0** (`cdn.jsdelivr.net`) — `admin/dashboard.html`. Admin only.
