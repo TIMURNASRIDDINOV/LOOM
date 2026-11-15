@@ -1676,7 +1676,7 @@ function normalizeModelUVsGlobally(object) {
 
 /**
  * Show which product is being configured. Entering from the nav carries no
- * ?slug, and a price with no product attached ("Создайте свой дизайн — 150 000
+ * ?slug, and a price with no product attached ("Создайте свой дизайн — 265 000
  * сум") reads like placeholder text, so the header names the real garment.
  */
 // ── Price ────────────────────────────────────────────────────────
@@ -1685,7 +1685,7 @@ function normalizeModelUVsGlobally(object) {
 // display and cart-hint value, never the source of truth.
 
 function basePrice() {
-  return currentProduct ? currentProduct.price : 150000;
+  return currentProduct ? currentProduct.price : 265000;
 }
 
 function artworkMarkupTotal() {

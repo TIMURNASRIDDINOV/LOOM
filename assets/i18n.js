@@ -131,7 +131,7 @@
     'cfg.stepCount1':   { uz: '1-qadam / 3', ru: 'Шаг 1 из 3', en: 'Step 1 of 3' },
     'cfg.stepCount2':   { uz: '2-qadam / 3', ru: 'Шаг 2 из 3', en: 'Step 2 of 3' },
     'cfg.stepCount3':   { uz: '3-qadam / 3', ru: 'Шаг 3 из 3', en: 'Step 3 of 3' },
-    'cfg.step1Title':   { uz: 'Nima bosamiz?', ru: 'Что напечатать?', en: 'What shall we print?' },
+    'cfg.step1Title':   { uz: 'Kiyimga nima bosamiz?', ru: 'Что напечатать на одежде?', en: 'What shall we print on your clothes?' },
     'cfg.step1Lead':    { uz: 'Rasm yuklang yoki matn yozing — kiyimda darhol ko‘rinadi.', ru: 'Загрузите картинку или напишите текст — вы сразу увидите её на одежде.', en: 'Upload a picture or write some text — you will see it on the garment straight away.' },
     'cfg.step2Title':   { uz: 'Rang va o‘lcham', ru: 'Цвет и размер', en: 'Colour and size' },
     'cfg.step2Lead':    { uz: 'O‘lchamingizni tanlang, so‘ng mato rangini almashtirish uchun kvadratchani bosing.', ru: 'Выберите размер, затем нажмите на квадрат, чтобы сменить цвет ткани.', en: 'Pick your size, then tap a square to change the fabric colour.' },
