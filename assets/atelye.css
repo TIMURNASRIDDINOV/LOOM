@@ -20,7 +20,7 @@
    configurator must never load this file whole.
 
    Breakpoint: 900 px (phone below, desktop from 900). Coral --brand
-   is decoration only (logo dot), never under text. Targets >= 44 px.
+   is decoration only (logo slash), never under text. Targets >= 44 px.
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ── Tokens ─────────────────────────────────────────────────────── */
@@ -97,7 +97,8 @@ ul, ol { margin: 0; padding: 0; }
 
 /* ── Type ───────────────────────────────────────────────────────── */
 .atl-wm { font: 800 18px/1 var(--f); font-stretch: 125%; letter-spacing: .14em; display: inline-flex; align-items: center; color: var(--ink); text-decoration: none; }
-.atl-wm i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--brand); margin-left: 6px; }
+.atl-wm i { font-style: normal; color: var(--brand); margin-left: .06em; }
+.atl-wm i::before { content: "/"; }
 .atl-t1 { font: 700 27px/1.08 var(--f); font-stretch: 118%; letter-spacing: -.01em; }
 .atl-t2 { font: 700 18px/1.2 var(--f); font-stretch: 108%; }
 .atl-t3 { font: 700 15px/1.3 var(--f); }
