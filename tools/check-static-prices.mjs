@@ -11,13 +11,14 @@
 //   - a product the page shows live has no static card.
 //
 // The server stays the source of prices; the static cards are display only.
+// Landing pages: see the data-from block below (LOOM-329).
 // Needs the network unless --api points at a saved JSON file. Node 18+.
 //
 // Usage:
 //   node tools/check-static-prices.mjs                       # live API
 //   node tools/check-static-prices.mjs --api products.json   # saved response
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -55,6 +56,32 @@ for (const [file, want] of Object.entries(PAGES)) {
     if (!cards.some((c) => c.slug === p.slug)) errors.push(`${file}: "${p.name_ru}" (${p.slug}) has no static card`);
   }
   console.log(`${file}: ${cards.length} static cards, ${want.length} live`);
+}
+
+// Landing pages (LOOM-329): every root page with data-from prices. Each
+// <… data-slug="S" data-from="N">…N…</…> must be live price N of product S,
+// and every "N сум" amount anywhere in the file (title, description, copy)
+// must be one of those prices or the delivery fee.
+const DELIVERY = 30000; // site copy: atl.help.a1, privacy.html §4
+const bySlugAll = new Map(live.map((p) => [p.slug, p]));
+const AMOUNT = /(\d{1,3}(?:(?:&nbsp;|\s)\d{3})+)(?:&nbsp;|\s)*сум/g;
+for (const file of readdirSync(root).filter((f) => f.endsWith('.html'))) {
+  const html = readFileSync(join(root, file), 'utf8');
+  const tags = [...html.matchAll(/data-slug="([^"]+)" data-from="(\d+)">([^<]*)</g)];
+  if (!tags.length) continue;
+  const allowed = new Set([DELIVERY]);
+  for (const [, slug, from, text] of tags) {
+    const p = bySlugAll.get(slug);
+    if (!p) { errors.push(`${file}: ${slug} is not in the live catalogue`); continue; }
+    allowed.add(Number(p.price));
+    if (Number(from) !== Number(p.price)) errors.push(`${file}: ${slug} data-from ${from} vs API ${p.price}`);
+    if (Number(text.replace(/&nbsp;|\D/g, '')) !== Number(from)) errors.push(`${file}: ${slug} text "${text}" vs data-from ${from}`);
+  }
+  for (const [, n] of html.matchAll(AMOUNT)) {
+    const v = Number(n.replace(/&nbsp;|\D/g, ''));
+    if (!allowed.has(v)) errors.push(`${file}: amount ${v} сум is neither a live price on this page nor delivery`);
+  }
+  console.log(`${file}: ${tags.length} landing prices`);
 }
 
 if (errors.length) {
