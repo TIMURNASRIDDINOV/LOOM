@@ -319,6 +319,35 @@ try {
   await tick()
   await until(async () => (await row(again)).status === 'cancelled', 'rejected and overdue is cancelled')
 
+  // ── Receipt retention: deleted 90 days after confirmation, payment record kept ──
+  const DAY = 24 * 3600 * 1000
+  const oldKey = (await row(b)).receipt_key, keptKey = (await row(a)).receipt_key
+  ok(oldKey && keptKey && await uploads.head(oldKey) && await uploads.head(keptKey), 'paid receipts stored')
+  await db.prepare('UPDATE orders SET pay_checked_at = ? WHERE id = ?').bind(Date.now() - 91 * DAY, b).run()
+  await db.prepare('UPDATE orders SET pay_checked_at = ? WHERE id = ?').bind(Date.now() - 89 * DAY, a).run()
+  const cancelledPaid = (await place(4)).id // receipt sent, then staff cancelled: 90 days after upload
+  await call('POST', `/api/me/orders/${cancelledPaid}/receipt`, { status: 201, headers: user(4), form: receipt() })
+  const cancelledKey = (await row(cancelledPaid)).receipt_key
+  await db.prepare("UPDATE orders SET status = 'cancelled', receipt_at = ? WHERE id = ?").bind(Date.now() - 91 * DAY, cancelledPaid).run()
+  const before90 = await row(b)
+  await tick()
+  await until(async () => (await row(b)).receipt_key === null && (await row(cancelledPaid)).receipt_key === null, 'old receipts purged')
+  ok(!(await uploads.head(oldKey)) && !(await uploads.head(cancelledKey)), 'old receipt objects deleted')
+  o = await row(b)
+  eq([o.payment_status, o.total_price, o.paid_at, o.pay_checked_by, o.pay_checked_at, o.receipt_at, o.status],
+    [before90.payment_status, before90.total_price, before90.paid_at, before90.pay_checked_by, before90.pay_checked_at, before90.receipt_at, before90.status], 'payment record kept')
+  eq((await row(a)).receipt_key, keptKey, 'a receipt confirmed 89 days ago is kept')
+  ok(await uploads.head(keptKey), 'its object is kept')
+  seen = await call('GET', `/api/admin/orders/${b}`, { headers: admin(1) })
+  eq([seen.payment.receiptUrl, typeof seen.receipt_at, seen.payment_status], [null, 'number', 'paid'], 'admin sees a deleted receipt, not a broken one')
+  // Re-run safe: a run that died after deleting the object but before clearing the key is finished next minute.
+  await db.prepare('UPDATE orders SET receipt_key = ? WHERE id = ?').bind(oldKey, b).run()
+  await tick()
+  await until(async () => (await row(b)).receipt_key === null, 'a re-run clears a key whose object is already gone')
+  await tick()
+  await new Promise((r) => setTimeout(r, 100))
+  eq([(await row(b)).receipt_key, (await row(b)).payment_status, (await row(a)).receipt_key], [null, 'paid', keptKey], 'repeat runs change nothing')
+
   // ════ Sign-in routes ════
   eq((await call('POST', '/api/auth/register', { status: 410, body: { email: 'new@loom.test', password: 'long-enough-1' } })).code, 'sign_in_method_closed')
   eq((await db.prepare("SELECT COUNT(*) AS n FROM users WHERE email = 'new@loom.test'").first()).n, 0)

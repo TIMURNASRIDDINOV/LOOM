@@ -153,10 +153,41 @@ async function sendReminders(env: Bindings): Promise<void> {
   }
 }
 
+/** Receipt screenshots are kept this long, then deleted (founder decision 2026-11-15). */
+export const RECEIPT_KEEP_MS = 90 * 24 * 60 * 60 * 1000
+
+/**
+ * Delete receipt images past retention: 90 days after staff confirmed the
+ * payment, or 90 days after upload on an order that was cancelled without a
+ * confirmation. Deleted accounts only keep delivered / cancelled orders, so
+ * their receipts are reached by the same rule. The order keeps its payment
+ * status, amount, paid_at, pay_checked_* and receipt_at; receipt_key = NULL
+ * with receipt_at set is what the admin page shows as "deleted after 90 days".
+ * Safe to re-run: deleting a missing R2 object is a no-op, and the UPDATE
+ * only clears the key it deleted.
+ */
+export async function purgeOldReceipts(env: Bindings): Promise<number> {
+  const cutoff = Date.now() - RECEIPT_KEEP_MS
+  // ponytail: no index on receipt_key, the orders table is scanned once a
+  // minute. Add a partial index (WHERE receipt_key IS NOT NULL) if it grows big.
+  const { results } = await env.DB.prepare(
+    `SELECT id, receipt_key FROM orders
+     WHERE receipt_key IS NOT NULL
+       AND ((payment_status = 'paid' AND pay_checked_at <= ?1) OR (status = 'cancelled' AND receipt_at <= ?1))
+     LIMIT ${BATCH}`,
+  ).bind(cutoff).all<{ id: number; receipt_key: string }>()
+  if (!results.length) return 0
+  // Objects first: if this throws, the keys stay and the next minute retries.
+  await env.LOOM_UPLOADS.delete(results.map((r) => r.receipt_key))
+  await env.DB.batch(results.map((r) =>
+    env.DB.prepare('UPDATE orders SET receipt_key = NULL WHERE id = ? AND receipt_key = ?').bind(r.id, r.receipt_key)))
+  return results.length
+}
+
 /** The every-minute cron job (src/index.ts). */
 export async function sweepPayments(env: Bindings): Promise<void> {
   // Each job runs even when the one before it failed.
-  for (const job of [() => expireOverdue(env), () => sendReminders(env), () => finishScheduledDeletions(env.DB)]) {
+  for (const job of [() => expireOverdue(env), () => sendReminders(env), () => finishScheduledDeletions(env.DB), () => purgeOldReceipts(env)]) {
     try { await job() } catch (err) { console.error('[prepay] sweep job failed:', err) }
   }
 }

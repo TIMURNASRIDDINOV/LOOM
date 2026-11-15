@@ -738,7 +738,9 @@ function setupPayment(o) {
     `<div style="margin-top:var(--sp-3)">${state}</div>` +
     (pay.receiptUrl
       ? `<a class="pay-receipt" id="pay-receipt" target="_blank" rel="noopener" aria-label="Открыть чек в новой вкладке"><div class="state">Загрузка чека…</div></a>`
-      : '') +
+      : o.receipt_at
+        ? sub('Чек удалён через 90 дней (срок хранения).')
+        : '') +
     (waiting && pay.canCheck
       ? `<button type="button" id="pay-confirm" class="btn btn--primary btn--block">Деньги пришли — подтвердить оплату</button>` +
         `<div class="pay-reject"><div class="field">` +
