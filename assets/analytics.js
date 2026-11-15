@@ -104,14 +104,30 @@
     else if (was === 'granted') withdraw();
   }
 
+  /* Atelye look, self-contained: the banner also shows on the
+     configurator, which does not load atelye.css, so every token has a
+     fallback and the buttons are the banner's own (44 px+ targets).
+     Phones: above the bottom nav / action bar. Hidden while the
+     first-visit onboarding (html.atl-onb-open) is on screen. */
   var CSS =
-    '#loom-consent{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:10005;' +
-      'max-width:560px;margin:0 auto;padding:1rem 1.1rem;background:var(--paper-3);color:var(--ink);' +
-      'border:var(--rule);box-shadow:var(--hard);font-family:var(--font-body);font-size:var(--text-sm);line-height:1.5}' +
-    '#loom-consent p{margin:0 0 .8rem}' +
-    '#loom-consent a{color:inherit;text-decoration:underline;text-underline-offset:2px}' +
-    '#loom-consent .lc-actions{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:flex-end}' +
-    '#loom-consent .btn{padding:.65rem 1.2rem}';
+    '#loom-consent{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:70;' +
+      'max-width:560px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px;' +
+      'background:var(--surface,#fff);color:var(--ink,#14171a);border-radius:12px;' +
+      'box-shadow:0 0 0 1px var(--ln,rgba(20,23,26,.16)),0 10px 28px -10px rgba(14,18,24,.35);' +
+      'font:400 14px/1.45 var(--f,"Archivo",system-ui,sans-serif)}' +
+    'body.atl-has-bnav #loom-consent{bottom:calc(var(--atl-bnav-h,60px) + var(--atl-sb,env(safe-area-inset-bottom,0px)) + 12px)}' +
+    'body.atl-abar-on #loom-consent{bottom:calc(76px + var(--atl-sb,env(safe-area-inset-bottom,0px)))}' +
+    'html.atl-onb-open #loom-consent,html.tma #loom-consent{display:none}' +
+    '#loom-consent p{margin:0}' +
+    '#loom-consent a{color:inherit;text-decoration:underline;text-underline-offset:3px}' +
+    '#loom-consent .lc-actions{display:flex;gap:8px}' +
+    '#loom-consent .lc-btn{flex:1 1 0;min-height:48px;padding:0 14px;border:0;border-radius:8px;cursor:pointer;text-align:center;' +
+      'font:700 14.5px var(--f,"Archivo",system-ui,sans-serif);background:none;color:inherit;box-shadow:inset 0 0 0 1.5px currentColor}' +
+    '#loom-consent .lc-btn:hover{background:var(--surface2,#e9ecef)}' +
+    '#loom-consent .lc-ok{background:var(--ink,#14171a);color:var(--surface,#fff);box-shadow:none}' +
+    '#loom-consent .lc-ok:hover{background:var(--ink,#14171a);opacity:.88}' +
+    '#loom-consent .lc-btn:focus-visible{outline:2px solid var(--ink,#14171a);outline-offset:2px}' +
+    '@media (min-width:900px){#loom-consent,body.atl-has-bnav #loom-consent,body.atl-abar-on #loom-consent{left:auto;right:24px;bottom:24px;width:420px}}';
 
   function banner() {
     if (d.getElementById('loom-consent')) return;
@@ -129,8 +145,8 @@
       '<p><span data-i18n="consent.text">' + t('consent.text') + '</span> ' +
         '<a href="privacy.html#analytics" data-i18n="consent.more">' + t('consent.more') + '</a></p>' +
       '<div class="lc-actions">' +
-        '<button type="button" class="btn btn--outline" data-consent="denied" data-i18n="consent.decline">' + t('consent.decline') + '</button>' +
-        '<button type="button" class="btn btn--solid" data-consent="granted" data-i18n="consent.accept">' + t('consent.accept') + '</button>' +
+        '<button type="button" class="lc-btn" data-consent="denied" data-i18n="consent.decline">' + t('consent.decline') + '</button>' +
+        '<button type="button" class="lc-btn lc-ok" data-consent="granted" data-i18n="consent.accept">' + t('consent.accept') + '</button>' +
       '</div>';
     d.body.appendChild(el);
   }

@@ -13,12 +13,22 @@
 
    Public API: window.LOOM_CART = { load, sync, add, remove, setQty,
    uploadModel, open, close, state, updateBadge }
+
+   state = { items, total (items only), delivery, payable (items +
+   delivery), failed (true when the last load could not reach the
+   server) }. Every change fires `loom:cart` on window.
+
+   Atelye pages (they load assets/atelye.css) get no drawer: the old
+   drawer has no styles there and the Savat tab is cart.html. open()
+   goes to cart.html instead.
 ================================================================ */
 'use strict';
 (function () {
   if (window.LOOM_CART) return;
 
-  var state = { items: [], total: 0 };
+  var ATELYE = !!document.querySelector('link[href*="assets/atelye.css"]');
+  var EMPTY = function () { return { items: [], total: 0, delivery: 0, payable: 0 }; };
+  var state = EMPTY();
   var thumbCache = {};   // itemId → objectURL (authenticated blob fetch)
   var qtyTimers = {};    // itemId → debounce timer for PATCH
 
@@ -57,6 +67,14 @@
     if (el) el.remove();
     el = document.createElement('div');
     el.id = 'loom-toast';
+    if (ATELYE) {
+      el.className = 'atl-toast' + (type === 'error' ? ' atl-toast-err' : '');
+      el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(function () { el.remove(); }, 2600);
+      return;
+    }
     el.style.cssText =
       'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);z-index:10001;' +
       'padding:0.8rem 1.3rem;border-radius:2px;font-family:var(--font-body);font-size:0.85rem;font-weight:500;' +
@@ -116,6 +134,7 @@
     var n = state.items.reduce(function (s, i) { return s + (i.quantity || 1); }, 0);
     var el = document.getElementById('cartCount');
     if (el) { el.textContent = n; el.classList.toggle('show', n > 0); }
+    try { window.dispatchEvent(new CustomEvent('loom:cart', { detail: state })); } catch (e) { /* old browser */ }
   }
 
   /* ── API ────────────────────────────────────────────────────── */
@@ -128,8 +147,9 @@
   async function load() {
     try {
       var res = await fetch(api() + '/api/cart', { headers: authHeaders(false), credentials: 'include' });
-      state = res.ok ? await res.json() : { items: [], total: 0 };
-    } catch (e) { state = { items: [], total: 0 }; }
+      if (res.ok) state = await res.json();
+      else { state = EMPTY(); state.failed = res.status !== 401; }
+    } catch (e) { state = EMPTY(); state.failed = true; }
     updateBadge();
     render();
     return state;
@@ -159,6 +179,7 @@
     var item = state.items.find(function (i) { return i.id === id; });
     if (item) item.quantity = qty; // optimistic
     state.total = state.items.reduce(function (s, i) { return s + i.unit_price * i.quantity; }, 0);
+    state.payable = state.total + (state.delivery || 0);
     updateBadge();
     renderTotals();
     clearTimeout(qtyTimers[id]);
@@ -368,6 +389,7 @@
     try { history.pushState({ loomBag: 1 }, ''); } catch (e) {}
   }
   async function open() {
+    if (ATELYE) { location.href = 'cart.html'; return; }
     ensureDrawer();
     await load();
     openDrawer();
@@ -396,15 +418,19 @@
 
   /* ── boot ───────────────────────────────────────────────────── */
   function boot() {
-    ensureDrawer();
-    var btn = document.getElementById('navCartBtn');
-    if (btn) btn.addEventListener('click', open);
-    /* language switch: item meta lines are JS-rendered */
-    window.addEventListener('loom:langchange', render);
-    /* checkout.js owns the cart fetch on its page — it must run AFTER the
-       auth gate, and loading here too would both duplicate the request and
-       race a not-yet-logged-in 401 into the state. */
-    if (document.body.getAttribute('data-page') !== 'checkout') load();
+    if (!ATELYE) {
+      ensureDrawer();
+      var btn = document.getElementById('navCartBtn');
+      if (btn) btn.addEventListener('click', open);
+      /* language switch: item meta lines are JS-rendered */
+      window.addEventListener('loom:langchange', render);
+    }
+    /* checkout.js and cart-page.js own the cart fetch on their pages
+       (checkout must load AFTER the auth gate; loading here too would
+       duplicate the request and race a not-yet-logged-in 401 into the
+       state). */
+    var page = document.body.getAttribute('data-page');
+    if (page !== 'checkout' && page !== 'cart') load();
     resumeModels();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

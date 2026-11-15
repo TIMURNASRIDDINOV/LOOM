@@ -46,36 +46,6 @@
     return null
   }
 
-  // ── Auth API calls ─────────────────────────────────────────────────────────
-  async function login(email, password) {
-    const res = await fetch(window.LOOM_CONFIG.API_BASE + '/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Ошибка входа')
-    setToken(data.token)
-    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user))
-    return data
-  }
-
-  async function register(email, password, name, phone) {
-    const body = { email, password }
-    if (name)  body.name  = name
-    if (phone) body.phone = phone
-    const res = await fetch(window.LOOM_CONFIG.API_BASE + '/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Ошибка регистрации')
-    setToken(data.token)
-    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user))
-    return data
-  }
-
   async function logout() {
     const token = getToken()
     clearToken()
@@ -206,5 +176,5 @@
   // Re-render the auth nav when the language changes
   window.addEventListener('loom:langchange', () => { renderAuthNav() })
 
-  window.LOOM_AUTH = { getToken, setToken, clearToken, getCurrentUser, login, register, logout, renderAuthNav }
+  window.LOOM_AUTH = { getToken, setToken, clearToken, getCurrentUser, logout, renderAuthNav }
 })()

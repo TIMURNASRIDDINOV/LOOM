@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Buyurtma — LOOM</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <script src="assets/boot.js?v=10"></script>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/atelye.css?v=1">
+  <style>
+    /* order.html only (LOOM-323 phase 10): payment screen parts. */
+    .atl-ord-amt { font: 700 28px/1.1 var(--f); font-variant-numeric: tabular-nums; }
+    .atl-ord-cardno { font: 700 20px/1.2 var(--f); font-variant-numeric: tabular-nums; letter-spacing: .04em; overflow-wrap: anywhere; }
+    .atl-ord-copy { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .atl-ord-copy .atl-btn { height: 44px; }
+    .atl-ord-drop { width: 100%; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1.5px var(--ln); padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; background: var(--surface); }
+    .atl-ord-drop:hover { box-shadow: inset 0 0 0 1.5px var(--ink); }
+    .atl-ord-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .atl-ord-prev { width: 48px; height: 60px; border-radius: 6px; object-fit: cover; flex: none; background: var(--surface2); }
+    .atl-ord-ring { width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; }
+    .atl-ord-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    /* Phone: the pay action sits in a bar on the bottom edge. Desktop: in the receipt panel. */
+    .atl-ord-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; align-items: center; gap: 12px; padding: 10px 16px calc(10px + var(--atl-sb)); background: var(--surface); box-shadow: 0 -1px 0 var(--ln); }
+    .atl-ord-bar .atl-btn-p { flex: 1 1 0; }
+    .atl-ord-bar-pr { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+    .atl-ord-bar-pr b { font-variant-numeric: tabular-nums; }
+    .atl-ord-hasbar { padding-bottom: calc(84px + var(--atl-sb)); }
+    /* Telegram: the MainButton is the pay action (shell.js sets html.tma-main). */
+    html.tma-main .atl-ord-bar { display: none; }
+    html.tma-main .atl-ord-hasbar { padding-bottom: 0; }
+    @media (min-width: 900px) {
+      .atl-ord-bar { position: static; padding: 0; box-shadow: none; background: none; }
+      .atl-ord-hasbar { padding-bottom: 0; }
+    }
+  </style>
+</head>
+<body data-page="order" data-back="account.html">
+<main id="main" class="atl-wrap" aria-busy="true">
+  <span class="atl-skel" style="height:34px;width:60%"></span>
+  <span class="atl-skel" style="height:120px"></span>
+  <span class="atl-skel" style="height:120px"></span>
+</main>
+
+<script src="assets/config.js?v=9"></script>
+<script src="assets/i18n.js?v=58"></script>
+<script src="assets/auth.js?v=6"></script>
+<script src="assets/tma.js?v=5"></script>
+<script>
+  /* With ?id the page is one order (its own action bar, no bottom nav). */
+  (function () {
+    var id = (location.search.match(/[?&]id=(\d+)/) || [])[1];
+    var b = document.body, t = function (k, f) { var s = window.LOOM_I18N && LOOM_I18N.t(k); return s && s !== k ? s : f; };
+    if (id) { b.setAttribute('data-no-nav', ''); b.setAttribute('data-back', 'order.html'); b.setAttribute('data-title', '#' + id); }
+    else b.setAttribute('data-title', t('atl.orders.title', 'Buyurtmalarim'));
+  })();
+</script>
+<script src="assets/shell.js?v=1"></script>
+<script src="assets/track.js?v=6"></script>
+<script src="assets/analytics.js?v=4"></script>
+<script src="assets/order.js?v=1"></script>
+</body>
+</html>

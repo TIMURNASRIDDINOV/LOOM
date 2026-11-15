@@ -62,8 +62,50 @@ share frozen at `markup × qty × (100 − commission) / 100`. Migration 0018.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/payments/methods` | `{ cod, payme, click, uzum }` — which methods the Worker can complete (a provider is `true` once its merchant secrets are set). |
+| GET | `/api/payments/methods` | `{ cod, p2p, payme, click, uzum }` — which methods a new order may use. `cod` is always `false` (closed, PRD-216). `p2p` (card transfer) is `true` only when the Worker secrets `P2P_CARD_NUMBER` (16 digits) and `P2P_CARD_HOLDER` are set; without them checkout is closed. |
 | POST | `/api/payments/{payme,click,uzum}/webhook` | Provider callbacks; flip `orders.payment_status`. |
+
+#### Prepayment by card transfer (`p2p`, PRD-216, migration 0030)
+
+Every new order is paid in full before production. `POST /api/cart/checkout`
+needs `paymentMethod: "p2p"`; `cod`, an unknown or missing method and an
+unconfigured provider answer 400 `payment_method_unavailable` and write no
+order. Delivery is a flat 30 000 so'm priced by the server
+(`DELIVERY_FEE_UZS`, `lib/pricing.ts`); nothing the client sends changes it.
+
+- `GET /api/cart` and every cart response: `{ items, total, delivery, payable, priceChanged }`. `total` is the items subtotal, `payable = total + delivery`.
+- Checkout response adds `deliveryFee` and `payDeadline` (epoch ms, 30 minutes after creation). `totalPrice` is the amount to transfer (items + delivery). `paymentUrl` is `null`: the site's order page is the payment screen.
+- `orders.total_price` includes `orders.delivery_fee`. Designer shares are still computed from item prices only.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/me/orders/:id` | Also returns `now` (server clock, ms), `can_revive` and `card`. `order` carries `delivery_fee`, `pay_deadline`, `payment_method`, `payment_status` (`unpaid` → `pending` → `paid`, or `failed` after a rejection), `pay_reject_reason` (`not_found` \| `amount_mismatch`), `receipt` (boolean; the storage key is never sent). `card` is `{ number, holder }` only for the owner while the order still has to be paid, otherwise `null`. An order past its deadline is cancelled before the answer is built. |
+| POST | `/api/me/orders/:id/receipt` | Multipart, field `file`: the transfer screenshot. PNG, JPG or WebP by content, ≤ 10 MB (`receipt_invalid`, `receipt_too_large`). 201 `{ ok, receipt, receipt_at }`. Replaces an earlier receipt. 409 `order_not_payable` once the payment is being checked, is confirmed, or the order is not a card-transfer order. |
+| POST | `/api/me/orders/:id/paid` | "I have paid". 409 `receipt_required` without a stored receipt. 200 `{ ok, status, payment_status: "pending" }`; a repeat changes nothing and answers the same. Staff get one Telegram message with the admin link. |
+
+All three answer 404 for a missing order and for another customer's order.
+Receipts and "paid" share a limit of 20 calls per 10 minutes per user (429 `rate_limited`).
+
+**Timeout.** An order still `unpaid` (or `failed`) at `pay_deadline` becomes
+`cancelled` with the status-log note `payment_timeout`; the customer gets a
+Telegram message. `can_revive` is then `true`: a receipt plus "paid" puts the
+order back to `new` / `pending` (log note `payment_revived`). An order cancelled
+by staff is not revived. A rejection gives the customer a fresh 30 minutes.
+
+**Sweep.** The Worker cron `* * * * *` runs `sweepPayments` (`lib/prepay.ts`)
+every minute: one Telegram reminder when 5 minutes or less are left
+(`pay_reminded_at`), then the timeout cancel above. Reading an order also
+expires it, so a missed cron run never leaves an expired order payable.
+Customer messages are Uzbek first, Russian second, and are stored as in-site
+notifications too.
+
+**Staff.** Needs the capability `orders.approve`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/orders/:id/payment` | `{ action: "confirm" }` → `payment_status: paid`, `paid_at`, order `confirmed` (log note `payment_confirmed`), customer told. `{ action: "reject", reason: "not_found" \| "amount_mismatch" }` → `failed`, the receipt is removed, a fresh 30-minute window, customer told why. Only an order with `payment_status: pending` is changed; repeating the action that already happened answers 200 `{ ok, already: true }`; anything else 409 `payment_not_pending`. 400 `reject_reason_required`. |
+| GET | `/api/admin/orders/:id` | Adds `payment: { receiptUrl, checkedBy, canCheck }`; `receiptUrl` is an `/api/admin/media/...` path. |
+| PATCH | `/api/admin/orders/:id/status` | For a `p2p` order, `confirmed`, `producing`, `shipped` and `delivered` answer 409 `payment_not_confirmed` until the payment is `paid`. Old `cod` orders are exempt. |
 
 ---
 
@@ -71,19 +113,21 @@ share frozen at `markup × qty × (100 − commission) / 100`. Migration 0018.
 
 | Method | Path | Body | Description |
 |--------|------|------|-------------|
-| POST | `/api/auth/register` | `{ email, password, name?, phone? }` | Register user, returns `{ token, user }` |
+| POST | `/api/auth/register` | — | Closed (PRD-216): 410 `sign_in_method_closed`. New accounts are made by phone + Telegram only. |
 | POST | `/api/auth/login` | `{ email, password }` | Login, returns `{ token, user }` |
 | GET | `/api/auth/me` | — | Current user (Bearer or cookie). Includes `orders_count`, `total_spent`, `phone_verified`, `telegram_user_id`, and the designer fields `is_designer`, `designer_handle`, `designer_bio`. |
 | PATCH | `/api/auth/profile` | `{ name?, phone?, location_preset? }` | Update profile; `location_preset` is `{ address, lat?, lng? }` or `null` |
 | POST | `/api/auth/avatar` | multipart `avatar` | Upload avatar (PNG/JPG/WebP ≤ 2 MB) |
 | DELETE | `/api/auth/account` | — | Delete the account: personal fields anonymised, identities and cart removed, pending artwork withdrawn. Orders stay as anonymised records. The user's JWTs stop working immediately (`code: account_deleted`). |
+| | | | While an order is not yet `delivered` or `cancelled` the deletion is only scheduled: `{ ok, scheduled: true, delete_requested_at }`. An order the payment timeout cancelled counts as open for 24 more hours (a late receipt can still revive it). The deletion runs when the last such order closes; the minute sweep retries it until it succeeds. Otherwise `{ ok, scheduled: false }`. `GET /api/auth/me` returns `delete_requested_at` (ms or `null`). |
+| POST | `/api/auth/account/restore` | — | Call off a scheduled deletion. `{ ok, delete_requested_at: null }`. |
 
 ### Social sign-in (Google / Discord / Facebook)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/auth/oauth/providers?platform=android\|ios\|web` | Providers with credentials on the Worker, with the client id for that platform |
-| POST | `/api/auth/oauth/:provider` | `{ code, redirect_uri, code_verifier?, platform }` — exchange the PKCE code, returns `{ token, user }` |
+| GET | `/api/auth/oauth/providers` | Closed (PRD-216): always `{ providers: [] }`. |
+| POST | `/api/auth/oauth/:provider` | Closed: 410 `sign_in_method_closed`. |
 
 ---
 
@@ -541,7 +585,7 @@ drafter's daily neuron cap (`ai_neuron_cap`, default 2,000) or the shared Worker
 AI cap would be passed. Failures send one Telegram message. Both settings are
 `ig_settings` rows; caption rules are `IG_CAPTION_RULES`.
 
-Publishing is the Worker cron (`*/5 * * * *`, `lib/instagram-publish.ts`), not a route. While `publish_paused` is on it makes no Meta request. Otherwise it takes up to 5 `approved` posts with `approved_by` set and `publish_at <= now`, moves each to `publishing`, then sets `published` (`ig_media_id`, `permalink`, `published_at`) or, on a 4xx / `ERROR` / `EXPIRED` / third failed attempt, `failed` with `error` and one Telegram message. 5xx, timeouts and rate limits return the post to `approved` with `attempts + 1`. A token error (code 190) switches `publish_paused` on and leaves the post `approved`.
+Publishing is the Worker cron (`* * * * *` on minutes 0, 5, 10 …; the same trigger runs the payment sweep every minute; `lib/instagram-publish.ts`), not a route. While `publish_paused` is on it makes no Meta request. Otherwise it takes up to 5 `approved` posts with `approved_by` set and `publish_at <= now`, moves each to `publishing`, then sets `published` (`ig_media_id`, `permalink`, `published_at`) or, on a 4xx / `ERROR` / `EXPIRED` / third failed attempt, `failed` with `error` and one Telegram message. 5xx, timeouts and rate limits return the post to `approved` with `attempts + 1`. A token error (code 190) switches `publish_paused` on and leaves the post `approved`.
 
 Insights are a second cron (`0 3 * * 1`, `lib/instagram-insights.ts`, table `ig_insights`, migration 0026). It is read-only and runs even while `publish_paused` is on. It stores lifetime media metrics for every post published by this system in the last 90 days and daily account `reach` / `follower_count` for the last 7 days, upserting on `(scope, ig_media_id, metric, period, end_time)`. Empty data from Meta is no row. A metric request Meta refuses is skipped until next week; a token error (code 190) stops the pull with one Telegram message.
 

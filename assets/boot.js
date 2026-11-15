@@ -23,7 +23,7 @@
   'use strict';
   var d = document.documentElement;
   var KEY = 'loom_theme';
-  var META_COLORS = { light: '#f4f2ed', dark: '#151412' };
+  var META_COLORS = { light: '#f5f5f2', dark: '#121315' };  // Atelye --page (atelye.css)
 
   function stored() {
     try { var v = localStorage.getItem(KEY); return (v === 'light' || v === 'dark') ? v : null; }

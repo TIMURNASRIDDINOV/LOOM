@@ -14,7 +14,7 @@ import {
 } from '../db/queries'
 import { serveObject } from '../lib/r2'
 import { checkVariant } from '../lib/variant'
-import { cartSnapshot, priceDesign } from '../lib/pricing'
+import { cartSnapshot, priceDesign, DELIVERY_FEE_UZS, PAY_WINDOW_MS } from '../lib/pricing'
 import { isRateLimited, TOO_MANY } from '../lib/rateLimit'
 import { sendOrderNotification } from '../lib/telegram'
 import { isValidMethod, providerConfigured, createPaymentUrl, type PaymentEnvVars } from '../lib/payments'
@@ -30,8 +30,11 @@ async function checkoutResponse(c: Context<UserEnv>, order: CheckoutOrder, statu
   const paymentMethod = isValidMethod(order.payment_method) ? order.payment_method : 'cod'
   const items = await checkoutItems(c.env.DB, order.id)
   const paymentUrl = createPaymentUrl(paymentMethod, { id: order.id, totalPrice: order.total_price }, c.env as unknown as PaymentEnvVars)
+  // totalPrice is what the customer pays: items + deliveryFee. The card itself
+  // is served only by GET /api/me/orders/:id.
   return c.json({ id: order.id, status: order.status, itemCount: items.length, paymentMethod,
-    paymentUrl, totalPrice: order.total_price, items }, status)
+    paymentUrl, totalPrice: order.total_price, deliveryFee: order.delivery_fee,
+    payDeadline: order.pay_deadline, items }, status)
 }
 
 /**
@@ -168,7 +171,7 @@ router.delete('/:id', async (c) => {
 // DELETE /api/cart — clear the whole cart
 router.delete('/', async (c) => {
   await clearCart(c.env.DB, c.get('userId'))
-  return c.json({ items: [], total: 0 })
+  return c.json({ items: [], total: 0, delivery: 0, payable: 0 })
 })
 
 // POST /api/cart/checkout — turn the cart into ONE multi-item order
@@ -185,6 +188,18 @@ router.post('/checkout', async (c) => {
   }
   let b: Record<string, unknown>
   try { b = (await c.req.json()) as Record<string, unknown> } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+
+  // Prepayment only (PRD-216). Nothing falls back to cash on delivery: a
+  // missing, unknown, closed or unconfigured method is refused before any
+  // order is written. An old page that still posts 'cod' lands here.
+  const paymentMethod = b.paymentMethod
+  if (!isValidMethod(paymentMethod) || !providerConfigured(paymentMethod, c.env as unknown as PaymentEnvVars)) {
+    return c.json(
+      { error: "Bu to'lov usuli hozir mavjud emas. Sahifani yangilang. / Этот способ оплаты сейчас недоступен. Обновите страницу.",
+        code: 'payment_method_unavailable' },
+      400,
+    )
+  }
 
   if (typeof b.customerName !== 'string' || !b.customerName.trim()) {
     return c.json({ error: 'customerName is required' }, 400)
@@ -244,10 +259,11 @@ router.post('/checkout', async (c) => {
   }
   if (snapshot.priceChanged) return c.json({ ...snapshot, code: 'price_changed', error: 'Prices updated. Review the new total before ordering.' }, 409)
   const total = snapshot.total
-  const customerName = (b.customerName as string).trim()
-  const customerPhone = (b.customerPhone as string).trim()
-  const address = typeof b.address === 'string' ? b.address.trim() : null
-  const comment = typeof b.comment === 'string' ? b.comment.trim() : null
+  // Free text is size-capped: it is stored and shown to staff.
+  const customerName = (b.customerName as string).trim().slice(0, 120)
+  const customerPhone = (b.customerPhone as string).trim().slice(0, 32)
+  const address = typeof b.address === 'string' ? b.address.trim().slice(0, 500) : null
+  const comment = typeof b.comment === 'string' ? b.comment.trim().slice(0, 1000) : null
 
   // Structured coordinates (migration 0011). `coordinates` stays mirrored for
   // backward compat with older admin builds.
@@ -264,17 +280,8 @@ router.post('/checkout', async (c) => {
     if (s.length <= 1000) addressDetails = s
   }
 
-  // Payment method — order is created first; online providers redirect after.
-  const paymentMethod = isValidMethod(b.paymentMethod) ? b.paymentMethod : 'cod'
-  const payEnv = c.env as unknown as PaymentEnvVars
-  if (paymentMethod !== 'cod' && !providerConfigured(paymentMethod, payEnv)) {
-    return c.json(
-      { error: 'Этот способ оплаты пока недоступен. Выберите оплату при получении.', code: 'payment_method_unavailable' },
-      400,
-    )
-  }
-
   const written = await writeCheckout(c.env.DB, { userId, key, sessionId, platform: b.platform === 'app' ? 'app' : 'web', items, total,
+    deliveryFee: DELIVERY_FEE_UZS, payDeadline: Date.now() + PAY_WINDOW_MS,
     customerName, customerPhone, address, coordinates, comment, paymentMethod,
     lat, lng, addressDetails, commission: DESIGNER_COMMISSION_PCT })
   if (!written.order) {
@@ -293,7 +300,7 @@ router.post('/checkout', async (c) => {
         address,
         coordinates,
         comment,
-        totalPrice: total,
+        totalPrice: written.order.total_price,
         designJson: `Корзина: ${items.length} позиц., ${totalQty} шт.`,
         productName: `Заказ из корзины (${items.length})`,
       }),

@@ -7,3 +7,8 @@
 JWT_SECRET=your-secret-here-min-32-chars-long-random-string
 TELEGRAM_BOT_TOKEN=123456789:ABCDEFghijklmnopqrstuvwxyz0123456
 TELEGRAM_CHAT_ID=-100123456789
+
+# Card transfer checkout (PRD-216). Without both, checkout is closed.
+# Use a made-up 16-digit number locally; the real card is a production secret.
+P2P_CARD_NUMBER=0000000000000000
+P2P_CARD_HOLDER=TEST HOLDER

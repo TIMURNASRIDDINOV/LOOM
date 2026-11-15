@@ -1,618 +1,570 @@
+/* ================================================================
+   LOOM — account (account.html), Atelye skin (PRD-216, LOOM-323).
+
+   One page, hash-routed sections:
+     (none)          profile hub: orders, account, settings, more
+     #profile        first / last name (saved as users.name)
+     #phone          the number and its Telegram confirmation
+     #addresses      the saved delivery address (checkout offers it)
+     #language       uz / ru / en, applied at once
+     #theme          auto / light / dark
+     #notifications  order status / offers switches (Telegram bot)
+     #privacy        analytics consent, data copy, policy
+     #delete         account deletion (privacy.html §5). With an order
+                     in progress it is only scheduled and can be called
+                     off until delivery (DELETE /api/auth/account →
+                     {scheduled}, POST /api/auth/account/restore).
+     #designer       designer studio (static markup, assets/designer.js)
+
+   Signed out: the hub shows "Kiring" plus language, theme and help;
+   language and theme still work.
+================================================================ */
 'use strict'
 ;(function () {
-  // i18n helper (Russian fallback when i18n.js absent)
-  function AT(key, fb) {
-    try { return (window.LOOM_I18N ? window.LOOM_I18N.t(key) : fb) || fb } catch (e) { return fb }
-  }
-  function lang() { try { return window.LOOM_I18N ? window.LOOM_I18N.getLang() : 'ru' } catch (e) { return 'ru' } }
+  const view = document.getElementById('acc-view')
+  const main = document.getElementById('main')
+  const studio = document.getElementById('tab-designer')
+  if (!view) return
 
-  const STATUS_LABELS = {
-    ru: { new: 'Новый', confirmed: 'Подтверждён', producing: 'Производство', shipped: 'Отправлен', delivered: 'Доставлен', cancelled: 'Отменён', pending: 'Ожидает', processing: 'В работе' },
-    uz: { new: 'Yangi', confirmed: 'Tasdiqlangan', producing: 'Ishlab chiqarilmoqda', shipped: 'Jo‘natilgan', delivered: 'Yetkazilgan', cancelled: 'Bekor qilingan', pending: 'Kutilmoqda', processing: 'Jarayonda' },
-    en: { new: 'New', confirmed: 'Confirmed', producing: 'In production', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', pending: 'Pending', processing: 'Processing' },
-  }
-  const STATUS_COLORS = {
-    new: '#3b82f6', confirmed: '#eab308', producing: '#f97316',
-    shipped: '#a855f7', delivered: '#22c55e', cancelled: '#6b7280',
-    pending: '#facc15', processing: '#a78bfa',
-  }
+  const BOT = 'https://t.me/looom_design_bot'
+  const SECTIONS = ['profile', 'phone', 'addresses', 'language', 'theme', 'notifications', 'privacy', 'delete', 'designer']
+  const PUBLIC = ['language', 'theme']
 
+  /* ── helpers ─────────────────────────────────────────────────── */
+  const I = () => window.LOOM_I18N
+  function T(key, fallback) {
+    const s = I() ? I().t(key) : null
+    return s && s !== key ? s : (fallback == null ? key : fallback)
+  }
+  function fill(str, vars) {
+    return Object.keys(vars).reduce((s, k) => s.split('{' + k + '}').join(vars[k]), str)
+  }
   function esc(s) {
-    if (!s) return ''
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   }
-  function fmt(n) {
-    if (window.LOOM_I18N) return window.LOOM_I18N.formatPrice(n)
-    return Number(n || 0).toLocaleString('ru-RU') + ' сум'
+  const P = {
+    pkg: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
+    user: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0',
+    phone: 'M8 2h8a1 1 0 011 1v18a1 1 0 01-1 1H8a1 1 0 01-1-1V3a1 1 0 011-1zM11 18h2',
+    pin: 'M12 21s7-6.2 7-11.5a7 7 0 10-14 0C5 14.8 12 21 12 21zM12 12a2.5 2.5 0 100-5 2.5 2.5 0 000 5z',
+    globe: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z',
+    sun: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5',
+    bell: 'M6 16V11a6 6 0 0112 0v5l2 2H4zM10 20a2 2 0 004 0',
+    shield: 'M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z',
+    store: 'M4 9l1.5-5h13L20 9M4 9h16v11H4zM4 9a2.7 2.7 0 005.3 0 2.7 2.7 0 005.4 0 2.7 2.7 0 005.3 0M10 20v-5h4v5',
+    help: 'M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.5a2.5 2.5 0 015 0c0 2-2.5 2-2.5 4M12 17h.01',
+    logout: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
+    trash: 'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13',
+    doc: 'M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6',
+    chev: 'M9 5l7 7-7 7',
+    back: 'M15 5l-7 7 7 7',
+    check: 'M5 12l5 5 9-11',
+    alert: 'M12 3l10 18H2zM12 10v4M12 17h.01',
+    plus: 'M12 5v14M5 12h14',
+    tg: 'M21 4L3 11l6 2 2 6 3-4 5 4z'
   }
-  function locale() { return { ru: 'ru-RU', uz: 'uz-UZ', en: 'en-US' }[lang()] || 'ru-RU' }
-  function fmtDate(ts) {
-    if (!ts) return '—'
-    return new Date(Number(ts)).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
+  const ic = (n, s) => '<svg class="atl-ic' + (s ? ' atl-ic-s' : '') + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + P[n] + '"/></svg>'
+
+  /** One settings row. o: {i, b, s, v, href, act, dg, right, attrs} */
+  function row(o) {
+    const inner = (o.i ? '<span class="atl-row-ico">' + ic(o.i, 1) + '</span>' : '') +
+      '<span class="atl-row-tx"><b>' + esc(o.b) + '</b>' + (o.s ? '<i>' + esc(o.s) + '</i>' : '') + '</span>' +
+      (o.v ? '<span class="atl-row-v">' + esc(o.v) + '</span>' : '') + (o.right || '') +
+      (o.href || o.act ? ic('chev', 1) : '')
+    const cls = 'atl-row' + (o.dg ? ' atl-row-dg' : '')
+    if (o.href) return '<a class="' + cls + '" href="' + esc(o.href) + '"' + (o.attrs || '') + '>' + inner + '</a>'
+    if (o.act) return '<button type="button" class="' + cls + '" data-act="' + o.act + '">' + inner + '</button>'
+    return '<div class="' + cls + '">' + inner + '</div>'
   }
-  /* The cabinet's headline figure. It was pinned to ru-RU, so an English
-     reader still got "300 тыс." */
-  function fmtSpent(total) {
-    if (!total) return '0'
-    return new Intl.NumberFormat(locale(), { notation: 'compact', maximumFractionDigits: 0 }).format(total)
+  const grp = (title, rows) => '<section class="atl-grp"><h2>' + esc(title) + '</h2><div class="atl-lst">' + rows + '</div></section>'
+  const tgl = (on, label, attrs) => '<button type="button" class="atl-tgl" role="switch" aria-checked="' + !!on + '" aria-label="' + esc(label) + '"' + (attrs || '') + '><i></i></button>'
+  function radio(name, value, title, sub, on) {
+    return '<button type="button" class="atl-opt" role="radio" data-' + name + '="' + value + '" aria-checked="' + !!on + '">' +
+      '<span class="atl-opt-rd"></span><span class="atl-opt-tx"><b>' + esc(title) + '</b>' + (sub ? '<i>' + esc(sub) + '</i>' : '') + '</span></button>'
   }
-  function fmtYear(ts) {
-    if (!ts) return '—'
-    return new Date(Number(ts)).getFullYear().toString()
+  function field(id, label, input, o) {
+    o = o || {}
+    return '<div class="atl-field"><label class="atl-field-l" for="' + id + '">' + esc(label) +
+        (o.opt ? ' <i>· ' + esc(T('atl.optional', 'ixtiyoriy')) + '</i>' : '') + '</label>' + input +
+      '<span class="atl-ferr" id="' + id + '-err" hidden></span>' +
+      (o.hint ? '<span class="atl-hint" id="' + id + '-hint">' + esc(o.hint) + '</span>' : '') + '</div>'
   }
-  function statusBadge(status) {
-    const map = STATUS_LABELS[lang()] || STATUS_LABELS.ru
-    const label = map[status] || status
-    const color = STATUS_COLORS[status] || '#6b7280'
-    return `<span class="status-badge" style="background:${color}22;color:${color};border:1px solid ${color}55">${esc(label)}</span>`
+  function fieldErr(id, text) {
+    const el = document.getElementById(id + '-err')
+    const inp = document.getElementById(id)
+    if (el) { el.hidden = !text; el.innerHTML = text ? ic('alert', 1) + '<span>' + esc(text) + '</span>' : '' }
+    if (inp) {
+      if (text) { inp.setAttribute('aria-invalid', 'true'); inp.setAttribute('aria-describedby', id + '-err'); inp.focus() } else { inp.removeAttribute('aria-invalid') }
+    }
+  }
+  function toast(text, err) {
+    const old = document.querySelector('.atl-toast')
+    if (old) old.remove()
+    const el = document.createElement('div')
+    el.className = 'atl-toast' + (err ? ' atl-toast-err' : '')
+    el.setAttribute('role', err ? 'alert' : 'status')
+    el.innerHTML = ic(err ? 'alert' : 'check', 1) + '<span>' + esc(text) + '</span>'
+    document.body.appendChild(el)
+    setTimeout(() => el.remove(), 2600)
+  }
+  const errText = () => (navigator.onLine === false ? T('atl.state.offline') : T('atl.state.errT', 'Nimadir noto‘g‘ri ketdi'))
+
+  /* ── API ─────────────────────────────────────────────────────── */
+  const API = () => (window.LOOM_CONFIG && window.LOOM_CONFIG.API_BASE) || 'https://api.loomdesign.uz'
+  async function call(method, path, body) {
+    const h = body ? { 'Content-Type': 'application/json' } : {}
+    const tok = window.LOOM_AUTH && window.LOOM_AUTH.getToken()
+    if (tok) h.Authorization = 'Bearer ' + tok
+    const res = await fetch(API() + path, { method, headers: h, credentials: 'include', body: body ? JSON.stringify(body) : undefined })
+    const data = await res.json().catch(() => ({}))
+    if (res.status === 401) { location.replace('login.html?next=' + encodeURIComponent('account.html' + location.hash)); throw new Error('auth') }
+    if (!res.ok) throw Object.assign(new Error(data.error || 'HTTP ' + res.status), { status: res.status })
+    return data
+  }
+  /** Keep auth.js's session copy of /me in step with what we just saved. */
+  function cacheUser() {
+    try { sessionStorage.setItem('loom_user', JSON.stringify(user)) } catch (e) { /* private mode */ }
   }
 
+  /* ── state ───────────────────────────────────────────────────── */
   let user = null
-  let API = ''
+  let orders = null          // GET /api/me/orders, null until loaded
+  let armed = false          // delete: first press done
+  let busy = false
+  let picker = null          // LOOM_ADDRESS instance on #addresses/edit
+  let addrEdit = false       // #addresses shows the form
+  let inPage = false         // we navigated between sections on this page
 
-  /**
-   * Auth headers for the cabinet's own calls.
-   *
-   * Two sign-in styles are live: email accounts carry a Bearer token in
-   * localStorage, phone/Telegram and social accounts carry a `user_token`
-   * cookie. requireAuth on the Worker accepts either — but only if we send it.
-   * Every settings action here used to hardcode `Bearer ' + token`, which for
-   * a cookie account is the literal string "Bearer null": the Worker takes the
-   * Bearer branch, fails to verify, and returns 401. Saving a name, a phone,
-   * an avatar or an address was impossible for anyone who signed in with
-   * Telegram. Send the token only when there is one, and always send cookies.
-   */
-  function authHeaders(extra) {
-    const h = Object.assign({}, extra || {})
-    const token = window.LOOM_AUTH && window.LOOM_AUTH.getToken()
-    if (token) h['Authorization'] = 'Bearer ' + token
-    return h
+  const section = () => {
+    const h = location.hash.slice(1)
+    return SECTIONS.indexOf(h) === -1 ? '' : h
   }
-  function authFetch(path, opts) {
-    const o = Object.assign({ credentials: 'include' }, opts || {})
-    o.headers = authHeaders(o.headers)
-    return fetch(API + path, o)
+  const displayName = () => (user && (user.name || [user.first_name, user.last_name].filter(Boolean).join(' '))) || ''
+  function digits(p) { return String(p || '').replace(/\D/g, '') }
+  function fmtPhone(p, mask) {
+    const d = digits(p)
+    if (d.length !== 12 || d.indexOf('998') !== 0) return p || ''
+    return '+998 ' + d.slice(3, 5) + ' ' + (mask ? '*** **' : d.slice(5, 8) + ' ' + d.slice(8, 10)) + ' ' + d.slice(10)
   }
-
-  // ── Tabs ─────────────────────────────────────────────────────────────────────
-
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
-      btn.classList.add('active')
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active')
-    })
-  })
-
-  // Hash-based tab navigation
-  if (window.location.hash === '#settings') {
-    setTimeout(() => document.querySelector('[data-tab="settings"]')?.click(), 50)
-  } else if (window.location.hash === '#notifications') {
-    setTimeout(() => document.querySelector('[data-tab="notifications"]')?.click(), 50)
-  }
-
-  // ── Avatar ───────────────────────────────────────────────────────────────────
-
-  function renderAvatar(u) {
-    const placeholder = document.getElementById('avatar-placeholder')
-    const img = document.getElementById('avatar-img')
-    const initials = (u.name || u.email || '').slice(0, 2).toUpperCase() || '?'
-    if (u.avatar_url) {
-      img.src = u.avatar_url
-      img.style.display = 'block'
-      placeholder.style.display = 'none'
-    } else {
-      placeholder.textContent = initials
-      placeholder.style.display = 'flex'
-      img.style.display = 'none'
-    }
-  }
-
-  document.getElementById('avatar-btn').addEventListener('click', () => {
-    document.getElementById('avatar-input').click()
-  })
-
-  document.getElementById('avatar-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const btn = document.getElementById('avatar-btn')
-    btn.disabled = true
+  function preset() {
     try {
-      const fd = new FormData()
-      fd.append('avatar', file)
-      const res = await authFetch('/api/auth/avatar', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Upload failed')
-      user.avatar_url = data.avatar_url
-      renderAvatar(user)
-    } catch (err) {
-      // inline message instead of a native alert()
-      let errEl = document.getElementById('avatar-err')
-      if (!errEl) {
-        errEl = document.createElement('span')
-        errEl.id = 'avatar-err'
-        errEl.className = 'msg-err'
-        const meta = document.querySelector('.avatar-meta')
-        if (meta) meta.appendChild(errEl)
+      const p = user && user.location_preset ? JSON.parse(user.location_preset) : null
+      return p && p.address ? p : null
+    } catch (e) { return null }
+  }
+  const isOpen = (o) => o.status !== 'delivered' && o.status !== 'cancelled'
+  const openOrders = () => (orders || []).filter(isOpen)
+  const orderList = () => openOrders().map((o) => '#' + o.id).join(', ')
+
+  /* ── views ───────────────────────────────────────────────────── */
+  const TITLES = {
+    '': ['atl.nav.profile', 'Profil'],
+    profile: ['atl.acc.profile', 'Profil'],
+    phone: ['atl.acc.phone', 'Telefon raqami'],
+    addresses: ['atl.acc.addresses', 'Manzillar'],
+    language: ['atl.acc.lang', 'Til'],
+    theme: ['atl.acc.theme', 'Mavzu'],
+    notifications: ['atl.acc.notifications', 'Bildirishnomalar'],
+    privacy: ['atl.acc.privacy', 'Maxfiylik'],
+    delete: ['atl.acc.delete', 'Akkauntni o‘chirish'],
+    designer: ['dz.studioTitle', 'Dizayner kabineti']
+  }
+  function head(sec) {
+    const key = sec === 'designer' && !(user && user.is_designer) ? ['atl.acc.becomeDesigner', 'Dizayner bo‘lish'] : TITLES[sec]
+    const title = T(key[0], key[1])
+    const h = document.querySelector('.atl-mbar h1')
+    if (h) h.textContent = title
+    document.title = title + ' — LOOM'
+    if (!sec) return ''
+    // Desktop has no top bar: a link back to the hub above the title.
+    return '<div class="atl-only-d"><a class="atl-lnk" href="account.html" data-act="hub">' + ic('back', 1) + esc(T('atl.nav.profile', 'Profil')) + '</a></div>' +
+      '<h1 class="atl-t1 atl-only-d">' + esc(title) + '</h1>'
+  }
+
+  function hub() {
+    if (!user) {
+      return '<div class="atl-empty">' +
+          '<span class="atl-cv">' + ic('user') + '</span>' +
+          '<h1 class="atl-t2">' + esc(T('atl.acc.signIn', 'Kiring')) + '</h1>' +
+          '<p class="atl-lead">' + esc(T('atl.acc.signInLead')) + '</p>' +
+          '<div class="atl-btns" style="width:100%;max-width:420px"><a class="atl-btn atl-btn-p" href="login.html?next=account.html">' + ic('tg', 1) + esc(T('atl.acc.signInBtn', 'Kirish')) + '</a></div>' +
+        '</div>' +
+        '<div class="atl-lst">' + appRows(false) + row({ i: 'help', b: T('atl.nav.help', 'Yordam'), href: 'help.html' }) + '</div>'
+    }
+    const name = displayName()
+    const initials = name ? name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() : ''
+    const avatar = user.avatar_url
+      ? '<span class="atl-avatar"><img src="' + esc(user.avatar_url) + '" alt=""></span>'
+      : '<span class="atl-avatar" aria-hidden="true">' + (initials ? esc(initials) : ic('user')) + '</span>'
+    const sub = [user.phone ? fmtPhone(user.phone, true) : '', user.phone_verified ? T('atl.acc.viaTg', 'Telegram orqali') : ''].filter(Boolean).join(' · ')
+
+    let ordersSub = ''
+    if (orders) {
+      const unpaid = orders.filter((o) => o.payment_method === 'p2p' && o.status === 'new' && (o.payment_status === 'unpaid' || o.payment_status === 'failed')).length
+      const review = orders.filter((o) => isOpen(o) && o.payment_status === 'pending').length
+      if (unpaid || review) ordersSub = fill(T('atl.acc.ordersSub'), { unpaid, review })
+    }
+    const p = preset()
+    const scheduled = user.delete_requested_at
+      ? '<div class="atl-banner atl-banner-info">' + ic('alert', 1) + '<div class="atl-banner-tx"><span>' +
+          esc(fill(T('atl.acc.delScheduled'), { orders: orderList() || '—' })) + '</span>' +
+          '<a class="atl-btn" href="#delete">' + esc(T('atl.acc.delUndo', 'O‘chirishni bekor qilish')) + '</a></div></div>'
+      : ''
+    return '<div class="atl-acc-me">' + avatar + '<div><h1 class="atl-t2">' + esc(name || T('atl.nav.profile', 'Profil')) + '</h1>' +
+        (sub ? '<p class="atl-sm atl-num">' + esc(sub) + '</p>' : '') + '</div></div>' +
+      scheduled +
+      grp(T('atl.acc.grpOrders', 'Buyurtmalar'), row({ i: 'pkg', b: T('atl.orders.title', 'Buyurtmalarim'), s: ordersSub, href: 'order.html' })) +
+      grp(T('atl.acc.grpAccount', 'Akkaunt'),
+        row({ i: 'user', b: T('atl.acc.profile', 'Profil'), s: T('atl.acc.profileSub', 'Ism va familiya'), href: '#profile' }) +
+        row({ i: 'phone', b: T('atl.acc.phone', 'Telefon raqami'), v: user.phone_verified ? T('atl.verified', 'Tasdiqlangan') : '', href: '#phone' }) +
+        row({ i: 'pin', b: T('atl.acc.addresses', 'Manzillar'), v: p ? fill(T('atl.acc.addrCount', '{n} ta'), { n: 1 }) : '', href: '#addresses' })) +
+      grp(T('atl.acc.grpApp', 'Ilova'), appRows(true)) +
+      grp(T('atl.acc.grpOther', 'Boshqa'),
+        row({ i: 'store', b: user.is_designer ? T('dz.studioTitle', 'Dizayner kabineti') : T('atl.acc.becomeDesigner', 'Dizayner bo‘lish'), s: user.is_designer ? '' : T('atl.acc.becomeSub'), href: '#designer' }) +
+        row({ i: 'help', b: T('atl.nav.help', 'Yordam'), href: 'help.html' }) +
+        row({ i: 'logout', b: T('atl.acc.logout', 'Chiqish'), act: 'logout' })) +
+      '<div class="atl-lst">' + row({ i: 'trash', b: T('atl.acc.delete', 'Akkauntni o‘chirish'), dg: 1, href: '#delete' }) + '</div>'
+  }
+  function appRows(full) {
+    const L = { uz: 'O‘zbekcha', ru: 'Русский', en: 'English' }
+    const th = themeNow()
+    return row({ i: 'globe', b: T('atl.acc.lang', 'Til'), v: L[I() ? I().getLang() : 'uz'], href: '#language' }) +
+      row({ i: 'sun', b: T('atl.acc.theme', 'Mavzu'), v: T('atl.theme.' + th), href: '#theme' }) +
+      (full
+        ? row({ i: 'bell', b: T('atl.acc.notifications', 'Bildirishnomalar'), v: 'Telegram', href: '#notifications' }) +
+          row({ i: 'shield', b: T('atl.acc.privacy', 'Maxfiylik'), href: '#privacy' })
+        : '')
+  }
+
+  function profile() {
+    const parts = user.name ? user.name.trim().split(/\s+/) : [user.first_name || '', user.last_name || '']
+    const first = parts[0] || ''
+    const last = parts.slice(1).join(' ')
+    return '<form class="atl-form" id="acc-profile-form" novalidate>' +
+      field('acc-first', T('atl.acc.name', 'Ism'), '<input class="atl-inp" id="acc-first" autocomplete="given-name" maxlength="60" value="' + esc(first) + '" required>') +
+      field('acc-last', T('atl.acc.surname', 'Familiya'), '<input class="atl-inp" id="acc-last" autocomplete="family-name" maxlength="60" value="' + esc(last) + '">', { opt: 1 }) +
+      '<p class="atl-hint">' + esc(T('atl.acc.nameHint')) + '</p>' +
+      '<button type="submit" class="atl-btn atl-btn-g atl-btn-w" data-tma-main>' + esc(T('atl.save', 'Saqlash')) + '</button>' +
+    '</form>'
+  }
+
+  function phone() {
+    if (!user.phone_verified) {
+      return '<div class="atl-lst">' + row({ i: 'phone', b: user.phone ? fmtPhone(user.phone) : T('atl.acc.phone', 'Telefon raqami'), s: T('atl.co.verifyBanner') }) + '</div>' +
+        '<a class="atl-btn atl-btn-p atl-btn-w" href="login.html?next=' + encodeURIComponent('account.html#phone') + '">' + ic('tg', 1) + esc(T('atl.co.verifyBtn', 'Telegram orqali tasdiqlash')) + '</a>'
+    }
+    return '<div class="atl-lst">' + row({ i: 'phone', b: fmtPhone(user.phone), s: T('atl.acc.tgVerified', 'Telegram orqali tasdiqlangan'),
+        right: '<span style="color:var(--ok)">' + ic('check', 1) + '</span>' }) + '</div>' +
+      // No self-service number change yet: the bot can only confirm the number
+      // of the Telegram account that shares it (needs.md, phase 12).
+      '<p class="atl-hint">' + esc(T('atl.acc.phoneChange', 'Raqamni o‘zgartirish uchun @looom_design_bot ga yozing.')) + '</p>' +
+      '<a class="atl-btn atl-btn-w" href="' + BOT + '" rel="noopener">' + ic('tg', 1) + '@looom_design_bot</a>'
+  }
+
+  function addresses() {
+    const p = preset()
+    if (!addrEdit) {
+      if (!p) {
+        return '<p class="atl-lead">' + esc(T('atl.acc.addrNone', 'Saqlangan manzil yo‘q. Uni qo‘shsangiz, buyurtmada tanlash kifoya.')) + '</p>' +
+          '<button type="button" class="atl-btn atl-btn-w" data-act="addr-edit">' + ic('plus', 1) + esc(T('atl.acc.addAddr', 'Manzil qo‘shish')) + '</button>'
       }
-      if (errEl) {
-        errEl.textContent = 'Ошибка загрузки: ' + err.message
-        setTimeout(() => { errEl.textContent = '' }, 6000)
-      }
-    } finally {
-      btn.disabled = false
-      e.target.value = ''
+      return '<div class="atl-lst">' + row({ i: 'pin', b: p.label || T('atl.co.addr', 'Manzil'), s: p.address,
+        right: '<span class="atl-tag">' + esc(T('atl.acc.addrMain', 'Asosiy')) + '</span>', act: 'addr-edit' }) + '</div>'
     }
-  })
-
-  // ── Profile data ──────────────────────────────────────────────────────────────
-
-  function populateProfile(u) {
-    // Top nav
-    const navEmail = document.getElementById('nav-email')
-    if (navEmail) navEmail.textContent = u.email || ''
-
-    // Avatar section
-    renderAvatar(u)
-    // Telegram-created accounts have no name and a synthetic tg<id>@telegram.loom
-    // email, so fall back to the Telegram first name before the email prefix.
-    document.getElementById('profile-name').textContent =
-      u.name || u.first_name || (u.email ? u.email.split('@')[0] : '')
-    document.getElementById('profile-email').textContent = u.email
-    document.getElementById('profile-since').textContent = AT('acc.statSince', 'С нами с') + ' ' + fmtDate(u.created_at)
-
-    // Stats
-    document.getElementById('stat-orders').textContent = u.order_count ?? '0'
-    document.getElementById('stat-spent').textContent = fmtSpent(u.total_spent)
-    document.getElementById('stat-since').textContent = fmtYear(u.created_at)
-
-    // Location
-    populateLocation(u.location_preset)
-
-    // Settings form
-    const nameInput = document.getElementById('edit-name')
-    const phoneInput = document.getElementById('edit-phone')
-    if (nameInput) nameInput.value = u.name || ''
-    if (phoneInput) phoneInput.value = u.phone || ''
+    return '<div id="acc-map"></div>' +
+      '<form class="atl-form" id="acc-addr-form" novalidate>' +
+        field('acc-addr', T('atl.co.addr', 'Manzil'), '<input class="atl-inp" id="acc-addr" autocomplete="street-address" maxlength="300" placeholder="' + esc(T('atl.co.addrPh', 'Ko‘cha, uy, mo‘ljal…')) + '" value="' + esc(p ? p.address : '') + '" required>') +
+        field('acc-addr-label', T('atl.acc.addrLabel', 'Nomi'), '<input class="atl-inp" id="acc-addr-label" maxlength="40" placeholder="' + esc(T('atl.acc.addrLabelPh', 'Uy, Ish…')) + '" value="' + esc(p && p.label ? p.label : '') + '">', { opt: 1 }) +
+        '<button type="submit" class="atl-btn atl-btn-g atl-btn-w" data-tma-main>' + esc(T('atl.acc.saveAddr', 'Manzilni saqlash')) + '</button>' +
+        (p ? '<button type="button" class="atl-btn atl-btn-w atl-acc-dg" data-act="addr-remove">' + esc(T('atl.cart.remove', 'O‘chirish')) + '</button>' : '') +
+        '<button type="button" class="atl-btn atl-btn-w" data-act="addr-cancel">' + esc(T('atl.cancel', 'Bekor qilish')) + '</button>' +
+      '</form>'
   }
 
-  function yandexMapsUrl(lat, lng) {
-    return `https://yandex.ru/maps/?ll=${lng},${lat}&z=15&pt=${lng},${lat}`
+  function language() {
+    const now = I() ? I().getLang() : 'uz'
+    return '<div class="atl-acc-opts" role="radiogroup" aria-label="' + esc(T('atl.acc.lang', 'Til')) + '">' +
+      radio('lang', 'uz', 'O‘zbekcha', '', now === 'uz') + radio('lang', 'ru', 'Русский', '', now === 'ru') + radio('lang', 'en', 'English', '', now === 'en') + '</div>'
   }
 
-  function showGeocodeResult(address, lat, lng) {
-    const box = document.getElementById('geocode-result')
-    document.getElementById('geocode-addr').textContent = address
-    document.getElementById('geocode-coords-text').textContent = lat && lng ? `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}` : ''
-    if (lat && lng) {
-      document.getElementById('geocode-map-link').href = yandexMapsUrl(lat, lng)
-      document.getElementById('geocode-map-link').style.display = ''
+  function themeNow() {
+    let stored = null
+    try { stored = localStorage.getItem('loom_theme') } catch (e) { /* private mode */ }
+    return stored === 'light' || stored === 'dark' ? stored : 'auto'
+  }
+  function theme() {
+    const th = themeNow()
+    return '<div class="atl-acc-opts" role="radiogroup" aria-label="' + esc(T('atl.acc.theme', 'Mavzu')) + '">' +
+      radio('theme', 'auto', T('atl.theme.auto', 'Avto'), T('atl.theme.autoSub'), th === 'auto') +
+      radio('theme', 'light', T('atl.theme.light', 'Yorug‘'), '', th === 'light') +
+      radio('theme', 'dark', T('atl.theme.dark', 'Qorong‘i'), '', th === 'dark') + '</div>'
+  }
+
+  function notifications() {
+    const o = T('atl.acc.notifOrder', 'Buyurtma holati')
+    const pr = T('atl.acc.notifPromo', 'Aksiya va yangiliklar')
+    return '<div class="atl-lst">' +
+      row({ b: o, s: T('atl.acc.notifOrderSub'), right: tgl(user.notify_orders !== 0, o, ' data-notif="notify_orders"') }) +
+      row({ b: pr, s: T('atl.acc.notifPromoSub'), right: tgl(user.notify_promo !== 0, pr, ' data-notif="notify_promo"') }) +
+      '</div><p class="atl-hint">' + esc(T('atl.acc.notifHint')) + '</p>'
+  }
+
+  function privacy() {
+    let consent = null
+    try { consent = localStorage.getItem('loom_consent') } catch (e) { /* private mode */ }
+    const on = consent === 'granted'
+    const a = T('atl.acc.analytics', 'Analitika cookie')
+    // analytics.js handles any click on [data-consent] (saves the choice, starts or stops the tags).
+    return '<div class="atl-lst">' +
+      row({ b: a, s: T('atl.acc.analyticsSub'), right: tgl(on, a, ' data-consent="' + (on ? 'denied' : 'granted') + '" data-act="consent"') }) +
+      row({ i: 'doc', b: T('atl.acc.dataCopy', 'Ma’lumotlarim nusxasi'), s: T('atl.acc.dataCopySub'), href: BOT, attrs: ' rel="noopener"' }) +
+      row({ i: 'shield', b: T('atl.acc.policy', 'Maxfiylik siyosati'), href: 'privacy.html' }) +
+    '</div>'
+  }
+
+  function del() {
+    if (!orders) return '<span class="atl-skel" style="height:120px"></span>'
+    const what = '<section class="atl-grp"><h2>' + esc(T('atl.acc.delErased', 'O‘chiriladi')) + '</h2><ul>' +
+        ['atl.acc.delE1', 'atl.acc.delE2', 'atl.acc.delE3'].map((k) => '<li>' + esc(T(k)) + '</li>').join('') + '</ul></section>' +
+      '<section class="atl-grp"><h2>' + esc(T('atl.acc.delKept', 'Saqlanadi')) + '</h2><p class="atl-sm">' + esc(T('atl.acc.delKeptSub')) + '</p></section>'
+    const cancel = '<a class="atl-btn atl-btn-g atl-btn-w" href="account.html" data-act="hub">' + esc(T('atl.cancel', 'Bekor qilish')) + '</a>'
+    const lead = '<p class="atl-lead">' + esc(T('atl.acc.delLead')) + '</p>'
+    let b
+    if (user.delete_requested_at) {
+      b = '<div class="atl-banner atl-banner-info">' + ic('check', 1) + '<div class="atl-banner-tx">' +
+          esc(fill(T('atl.acc.delScheduled'), { orders: orderList() || '—' })) + '</div></div>' +
+        '<button type="button" class="atl-btn atl-btn-w" data-act="del-undo">' + esc(T('atl.acc.delUndo', 'O‘chirishni bekor qilish')) + '</button>'
+    } else if (openOrders().length) {
+      b = '<div class="atl-banner atl-banner-info">' + ic('pkg', 1) + '<div class="atl-banner-tx">' +
+          esc(fill(T('atl.acc.delActive'), { orders: orderList() })) + '</div></div>' + what +
+        '<button type="button" class="atl-btn atl-btn-w atl-acc-dg" data-act="del">' + esc(T('atl.acc.delAfter', 'Yetkazilgandan keyin o‘chirish')) + '</button>' + cancel
+    } else if (armed) {
+      b = '<div class="atl-banner" role="alert">' + ic('alert', 1) + '<div class="atl-banner-tx">' + esc(T('atl.acc.delWarn')) + '</div></div>' + what +
+        '<button type="button" class="atl-btn atl-btn-w atl-acc-dg-f" data-act="del">' + esc(T('atl.acc.delConfirm', 'Ha, butunlay o‘chirilsin')) + '</button>' + cancel
     } else {
-      document.getElementById('geocode-map-link').style.display = 'none'
+      b = what + '<button type="button" class="atl-btn atl-btn-w atl-acc-dg" data-act="del-arm">' + esc(T('atl.acc.delete', 'Akkauntni o‘chirish')) + '</button>' + cancel
     }
-    box.classList.add('visible')
+    return lead + '<div class="atl-acc-del">' + b + '</div>'
   }
 
-  function hideGeocodeResult() {
-    document.getElementById('geocode-result').classList.remove('visible')
+  const RENDER = { profile, phone, addresses, language, theme, notifications, privacy, delete: del, designer: () => '' }
+
+  function render() {
+    let sec = section()
+    if (sec && !user && PUBLIC.indexOf(sec) === -1) sec = ''
+    if (sec !== 'addresses') { addrEdit = false; dropPicker() }
+    if (sec !== 'delete') armed = false
+    view.innerHTML = head(sec) + (sec ? RENDER[sec]() : hub())
+    if (studio) studio.hidden = sec !== 'designer'
+    main.removeAttribute('aria-busy')
+    if (sec === 'addresses' && addrEdit) mountPicker()
+    if (window.LOOM_SHELL) window.LOOM_SHELL.syncMain()
   }
 
-  function populateLocation(locationJson) {
-    let loc = null
-    try { loc = locationJson ? JSON.parse(locationJson) : null } catch {}
-    const preview = document.getElementById('location-preview')
-    const addrEl = document.getElementById('location-address')
-    const coordsEl = document.getElementById('location-coords')
-    if (loc && loc.address) {
-      preview.style.display = 'flex'
-      addrEl.textContent = loc.address
-      coordsEl.textContent = loc.lat && loc.lng ? `${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}` : ''
-      document.getElementById('loc-address').value = loc.address || ''
-      document.getElementById('loc-lat').value = loc.lat || ''
-      document.getElementById('loc-lng').value = loc.lng || ''
-      showGeocodeResult(loc.address, loc.lat, loc.lng)
-    } else {
-      preview.style.display = 'none'
-      hideGeocodeResult()
-    }
-  }
-
-  async function geocodeAddress(query) {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&accept-language=ru`
-    const res = await fetch(url, { headers: { 'Accept-Language': 'ru' } })
-    const data = await res.json()
-    if (!data.length) throw new Error('Адрес не найден')
-    const { lat, lon, display_name } = data[0]
-    return { lat: parseFloat(lat), lng: parseFloat(lon), address: display_name }
-  }
-
-  async function reverseGeocode(lat, lng) {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=ru`
-    const res = await fetch(url, { headers: { 'Accept-Language': 'ru' } })
-    const data = await res.json()
-    return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-  }
-
-  // ── Save profile ──────────────────────────────────────────────────────────────
-
-  document.getElementById('save-profile-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('save-profile-btn')
-    const msgOk = document.getElementById('profile-msg')
-    const msgErr = document.getElementById('profile-err')
-    msgOk.textContent = ''; msgErr.textContent = ''
-    btn.disabled = true
-    try {
-      const res = await authFetch('/api/auth/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: document.getElementById('edit-name').value.trim() || null,
-          phone: document.getElementById('edit-phone').value.trim() || null,
-        }),
+  /* ── address map (same picker as checkout; plain field when it cannot load) ── */
+  const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+  const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+  let leafletPromise = null
+  // Not `typeof window.L`: the Lenis UMD bundle also publishes a global L.
+  const hasLeaflet = () => !!(window.L && typeof window.L.map === 'function' && typeof window.L.tileLayer === 'function')
+  function ensureLeaflet() {
+    if (hasLeaflet()) return Promise.resolve()
+    if (leafletPromise) return leafletPromise
+    leafletPromise = new Promise((resolve, reject) => {
+      const cssDone = new Promise((done) => {
+        const css = document.createElement('link')
+        css.rel = 'stylesheet'; css.href = LEAFLET_CSS; css.crossOrigin = ''
+        css.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY='
+        css.onload = done; css.onerror = done
+        document.head.appendChild(css)
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Ошибка')
-      user.name = data.name; user.phone = data.phone
-      document.getElementById('profile-name').textContent = data.name || data.email?.split('@')[0] || user.email.split('@')[0]
-      msgOk.textContent = 'Сохранено!'
-      sessionStorage.removeItem('loom_user')
-    } catch (err) {
-      msgErr.textContent = err.message
-    } finally {
-      btn.disabled = false
-    }
-  })
-
-  // ── Save location ─────────────────────────────────────────────────────────────
-
-  document.getElementById('save-location-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('save-location-btn')
-    const msg = document.getElementById('location-msg')
-    msg.textContent = ''; btn.disabled = true
-    try {
-      const address = document.getElementById('loc-address').value.trim()
-      const lat = parseFloat(document.getElementById('loc-lat').value) || null
-      const lng = parseFloat(document.getElementById('loc-lng').value) || null
-      const loc = address ? { address, lat, lng } : null
-      const res = await authFetch('/api/auth/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location_preset: loc }),
+      const s = document.createElement('script')
+      s.src = LEAFLET_JS; s.crossOrigin = ''; s.async = true
+      s.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo='
+      s.onload = () => cssDone.then(resolve)
+      s.onerror = () => reject(new Error('leaflet'))
+      document.head.appendChild(s)
+      setTimeout(() => { if (!hasLeaflet()) reject(new Error('leaflet timed out')) }, 12000)
+    }).catch((e) => { leafletPromise = null; throw e })
+    return leafletPromise
+  }
+  function mapOffline(host) {
+    host.innerHTML = '<p class="atl-hint">' + esc(T('co.mapOffline', 'Xarita mavjud emas. Manzilni qo‘lda kiriting.')) + '</p>'
+  }
+  function mountPicker() {
+    const host = document.getElementById('acc-map')
+    if (!host) return
+    const p = preset()
+    const initial = p && p.lat && p.lng ? { lat: p.lat, lng: p.lng } : null
+    let skip = !!initial   // the first settle re-reads the saved spot: keep the typed text
+    ensureLeaflet().then(() => {
+      if (!document.body.contains(host)) return
+      if (!window.LOOM_ADDRESS) return mapOffline(host)
+      picker = window.LOOM_ADDRESS.mount(host, {
+        initial,
+        onChange (a) {
+          if (skip) { skip = false; return }
+          const inp = document.getElementById('acc-addr')
+          if (a && a.address && inp) { inp.value = a.address; fieldErr('acc-addr', null) }
+        }
       })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Ошибка') }
-      user.location_preset = loc ? JSON.stringify(loc) : null
-      populateLocation(user.location_preset)
-      msg.textContent = AT('acc.addrSaved', 'Адрес сохранён!')
-      sessionStorage.removeItem('loom_user')
-    } catch (err) {
-      msg.textContent = '⚠ ' + err.message
-    } finally {
-      btn.disabled = false
+    }).catch(() => { if (document.body.contains(host)) mapOffline(host) })
+  }
+  function dropPicker() {
+    if (picker) { try { picker.destroy() } catch (e) { /* already gone */ } picker = null }
+  }
+
+  /* ── actions ─────────────────────────────────────────────────── */
+  async function patch(body) {
+    const data = await call('PATCH', '/api/auth/profile', body)
+    Object.assign(user, data)
+    cacheUser()
+    return data
+  }
+  async function guard(btn, fn) {
+    if (busy) return
+    busy = true
+    if (btn) btn.disabled = true
+    try { await fn() } catch (e) { if (e.message !== 'auth') toast(errText(), true) } finally {
+      busy = false
+      if (btn && document.body.contains(btn)) btn.disabled = false
     }
-  })
+  }
 
-  document.getElementById('clear-location-btn').addEventListener('click', async () => {
-    document.getElementById('loc-address').value = ''
-    document.getElementById('loc-lat').value = ''
-    document.getElementById('loc-lng').value = ''
-    document.getElementById('location-preview').style.display = 'none'
-    hideGeocodeResult()
-    await authFetch('/api/auth/profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ location_preset: null }),
-    }).catch(() => {})
-    sessionStorage.removeItem('loom_user')
-  })
-
-  // ── Change password ───────────────────────────────────────────────────────────
-
-  document.getElementById('save-pw-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('save-pw-btn')
-    const msgOk = document.getElementById('pw-msg')
-    const msgErr = document.getElementById('pw-err')
-    msgOk.textContent = ''; msgErr.textContent = ''
-    const current = document.getElementById('pw-current').value
-    const newPw = document.getElementById('pw-new').value
-    const confirm = document.getElementById('pw-confirm').value
-    if (!current || !newPw || !confirm) { msgErr.textContent = 'Заполните все поля'; return }
-    if (newPw !== confirm) { msgErr.textContent = 'Пароли не совпадают'; return }
-    if (newPw.length < 8) { msgErr.textContent = 'Новый пароль — минимум 8 символов'; return }
-    btn.disabled = true
-    try {
-      const res = await authFetch('/api/auth/password', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ current_password: current, new_password: newPw }),
+  view.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const form = e.target
+    const btn = form.querySelector('[type="submit"]')
+    if (form.id === 'acc-profile-form') {
+      const first = document.getElementById('acc-first').value.trim()
+      const last = document.getElementById('acc-last').value.trim()
+      if (!first) return fieldErr('acc-first', T('co.needName', 'Ismingizni kiriting'))
+      fieldErr('acc-first', null)
+      guard(btn, async () => {
+        await patch({ name: [first, last].filter(Boolean).join(' ') })
+        toast(T('atl.saved', 'Saqlandi!'))
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Ошибка')
-      // A password change signs out every session; keep this one with the new token.
-      if (data.token && window.LOOM_AUTH && window.LOOM_AUTH.getToken()) window.LOOM_AUTH.setToken(data.token)
-      msgOk.textContent = 'Пароль обновлён!'
-      document.getElementById('pw-current').value = ''
-      document.getElementById('pw-new').value = ''
-      document.getElementById('pw-confirm').value = ''
-    } catch (err) {
-      msgErr.textContent = err.message
-    } finally {
-      btn.disabled = false
-    }
-  })
-
-  // ── Notification prefs ────────────────────────────────────────────────────────
-  // These switches used to write to localStorage and be read by nobody: they
-  // were per-browser, and turning one off changed nothing about what got sent.
-  // They now sit on the account (migration 0019) and POST /api/admin/notifications
-  // refuses a category the customer has switched off.
-
-  document.getElementById('save-notif-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('save-notif-btn')
-    const msg = document.getElementById('notif-msg')
-    const orders = document.getElementById('notif-orders').checked
-    const promo  = document.getElementById('notif-promo').checked
-    btn.disabled = true
-    msg.textContent = ''
-    try {
-      const res = await authFetch('/api/auth/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notify_orders: orders, notify_promo: promo }),
+    } else if (form.id === 'acc-addr-form') {
+      const address = document.getElementById('acc-addr').value.trim()
+      const label = document.getElementById('acc-addr-label').value.trim()
+      if (!address) return fieldErr('acc-addr', T('atl.acc.needAddr', 'Manzilni kiriting'))
+      fieldErr('acc-addr', null)
+      const at = picker && picker.get()
+      const old = preset()
+      // Coordinates only when they belong to this text (from the map now, or kept from before).
+      const coords = at && at.address ? { lat: at.lat, lng: at.lng } : (old && old.address === address ? { lat: old.lat || null, lng: old.lng || null } : { lat: null, lng: null })
+      guard(btn, async () => {
+        await patch({ location_preset: Object.assign({ address, label: label || undefined }, coords) })
+        addrEdit = false
+        render()
+        toast(T('atl.saved', 'Saqlandi!'))
       })
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'HTTP ' + res.status) }
-      if (user) { user.notify_orders = orders ? 1 : 0; user.notify_promo = promo ? 1 : 0 }
-      sessionStorage.removeItem('loom_user')
-      msg.textContent = AT('acc.saved', 'Сохранено!')
-      setTimeout(() => { msg.textContent = '' }, 2500)
-    } catch (err) {
-      msg.textContent = '⚠ ' + err.message
-    } finally {
-      btn.disabled = false
     }
   })
 
-  function loadNotifPrefs() {
-    // A Worker that has not been redeployed yet simply omits the fields; the
-    // switches then show their defaults rather than a wrong value.
+  view.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act], [data-lang], [data-theme], [data-notif]')
+    if (!el || !view.contains(el)) return
+    const act = el.getAttribute('data-act')
+    if (el.hasAttribute('data-lang')) {
+      if (I()) I().setLang(el.getAttribute('data-lang'))   // loom:langchange re-renders
+    } else if (el.hasAttribute('data-theme')) {
+      const v = el.getAttribute('data-theme')
+      const B = window.__loomTheme
+      if (v === 'auto') {
+        try { localStorage.removeItem('loom_theme') } catch (err) { /* private mode */ }
+        if (B) B.applyOnly(B.effective())
+      } else if (B) B.set(v)
+      render()
+    } else if (el.hasAttribute('data-notif')) {
+      const key = el.getAttribute('data-notif')
+      const on = el.getAttribute('aria-checked') !== 'true'
+      el.setAttribute('aria-checked', String(on))
+      guard(null, async () => {
+        try { await patch({ [key]: on }) } catch (err) { el.setAttribute('aria-checked', String(!on)); throw err }
+      })
+    } else if (act === 'consent') {
+      // analytics.js saved the choice in its capture listener; withdrawing reloads the page.
+      setTimeout(render, 0)
+    } else if (act === 'hub') {
+      e.preventDefault()
+      goHub()
+    } else if (act === 'logout') {
+      if (window.LOOM_AUTH) window.LOOM_AUTH.logout()
+    } else if (act === 'addr-edit') {
+      addrEdit = true
+      render()
+      const inp = document.getElementById('acc-addr')
+      if (inp) inp.focus({ preventScroll: true })
+    } else if (act === 'addr-cancel') {
+      addrEdit = false
+      dropPicker()
+      render()
+    } else if (act === 'addr-remove') {
+      guard(el, async () => {
+        await patch({ location_preset: null })
+        addrEdit = false
+        dropPicker()
+        render()
+        toast(T('atl.saved', 'Saqlandi!'))
+      })
+    } else if (act === 'del-arm') {
+      armed = true
+      render()
+    } else if (act === 'del') {
+      guard(el, async () => {
+        const r = await call('DELETE', '/api/auth/account')
+        if (r.scheduled) {
+          user.delete_requested_at = r.delete_requested_at || Date.now()
+          cacheUser()
+          render()
+          return
+        }
+        try { sessionStorage.removeItem('loom_user') } catch (err) { /* private mode */ }
+        if (window.LOOM_AUTH) await window.LOOM_AUTH.logout()
+        else location.href = 'index.html'
+      })
+    } else if (act === 'del-undo') {
+      guard(el, async () => {
+        await call('POST', '/api/auth/account/restore')
+        user.delete_requested_at = null
+        cacheUser()
+        render()
+      })
+    }
+  })
+
+  /* Back to the hub: history when we came from it, else replace (direct open). */
+  function goHub() {
+    if (inPage) history.back()
+    else location.replace('account.html')
+  }
+  document.addEventListener('click', (e) => {
+    const back = e.target.closest && e.target.closest('[data-atl-back]')
+    if (!back || !section()) return
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    goHub()
+  }, true)
+
+  window.addEventListener('hashchange', () => {
+    inPage = true
+    render()
+    window.scrollTo(0, 0)
+  })
+  window.addEventListener('loom:langchange', () => { if (!picker) render() })
+  window.addEventListener('loom:themechange', () => { if (section() === 'theme' || !section()) render() })
+
+  /* ── boot ────────────────────────────────────────────────────── */
+  async function boot() {
+    const A = window.LOOM_AUTH
+    user = A ? await A.getCurrentUser(true).catch(() => null) : null
+    render()
     if (!user) return
-    if (user.notify_orders !== undefined) {
-      document.getElementById('notif-orders').checked = !!user.notify_orders
-    }
-    if (user.notify_promo !== undefined) {
-      document.getElementById('notif-promo').checked = !!user.notify_promo
-    }
+    try { orders = (await call('GET', '/api/me/orders')).orders || [] } catch (e) { orders = [] }
+    const sec = section()
+    if (!sec || sec === 'delete') render()
   }
-
-  // ── Sign-in method: hide controls that cannot work ────────────────────────────
-  // A Telegram or social account has a sentinel where its password hash would
-  // be, so "change password" could only ever answer "current password is
-  // incorrect". Hide the card and say how the account signs in instead.
-
-  function applyAuthMethod(u) {
-    const card = document.getElementById('pw-card')
-    if (!card || u.has_password === undefined) return   // pre-0019 Worker: leave as-is
-    if (u.has_password) return
-    card.style.display = 'none'
-    const note = document.getElementById('auth-method-note')
-    if (note) {
-      note.style.display = ''
-      const via = u.telegram_user_id
-        ? AT('acc.viaTelegram', 'Telegram')
-        : AT('acc.viaSocial', 'аккаунт социальной сети')
-      note.textContent = AT('acc.noPassword', 'Вы входите через {via} — пароль для этого аккаунта не используется.')
-        .replace('{via}', via)
-    }
-  }
-
-  // ── Delete account ────────────────────────────────────────────────────────────
-  // The app has offered this since the store review required it; the website
-  // never did. Orders survive as anonymised commercial records — everything
-  // personal is wiped (DELETE /api/auth/account → anonymizeUser).
-
-  const delBtn = document.getElementById('delete-account-btn')
-  if (delBtn) {
-    let armed = false
-    const confirmEl = document.getElementById('delete-confirm')
-    delBtn.addEventListener('click', async () => {
-      if (!armed) {
-        armed = true
-        if (confirmEl) confirmEl.style.display = ''
-        delBtn.textContent = AT('acc.deleteConfirm', 'Да, удалить навсегда')
-        delBtn.classList.add('is-armed')
-        return
-      }
-      delBtn.disabled = true
-      try {
-        const res = await authFetch('/api/auth/account', { method: 'DELETE' })
-        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'HTTP ' + res.status) }
-        await window.LOOM_AUTH.logout()
-        window.location.href = 'index.html'
-      } catch (err) {
-        const errEl = document.getElementById('delete-err')
-        if (errEl) errEl.textContent = '⚠ ' + err.message
-        delBtn.disabled = false
-      }
-    })
-  }
-
-  // ── Address search (Nominatim) ────────────────────────────────────────────────
-
-  document.getElementById('loc-search-btn').addEventListener('click', async () => {
-    const q = document.getElementById('loc-address').value.trim()
-    if (!q) return
-    const btn = document.getElementById('loc-search-btn')
-    const msg = document.getElementById('location-msg')
-    btn.disabled = true; btn.textContent = '…'; msg.textContent = ''
-    try {
-      const { lat, lng, address } = await geocodeAddress(q)
-      document.getElementById('loc-lat').value = lat
-      document.getElementById('loc-lng').value = lng
-      document.getElementById('loc-address').value = address
-      showGeocodeResult(address, lat, lng)
-    } catch (err) {
-      msg.textContent = '⚠ ' + err.message
-      hideGeocodeResult()
-    } finally {
-      btn.disabled = false; btn.textContent = 'Найти'
-    }
-  })
-
-  document.getElementById('loc-address').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('loc-search-btn').click()
-  })
-
-  // ── Geolocation button ────────────────────────────────────────────────────────
-
-  document.getElementById('req-geo-btn').addEventListener('click', () => {
-    const msg = document.getElementById('location-msg')
-    msg.textContent = 'Определение…'
-    navigator.geolocation.getCurrentPosition(async pos => {
-      const { latitude: lat, longitude: lng } = pos.coords
-      document.getElementById('loc-lat').value = lat.toFixed(6)
-      document.getElementById('loc-lng').value = lng.toFixed(6)
-      msg.textContent = ''
-      try {
-        const address = await reverseGeocode(lat, lng)
-        document.getElementById('loc-address').value = address
-        showGeocodeResult(address, lat, lng)
-      } catch {
-        const address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-        document.getElementById('loc-address').value = address
-        showGeocodeResult(address, lat, lng)
-      }
-    }, () => {
-      msg.textContent = '⚠ Геолокация недоступна'
-    })
-  })
-
-  // ── Notifications ─────────────────────────────────────────────────────────────
-
-  let notifPage = 1
-  const NOTIF_LIMIT = 25
-
-  function fmtNotifDate(ts) {
-    if (!ts) return ''
-    return new Date(Number(ts)).toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent', dateStyle: 'short', timeStyle: 'short' })
-  }
-
-  async function loadNotifications(page) {
-    const listEl = document.getElementById('notif-list')
-    listEl.innerHTML = '<p class="notif-empty">Загрузка…</p>'
-    try {
-      const res = await authFetch('/api/me/notifications?page=' + page + '&limit=' + NOTIF_LIMIT)
-      if (!res.ok) throw new Error('HTTP ' + res.status)
-      const data = await res.json()
-      const items = data.items || []
-      if (!items.length) {
-        listEl.innerHTML = '<p class="notif-empty">Уведомлений пока нет.</p>'
-        document.getElementById('notif-pagination').style.display = 'none'
-        return
-      }
-      listEl.innerHTML = items.map(n => `
-        <div class="notif-item">
-          <div style="font-size:0.88rem;line-height:1.5">${esc(n.message)}</div>
-          ${n.button_label && n.button_url ? `<a class="notif-btn" href="${esc(n.button_url)}" target="_blank" rel="noopener">${esc(n.button_label)}</a>` : ''}
-          <div class="notif-meta">${fmtNotifDate(n.sent_at)}</div>
-        </div>
-      `).join('')
-      const total = data.total || 0
-      const from = (page - 1) * NOTIF_LIMIT + 1
-      const to = Math.min(page * NOTIF_LIMIT, total)
-      document.getElementById('notif-page-info').textContent = `${from}–${to} из ${total}`
-      document.getElementById('notif-prev-btn').disabled = page <= 1
-      document.getElementById('notif-next-btn').disabled = to >= total
-      document.getElementById('notif-pagination').style.display = total > NOTIF_LIMIT ? 'flex' : 'none'
-    } catch {
-      listEl.innerHTML = '<p class="notif-empty" style="color:#d6382d">Не удалось загрузить уведомления.</p>'
-    }
-  }
-
-  document.getElementById('notif-prev-btn').addEventListener('click', () => {
-    if (notifPage > 1) { notifPage--; loadNotifications(notifPage) }
-  })
-  document.getElementById('notif-next-btn').addEventListener('click', () => {
-    notifPage++; loadNotifications(notifPage)
-  })
-
-  // ── Orders ────────────────────────────────────────────────────────────────────
-
-  async function loadOrders() {
-    const container = document.getElementById('orders-container')
-    try {
-      const res = await authFetch('/api/me/orders')
-      if (!res.ok) throw new Error('HTTP ' + res.status)
-      const data = await res.json()
-      const orders = data.orders || []
-      if (!orders.length) {
-        container.innerHTML = '<p class="empty-state">Заказов пока нет.</p>'
-        return
-      }
-      container.innerHTML = `
-        <table class="orders-table">
-          <thead><tr>
-            <th>№</th><th>Дата</th><th>Статус</th><th style="text-align:right">Сумма</th>
-          </tr></thead>
-          <tbody>
-            ${orders.map(o => `
-              <tr>
-                <td>#${o.id}</td>
-                <td>${fmtDate(o.created_at)}</td>
-                <td>${statusBadge(o.status)}</td>
-                <td style="text-align:right;font-family:var(--mono);font-size:0.8rem">${fmt(o.total_price)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `
-    } catch {
-      container.innerHTML = '<p class="msg-err">Не удалось загрузить заказы.</p>'
-    }
-  }
-
-  // ── Map picker callback ───────────────────────────────────────────────────────
-
-  window._mapPickerCallback = function (address, lat, lng) {
-    showGeocodeResult(address, lat, lng)
-  }
-
-  // ── Init ──────────────────────────────────────────────────────────────────────
-
-  async function init() {
-    API = window.LOOM_CONFIG ? window.LOOM_CONFIG.API_BASE
-      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:8787' : 'https://api.loomdesign.uz')
-
-    user = await window.LOOM_AUTH.getCurrentUser()
-    if (!user) { window.location.href = 'login.html?redirect=account.html'; return }
-
-    // Populate the shared site navbar (auth slot, avatar/dropdown)
-    if (window.LOOM_AUTH && window.LOOM_AUTH.renderAuthNav) window.LOOM_AUTH.renderAuthNav()
-
-    populateProfile(user)
-    applyAuthMethod(user)
-    loadOrders()
-    loadNotifPrefs()
-    loadNotifications(notifPage)
-
-    // Legacy standalone logout button (logout now lives in the nav dropdown)
-    const logoutBtn = document.getElementById('logout-btn')
-    if (logoutBtn) logoutBtn.addEventListener('click', () => window.LOOM_AUTH.logout())
-
-    // Re-render language-sensitive dynamic content on language switch
-    window.addEventListener('loom:langchange', () => {
-      if (user) {
-        document.getElementById('profile-since').textContent = AT('acc.statSince', 'С нами с') + ' ' + fmtDate(user.created_at)
-        document.getElementById('stat-spent').textContent = fmtSpent(user.total_spent)
-      }
-      loadOrders()
-      loadNotifications(notifPage)
-    })
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init)
-  } else {
-    init()
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot)
+  else boot()
 })()

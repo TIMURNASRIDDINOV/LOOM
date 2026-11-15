@@ -55,6 +55,9 @@ jobs:
       - name: Configurator funnel routes (local D1)
         run: node backend/scripts/funnel-test.mjs
 
+      - name: Prepayment by card transfer, sweep, staff confirm, scheduled deletion (local D1, Telegram stubbed)
+        run: node backend/scripts/prepay-test.mjs
+
       - name: Instagram posts admin API (local D1)
         run: node backend/scripts/instagram-test.mjs
 

@@ -7,10 +7,9 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#f4f2ed" />
-  <title>LOOM — Дизайнеры</title>
+  <meta name="theme-color" content="#f5f5f2" />
+  <title>LOOM — Dizaynerlar</title>
   <meta name="description" content="Независимые дизайнеры LOOM: их принты можно надеть. Загляните к любому — увидите все его работы." />
-
   <link rel="canonical" href="https://loomdesign.uz/designers" />
   <meta name="robots" content="index, follow" />
   <meta property="og:type" content="website" />
@@ -20,97 +19,64 @@
   <meta property="og:url" content="https://loomdesign.uz/designers" />
   <meta property="og:image" content="https://loomdesign.uz/images/og-image.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
-  <link rel="stylesheet" href="assets/theme.css?v=12" />
-  <link rel="stylesheet" href="assets/nav.css?v=13" />
-  <link rel="stylesheet" href="assets/auth.css?v=13" />
-  <link rel="stylesheet" href="assets/market.css?v=5" />
-
-  <script src="assets/boot.js?v=9" data-intro></script>
-
-  <script defer src="assets/vendor/gsap.min.js?v=1"></script>
-  <script defer src="assets/vendor/ScrollTrigger.min.js?v=1"></script>
-  <script defer src="assets/vendor/lenis.min.js?v=1"></script>
-  <script defer src="assets/config.js?v=9"></script>
-  <script defer src="assets/layout.js?v=7"></script>
-  <script defer src="assets/i18n.js?v=57"></script>
-  <script defer src="assets/auth.js?v=5"></script>
-  <script defer src="assets/tma.js?v=4"></script>
-  <script defer src="assets/nav.js?v=2"></script>
-  <script defer src="assets/motion.js?v=11"></script>
-  <script defer src="assets/track.js?v=6"></script>
-  <script defer src="assets/analytics.js?v=3"></script>
-  <script defer src="assets/market.js?v=5"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/atelye.css?v=1" />
+  <script src="assets/boot.js?v=10"></script>
+  <style>
+    /* Designers only. Components come from assets/atelye.css. */
+    .atl-dsg-top { display: flex; flex-direction: column; gap: 10px; }
+    .atl-dsg-av { width: 44px; height: 44px; font-size: 15px; }
+    .atl-mk-skl { height: 14px; width: 50%; }
+    .atl-dsg-more { align-self: flex-start; min-width: 200px; }
+    .atl-dsg-join { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .atl-dsg-join .atl-btn { align-self: stretch; }
+    /* The three steps are a real sequence, so they are numbered. */
+    @media (min-width: 900px) {
+      .atl-dsg-body { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 48px; align-items: start; }
+      .atl-dsg-join { padding: 24px; position: sticky; top: 96px; }
+      .atl-dsg-join .atl-btn { align-self: flex-start; }
+    }
+    .atl-warn:empty { display: none; }
+  </style>
 </head>
-<body data-page="designers" data-preloader>
-  <!-- Header + footer injected by assets/layout.js -->
-
-  <header class="mk-hero">
-    <div class="container">
-      <span class="mk-hero__eyebrow eyebrow">LOOM<span class="slash">/</span> <span data-i18n="nav.designers">Дизайнеры</span></span>
-      <h1 class="mk-hero__title h2" data-reveal="mask">
-        <span class="line" data-i18n="dir.title1">Люди, которые</span>
-        <span class="line" data-i18n="dir.title2">придумывают принты.</span>
-      </h1>
-      <p class="mk-hero__lead" data-reveal data-i18n="dir.lead">
-        Независимые дизайнеры, чьи работы прошли проверку и продаются в маркете LOOM.
-        Загляните к любому — увидите все его принты.
-      </p>
-      <div class="mk-hero__meta" data-reveal>
-        <span id="dir-count">—</span>
-        <a class="mk-hero__cta" href="account.html#designer" data-i18n="mk.becomeCta">Стать дизайнером →</a>
-      </div>
+<body data-page="designers" data-title="Dizaynerlar" data-back="index.html">
+  <main class="atl-wrap">
+    <div class="atl-dsg-top">
+      <h1 class="atl-t1" data-i18n="atl.nav.designers">Dizaynerlar</h1>
+      <p class="atl-lead" data-i18n="atl.dsg.lead">Printlarni o‘ylab topadigan odamlar. Ishlari tekshiruvdan o‘tgan va marketda sotiladi.</p>
     </div>
-  </header>
 
-  <section class="mk-section">
-    <div class="container">
-      <div class="dir-grid" id="dir-grid"></div>
-      <div class="mk-more">
-        <button class="btn-line" id="dir-more-btn" style="display:none" data-i18n="mk.loadMore">Показать ещё</button>
+    <div class="atl-two atl-dsg-body">
+      <div class="atl-grp">
+        <!-- Rows from GET /api/designers (assets/market.js); hidden when
+             nobody is approved yet, then the panel alone recruits. -->
+        <div class="atl-lst" id="dsg-list" aria-live="polite"></div>
+        <p class="atl-warn" id="dsg-err" role="alert"></p>
+        <button type="button" class="atl-btn atl-dsg-more" id="dsg-more" data-i18n="mk.loadMore" hidden>Yana ko‘rsatish</button>
       </div>
-    </div>
-  </section>
 
-  <!-- Same open call the market shows: with nobody approved yet, recruiting
-       beats apologising. assets/market.js unhides it. -->
-  <section class="mk-open" id="mk-open-call" hidden>
-    <div class="container mk-open__grid">
-      <div class="mk-open__copy">
-        <span class="eyebrow mk-open__eyebrow">LOOM<span class="slash">/</span> <span data-i18n="mk.openEyebrow">Открытый набор</span></span>
-        <h2 class="mk-open__title h2">
-          <span class="line" data-i18n="mk.openT1">Здесь пока пусто.</span>
-          <span class="line" data-i18n="mk.openT2">Первым можете стать вы.</span>
-        </h2>
-        <p class="mk-open__lead" data-i18n="mk.openLead">
-          Маркет открыт для дизайнеров. Загрузите работу — мы проверим её, покажем здесь,
-          и вы будете получать свою наценку с каждой проданной вещи.
-        </p>
-        <ol class="mk-open__steps">
-          <li><span class="mk-open__n">1</span><span data-i18n="dz.step1">Придумайте ник — под ним ваши работы увидят покупатели.</span></li>
-          <li><span class="mk-open__n">2</span><span data-i18n="dz.step2">Загрузите файл и назначьте свою наценку.</span></li>
-          <li><span class="mk-open__n">3</span><span data-i18n="dz.step3">После проверки работа появится в маркете, а продажи — здесь.</span></li>
+      <section class="atl-panel atl-dsg-join" aria-labelledby="dsg-join-h">
+        <h2 class="atl-t2" id="dsg-join-h" data-i18n="atl.foot.becomeDesigner">Dizayner bo‘lish</h2>
+        <ol class="atl-ol">
+          <li><b>1</b><span><b data-i18n="atl.dsg.b1">Nik o‘ylab toping</b><i data-i18n="atl.dsg.b1Sub">Xaridorlar ishlaringizni shu nom ostida ko‘radi.</i></span></li>
+          <li><b>2</b><span><b data-i18n="atl.dsg.b2">Fayl va ustama</b><i data-i18n="atl.dsg.b2Sub">PNG, shaffof fon, uzun tomoni kamida 1500 px.</i></span></li>
+          <li><b>3</b><span><b data-i18n="atl.dsg.b3">Tekshiruv</b><i data-i18n="atl.dsg.b3Sub">Odatda 1–2 kun, keyin marketda chiqadi.</i></span></li>
         </ol>
-        <div class="mk-open__actions">
-          <a href="account.html#designer" class="btn btn--on-ink" data-i18n="dz.apply">Стать дизайнером</a>
-          <a href="lab.html" class="mk-open__link" data-i18n="mk.openHow">Как это работает</a>
-        </div>
-      </div>
-
-      <div class="mk-open__demo" aria-hidden="true">
-        <div class="mk-open__canvas">
-          <img class="mk-open__garment" src="configuratorprodutcs/tshirt_flat_white_600.png" alt="" width="600" height="600" loading="lazy" decoding="async" />
-          <span class="mk-open__slot"></span>
-        </div>
-        <p class="mk-open__caption"><span data-i18n="mk.openSlot">Ваш принт здесь</span></p>
-      </div>
+        <!-- The application form lives in the account (assets/designer.js);
+             account.html sends a logged-out visitor to login first. -->
+        <a class="atl-btn atl-btn-g" href="account.html#designer" data-tma-main data-i18n="atl.foot.becomeDesigner">Dizayner bo‘lish</a>
+      </section>
     </div>
-  </section>
+  </main>
 
-  <script>document.addEventListener('DOMContentLoaded',function(){window.LOOM_AUTH&&window.LOOM_AUTH.renderAuthNav()})</script>
+  <script src="assets/config.js?v=9"></script>
+  <script src="assets/i18n.js?v=58"></script>
+  <script src="assets/auth.js?v=6"></script>
+  <script src="assets/tma.js?v=5"></script>
+  <script src="assets/shell.js?v=1"></script>
+  <script src="assets/market.js?v=6"></script>
+  <script src="assets/track.js?v=6"></script>
+  <script src="assets/analytics.js?v=4"></script>
 </body>
 </html>

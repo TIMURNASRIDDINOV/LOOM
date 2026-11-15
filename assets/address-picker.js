@@ -100,31 +100,31 @@
     var state = { lat: null, lng: null, address: '', settled: false };
     var destroyed = false;
 
-    container.classList.add('addr-picker');
+    container.classList.add('atl-addr');
     container.innerHTML =
-      '<div class="addr-search">' +
-        '<svg class="addr-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>' +
-        '<input type="text" class="addr-search-input" autocomplete="off" placeholder="' +
+      '<div class="atl-addr-search">' +
+        '<svg class="atl-addr-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>' +
+        '<input type="text" class="atl-addr-search-input" autocomplete="off" placeholder="' +
           esc(t('addr.searchPh', 'Улица, дом — начните вводить…')) + '">' +
-        '<div class="addr-suggest" hidden></div>' +
+        '<div class="atl-addr-suggest" hidden></div>' +
       '</div>' +
-      '<div class="addr-map-wrap">' +
-        '<div class="addr-map"></div>' +
-        '<div class="addr-pin" aria-hidden="true">' +
-          '<svg width="34" height="44" viewBox="0 0 34 44"><path d="M17 1C8.2 1 1 8.1 1 16.9 1 28.9 17 43 17 43S33 28.9 33 16.9C33 8.1 25.8 1 17 1Z" fill="var(--accent, #fc5044)" stroke="var(--on-accent, #fff)" stroke-width="2"/><circle cx="17" cy="17" r="5.5" fill="var(--on-accent, #fff)"/></svg>' +
+      '<div class="atl-addr-map-wrap">' +
+        '<div class="atl-addr-map"></div>' +
+        '<div class="atl-addr-pin" aria-hidden="true">' +
+          '<svg width="34" height="44" viewBox="0 0 34 44"><path d="M17 1C8.2 1 1 8.1 1 16.9 1 28.9 17 43 17 43S33 28.9 33 16.9C33 8.1 25.8 1 17 1Z" fill="var(--cta)" stroke="var(--on-cta)" stroke-width="2"/><circle cx="17" cy="17" r="5.5" fill="var(--on-cta)"/></svg>' +
         '</div>' +
-        '<button type="button" class="addr-locate" aria-label="' + esc(t('addr.locate', 'Моё местоположение')) + '">' +
+        '<button type="button" class="atl-addr-locate" aria-label="' + esc(t('addr.locate', 'Моё местоположение')) + '">' +
           '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>' +
         '</button>' +
       '</div>' +
-      '<div class="addr-line">' +
-        '<span class="addr-line-text" data-state="idle">' + esc(t('addr.moveMap', 'Передвиньте карту, чтобы указать точку')) + '</span>' +
+      '<div class="atl-addr-line">' +
+        '<span class="atl-addr-line-text" data-state="idle">' + esc(t('addr.moveMap', 'Передвиньте карту, чтобы указать точку')) + '</span>' +
       '</div>';
 
-    var input = container.querySelector('.addr-search-input');
-    var suggestBox = container.querySelector('.addr-suggest');
-    var lineText = container.querySelector('.addr-line-text');
-    var mapEl = container.querySelector('.addr-map');
+    var input = container.querySelector('.atl-addr-search-input');
+    var suggestBox = container.querySelector('.atl-addr-suggest');
+    var lineText = container.querySelector('.atl-addr-line-text');
+    var mapEl = container.querySelector('.atl-addr-map');
 
     /* map + theme-aware tiles */
     var initial = opts.initial && opts.initial.lat ? [opts.initial.lat, opts.initial.lng] : TASHKENT;
@@ -177,13 +177,13 @@
         if (destroyed) return;
         if (!items.length) { suggestBox.hidden = true; return; }
         suggestBox.innerHTML = items.map(function (it, i) {
-          return '<button type="button" class="addr-suggest-item" data-i="' + i + '">' +
+          return '<button type="button" class="atl-addr-suggest-item" data-i="' + i + '">' +
             '<span>' + esc(it.label) + '</span>' +
             (it.sublabel ? '<small>' + esc(it.sublabel) + '</small>' : '') +
           '</button>';
         }).join('');
         suggestBox.hidden = false;
-        suggestBox.querySelectorAll('.addr-suggest-item').forEach(function (b) {
+        suggestBox.querySelectorAll('.atl-addr-suggest-item').forEach(function (b) {
           b.addEventListener('click', function () {
             var it = items[+b.dataset.i];
             suggestBox.hidden = true;
@@ -195,7 +195,7 @@
     }, 350);
     input.addEventListener('input', lookup);
     input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); var f = suggestBox.querySelector('.addr-suggest-item'); if (f) f.click(); }
+      if (e.key === 'Enter') { e.preventDefault(); var f = suggestBox.querySelector('.atl-addr-suggest-item'); if (f) f.click(); }
       if (e.key === 'Escape') suggestBox.hidden = true;
     });
     document.addEventListener('click', function (e) {
@@ -203,7 +203,7 @@
     });
 
     /* locate me */
-    container.querySelector('.addr-locate').addEventListener('click', function () {
+    container.querySelector('.atl-addr-locate').addEventListener('click', function () {
       if (!navigator.geolocation) return;
       announce(t('addr.locating', 'Определяем адрес…'), 'busy');
       navigator.geolocation.getCurrentPosition(

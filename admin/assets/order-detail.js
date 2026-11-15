@@ -125,7 +125,7 @@ async function loadOrder(id) {
     document.getElementById('order-price').textContent = formatPrice(o.total_price)
 
     // ── Payment (migration 0011) ─────────────────────────────────
-    const PAY_NAMES = { cod: 'При получении', payme: 'Payme', click: 'Click', uzum: 'Uzum' }
+    const PAY_NAMES = { cod: 'При получении', p2p: 'Перевод на карту', payme: 'Payme', click: 'Click', uzum: 'Uzum' }
     const PAY_STATES = {
       unpaid: ['Не оплачен', 'var(--muted)'],
       pending: ['Ожидает оплаты', 'var(--warn, #eab308)'],
@@ -133,8 +133,16 @@ async function loadOrder(id) {
       refunded: ['Возврат', 'var(--muted)'],
       failed: ['Ошибка оплаты', 'var(--danger, #ff6b5e)'],
     }
+    // A card transfer is checked by a person, so its states read differently.
+    if (o.payment_method === 'p2p') {
+      PAY_STATES.pending = ['Чек на проверке', 'var(--warn, #eab308)']
+      PAY_STATES.failed = ['Чек отклонён', 'var(--danger, #ff6b5e)']
+    }
     const pm = PAY_NAMES[o.payment_method] || o.payment_method || 'При получении'
     const ps = PAY_STATES[o.payment_status] || PAY_STATES.unpaid
+    // Delivery is its own line; «Сумма» below already includes it.
+    document.getElementById('order-delivery-row').style.display = o.delivery_fee ? '' : 'none'
+    document.getElementById('order-delivery').textContent = o.delivery_fee ? formatPrice(o.delivery_fee) : ''
     document.getElementById('order-payment').innerHTML =
       `${escHtml(pm)} · <span style="color:${ps[1]};font-weight:500">${escHtml(ps[0])}</span>` +
       (o.payment_provider_ref ? ` <span style="color:var(--muted);font-family:var(--mono);font-size:0.75rem">${escHtml(o.payment_provider_ref)}</span>` : '')
@@ -228,6 +236,7 @@ async function loadOrder(id) {
 
     // ── Production review: 3D model, print artwork, spec, approval ──
     renderProductionSheet(o)
+    setupPayment(o)
     setupApproval(o)
 
     // Logo preview
@@ -688,6 +697,107 @@ function buildSpecTable(d) {
   })
   wrap.innerHTML = `<table class="ps-spec"><thead><tr><th>Параметр</th><th></th><th>Значение</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
   return wrap
+}
+
+// ── Payment check (card transfer, PRD-216) ──────────────────────────────────
+// Staff compare the customer's receipt with the money on the card, then confirm
+// or reject. The server changes a payment once however often a button is
+// pressed; the buttons are still disabled while a request is on its way.
+const PAY_REJECT_REASONS = { not_found: 'Платёж не найден', amount_mismatch: 'Сумма не совпадает' }
+
+function setupPayment(o) {
+  const card = document.getElementById('payment-card')
+  const body = document.getElementById('payment-body')
+  if (!card || !body) return
+  card.style.display = o.payment_method === 'p2p' ? '' : 'none'
+  if (o.payment_method !== 'p2p') return
+
+  const { formatPrice, formatDate, apiJSON } = window.LOOM
+  const pay = o.payment || {}
+  const when = (ts) => (ts ? escHtml(formatDate(ts)) : '')
+  const by = pay.checkedBy ? ` · ${escHtml(pay.checkedBy.email)}` : ''
+  const sub = (text) => `<div class="muted" style="font-size:var(--fs-sm);margin-top:var(--sp-1)">${text}</div>`
+  const waiting = o.payment_status === 'pending' && o.status === 'new'
+
+  let state
+  if (o.payment_status === 'paid') {
+    state = `<span class="ps-approved">✓ Оплата подтверждена</span>` + sub(`${when(o.paid_at)}${by}`)
+  } else if (o.payment_status === 'pending') {
+    state = `<span class="ps-pending">● Чек на проверке</span>` + sub(`Чек отправлен ${when(o.receipt_at)}`)
+  } else if (o.payment_status === 'failed') {
+    state = `<span class="ps-pending">● Чек отклонён: ${escHtml((PAY_REJECT_REASONS[o.pay_reject_reason] || '').toLowerCase())}</span>` +
+      sub(`${when(o.pay_checked_at)}${by}. Клиент может отправить новый чек до ${when(o.pay_deadline)}.`)
+  } else if (o.status === 'cancelled') {
+    state = `<span class="muted">Не оплачен, заказ отменён</span>` + sub('Если клиент пришлёт чек после срока, заказ вернётся на проверку.')
+  } else {
+    state = `<span class="muted">Клиент ещё не отправил чек</span>` + sub(`Срок оплаты: ${when(o.pay_deadline)}`)
+  }
+
+  body.innerHTML =
+    `<div class="info-row"><span class="info-label">К получению</span><span class="info-value pay-sum">${escHtml(formatPrice(o.total_price))}</span></div>` +
+    `<div style="margin-top:var(--sp-3)">${state}</div>` +
+    (pay.receiptUrl
+      ? `<a class="pay-receipt" id="pay-receipt" target="_blank" rel="noopener" aria-label="Открыть чек в новой вкладке"><div class="state">Загрузка чека…</div></a>`
+      : o.receipt_at
+        ? sub('Чек удалён через 90 дней (срок хранения).')
+        : '') +
+    (waiting && pay.canCheck
+      ? `<button type="button" id="pay-confirm" class="btn btn--primary btn--block">Деньги пришли — подтвердить оплату</button>` +
+        `<div class="pay-reject"><div class="field">` +
+        `<label class="field-label" for="pay-reason">Причина отказа</label>` +
+        `<select id="pay-reason" class="select">` +
+        Object.entries(PAY_REJECT_REASONS).map(([value, label]) => `<option value="${value}">${escHtml(label)}</option>`).join('') +
+        `</select><span class="field-hint">Клиент получит причину в Telegram и сможет отправить новый чек.</span></div>` +
+        `<button type="button" id="pay-reject" class="btn btn--danger btn--block">Отклонить чек</button></div>`
+      : '') +
+    (waiting && !pay.canCheck
+      ? `<div class="notice" style="margin-top:var(--sp-3)"><span aria-hidden="true">🔒</span><span>Подтверждать оплату может только администратор с правом проверки заказов.</span></div>`
+      : '')
+
+  const link = document.getElementById('pay-receipt')
+  if (link) {
+    loadMedia(pay.receiptUrl).then((url) => {
+      if (!url) { link.innerHTML = '<div class="state state--error">Не удалось загрузить чек. Обновите страницу.</div>'; return }
+      link.href = url
+      link.innerHTML = '<img alt="Чек об оплате, отправленный клиентом" />'
+      link.firstChild.src = url
+    })
+  }
+
+  const confirmBtn = document.getElementById('pay-confirm')
+  const rejectBtn = document.getElementById('pay-reject')
+  if (!confirmBtn || !rejectBtn) return
+  const send = async (payload, question) => {
+    // Disabled before the question, so a double click opens one dialog.
+    confirmBtn.disabled = rejectBtn.disabled = true
+    if (!(await window.LOOM_UI.confirmDialog(question))) { confirmBtn.disabled = rejectBtn.disabled = false; return }
+    try {
+      await apiJSON(`/api/admin/orders/${o.id}/payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      await loadOrder(o.id)
+    } catch (e) {
+      window.LOOM_UI.toast(window.LOOM_UI.apiErrorMessage(e), 'error')
+      // Someone else may have answered meanwhile: show the order as it is now.
+      await loadOrder(o.id)
+    }
+  }
+  confirmBtn.onclick = () => send({ action: 'confirm' }, {
+    title: `Подтвердить оплату ${formatPrice(o.total_price)}?`,
+    body: `Заказ №${o.id} станет «Подтверждён», клиент получит сообщение. Отменить подтверждение нельзя.`,
+    confirmLabel: 'Подтвердить оплату',
+  })
+  rejectBtn.onclick = () => {
+    const reason = document.getElementById('pay-reason').value
+    return send({ action: 'reject', reason }, {
+      title: 'Отклонить чек?',
+      body: `Причина: ${PAY_REJECT_REASONS[reason].toLowerCase()}. Клиент получит сообщение и 30 минут на новый чек.`,
+      confirmLabel: 'Отклонить чек',
+      danger: true,
+    })
+  }
 }
 
 // ── Approval (production gate) ──────────────────────────────────────────────

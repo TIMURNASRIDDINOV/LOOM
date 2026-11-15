@@ -1,22 +1,26 @@
 /* ================================================================
-   LOOM — Designer marketplace renderer.
+   LOOM — designer market, Atelye skin (PRD-216, LOOM-323). Styles:
+   assets/atelye.css + the small inline block of each page.
 
-   Drives two pages from one file, because they render the same card:
-     market.html   → GET /api/artworks       (everything moderation approved)
-     designer.html → GET /api/designers/:h   (one designer's works + totals)
+   Drives three pages from one file, because they share the print card:
+     market.html    → GET /api/artworks (+ /api/artwork-categories)
+     designers.html → GET /api/designers (the directory)
+     designer.html  → GET /api/designers/:handle (one designer's prints)
 
-   Choosing a work does not add it to a cart. It stashes the artwork in
+   Choosing a print does not add it to a cart. It stashes the artwork in
    sessionStorage and opens the configurator, which refetches the image and
    places it as a normal layer carrying `artworkId` — the field checkout reads
    to credit the designer (backend/src/routes/cart.ts).
 ================================================================ */
 'use strict'
 ;(function () {
-  const PAGE_SIZE = 40
   const HANDOFF_KEY = 'loom_pending_art'
 
   function T(key, fb) {
-    try { return (window.LOOM_I18N ? window.LOOM_I18N.t(key) : fb) || fb } catch (e) { return fb }
+    try {
+      const s = window.LOOM_I18N && window.LOOM_I18N.t(key)
+      return s && s !== key ? s : fb
+    } catch (e) { return fb }
   }
   function esc(s) {
     return String(s == null ? '' : s)
@@ -24,49 +28,62 @@
   }
   function money(n) {
     if (window.LOOM_I18N) return window.LOOM_I18N.formatPrice(n)
-    return Number(n || 0).toLocaleString('ru-RU') + ' сум'
+    return Number(n || 0).toLocaleString('ru-RU') + ' so‘m'
+  }
+  function plural(n, key, fb) {
+    try {
+      const w = window.LOOM_I18N && window.LOOM_I18N.plural(n, key)
+      if (w) return w
+    } catch (e) { /* i18n not ready */ }
+    return fb
+  }
+  function lang() {
+    try { return window.LOOM_I18N ? window.LOOM_I18N.getLang() : 'uz' } catch (e) { return 'uz' }
   }
   function $(id) { return document.getElementById(id) }
+  function handleOf(s) { return String(s || '').replace(/^@/, '') }
 
   const API = () => (window.LOOM_CONFIG && window.LOOM_CONFIG.API_BASE) || 'https://api.loomdesign.uz'
 
-  const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg>'
+  // The phone top bar title is static Uzbek from data-title; keep it in the
+  // page language.
+  function setBarTitle(text) {
+    const h = document.querySelector('.atl-mbar-sub h1')
+    if (h && text) h.textContent = text
+  }
 
-  // ── Card ──────────────────────────────────────────────────────────────────
+  // ── Shared blocks ─────────────────────────────────────────────────────────
 
-  function cardHtml(a) {
-    const free = !a.markup
-    const price = free
-      ? T('common.free', 'Бесплатно')
-      : '+ ' + money(a.markup)
-    const author = esc(a.author || 'LOOM')
-    const sold = a.sold
-      ? '<p class="mk-card__sold">' + esc(T('mk.sold', 'Продано')) + ': ' + a.sold + '</p>'
+  function printCard(a, withAuthor) {
+    const h = handleOf(a.author)
+    const author = withAuthor && h
+      ? '<a class="atl-sm atl-mk-by" href="designer.html?handle=' + encodeURIComponent(h) + '">@' + esc(h) + '</a>'
       : ''
-    return '' +
-      '<article class="mk-card" data-id="' + a.id + '">' +
-        '<div class="mk-card__art">' +
-          '<img src="' + esc(a.image_url) + '" alt="' + esc(a.title) + '" loading="lazy" />' +
-          '<span class="mk-card__price' + (free ? ' mk-card__price--free' : '') + '">' + esc(price) + '</span>' +
-        '</div>' +
-        '<div class="mk-card__body">' +
-          '<h3 class="mk-card__title">' + esc(a.title) + '</h3>' +
-          '<a class="mk-card__by" href="designer.html?handle=' +
-            encodeURIComponent(String(a.author || '').replace(/^@/, '')) + '">' + author + '</a>' +
-          sold +
-          '<button class="mk-card__try" type="button" data-try="' + a.id + '">' +
-            '<span>' + esc(T('mk.try', 'Примерить')) + '</span>' + ARROW +
-          '</button>' +
-        '</div>' +
-      '</article>'
+    return '<div class="atl-pc">' +
+      '<button type="button" class="atl-mk-try" data-try="' + esc(a.id) + '">' +
+        '<span class="atl-cv atl-gtile"><img src="' + esc(a.image_url) + '" alt="" loading="lazy" decoding="async"></span>' +
+        '<span class="atl-pc-nm">' + esc(a.title) + '</span>' +
+        (a.markup ? '<span class="atl-pc-pr">+ ' + esc(money(a.markup)) + '</span>' : '') +
+      '</button>' + author +
+    '</div>'
   }
 
   function skeletons(n) {
-    return new Array(n).fill('<div class="mk-skeleton"></div>').join('')
+    return new Array(n).fill(
+      '<div class="atl-pc"><span class="atl-skel atl-gtile"></span><span class="atl-skel atl-mk-skl"></span></div>'
+    ).join('')
   }
 
-  // ── Hand-off to the configurator ──────────────────────────────────────────
+  function errorBlock(onRetry) {
+    const box = document.createElement('div')
+    box.className = 'atl-empty'
+    box.setAttribute('role', 'alert')
+    box.innerHTML = '<h2 class="atl-t2">' + esc(T('atl.state.errT', 'Nimadir noto‘g‘ri ketdi')) + '</h2>' +
+      '<p class="atl-lead">' + esc(T('atl.state.errL', 'Sahifani yuklab bo‘lmadi. Internetni tekshirib, yangilang.')) + '</p>' +
+      '<button type="button" class="atl-btn atl-btn-g">' + esc(T('atl.reload', 'Yangilash')) + '</button>'
+    box.querySelector('button').addEventListener('click', onRetry || (() => location.reload()))
+    return box
+  }
 
   function tryOn(a) {
     try {
@@ -84,267 +101,256 @@
 
   function bindGrid(grid, byId) {
     grid.addEventListener('click', (e) => {
-      const card = e.target.closest && e.target.closest('.mk-card')
-      if (!card) return
-      // The author link is a real link — let it navigate.
-      if (e.target.closest('.mk-card__by')) return
-      const a = byId[card.dataset.id]
+      const b = e.target.closest && e.target.closest('[data-try]')
+      const a = b && byId[b.getAttribute('data-try')]
       if (a) tryOn(a)
     })
   }
 
   // ── market.html ───────────────────────────────────────────────────────────
 
-  async function initMarket() {
-    const grid = $('mk-grid')
-    if (!grid) return
-    const moreBtn = $('mk-more-btn'), select = $('mk-category')
+  function initMarket() {
+    const grid = $('mk-grid'), more = $('mk-more'), cats = $('mk-cats')
+    const empty = $('mk-empty'), err = $('mk-err')
     const byId = {}
-    let page = 1
-    let request = 0
+    let page = 1, request = 0, category = ''
     bindGrid(grid, byId)
-    const showOpenCall = (on) => { const el = $('mk-open-call'); if (el) el.hidden = !on }
+
+    function chip(id, label) {
+      return '<button type="button" class="atl-chip" data-cat="' + esc(id) + '" aria-pressed="' +
+        (String(id) === category) + '">' + esc(label) + '</button>'
+    }
 
     async function loadCategories() {
       try {
         const res = await fetch(API() + '/api/artwork-categories')
         if (!res.ok) throw new Error('HTTP ' + res.status)
-        const data = await res.json()
-        const chosen = select.value
-        const lang = window.LOOM_I18N ? window.LOOM_I18N.getLang() : 'ru'
-        select.innerHTML = '<option value="">' + esc(T('cat.all', 'Все категории')) + '</option>' +
-          data.items.map((cat) => '<option value="' + cat.id + '">' + esc(cat['name_' + lang] || cat.name_ru) + '</option>').join('')
-        select.value = chosen
-        if (select.value !== chosen) { select.value = ''; page = 1; load(1, false) }
-        $('mk-category-error').hidden = true
-        $('mk-category-retry').hidden = true
-      } catch (err) {
-        $('mk-category-error').textContent = T('cat.failed', 'Не удалось загрузить категории. Попробуйте снова.')
-        $('mk-category-error').hidden = false
-        $('mk-category-retry').hidden = false
+        const items = ((await res.json()).items || []).filter((c) => c.active !== false && c.active !== 0)
+        if (category && !items.some((c) => String(c.id) === category)) { category = ''; load(1, false) }
+        cats.innerHTML = items.length
+          ? chip('', T('atl.cat.all', 'Hammasi')) +
+            items.map((c) => chip(c.id, c['name_' + lang()] || c.name_uz || c.name_ru)).join('')
+          : ''
+        cats.hidden = !items.length
+      } catch (e) {
+        // The filter is secondary: say so once, offer a retry, keep the grid.
+        cats.innerHTML = '<span class="atl-sm atl-mk-cerr" role="alert">' +
+          esc(T('cat.failed', 'Kategoriyalarni yuklab bo‘lmadi.')) + '</span>' +
+          '<button type="button" class="atl-chip" data-cat-retry>' + esc(T('cat.retry', 'Qayta urinish')) + '</button>'
+        cats.hidden = false
       }
     }
 
     async function load(p, append) {
       const version = ++request
-      const category = select.value
-      moreBtn.disabled = true
+      more.disabled = true
+      err.textContent = ''
       if (!append) {
-        moreBtn.style.display = 'none'
+        more.hidden = true
+        empty.hidden = true
+        grid.hidden = false
+        grid.setAttribute('aria-busy', 'true')
         grid.innerHTML = skeletons(8)
         Object.keys(byId).forEach((id) => delete byId[id])
       }
       try {
-        const res = await fetch(API() + '/api/artworks?page=' + p + (category ? '&category_id=' + encodeURIComponent(category) : ''))
+        const res = await fetch(API() + '/api/artworks?page=' + p +
+          (category ? '&category_id=' + encodeURIComponent(category) : ''))
         if (!res.ok) throw new Error('HTTP ' + res.status)
         const data = await res.json()
         if (version !== request) return
         const items = data.items || [], total = data.total || 0
         items.forEach((a) => { byId[a.id] = a })
-        const html = items.map(cardHtml).join('')
-        if (append) {
-          grid.querySelectorAll('.mk-error').forEach((el) => el.remove())
-          grid.insertAdjacentHTML('beforeend', html)
-        } else grid.innerHTML = html || (category ? '<p class="mk-error">' + esc(T('cat.empty', 'В этой категории пока нет дизайнов.')) + '</p>' : '')
-        showOpenCall(!category && !total)
+        const html = items.map((a) => printCard(a, true)).join('')
+        grid.removeAttribute('aria-busy')
+        if (append) grid.insertAdjacentHTML('beforeend', html)
+        else if (html) grid.innerHTML = html
+        else if (category) {
+          grid.innerHTML = '<p class="atl-lead atl-mk-none">' +
+            esc(T('cat.empty', 'Bu kategoriyada hali dizaynlar yo‘q.')) + '</p>'
+        } else {
+          // An empty market is the moment to recruit, not to apologise.
+          grid.innerHTML = ''
+          grid.hidden = true
+          empty.hidden = false
+          cats.hidden = true
+        }
         page = p
-        const count = $('mk-count')
-        if (count) count.textContent = total ? total + ' ' + plural(total, 'plural.works', T('mk.works', 'работ')) : T('mk.worksNone', 'пока пусто')
-        moreBtn.style.display = grid.querySelectorAll('.mk-card').length < total ? '' : 'none'
-      } catch (err) {
+        more.hidden = grid.querySelectorAll('[data-try]').length >= total
+      } catch (e) {
         if (version !== request) return
-        showOpenCall(false)
-        if (!append) grid.innerHTML = '<p class="mk-error">' + esc(T('mk.failed', 'Не удалось загрузить маркет. Обновите страницу.')) + '</p>'
-        else {
-          // Keep the page number so retry never skips an unreceived page.
-          const error = document.createElement('p')
-          error.className = 'mk-error'
-          error.setAttribute('role', 'alert')
-          error.textContent = T('mk.moreFailed', 'Не удалось загрузить. Попробуйте ещё раз.')
-          grid.querySelectorAll('.mk-error').forEach((el) => el.remove())
-          grid.appendChild(error)
+        grid.removeAttribute('aria-busy')
+        if (append) {
+          // Keep the page number so a retry never skips an unreceived page.
+          err.textContent = T('mk.moreFailed', 'Yuklab bo‘lmadi. Qayta urinib ko‘ring.')
+        } else {
+          grid.innerHTML = ''
+          grid.appendChild(errorBlock(() => load(1, false)))
         }
       } finally {
-        if (version === request) moreBtn.disabled = false
+        if (version === request) more.disabled = false
       }
     }
-    moreBtn.addEventListener('click', () => load(page + 1, true))
-    select.addEventListener('change', () => { page = 1; load(1, false) })
-    $('mk-category-retry').addEventListener('click', loadCategories)
+
+    cats.addEventListener('click', (e) => {
+      const b = e.target.closest && e.target.closest('button')
+      if (!b) return
+      if (b.hasAttribute('data-cat-retry')) { loadCategories(); return }
+      category = b.getAttribute('data-cat') || ''
+      cats.querySelectorAll('[data-cat]').forEach((c) =>
+        c.setAttribute('aria-pressed', String(c.getAttribute('data-cat') === category)))
+      load(1, false)
+    })
+    more.addEventListener('click', () => load(page + 1, true))
     loadCategories()
     load(1, false)
-    window.addEventListener('loom:langchange', () => { loadCategories(); page = 1; load(1, false) })
-  }
-
-  // ── designer.html ─────────────────────────────────────────────────────────
-
-  function stat(value, label) {
-    return '<div class="dzp-stat"><div class="dzp-stat__value">' + esc(value) +
-      '</div><div class="dzp-stat__label">' + esc(label) + '</div></div>'
-  }
-
-  async function initDesigner() {
-    const grid = $('mk-grid')
-    const handleEl = $('dzp-handle')
-    if (!grid || !handleEl) return
-
-    const raw = (new URLSearchParams(window.location.search).get('handle') || '').replace(/^@/, '')
-    const byId = {}
-    bindGrid(grid, byId)
-
-    if (!raw) {
-      handleEl.textContent = T('mk.notFound', 'Дизайнер не найден')
-      grid.innerHTML = ''
-      return
-    }
-
-    grid.innerHTML = skeletons(4)
-    try {
-      const res = await fetch(API() + '/api/designers/' + encodeURIComponent(raw))
-      if (!res.ok) throw new Error('HTTP ' + res.status)
-      const d = await res.json()
-
-      handleEl.textContent = d.handle
-      document.title = 'LOOM — ' + d.handle
-      const name = $('dzp-name')
-      if (name) name.textContent = d.name || ''
-      const bio = $('dzp-bio')
-      if (bio) bio.textContent = d.bio || ''
-
-      const avatar = $('dzp-avatar')
-      if (avatar) {
-        if (d.avatar_url) avatar.innerHTML = '<img src="' + esc(d.avatar_url) + '" alt="" />'
-        else {
-          const initial = (d.name || d.handle.replace('@', '') || '?').charAt(0).toUpperCase()
-          avatar.innerHTML = '<span>' + esc(initial) + '</span>'
-        }
-      }
-
-      const stats = $('dzp-stats')
-      if (stats) {
-        stats.innerHTML =
-          stat(String((d.works || []).length), T('dz.statWorks', 'Работ')) +
-          stat(String(d.units_sold || 0), T('dz.statSold', 'Продано')) +
-          stat(d.since ? String(new Date(d.since).getFullYear()) : '—', T('acc.statSince', 'С нами с'))
-      }
-
-      const works = d.works || []
-      works.forEach((a) => { byId[a.id] = a })
-      grid.innerHTML = works.length
-        ? works.map(cardHtml).join('')
-        : '<p class="mk-empty">' + esc(T('dz.noPublicWorks', 'У этого дизайнера пока нет одобренных работ.')) + '</p>'
-    } catch (e) {
-      handleEl.textContent = T('mk.notFound', 'Дизайнер не найден')
-      grid.innerHTML = '<p class="mk-error">' +
-        esc(T('mk.failed', 'Не удалось загрузить страницу. Обновите её.')) + '</p>'
-    }
+    setBarTitle(T('atl.nav.market', 'Market'))
+    window.addEventListener('loom:langchange', () => {
+      setBarTitle(T('atl.nav.market', 'Market'))
+      loadCategories()
+    })
   }
 
   // ── designers.html — the public directory ─────────────────────────────────
 
-  function plural(n, key, fallback) {
-    try {
-      const w = window.LOOM_I18N && window.LOOM_I18N.plural(n, key)
-      if (w) return w
-    } catch (e) { /* i18n not ready */ }
-    return fallback
+  function initials(d) {
+    const src = String(d.name || handleOf(d.handle) || '?').trim()
+    const parts = src.split(/[\s._-]+/).filter(Boolean)
+    return ((parts[0] || '?').charAt(0) + (parts[1] ? parts[1].charAt(0) : '')).toUpperCase()
+  }
+  function avatar(d) {
+    return '<span class="atl-avatar atl-dsg-av" aria-hidden="true">' +
+      (d.avatar_url ? '<img src="' + esc(d.avatar_url) + '" alt="">' : esc(initials(d))) + '</span>'
+  }
+  function worksLabel(n) {
+    return n + ' ' + plural(n, 'plural.works', 'ta ish')
   }
 
-  function designerCardHtml(d) {
-    const handle = esc(d.handle || '')
-    const href = 'designer.html?handle=' + encodeURIComponent(String(d.handle || '').replace(/^@/, ''))
-    const art = d.cover_url
-      ? '<span class="dir-card__art"><img src="' + esc(d.cover_url) + '" alt="" loading="lazy" decoding="async" /></span>'
-      : '<span class="dir-card__art dir-card__art--blank"></span>'
-    const name = d.name
-      ? '<p class="dir-card__name">' + esc(d.name) + '</p>'
-      : ''
-    const bio = d.bio ? '<p class="dir-card__bio">' + esc(d.bio) + '</p>' : ''
-    return (
-      '<a class="dir-card" href="' + href + '">' + art +
-      '<span class="dir-card__body">' +
-        '<p class="dir-card__handle">' + handle + '</p>' + name + bio +
-        '<span class="dir-card__stats">' +
-          '<span><b>' + (d.works || 0) + '</b> ' + esc(plural(d.works || 0, 'plural.works', T('dir.works', 'работ'))) + '</span>' +
-          '<span><b>' + (d.units_sold || 0) + '</b> ' + esc(T('dir.sold', 'продано')) + '</span>' +
-        '</span>' +
-        '<span class="dir-card__go">' + esc(T('dir.view', 'Смотреть работы')) + ' \u2192</span>' +
-      '</span></a>'
-    )
+  function designerRow(d) {
+    const h = handleOf(d.handle)
+    return '<a class="atl-row" href="designer.html?handle=' + encodeURIComponent(h) + '">' +
+      avatar(d) +
+      '<span class="atl-row-tx"><b>@' + esc(h) + '</b><i>' + esc(worksLabel(d.works || 0)) + '</i></span>' +
+      '<svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>' +
+    '</a>'
   }
 
-  async function initDirectory() {
-    const grid = $('dir-grid')
-    if (!grid) return
-    const moreBtn = $('dir-more-btn')
+  function initDirectory() {
+    const list = $('dsg-list'), more = $('dsg-more'), err = $('dsg-err')
     let page = 1
-    let total = 0
-
-    function showOpenCall(on) {
-      const el = $('mk-open-call')
-      if (el) el.hidden = !on
-    }
 
     async function load(p, append) {
-      if (!append) grid.innerHTML = skeletons(6)
+      more.disabled = true
+      err.textContent = ''
+      if (!append) {
+        more.hidden = true
+        list.hidden = false
+        list.setAttribute('aria-busy', 'true')
+        list.innerHTML = new Array(3).fill(
+          '<div class="atl-row"><span class="atl-skel atl-avatar atl-dsg-av"></span><span class="atl-skel atl-mk-skl"></span></div>'
+        ).join('')
+      }
       try {
         const res = await fetch(API() + '/api/designers?page=' + p)
         if (!res.ok) throw new Error('HTTP ' + res.status)
         const data = await res.json()
-        const items = data.items || []
-        total = data.total || items.length
-
-        const html = items.map(designerCardHtml).join('')
-        if (append) {
-          grid.insertAdjacentHTML('beforeend', html)
-        } else if (html) {
-          grid.innerHTML = html
-          showOpenCall(false)
-        } else {
-          grid.innerHTML = ''
-          showOpenCall(true)
-        }
-
-        const shown = grid.querySelectorAll('.dir-card').length
-        const count = $('dir-count')
-        if (count) {
-          count.textContent = total
-            ? total + ' ' + plural(total, 'plural.designers', T('dir.count', 'дизайнеров'))
-            : T('dir.none', 'пока никого')
-        }
-        if (moreBtn) moreBtn.style.display = shown < total ? '' : 'none'
+        const items = data.items || [], total = data.total || items.length
+        const html = items.map(designerRow).join('')
+        list.removeAttribute('aria-busy')
+        if (append) list.insertAdjacentHTML('beforeend', html)
+        else list.innerHTML = html
+        // Nobody approved yet: the "become a designer" panel below says it all.
+        list.hidden = !list.children.length
+        page = p
+        more.hidden = list.querySelectorAll('a.atl-row').length >= total
       } catch (e) {
-        if (!append) {
-          /* A failed fetch is not an empty directory — never recruit on an error. */
-          showOpenCall(false)
-          grid.innerHTML = '<p class="mk-error">' + esc(T('dir.failed', 'Не удалось загрузить. Обновите страницу.')) + '</p>'
+        list.removeAttribute('aria-busy')
+        if (append) err.textContent = T('mk.moreFailed', 'Yuklab bo‘lmadi. Qayta urinib ko‘ring.')
+        else {
+          // A failed fetch is not an empty directory.
+          list.innerHTML = ''
+          list.appendChild(errorBlock(() => load(1, false)))
         }
-        console.warn('[LOOM] designer directory load failed:', e.message)
+      } finally {
+        more.disabled = false
       }
     }
 
-    if (moreBtn) {
-      moreBtn.addEventListener('click', async () => {
-        moreBtn.disabled = true
-        page += 1
-        await load(page, true)
-        moreBtn.disabled = false
-      })
+    more.addEventListener('click', () => load(page + 1, true))
+    load(1, false)
+    setBarTitle(T('atl.nav.designers', 'Dizaynerlar'))
+    window.addEventListener('loom:langchange', () => {
+      setBarTitle(T('atl.nav.designers', 'Dizaynerlar'))
+      load(1, false)
+    })
+  }
+
+  // ── designer.html ─────────────────────────────────────────────────────────
+
+  function initDesigner() {
+    const grid = $('dz-grid'), head = $('dz-head'), missing = $('dz-missing')
+    const raw = handleOf(new URLSearchParams(window.location.search).get('handle') || '')
+    const byId = {}
+    let d = null
+    bindGrid(grid, byId)
+
+    function notFound() {
+      head.hidden = true
+      grid.hidden = true
+      missing.hidden = false
+      setBarTitle(T('mk.notFound', 'Dizayner topilmadi'))
     }
 
-    await load(1, false)
-    window.addEventListener('loom:langchange', () => { page = 1; load(1, false) })
+    function render() {
+      const h = handleOf(d.handle)
+      const works = d.works || []
+      setBarTitle('@' + h)
+      document.title = 'LOOM — @' + h
+      $('dz-av').innerHTML = d.avatar_url ? '<img src="' + esc(d.avatar_url) + '" alt="">' : esc(initials(d))
+      $('dz-handle').textContent = '@' + h
+      const meta = [d.name, worksLabel(works.length)]
+      if (d.units_sold) meta.push(d.units_sold + ' ' + T('dir.sold', 'sotilgan'))
+      $('dz-meta').textContent = meta.filter(Boolean).join(', ')
+      const bio = $('dz-bio')
+      bio.textContent = d.bio || ''
+      bio.hidden = !d.bio
+      works.forEach((a) => { byId[a.id] = a })
+      grid.removeAttribute('aria-busy')
+      grid.innerHTML = works.length
+        ? works.map((a) => printCard(a, false)).join('')
+        : '<p class="atl-lead atl-mk-none">' +
+          esc(T('dz.noPublicWorks', 'Bu dizaynerda hali tasdiqlangan ishlar yo‘q.')) + '</p>'
+    }
+
+    async function load() {
+      if (!raw) return notFound()
+      grid.hidden = false
+      grid.setAttribute('aria-busy', 'true')
+      grid.innerHTML = skeletons(4)
+      try {
+        const res = await fetch(API() + '/api/designers/' + encodeURIComponent(raw))
+        if (res.status === 404) return notFound()
+        if (!res.ok) throw new Error('HTTP ' + res.status)
+        d = await res.json()
+        render()
+      } catch (e) {
+        head.hidden = true
+        grid.removeAttribute('aria-busy')
+        grid.innerHTML = ''
+        grid.appendChild(errorBlock(() => { head.hidden = false; load() }))
+      }
+    }
+
+    load()
+    window.addEventListener('loom:langchange', () => { if (d) render() })
   }
 
   function init() {
-    if ($('dir-grid')) initDirectory()
-    else if ($('mk-count')) initMarket()
-    else initDesigner()
+    if ($('dsg-list')) initDirectory()
+    else if ($('mk-grid')) initMarket()
+    else if ($('dz-grid')) initDesigner()
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init)
-  } else {
-    init()
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init)
+  else init()
 })()

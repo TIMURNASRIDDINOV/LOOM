@@ -67,6 +67,8 @@ export interface User {
   notify_promo: number | null
   // Added in migration 0021 — tokens with iat before this (unix s) are rejected.
   tokens_valid_after?: number | null
+  // Added in migration 0030 — deletion asked for while an order was still open.
+  delete_requested_at?: number | null
 }
 
 /** A social sign-in linked to a user. Added in migration 0017. */
@@ -162,6 +164,19 @@ export interface Order {
   proof_approved_by: number | null
   // Added in migration 0010 — interactive 3D review model (.glb)
   model_key: string | null
+  // Added in migration 0011
+  payment_method: string          // cod (old orders only) | p2p | payme | click | uzum
+  payment_status: string          // unpaid | pending | paid | refunded | failed
+  paid_at: number | null
+  // Added in migration 0030 — prepayment by card transfer
+  delivery_fee: number            // so'm, already inside total_price
+  pay_deadline: number | null
+  receipt_key: string | null
+  receipt_at: number | null
+  pay_reminded_at: number | null
+  pay_checked_by: number | null
+  pay_checked_at: number | null
+  pay_reject_reason: string | null
 }
 
 export interface OrderStatusLog {
