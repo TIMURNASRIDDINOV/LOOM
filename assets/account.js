@@ -474,32 +474,6 @@
   }
 
   /* ── address map (same picker as checkout; plain field when it cannot load) ── */
-  const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-  const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-  let leafletPromise = null
-  // Not `typeof window.L`: the Lenis UMD bundle also publishes a global L.
-  const hasLeaflet = () => !!(window.L && typeof window.L.map === 'function' && typeof window.L.tileLayer === 'function')
-  function ensureLeaflet() {
-    if (hasLeaflet()) return Promise.resolve()
-    if (leafletPromise) return leafletPromise
-    leafletPromise = new Promise((resolve, reject) => {
-      const cssDone = new Promise((done) => {
-        const css = document.createElement('link')
-        css.rel = 'stylesheet'; css.href = LEAFLET_CSS; css.crossOrigin = ''
-        css.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY='
-        css.onload = done; css.onerror = done
-        document.head.appendChild(css)
-      })
-      const s = document.createElement('script')
-      s.src = LEAFLET_JS; s.crossOrigin = ''; s.async = true
-      s.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo='
-      s.onload = () => cssDone.then(resolve)
-      s.onerror = () => reject(new Error('leaflet'))
-      document.head.appendChild(s)
-      setTimeout(() => { if (!hasLeaflet()) reject(new Error('leaflet timed out')) }, 12000)
-    }).catch((e) => { leafletPromise = null; throw e })
-    return leafletPromise
-  }
   function mapOffline(host) {
     host.innerHTML = '<p class="atl-hint">' + esc(T('co.mapOffline', 'Xarita mavjud emas. Manzilni qo‘lda kiriting.')) + '</p>'
   }
@@ -509,9 +483,9 @@
     const p = preset()
     const initial = p && p.lat && p.lng ? { lat: p.lat, lng: p.lng } : null
     let skip = !!initial   // the first settle re-reads the saved spot: keep the typed text
-    ensureLeaflet().then(() => {
+    if (!window.LOOM_ADDRESS) return mapOffline(host)
+    window.LOOM_ADDRESS.load().then(() => {
       if (!document.body.contains(host)) return
-      if (!window.LOOM_ADDRESS) return mapOffline(host)
       picker = window.LOOM_ADDRESS.mount(host, {
         initial,
         onChange (a) {
@@ -520,6 +494,7 @@
           if (a && a.address && inp) { inp.value = a.address; fieldErr('acc-addr', null) }
         }
       })
+      if (!picker) mapOffline(host)   // no WebGL
     }).catch(() => { if (document.body.contains(host)) mapOffline(host) })
   }
   function dropPicker() {

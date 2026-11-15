@@ -102,38 +102,6 @@
   var methodsPromise = fetchMethods();
   function p2pOn() { return methods.p2p === true; }
 
-  /* ── Leaflet on demand (CSS + JS injected only when the map mounts) ── */
-  var LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-  var LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-  var LEAFLET_JS_SRI = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
-  var LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-  var leafletPromise = null;
-  /* Not `typeof window.L`: the Lenis UMD bundle also publishes a global L. */
-  function hasLeaflet() {
-    return !!(window.L && typeof window.L.map === 'function' && typeof window.L.tileLayer === 'function');
-  }
-  function ensureLeaflet() {
-    if (hasLeaflet()) return Promise.resolve();
-    if (leafletPromise) return leafletPromise;
-    leafletPromise = new Promise(function (resolve, reject) {
-      /* wait for the stylesheet too, or tiles land in the wrong place */
-      var cssDone = new Promise(function (done) {
-        var css = document.createElement('link');
-        css.rel = 'stylesheet'; css.href = LEAFLET_CSS; css.integrity = LEAFLET_CSS_SRI; css.crossOrigin = '';
-        css.onload = done; css.onerror = done;   // unstyled map beats no map
-        document.head.appendChild(css);
-      });
-      var s = document.createElement('script');
-      s.src = LEAFLET_JS; s.integrity = LEAFLET_JS_SRI; s.crossOrigin = ''; s.async = true;
-      s.onload = function () { cssDone.then(resolve); };
-      s.onerror = function () { reject(new Error('leaflet failed to load')); };
-      document.head.appendChild(s);
-      // a hung CDN must not strand the customer on a map that never appears
-      setTimeout(function () { if (!hasLeaflet()) reject(new Error('leaflet timed out')); }, 12000);
-    });
-    return leafletPromise;
-  }
-
   /* ── address: saved option, map picker, or plain field ──────── */
   function mountManualAddress(host) {
     manualAddress = true;
@@ -152,8 +120,9 @@
     if (mapMounting) return mapMounting;
     var host = $('co-address');
     var initial = preset && preset.lat && preset.lng ? { lat: preset.lat, lng: preset.lng } : null;
-    mapMounting = ensureLeaflet().then(function () {
-      picker = window.LOOM_ADDRESS ? window.LOOM_ADDRESS.mount(host, { initial: initial }) : null;
+    if (!window.LOOM_ADDRESS) { mountManualAddress(host); return Promise.resolve(); }
+    mapMounting = window.LOOM_ADDRESS.load().then(function () {
+      picker = window.LOOM_ADDRESS.mount(host, { initial: initial });
       if (!picker) mountManualAddress(host);
     }).catch(function () { mountManualAddress(host); });
     return mapMounting;
