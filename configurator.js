@@ -8364,8 +8364,9 @@ function _withStillCamera(view, read) {
   const stillRatio = Math.min(window.devicePixelRatio || 1, 2);
   // LOOM-295 AC-4 (STD-11): with the phone shell (or LOOM-298's desktop
   // accordion) on, stills are framed on the flag-off stage, so the cart
-  // mockups match the flag-off page exactly.
-  const flagOffFit = _flow3() && shirtObject && !document.body.classList.contains("kb-open")
+  // mockups match the flag-off page exactly. LOOM-317: the Atelye shell's
+  // full-screen stage too.
+  const flagOffFit = (_flow3() || _atl()) && shirtObject && !document.body.classList.contains("kb-open")
     ? _p3FlagOffFit() : null;
   const pose = CAM_VIEWS[view === "back" ? "back" : "front"];
   _showHandles = false;
@@ -8418,6 +8419,11 @@ function _p3FlagOffFit() {
   // LOOM-298: the desktop accordion's stage is CSS under html.cfg-desk3.
   const flagClasses = ["cfg-phone3", "cfg-desk3"].filter((c) => root.classList.contains(c));
   root.classList.remove(...flagClasses);
+  // LOOM-317: the Atelye shell is html.cfg-atelye plus the 2D / 3D pill moved
+  // off the stage, and the fit measures that pill (chipBand), so put both home.
+  const atl = root.classList.contains("cfg-atelye");
+  const focused = document.activeElement; // moving a focused button blurs it
+  if (atl) atlPlace(false);
   const w = box.clientWidth, h = box.clientHeight; // forces the flag-off layout
   if (w && h) {
     renderer.setSize(w, h, false);
@@ -8429,6 +8435,10 @@ function _p3FlagOffFit() {
     fitCameraToObject(shirtObject);
   }
   root.classList.add(...flagClasses);
+  if (atl) {
+    atlPlace(true);
+    if (focused && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
+  }
   void box.clientHeight; // back to the flag-on layout before transitions return
   still.remove();
   return () => {
