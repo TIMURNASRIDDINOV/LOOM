@@ -102,6 +102,8 @@
   const thumbCache = {}
   function loadThumbs() {
     main.querySelectorAll('img[data-key]').forEach((img) => {
+      // desktop-only panels: no fetch while a phone hides them
+      if (img.closest('.atl-only-d') && getComputedStyle(img.closest('.atl-only-d')).display === 'none') return
       const key = img.getAttribute('data-key')
       const set = (url) => { img.src = url; img.hidden = false }
       if (thumbCache[key]) return set(thumbCache[key])
@@ -311,9 +313,15 @@
     const html = low
       ? '<div class="atl-banner" role="status">' + ic('clock', 's') + '<span class="atl-banner-tx"><span>' + line + '</span><span>' + esc(T('atl.pay.reminder')) + '</span></span></div>'
       : '<p class="atl-banner atl-banner-info">' + ic('clock', 's') + '<span class="atl-banner-tx"><span>' + line + '</span></span></p>'
+    // Desktop only: how much of the 30-minute window is left, as a bar.
+    const pct = Math.max(0, Math.min(1, left / (30 * 60000))).toFixed(4)
+    const bar = '<span class="atl-ord-tbar atl-only-d' + (low ? ' is-low' : '') + '" aria-hidden="true"><i style="transform:scaleX(' + pct + ')"></i></span>'
     // Rebuild only when the tone changes; otherwise swap the digits (screen readers stay calm).
-    if (box.getAttribute('data-low') !== String(low)) { box.innerHTML = html; box.setAttribute('data-low', String(low)) }
-    else { const b = box.querySelector('b'); if (b) b.textContent = time }
+    if (box.getAttribute('data-low') !== String(low)) { box.innerHTML = html + bar; box.setAttribute('data-low', String(low)) }
+    else {
+      const b = box.querySelector('b'); if (b) b.textContent = time
+      const i = box.querySelector('.atl-ord-tbar i'); if (i) i.style.transform = 'scaleX(' + pct + ')'
+    }
   }
 
   function rejectBanner(o) {
@@ -381,15 +389,41 @@
       '<p class="atl-sm"><a class="atl-lnk" href="' + BOT + '" target="_blank" rel="noopener">' + esc(T('atl.questions')) + '</a></p></section>'
 
     main.innerHTML = '<h1 class="atl-t1 atl-only-d">' + esc(fill(T('atl.pay.title'), { order: num(o.id) })) + '</h1>' +
-      '<div class="atl-two">' + left + right + '</div>'
+      '<div class="atl-two atl-ord-pay">' + left + right + paySide(o) + '</div>'
     // The upload zone is a <label>: keyboard users reach it through this.
     const drop = main.querySelector('.atl-ord-drop')
     if (drop) {
       drop.tabIndex = 0
       drop.setAttribute('role', 'button')
       drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick() } })
+      // A file dragged from the desktop goes through the same checks as a picked one.
+      const over = (on) => (e) => { e.preventDefault(); drop.classList.toggle('is-over', on) }
+      drop.addEventListener('dragenter', over(true))
+      drop.addEventListener('dragover', over(true))
+      drop.addEventListener('dragleave', over(false))
+      drop.addEventListener('drop', (e) => { over(false)(e); onFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) })
     }
     if (timerHtml(o)) { paintTimer(); S.timer = setInterval(paintTimer, 1000) }
+  }
+
+  /* Desktop only: what is being paid for, and what happens after To'ladim. */
+  function paySide(o) {
+    const items = S.data.items || []
+    const delivery = o.delivery_fee || 0
+    const itemsSum = items.reduce((s, it) => s + (it.unit_price || 0) * (it.quantity || 1), 0)
+    const list = items.map((it) => '<div class="atl-row">' + thumb(it.front_mockup_key) +
+      '<span class="atl-row-tx"><b>' + esc(it.product_name || '—') + '</b><i>' + esc(fill(T('atl.pcs'), { n: it.quantity || 1 })) + '</i></span>' +
+      '<span class="atl-row-v atl-num">' + esc(som((it.unit_price || 0) * (it.quantity || 1))) + '</span></div>').join('')
+    return '<aside class="atl-ord-side atl-only-d">' +
+      '<section class="atl-card"><h2 class="atl-t3">' + esc(T('atl.co.summary', 'Sizning buyurtmangiz')) + '</h2>' +
+        (list ? '<div class="atl-lst">' + list + '</div>' : '') +
+        '<div class="atl-price-lines">' +
+          (delivery ? '<div><span>' + esc(T('atl.sum.items')) + '</span><span>' + esc(som(itemsSum || o.total_price - delivery)) + '</span></div>' +
+            '<div><span>' + esc(T('atl.sum.delivery')) + '</span><span>' + esc(som(delivery)) + '</span></div>' : '') +
+          '<div class="atl-price-tot"><span>' + esc(T('atl.sum.total')) + '</span><span>' + esc(som(o.total_price)) + '</span></div></div></section>' +
+      '<section class="atl-card"><h2 class="atl-t3">' + esc(T('atl.pay.nextT', 'Keyin nima bo‘ladi')) + '</h2>' +
+        '<p class="atl-sm">' + esc(fill(T('atl.pay.nextL'), { hours: T('atl.hours', '9:00–21:00') })) + '</p></section>' +
+      '</aside>'
   }
 
   function pick() {
@@ -549,8 +583,8 @@
         '<div><span>' + esc(T('atl.sum.delivery')) + '</span><span>' + esc(som(delivery)) + '</span></div>' : '') +
       '<div class="atl-price-tot"><span>' + esc(T('atl.sum.total')) + '</span><span>' + esc(som(o.total_price)) + '</span></div></div>'
 
-    main.innerHTML = '<div class="atl-two"><div class="atl-ord-col">' +
-      '<div class="atl-ord-col" style="gap:6px"><h1 class="atl-t1">' + esc(fill(T('atl.od.h1'), { order: num(o.id) })) + '</h1><span>' + pill(o) + '</span>' +
+    main.innerHTML = '<div class="atl-two atl-ord-det"><div class="atl-ord-col">' +
+      '<div class="atl-ord-col atl-ord-head" style="gap:6px"><h1 class="atl-t1">' + esc(fill(T('atl.od.h1'), { order: num(o.id) })) + '</h1><span>' + pill(o) + '</span>' +
       '<span class="atl-sm">' + esc(when(o.created_at, true)) + '</span></div>' +
       stepHtml + rows + cancelBtn + '</div>' +
       '<section class="atl-card atl-stick">' + (list ? '<div class="atl-lst">' + list + '</div>' : '') + sum + '</section></div>'

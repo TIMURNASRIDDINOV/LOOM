@@ -96,7 +96,7 @@
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/atelye.css?v=2" />
+  <link rel="stylesheet" href="/assets/atelye.css?v=3" />
 
   <!-- Theme before first paint -->
   <script src="/assets/boot.js?v=10"></script>
@@ -119,7 +119,11 @@
         /* a language switch reloads the page at /, /uz/ or /en/ (assets/i18n.js): no loader for that */
         var sw = false;
         try { sw = !!sessionStorage.getItem('loom_lang_nav'); sessionStorage.removeItem('loom_lang_nav'); } catch (e) {}
-        if (force || (!tg && !reduce && !sw && nav !== 'back_forward')) {
+        /* desktop (mockup 2026-11-15): once per browser session */
+        var desk = window.matchMedia && matchMedia('(min-width: 900px)').matches;
+        var seen = false;
+        if (desk) { try { seen = !!sessionStorage.getItem('loom_intro'); sessionStorage.setItem('loom_intro', '1'); } catch (e) {} }
+        if (force || (!tg && !reduce && !sw && !seen && nav !== 'back_forward')) {
           d.classList.add('atl-intro');
           if (force) window.__atlIntroHold = true;
           else window.__atlIntroFailsafe = setTimeout(function () { d.classList.remove('atl-intro'); }, 4000);
@@ -184,6 +188,39 @@
       .atl-onb-art { flex: 1.2; }
       .atl-onb-g { max-height: 460px; }
       .atl-onb-tx { flex: 1; justify-content: center; padding: 60px; max-width: 620px; }
+
+      /* Desktop pages (LOOM-333, mockup 2026-11-15) */
+      .atl-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 56px; padding-bottom: 16px; }
+      .atl-hero .atl-t1 { font-size: 64px; line-height: 1.02; letter-spacing: -.015em; }
+      .atl-hero .atl-lead { font-size: 18px; line-height: 1.45; max-width: 56ch; }
+      .atl-hero .atl-btns > * { flex: none; padding: 0 22px; }
+      .atl-hero-tx { gap: 24px; }
+      .atl-hero-cv { height: 520px; }
+      .atl-hero-g { height: auto; width: min(86%, 447px); }
+      .atl-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .atl-facts li { padding: 20px 0; }
+      .atl-facts b { font-size: 28px; line-height: 1.1; font-stretch: 112%; }
+      .atl-facts span { font-size: 13.5px; }
+      .atl-home-sec { gap: 20px; padding-top: 24px; }
+      .atl-home-sec .atl-t2 { font-size: 30px; letter-spacing: -.01em; }
+      .atl-home-sec .atl-hscroll { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 24px; }
+      .atl-home-sec .atl-ol { gap: 24px; }
+      .atl-home-lab { padding: 12px 24px; }
+      /* unpaid order: dark strip under the header (assets/home.js) */
+      .atl-home-strip { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px max(48px, calc((100% - 1184px) / 2)); background: var(--ink); color: var(--surface); font: 600 14px var(--f); }
+      .atl-home-strip .atl-btn { margin-left: auto; height: 44px; }
+      /* first visit: one centred dialog, the three cards side by side */
+      .atl-onb.atl-onb-d { inset: auto; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(980px, calc(100% - 64px)); max-height: calc(100vh - 48px); overflow-y: auto; flex-direction: column; gap: 18px; padding: 28px; background: var(--surface); border-radius: var(--r-sheet); box-shadow: 0 0 0 100vmax rgba(14, 18, 24, .48), var(--e1); }
+      .atl-onb-d .atl-onb-tx { padding: 0; max-width: none; gap: 18px; }
+      .atl-onb-d .atl-onb-top { order: -1; }
+      .atl-onb-d #atl-onb-h { font-size: 30px; }
+      .atl-onb-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+      .atl-onb-card { display: flex; flex-direction: column; gap: 10px; }
+      .atl-onb-card .atl-cv { height: 200px; border-radius: 10px; display: grid; place-items: center; }
+      .atl-onb-card .atl-onb-g { height: 170px; }
+      .atl-onb-card p { color: var(--mut); font-size: 13.5px; }
+      .atl-onb-d .atl-btns { justify-content: space-between; }
+      .atl-onb-d .atl-btns > * { flex: none; }
     }
   </style>
 </head>
@@ -268,7 +305,7 @@
       <div class="atl-hscroll" id="home-works-list"></div>
     </section>
 
-    <a class="atl-row atl-panel" href="/lab.html">
+    <a class="atl-row atl-panel atl-home-lab" href="/lab.html">
       <span class="atl-row-ico"><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/></svg></span>
       <span class="atl-row-tx"><b data-i18n="atl.nav.lab">LOOM Lab</b><i data-i18n="atl.home.labSub">Describe it in words — Lab draws the print</i></span>
       <span class="atl-tag" data-i18n="atl.soon">Coming soon</span>
@@ -309,12 +346,12 @@
     </div>
   </div>
 
-  <script src="/assets/config.js?v=9"></script>
-  <script src="/assets/i18n.js?v=61"></script>
+  <script src="/assets/config.js?v=10"></script>
+  <script src="/assets/i18n.js?v=62"></script>
   <script src="/assets/auth.js?v=6"></script>
   <script src="/assets/tma.js?v=5"></script>
-  <script src="/assets/shell.js?v=3"></script>
-  <script src="/assets/home.js?v=2"></script>
+  <script src="/assets/shell.js?v=4"></script>
+  <script src="/assets/home.js?v=3"></script>
   <script src="/assets/track.js?v=6"></script>
   <script src="/assets/analytics.js?v=4"></script>
 </body>

@@ -11,7 +11,7 @@
   <script src="assets/boot.js?v=10"></script>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/atelye.css?v=2">
+  <link rel="stylesheet" href="assets/atelye.css?v=3">
   <style>
     /* account.html only (LOOM-323 phase 12): profile hub + settings sections. */
     .atl-acc-me { display: flex; gap: 14px; align-items: center; }
@@ -42,6 +42,46 @@
     .dz-work-note { font-size: 13px; color: var(--alert); }
     .status-badge { display: inline-block; padding: 2px 8px; border-radius: var(--r-chip); font-size: 12px; font-weight: 700; }
     .empty-state { color: var(--mut); }
+
+    /* Desktop (LOOM-333, mockup 2026-11-15): settings list left, the
+       open section right. account.js adds .atl-acc-wide to <main>. */
+    @media (min-width: 900px) {
+      main.atl-acc-wide { max-width: 1280px; }
+      .atl-acc-d { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 64px; align-items: start; }
+      .atl-acc-nav { display: flex; flex-direction: column; position: sticky; top: 96px; }
+      .atl-acc-who { display: flex; flex-direction: column; gap: 2px; padding-bottom: 18px; }
+      .atl-acc-who b { font: 700 20px/1.2 var(--f); font-stretch: 106%; }
+      .atl-acc-who span { font-size: 13.5px; color: var(--mut); }
+      .atl-acc-nav > a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 0 12px; margin: 0 -12px; border-radius: var(--r-chip); box-shadow: 0 1px 0 var(--ln); font-size: 14px; font-weight: 500; text-decoration: none; transition: background var(--t-fast) var(--ease); }
+      .atl-acc-nav > a:hover { background: var(--surface2); }
+      .atl-acc-nav > a[aria-current="page"] { background: var(--surface2); font-weight: 700; }
+      .atl-acc-nav-v { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--mut); font-size: 13.5px; font-weight: 500; text-align: right; }
+      .atl-acc-nav-v .atl-warn { font-size: 13.5px; }
+      .atl-acc-bdg { position: static; }
+      .atl-acc-out { display: flex; flex-direction: column; align-items: flex-start; padding-top: 18px; }
+      .atl-acc-out .atl-lnk { font-size: 14px; }
+      .atl-acc-delk { color: var(--alert); }
+      .atl-acc-delk[aria-current="page"] { font-weight: 800; }
+      .atl-acc-body { display: flex; flex-direction: column; gap: 20px; min-width: 0; max-width: 760px; }
+      .atl-acc-body > #tab-designer { padding: 0; }
+      .atl-acc-body .atl-btn-w, .atl-acc-fit { width: auto; align-self: flex-start; padding: 0 22px; }
+      .atl-acc-body .atl-acc-del { gap: 14px; }
+      .atl-acc-body .atl-acc-del > .atl-btn-w { align-self: flex-start; }
+      .atl-acc-body .atl-lst { box-shadow: 0 -1px 0 var(--ln); }
+      .atl-acc-body .atl-row { min-height: 64px; padding: 10px 0; }
+      .atl-acc-body .atl-opt { min-height: 64px; }
+      #acc-profile-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      #acc-profile-form > :not(.atl-field) { grid-column: 1 / -1; }
+      #acc-profile-form > .atl-btn { justify-self: start; }
+      #acc-addr-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      #acc-addr-form > .atl-field:first-child { grid-column: 1 / -1; }
+      #acc-addr-form > .atl-btn { grid-column: auto; justify-self: start; }
+      .atl-acc-acts { display: inline-flex; gap: 8px; margin-left: 8px; }
+      .atl-acc-acts .atl-btn { height: 44px; padding: 0 14px; }
+      .atl-acc-body .atl-banner .atl-btns > * { flex: none; height: 44px; }
+      .atl-acc-light { background: var(--surface); color: var(--ink); }
+      .atl-acc-light:hover { background: var(--surface2); }
+    }
   </style>
 </head>
 <body data-page="account" data-title="Profil">
@@ -141,18 +181,18 @@
   </section>
 </main>
 
-<script src="assets/config.js?v=9"></script>
-<script src="assets/i18n.js?v=61"></script>
+<script src="assets/config.js?v=10"></script>
+<script src="assets/i18n.js?v=62"></script>
 <script src="assets/auth.js?v=6"></script>
 <script src="assets/tma.js?v=5"></script>
 <script>
   /* A section opened directly (account.html#profile) goes Back to the hub. */
   if (location.hash.length > 1) document.body.setAttribute('data-back', 'account.html');
 </script>
-<script src="assets/shell.js?v=3"></script>
+<script src="assets/shell.js?v=4"></script>
 <script src="assets/analytics.js?v=4"></script>
 <script src="assets/address-picker.js?v=3"></script>
 <script src="assets/designer.js?v=2"></script>
-<script src="assets/account.js?v=11"></script>
+<script src="assets/account.js?v=12"></script>
 </body>
 </html>

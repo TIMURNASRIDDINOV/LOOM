@@ -85,6 +85,8 @@
     var h = document.querySelector('.atl-mbar h1');
     var title = n ? t('atl.cart.titleN', 'Savat · {n}').replace('{n}', n) : t('atl.cart.title', 'Savat');
     if (h) h.textContent = title;
+    var h1 = $('cp-h1');
+    if (h1) { h1.removeAttribute('data-i18n'); h1.textContent = title; }
     document.title = 'LOOM — ' + t('atl.cart.title', 'Savat');
     if (!items.length) { drawnIds = null; return; }
 

@@ -23,10 +23,16 @@
   // action bar holds the two buy buttons. On, it replaces the cfgPhone flow
   // whatever cfgPhone says. Off (or missing) = the cfgPhone flow. Desktop
   // is unchanged either way. Tim switches it on (PRD-215 rollout step 3).
+  // `cfgAtelyeDesktop` is the Atelye desktop configurator (PRD-218): from
+  // 901px the left panel is an order list (Kiyim, Rang, O'lcham, Dizayn,
+  // Jami) and a print's tools sit under it on the canvas while it is
+  // selected. On, it replaces the cfgDesktop flow whatever cfgDesktop says.
+  // Off (or missing) = today's desktop. The phone is unchanged either way.
   window.LOOM_FLAGS = {
     lab: false,
     cfgPhone: true,
     cfgDesktop: false,
     cfgAtelye: true,
+    cfgAtelyeDesktop: false,
   }
 })()

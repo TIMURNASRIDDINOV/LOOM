@@ -14,17 +14,27 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/atelye.css?v=2">
+  <link rel="stylesheet" href="assets/atelye.css?v=3">
   <style>
     /* Cart page only (LOOM-323 phase 9). Shared parts come from atelye.css. */
     .atl-cart-row { align-items: flex-start; padding: 14px 0; }
     .atl-cart-row .atl-row-tx { gap: 6px; }
     .atl-cart-ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    /* Desktop (LOOM-333): name left, line price right, controls under. */
+    @media (min-width: 900px) {
+      .atl-cart-row { gap: 16px; padding: 16px 0; }
+      .atl-cart-row .atl-thumb { width: 72px; height: 72px; }
+      .atl-cart-row .atl-row-tx { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; }
+      .atl-cart-row .atl-row-tx > * { grid-column: 1 / -1; }
+      .atl-cart-row .atl-row-tx > b:first-child { grid-column: 1; }
+      .atl-cart-row [data-price] { grid-column: 2; grid-row: 1; white-space: nowrap; }
+      .atl-cart-row .atl-cart-ctl { margin-top: 4px; }
+    }
   </style>
 </head>
 <body data-page="cart" data-title="Savat" data-back="index.html" data-no-footer>
-<main class="atl-wrap">
-  <h1 class="atl-t1 atl-only-d" data-i18n="atl.cart.title">Savat</h1>
+<main class="atl-wrap atl-shop">
+  <h1 class="atl-t1 atl-only-d" id="cp-h1" data-i18n="atl.cart.title">Savat</h1>
 
   <div class="atl-two" id="cp-loading" aria-busy="true">
     <div class="atl-lst">
@@ -56,13 +66,14 @@
   <div class="atl-two" id="cp-filled" hidden>
     <div class="atl-lst" id="cp-items"></div>
     <aside class="atl-card atl-stick">
+      <h2 class="atl-t3 atl-only-d" data-i18n="atl.co.summary">Sizning buyurtmangiz</h2>
       <div class="atl-price-lines">
         <div><span data-i18n="atl.sum.items">Mahsulotlar</span><span id="cp-sub">—</span></div>
         <div><span data-i18n="atl.sum.delivery">Yetkazib berish</span><span id="cp-deliv">—</span></div>
         <div class="atl-price-tot"><span data-i18n="atl.sum.total">Jami</span><span id="cp-total">—</span></div>
       </div>
-      <p class="atl-sm" data-i18n="atl.cart.prepayNote">To‘lov oldindan va to‘liq: LOOM kartasiga o‘tkazma. Karta raqami to‘lov qadamida chiqadi.</p>
       <div class="atl-only-d"><a class="atl-btn atl-btn-p atl-btn-w" href="checkout.html" id="cp-cta"><span data-i18n="atl.cart.checkout">Rasmiylashtirish</span><span class="atl-sr" data-cp-sr></span></a></div>
+      <p class="atl-sm" data-i18n="atl.cart.prepayNote">To‘lov oldindan va to‘liq: LOOM kartasiga o‘tkazma. Karta raqami to‘lov qadamida chiqadi.</p>
     </aside>
   </div>
 </main>
@@ -72,14 +83,14 @@
   <a class="atl-btn atl-btn-p" href="checkout.html" data-i18n="atl.cart.checkout">Rasmiylashtirish</a>
 </div>
 
-<script src="assets/config.js?v=9"></script>
-<script src="assets/i18n.js?v=61"></script>
+<script src="assets/config.js?v=10"></script>
+<script src="assets/i18n.js?v=62"></script>
 <script src="assets/auth.js?v=6"></script>
 <script src="assets/tma.js?v=5"></script>
-<script src="assets/shell.js?v=3"></script>
+<script src="assets/shell.js?v=4"></script>
 <script src="assets/track.js?v=6"></script>
 <script src="assets/analytics.js?v=4"></script>
-<script src="assets/cart.js?v=10"></script>
-<script src="assets/cart-page.js?v=1"></script>
+<script src="assets/cart.js?v=11"></script>
+<script src="assets/cart-page.js?v=2"></script>
 </body>
 </html>

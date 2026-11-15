@@ -11,7 +11,7 @@
   <script src="assets/boot.js?v=10"></script>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/atelye.css?v=2">
+  <link rel="stylesheet" href="assets/atelye.css?v=3">
   <style>
     /* order.html only (LOOM-323 phase 10): payment screen parts. */
     .atl-ord-amt { font: 700 28px/1.1 var(--f); font-variant-numeric: tabular-nums; }
@@ -36,18 +36,41 @@
     @media (min-width: 900px) {
       .atl-ord-bar { position: static; padding: 0; box-shadow: none; background: none; }
       .atl-ord-hasbar { padding-bottom: 0; }
+      /* Desktop payment (LOOM-333): steps then receipt on the left, what
+         is being paid for on the right. */
+      .atl-ord-pay { grid-template-rows: auto 1fr; }
+      .atl-ord-pay > .atl-ord-col { grid-column: 1; grid-row: 1; }
+      .atl-ord-pay > section.atl-card { grid-column: 1; grid-row: 2; position: static; }
+      .atl-ord-pay > .atl-ord-side { grid-column: 2; grid-row: 1 / 3; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 96px; }
+      .atl-ord-pay .atl-ord-amt { font-size: 34px; }
+      .atl-ord-pay .atl-ord-cardno { font-size: 26px; }
+      .atl-ord-pay .atl-ord-drop { flex-direction: row; text-align: left; justify-content: flex-start; gap: 16px; min-height: 120px; padding: 18px 20px; box-shadow: none; border: 1.5px dashed var(--ln); }
+      .atl-ord-pay .atl-ord-drop:hover, .atl-ord-pay .atl-ord-drop.is-over { border-color: var(--ink); background: var(--surface2); }
+      .atl-ord-pay .atl-ord-bar .atl-btn-p { height: 56px; font-size: 16px; }
+      .atl-ord-side .atl-card { padding: 24px; }
+      .atl-ord-side .atl-row { min-height: 64px; }
+      .atl-ord-side .atl-thumb { width: 52px; height: 52px; }
+      .atl-ord-tbar { display: block; height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; margin-top: 8px; }
+      .atl-ord-tbar i { display: block; height: 100%; background: var(--ink); transform-origin: left center; transition: transform 1s linear; }
+      .atl-ord-tbar.is-low i { background: var(--alert); }
+      /* Desktop order status: title and status pill on one line, the
+         timeline in a panel. */
+      .atl-ord-det .atl-ord-head { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 16px; }
+      .atl-ord-det .atl-ord-head .atl-sm { flex-basis: 100%; }
+      .atl-ord-det .atl-steps { background: var(--surface); border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--ln); padding: 24px; }
+      .atl-ord-det .atl-steps-dot { background: var(--surface); }
     }
   </style>
 </head>
 <body data-page="order" data-back="account.html">
-<main id="main" class="atl-wrap" aria-busy="true">
+<main id="main" class="atl-wrap atl-shop" aria-busy="true">
   <span class="atl-skel" style="height:34px;width:60%"></span>
   <span class="atl-skel" style="height:120px"></span>
   <span class="atl-skel" style="height:120px"></span>
 </main>
 
-<script src="assets/config.js?v=9"></script>
-<script src="assets/i18n.js?v=61"></script>
+<script src="assets/config.js?v=10"></script>
+<script src="assets/i18n.js?v=62"></script>
 <script src="assets/auth.js?v=6"></script>
 <script src="assets/tma.js?v=5"></script>
 <script>
@@ -59,9 +82,10 @@
     else b.setAttribute('data-title', t('atl.orders.title', 'Buyurtmalarim'));
   })();
 </script>
-<script src="assets/shell.js?v=3"></script>
+<script src="assets/shell.js?v=4"></script>
 <script src="assets/track.js?v=6"></script>
 <script src="assets/analytics.js?v=4"></script>
-<script src="assets/order.js?v=1"></script>
+<script src="assets/cart.js?v=11"></script>
+<script src="assets/order.js?v=2"></script>
 </body>
 </html>

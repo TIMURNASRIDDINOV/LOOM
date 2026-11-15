@@ -86,10 +86,15 @@
     help: 'M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.5a2.5 2.5 0 015 0c0 2-2.5 2-2.5 4M12 17h.01',
     search: 'M11 18a7 7 0 100-14 7 7 0 000 14zM20 20l-4-4',
     sun: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5',
-    moon: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z'
+    moon: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z',
+    globe: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
+    down: 'M6 9l6 6 6-6',
+    check: 'M5 12.5l4.5 4.5L19 7',
+    box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
+    pin: 'M12 21s-7-6.5-7-12a7 7 0 0114 0c0 5.5-7 12-7 12zM12 11a2 2 0 100-4 2 2 0 000 4z'
   };
-  function ic(n) {
-    return '<svg class="atl-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="' + P[n] + '"/></svg>';
+  function ic(n, small) {
+    return '<svg class="atl-ic' + (small ? ' atl-ic-s' : '') + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + P[n] + '"/></svg>';
   }
   function token() {
     try { return window.LOOM_AUTH && window.LOOM_AUTH.getToken && window.LOOM_AUTH.getToken(); }
@@ -107,6 +112,10 @@
       ? 'http://localhost:8787' : 'https://api.loomdesign.uz';
   }
   function cur(on) { return on ? ' aria-current="page"' : ''; }
+  /* The /me copy auth.js keeps for this tab (desktop header avatar). */
+  function cachedUser() {
+    try { return JSON.parse(sessionStorage.getItem('loom_user') || 'null'); } catch (e) { return null; }
+  }
 
   var ACTIVE = { product: 'catalog', designer: 'designers', checkout: 'cart', order: 'account', login: 'account' };
   var active = ACTIVE[page] || page;
@@ -158,11 +167,11 @@
         }).join('') +
       '</nav>' +
       '<div class="atl-hdr-r">' +
-        langSelect('atl-lang-hdr') +
+        '<div class="atl-hdr-pop" data-atl-pop="lang"></div>' +
         '<button type="button" class="atl-ib" data-atl-theme></button>' +
-        '<a class="atl-ib" href="cart.html" data-atl-cart-link ' + lbl('atl.nav.cart', 'Savat') + '>' + ic('bag') +
-          '<span class="atl-bdg" data-atl-cart hidden>0</span></a>' +
-        '<a class="atl-ib" href="' + profileHref + '"' + cur(active === 'account') + ' ' + lbl('atl.nav.profile', 'Profil') + '>' + ic('user') + '</a>' +
+        '<a class="atl-ib atl-hdr-cart" href="cart.html" data-atl-cart-link ' + lbl('atl.nav.cart', 'Savat') + '>' + ic('bag') +
+          tx('atl.nav.cart', 'Savat') + '<span class="atl-bdg" data-atl-cart hidden>0</span></a>' +
+        '<div class="atl-hdr-pop" data-atl-pop="me"></div>' +
         '<a class="atl-btn atl-btn-p" href="configurator.html">' + tx('atl.nav.create', 'Dizayn yaratish') + '</a>' +
       '</div>' +
     '</header>';
@@ -184,8 +193,42 @@
       }).join('') +
     '</nav>';
 
+  function fcol(key, fb, links) {
+    return '<div class="atl-foot-col"><h2>' + tx(key, fb) + '</h2>' + links.map(function (l) {
+      return '<a href="' + l[0] + '">' + tx(l[1], l[2]) + '</a>';
+    }).join('') + '</div>';
+  }
+  /* Desktop footer (mockup 2026-11-15): brand + hours, three link
+     columns, base row with the landing pages and the language. */
+  var footD =
+    '<div class="atl-foot-d atl-only-d">' +
+      '<div class="atl-foot-col atl-foot-brand">' +
+        '<a class="atl-wm" href="index.html" ' + lbl('atl.nav.homeAria', 'LOOM bosh sahifa') + '>' + wm + '</a>' +
+        '<p>' + tx('atl.home.lead', '') + '</p>' +
+        '<p>' + tx('atl.foot.address', 'Toshkent, O‘zbekiston') + '<br>' +
+          '<a href="https://t.me/looom_design_bot" rel="noopener">' + tx('atl.foot.contact', 'Telegram: @looom_design_bot') + '</a><br>' +
+          '<span data-atl-hours>' + esc(t('atl.workHours', 'Ish vaqti: {hours}').replace('{hours}', t('atl.hours', '9:00–21:00'))) + '</span></p>' +
+      '</div>' +
+      fcol('atl.foot.shop', 'Xarid', [['catalog.html', 'atl.nav.catalog', 'Katalog'], ['market.html', 'atl.nav.market', 'Market'],
+        ['configurator.html', 'atl.nav.create', 'Dizayn yaratish'], ['lab.html', 'atl.nav.lab', 'LOOM Lab']]) +
+      fcol('atl.nav.help', 'Yordam', [['help.html', 'atl.foot.faq', 'Savollar va javoblar'], ['order.html', 'atl.placed.track', 'Buyurtmani kuzatish'],
+        ['privacy.html', 'atl.foot.legal', 'Maxfiylik va shartlar']]) +
+      fcol('atl.foot.forDesigners', 'Dizaynerlarga', [['designers.html', 'atl.nav.designers', 'Dizaynerlar'], ['account.html#designer', 'atl.foot.becomeDesigner', 'Dizayner bo‘lish']]) +
+      '<div class="atl-foot-base">' +
+        '<span>© 2026 LOOM</span>' +
+        '<span class="atl-foot-land">' +
+          '<a href="futbolka-s-printom">' + tx('atl.land.tee.name', 'Футболка с принтом') + '</a>' +
+          '<a href="hudi-s-printom">' + tx('atl.land.hoodie.name', 'Худи с принтом') + '</a>' +
+          '<a href="svitshot-s-printom">' + tx('atl.land.sweat.name', 'Свитшот с принтом') + '</a>' +
+          '<a href="merch-dlya-kompanii">' + tx('atl.land.merch.name', 'Мерч для компании') + '</a>' +
+        '</span>' +
+        '<label class="atl-foot-langl"><span>' + tx('atl.nav.language', 'Til') + ':</span>' + langSelect('atl-lang-footd') + '</label>' +
+      '</div>' +
+    '</div>';
+
   var foot =
-    '<footer class="atl-foot">' +
+    '<footer class="atl-foot' + (body.getAttribute('data-no-footer') === 'phone' ? ' atl-only-d' : '') + '">' +
+     '<div class="atl-foot-m atl-only-m">' +
       '<nav ' + lbl('atl.foot.aria', 'Pastki') + '>' +
         '<a href="help.html">' + tx('atl.nav.help', 'Yordam') + '</a>' +
         '<a href="privacy.html">' + tx('atl.foot.legal', 'Maxfiylik va shartlar') + '</a>' +
@@ -201,6 +244,7 @@
       '<p class="atl-foot-meta">' + tx('atl.foot.address', 'Toshkent, O‘zbekiston') +
         ' · <a href="https://t.me/looom_design_bot" rel="noopener">' + tx('atl.foot.contact', 'Telegram: @looom_design_bot') + '</a>' +
         ' · © 2026 LOOM</p>' +
+     '</div>' + footD +
     '</footer>';
 
   /* ── inject ──────────────────────────────────────────────────── */
@@ -218,7 +262,9 @@
   var top = document.createElement('div');
   top.innerHTML = skip + mbar + hdr;
   var end = document.createElement('div');
-  end.innerHTML = (body.hasAttribute('data-no-footer') ? '' : foot) +
+  /* data-no-footer="phone": the footer shows on desktop only (404) */
+  var noFoot = body.hasAttribute('data-no-footer') && body.getAttribute('data-no-footer') !== 'phone';
+  end.innerHTML = (noFoot ? '' : foot) +
                   (body.hasAttribute('data-no-nav') ? '' : bnav);
   if (main && main.id !== 'main') top.querySelector('.atl-skip').setAttribute('href', '#' + main.id);
   while (top.lastChild) body.insertBefore(top.lastChild, body.firstChild);
@@ -244,6 +290,10 @@
     var l = e && e.detail && e.detail.lang;
     Array.prototype.forEach.call(body.querySelectorAll('.atl-lang'), function (sel) { if (l) sel.value = l; });
     paintTheme();
+    paintLang();
+    meNow();
+    var hrs = body.querySelector('[data-atl-hours]');
+    if (hrs) hrs.textContent = t('atl.workHours', 'Ish vaqti: {hours}').replace('{hours}', t('atl.hours', '9:00–21:00'));
     setCount(count);
   });
 
@@ -259,6 +309,158 @@
   }
   paintTheme();
   window.addEventListener('loom:themechange', paintTheme);
+
+  /* ── desktop header menus: language and profile ──────────────
+     A button opens a small menu under it (role=menu). Esc, a click
+     outside or picking an item closes it; focus returns to the button.
+     Arrow keys move between items. The header is desktop only. */
+  var openPop = null;
+  function closePop(focusBtn) {
+    if (!openPop) return;
+    var p = openPop;
+    openPop = null;
+    var btn = p.querySelector('[aria-haspopup]');
+    var menu = p.querySelector('[role="menu"]');
+    if (menu) menu.hidden = true;
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); if (focusBtn) btn.focus(); }
+  }
+  function items(menu) { return [].slice.call(menu.querySelectorAll('[role^="menuitem"]')); }
+  function openMenu(p, first) {
+    closePop(false);
+    var btn = p.querySelector('[aria-haspopup]');
+    var menu = p.querySelector('[role="menu"]');
+    menu.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    openPop = p;
+    var list = items(menu);
+    var sel = menu.querySelector('[aria-checked="true"]');
+    var go = first === 'last' ? list[list.length - 1] : (sel || list[0]);
+    if (go) go.focus();
+  }
+  function wirePop(p) {
+    var btn = p.querySelector('[aria-haspopup]');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      if (openPop === p) closePop(false); else openMenu(p);
+    });
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); openMenu(p); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); openMenu(p, 'last'); }
+    });
+    p.querySelector('[role="menu"]').addEventListener('keydown', function (e) {
+      var list = items(this);
+      var i = list.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); closePop(true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); list[(i + 1) % list.length].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); list[(i - 1 + list.length) % list.length].focus(); }
+      else if (e.key === 'Home') { e.preventDefault(); list[0].focus(); }
+      else if (e.key === 'End') { e.preventDefault(); list[list.length - 1].focus(); }
+      else if (e.key === 'Tab') closePop(false);
+    });
+  }
+  document.addEventListener('click', function (e) {
+    if (openPop && !openPop.contains(e.target)) closePop(false);
+  });
+
+  var langPop = body.querySelector('[data-atl-pop="lang"]');
+  function paintLang() {
+    if (!langPop) return;
+    var I = window.LOOM_I18N;
+    var langs = (I && I.LANGS) || ['uz', 'ru', 'en'];
+    var now = I ? I.getLang() : 'uz';
+    langPop.innerHTML =
+      '<button type="button" class="atl-ib atl-hdr-btn" aria-haspopup="menu" aria-expanded="false" ' +
+        'aria-label="' + esc(t('atl.nav.language', 'Til') + ': ' + (LANG_NAMES[now] || now)) + '">' +
+        ic('globe', 1) + '<span>' + esc(now.toUpperCase()) + '</span>' + ic('down', 1) + '</button>' +
+      '<div class="atl-menu" role="menu" ' + lbl('atl.nav.language', 'Til') + ' hidden>' +
+        langs.map(function (l) {
+          return '<button type="button" role="menuitemradio" tabindex="-1" lang="' + l + '" data-lang="' + l + '" aria-checked="' + (l === now) + '">' +
+            (l === now ? ic('check', 1) : '<span class="atl-menu-ic"></span>') + esc(LANG_NAMES[l] || l) + '</button>';
+        }).join('') +
+      '</div>';
+    wirePop(langPop);
+    langPop.querySelector('[role="menu"]').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-lang]');
+      if (!b) return;
+      closePop(true);
+      if (window.LOOM_I18N) window.LOOM_I18N.setLang(b.getAttribute('data-lang'));
+    });
+  }
+
+  var mePop = body.querySelector('[data-atl-pop="me"]');
+  function initials(name) {
+    return String(name || '').trim().split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+  }
+  function fmtPhone(p) {
+    var d = String(p || '').replace(/\D/g, '');
+    return d.length === 12 && d.indexOf('998') === 0
+      ? '+998 ' + d.slice(3, 5) + ' ' + d.slice(5, 8) + ' ' + d.slice(8, 10) + ' ' + d.slice(10) : (p || '');
+  }
+  function paintMe(user) {
+    if (!mePop) return;
+    var wasOpen = openPop === mePop;
+    if (wasOpen) closePop(false);
+    if (!user) {
+      /* account.html shows its own sign-in screen and knows a cookie
+         session this tab has not cached yet. */
+      mePop.innerHTML = '<a class="atl-ib atl-hdr-btn" href="' + profileHref + '"' + cur(active === 'account') + '>' +
+        ic('user') + tx('atl.acc.signInBtn', 'Kirish') + '</a>';
+      return;
+    }
+    var name = user.name || [user.first_name, user.last_name].filter(Boolean).join(' ');
+    var ini = initials(name);
+    var mi = function (href, icon, key, fb) {
+      return '<a role="menuitem" tabindex="-1" href="' + href + '">' + ic(icon, 1) + tx(key, fb) + '</a>';
+    };
+    mePop.innerHTML =
+      '<button type="button" class="atl-ib atl-hdr-btn" aria-haspopup="menu" aria-expanded="false" ' + lbl('atl.nav.profile', 'Profil') + '>' +
+        '<span class="atl-hdr-av" aria-hidden="true">' + (ini ? esc(ini) : ic('user', 1)) + '</span>' + ic('down', 1) + '</button>' +
+      '<div class="atl-menu atl-menu-me" role="menu" ' + lbl('atl.nav.profile', 'Profil') + ' hidden>' +
+        '<div class="atl-menu-who"><b>' + esc(name || t('atl.nav.profile', 'Profil')) + '</b>' +
+          (user.phone ? '<span class="atl-num">' + esc(fmtPhone(user.phone)) + '</span>' : '') + '</div>' +
+        '<hr>' +
+        mi('order.html', 'box', 'atl.orders.title', 'Buyurtmalarim') +
+        mi('account.html#profile', 'user', 'atl.acc.profile', 'Profil') +
+        mi('account.html#addresses', 'pin', 'atl.acc.addresses', 'Manzillar') +
+        '<hr>' +
+        '<button type="button" role="menuitem" tabindex="-1" data-atl-logout>' + tx('atl.acc.logout', 'Chiqish') + '</button>' +
+      '</div>';
+    wirePop(mePop);
+    mePop.querySelector('[data-atl-logout]').addEventListener('click', function () {
+      flash('out');
+      if (window.LOOM_AUTH) window.LOOM_AUTH.logout();
+    });
+  }
+  function meNow() {
+    var u = cachedUser();
+    paintMe(u);
+    /* a token without a cached /me (fresh tab): ask auth.js once */
+    if (!u && token() && window.LOOM_AUTH && window.LOOM_AUTH.getCurrentUser) {
+      window.LOOM_AUTH.getCurrentUser().then(function (x) { if (x) paintMe(x); }).catch(function () {});
+    }
+  }
+  paintLang();
+  meNow();
+  /* account.js re-caches /me after saving a name: repaint on return */
+  window.addEventListener('pageshow', function (e) { if (e.persisted) meNow(); });
+
+  /* ── one-shot toast after a redirect (sign out, account deleted) ── */
+  function flash(kind) {
+    try { sessionStorage.setItem('loom_flash', kind); } catch (e) { /* private mode */ }
+  }
+  var FLASH = { out: ['atl.flash.out', 'Akkauntdan chiqdingiz'], deleted: ['atl.flash.deleted', 'Akkaunt o‘chirildi.'] };
+  function showFlash() {
+    var k = null;
+    try { k = sessionStorage.getItem('loom_flash'); sessionStorage.removeItem('loom_flash'); } catch (e) { return; }
+    if (!k || !FLASH[k]) return;
+    var el = document.createElement('div');
+    el.className = 'atl-toast';
+    el.setAttribute('role', 'status');
+    el.innerHTML = ic('check', 1) + '<span>' + esc(t(FLASH[k][0], FLASH[k][1])) + '</span>';
+    body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 3200);
+  }
+  showFlash();
 
   /* ── cart count ──────────────────────────────────────────────── */
   var count = 0;
@@ -301,11 +503,14 @@
     var gone = navigator.onLine === false;
     if (gone && !off && main) {
       off = document.createElement('p');
-      off.className = 'atl-banner';
+      off.className = 'atl-banner atl-offline';
       off.setAttribute('role', 'status');
       off.innerHTML = '<svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0M12 19.5h.01M3 3l18 18"/></svg>' +
         '<span class="atl-banner-tx" data-i18n="atl.state.offline">' + esc(t('atl.state.offline', 'Internet yo‘q.')) + '</span>';
-      main.insertBefore(off, main.firstChild);
+      /* desktop: a full-width strip under the header (mockup); phone: top of <main> */
+      var hd = body.querySelector('.atl-hdr');
+      if (hd && window.matchMedia && matchMedia('(min-width: 900px)').matches) hd.parentNode.insertBefore(off, hd.nextSibling);
+      else main.insertBefore(off, main.firstChild);
     } else if (!gone && off) {
       off.remove();
       off = null;
@@ -371,5 +576,5 @@
     try { window.LOOM_I18N.applyTo(document); } catch (e) { /* strings stay Uzbek */ }
   }
 
-  window.LOOM_SHELL = { setCount: setCount, syncMain: queueMain };
+  window.LOOM_SHELL = { setCount: setCount, syncMain: queueMain, flash: flash, repaintMe: meNow };
 })();

@@ -14,13 +14,27 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/atelye.css?v=2">
+  <link rel="stylesheet" href="assets/atelye.css?v=3">
   <style>
     /* login.html only (LOOM-323 phase 11). Shared parts come from atelye.css. */
     .atl-login { max-width: 520px; margin: 0 auto; }
     .atl-login-done { padding-top: 60px; }
     .atl-login-done .atl-cv { width: 96px; height: 96px; border-radius: 50%; }
     .atl-login-done .atl-cv .atl-ic { width: 40px; height: 40px; }
+    .atl-login-art { display: none; }
+    /* Desktop (LOOM-333, mockup 2026-11-15): the form on the left half,
+       a garment on the canvas on the right half. */
+    @media (min-width: 900px) {
+      main.atl-login { max-width: none; padding: 0; gap: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 700px; }
+      .atl-login > section { grid-column: 1; grid-row: 1; align-self: center; width: 100%; max-width: 620px; margin-left: auto; padding: 48px 72px; gap: 22px; }
+      .atl-login .atl-inp { height: 56px; font-size: 18px; }
+      .atl-login .atl-inp input { font-size: 18px; }
+      .atl-login #lg-go { height: 56px; }
+      .atl-login .atl-btns > * { flex: none; padding: 0 22px; }
+      .atl-login-done { align-items: flex-start; text-align: left; }
+      .atl-login-art { display: grid; place-items: center; grid-column: 2; grid-row: 1; }
+      .atl-login-art img { width: 52%; height: auto; }
+    }
   </style>
 </head>
 <body data-page="login" data-title="Kirish" data-back="index.html" data-no-nav>
@@ -66,6 +80,8 @@
     </div>
   </section>
 
+  <div class="atl-cv atl-login-art" aria-hidden="true"><img src="configuratorprodutcs/hoodie_flat_front_600.png" alt="" width="600" height="600" loading="lazy" decoding="async"></div>
+
   <!-- Step 3: signed in, returning to ?next= -->
   <section id="lg-done" class="atl-empty atl-center atl-login-done" hidden role="status">
     <span class="atl-cv" aria-hidden="true"><svg class="atl-ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
@@ -77,11 +93,11 @@
 
 </main>
 
-<script src="assets/config.js?v=9"></script>
-<script src="assets/i18n.js?v=61"></script>
+<script src="assets/config.js?v=10"></script>
+<script src="assets/i18n.js?v=62"></script>
 <script src="assets/auth.js?v=6"></script>
 <script src="assets/tma.js?v=5"></script>
-<script src="assets/shell.js?v=3"></script>
+<script src="assets/shell.js?v=4"></script>
 <script src="assets/track.js?v=6"></script>
 <script src="assets/analytics.js?v=4"></script>
 <script src="assets/login.js?v=2"></script>

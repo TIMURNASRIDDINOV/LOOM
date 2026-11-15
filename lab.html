@@ -21,12 +21,25 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/atelye.css?v=2" />
+  <link rel="stylesheet" href="assets/atelye.css?v=3" />
   <script src="assets/boot.js?v=10"></script>
   <style>
     /* Lab only. Components come from assets/atelye.css. */
     .atl-lab .atl-tag { align-self: flex-start; }
     .atl-lab-plan .atl-pill { flex: none; }
+    .atl-lab-art { display: none; }
+    /* Desktop (LOOM-333): text and plan left, a printed tee right. */
+    @media (min-width: 900px) {
+      main.atl-lab { max-width: 1280px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 56px; row-gap: 20px; align-content: center; }
+      .atl-lab > * { grid-column: 1; }
+      .atl-lab .atl-tag { justify-self: start; }
+      .atl-lab .atl-lead { font-size: 18px; }
+      .atl-lab-plan { background: var(--surface); border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--ln); padding: 0 20px; }
+      .atl-lab .atl-btns > * { flex: none; padding: 0 22px; }
+      .atl-lab-art { display: grid; place-items: center; position: relative; grid-column: 2; grid-row: 1 / span 6; align-self: center; height: 540px; border-radius: var(--r-panel); }
+      .atl-lab-art img { position: absolute; width: 60%; height: auto; }
+      .atl-lab-art .atl-lab-pr { width: 17%; left: 41.5%; top: 33%; filter: invert(1); mix-blend-mode: multiply; }
+    }
   </style>
 </head>
 <body data-page="lab" data-title="LOOM Lab" data-back="index.html">
@@ -59,6 +72,10 @@
       <li class="atl-row"><span class="atl-row-tx"><b data-i18n="atl.lab.f4">Bosmadan oldin tekshiruv</b></span><span class="atl-pill" data-i18n="atl.lab.wip">Ishlanmoqda</span></li>
       <li class="atl-row"><span class="atl-row-tx"><b data-i18n="atl.lab.f5">Konstruktordagi tugma</b></span><span class="atl-pill" data-i18n="atl.lab.next">Keyingi qadam</span></li>
     </ul>
+    <div class="atl-cv atl-lab-art" aria-hidden="true">
+      <img src="configuratorprodutcs/tshirt_flat_white_600.png" alt="" width="600" height="600" loading="lazy" decoding="async">
+      <img class="atl-lab-pr" src="images/lab/tashkent.png" alt="" width="400" height="400" loading="lazy" decoding="async">
+    </div>
     <div class="atl-btns">
       <a class="atl-btn atl-btn-g" href="configurator.html" data-tma-main data-i18n="atl.lab.toCfg">Konstruktorga</a>
       <a class="atl-btn" href="market.html" data-i18n="atl.home.toMarket">Marketga</a>
@@ -80,11 +97,11 @@
     <p class="atl-foot-meta"><span data-i18n="atl.foot.address">Toshkent, O‘zbekiston</span> · <a href="https://t.me/looom_design_bot" rel="noopener"><span data-i18n="atl.foot.contact">Telegram: @looom_design_bot</span></a> · © 2026 LOOM</p>
   </footer>
 
-  <script src="assets/config.js?v=9"></script>
-  <script src="assets/i18n.js?v=61"></script>
+  <script src="assets/config.js?v=10"></script>
+  <script src="assets/i18n.js?v=62"></script>
   <script src="assets/auth.js?v=6"></script>
   <script src="assets/tma.js?v=5"></script>
-  <script src="assets/shell.js?v=3"></script>
+  <script src="assets/shell.js?v=4"></script>
   <script src="assets/track.js?v=6"></script>
   <script src="assets/analytics.js?v=4"></script>
 </body>
