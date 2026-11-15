@@ -191,6 +191,11 @@
         '<a href="privacy.html">' + tx('atl.foot.legal', 'Maxfiylik va shartlar') + '</a>' +
         '<a href="designers.html">' + tx('atl.foot.becomeDesigner', 'Dizayner bo‘lish') + '</a>' +
         '<a href="lab.html">' + tx('atl.nav.lab', 'LOOM Lab') + '</a>' +
+        /* SEO landing pages (LOOM-329); same links as the static footer (LOOM-332) */
+        '<a href="futbolka-s-printom">' + tx('atl.land.tee.name', 'Футболка с принтом') + '</a>' +
+        '<a href="hudi-s-printom">' + tx('atl.land.hoodie.name', 'Худи с принтом') + '</a>' +
+        '<a href="svitshot-s-printom">' + tx('atl.land.sweat.name', 'Свитшот с принтом') + '</a>' +
+        '<a href="merch-dlya-kompanii">' + tx('atl.land.merch.name', 'Мерч для компании') + '</a>' +
         langSelect('atl-lang-foot') +
       '</nav>' +
       '<p class="atl-foot-meta">' + tx('atl.foot.address', 'Toshkent, O‘zbekiston') +
