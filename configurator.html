@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="assets/nav.css?v=13" />
     <link rel="stylesheet" href="assets/auth.css?v=13" />
     <link rel="stylesheet" href="assets/login-modal.css?v=6" />
-    <link rel="stylesheet" href="assets/cfg-atelye.css?v=12" />
+    <link rel="stylesheet" href="assets/cfg-atelye.css?v=13" />
     <script src="assets/boot.js?v=10"></script>
 
     <!-- three.js, its four example scripts and the meshopt decoder are NOT
@@ -46,7 +46,7 @@
     <script defer src="assets/vendor/gsap.min.js?v=1"></script>
     <script defer src="assets/config.js?v=11"></script>
     <script defer src="assets/layout.js?v=7"></script>
-    <script defer src="assets/i18n.js?v=62"></script>
+    <script defer src="assets/i18n.js?v=63"></script>
     <script defer src="assets/auth.js?v=6"></script>
     <script defer src="assets/tma.js?v=5"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
@@ -54,7 +54,7 @@
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=4"></script>
     <script defer src="assets/cart.js?v=11"></script>
-    <script defer src="configurator.js?v=110"></script>
+    <script defer src="configurator.js?v=111"></script>
 
     <style>
       /* ============================================================
@@ -1986,41 +1986,6 @@
         .cam-acc-body, .cam-acc-caret { transition: none; }
       }
 
-      /* ── Model credit (LOOM-199) ────────────────────────────────────
-         The CC BY 4.0 line for the bundled tee. Small and quiet, on the
-         glass plate the chips used before the skin, so it stays readable over
-         any garment colour: ink on it is 14:1 or more over a black shirt in
-         light, and about 9:1 over a white shirt in dark. Anchored by its
-         bottom edge above the chips below it, so a longer language wraps
-         upwards, never into them. */
-      .model-credit {
-        position: absolute; z-index: 30; margin: 0;
-        padding: 0.3rem 0.5rem;
-        background: var(--panel-glass); color: var(--text);
-        font-family: var(--font-body); font-size: 0.6875rem; line-height: 1.35;
-        overflow-wrap: break-word;
-      }
-      .model-credit[hidden] { display: none; }
-      .model-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-      .model-credit a:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-      /* Desktop: right corner of the stage, above Reset view. */
-      @media (min-width: 901px) {
-        .model-credit {
-          right: 24px; bottom: calc(24px + var(--chip-h) + 14px);
-          max-width: min(340px, calc(100% - var(--stage-l) - 48px));
-          text-align: right;
-        }
-      }
-      /* Phones: centred just above Front/Back, which sits 56px above the
-         sheet's resting edge (see .view-toggle). */
-      @media (max-width: 900px) {
-        .model-credit {
-          left: 50%; transform: translateX(-50%); bottom: calc(var(--peek) + 64px);
-          width: max-content; max-width: calc(100% - 48px); text-align: center;
-        }
-        .kb-open .model-credit { display: none; }
-      }
-
       /* ══ LOOM-292: three-step phone shell (LOOM_FLAGS.cfgPhone) ═══════
          configurator.js sets html.cfg-phone3 only while the flag is on, so
          with it off nothing here matches and the page is today's. Layout
@@ -2098,7 +2063,6 @@
         /* Front/Back steps up over the hint; the hem keeps clear of both. */
         html.cfg-phone3 body:not(.kb-open) .view-toggle { top: calc(100 * var(--dvh) - var(--peek) - 100px); }
         html.cfg-phone3 body:not(.kb-open) .flat-stagebox { padding-bottom: 106px; }
-        html.cfg-phone3 .model-credit { bottom: calc(var(--peek) + 108px); }
 
         /* The panel: a fixed height under the preview, no handle to drag. */
         html.cfg-phone3 body:not(.kb-open) .studio-sheet { height: var(--peek); transition: none; }
@@ -2163,9 +2127,6 @@
         /* Short screens (320x568): the step 1 and 2 hint goes, so the
            garment keeps the room between the chips and Front/Back. */
         @media (max-height: 700px) {
-          /* LOOM-303: the credit follows Front/Back down (and sits on the
-             camera row on step 3), off the middle of the garment. */
-          html.cfg-phone3 .model-credit { bottom: calc(var(--peek) + 70px); }
           html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet:is([data-step="color"], [data-step="design"])) .p3-hint { display: none; }
           html.cfg-phone3 body:not(.kb-open) .studio:has(.studio-sheet:is([data-step="color"], [data-step="design"])) .view-toggle {
             top: calc(100 * var(--dvh) - var(--peek) - 62px);
@@ -2637,12 +2598,6 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/></svg>
         </button>
       </div>
-
-      <!-- LOOM-199: CC BY 4.0 credit of the bundled tee model. configurator.js
-           unhides it only while the 3D surface shows that model. It lives in
-           the page, not the canvas, so saved PNGs and order mockups never
-           contain it. -->
-      <p id="model-credit" class="model-credit" data-ov data-i18n-html="cfg.modelCredit" hidden>3D-модель «<a href="https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba" target="_blank" rel="noopener">T Shirt</a>», автор <a href="https://sketchfab.com/funlab117" target="_blank" rel="noopener">funlab117</a>, лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Изменена LOOM (сжата для веба).</p>
 
       <!-- ===== Controls =====
            On desktop this wrapper is display:contents, so the dock and the

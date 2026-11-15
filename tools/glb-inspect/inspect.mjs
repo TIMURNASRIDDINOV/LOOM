@@ -2,7 +2,7 @@
 // Vet a garment GLB the way the configurator will see it.
 //
 //   cd tools/glb-inspect && npm install
-//   node inspect.mjs ../../assets/models/t_shirt.glb
+//   node inspect.mjs path/to/model.glb
 //
 // Prints the node tree with mesh/material names and vertex counts, the UV
 // range of every mesh, and — the part that matters — how configurator.js /

@@ -39,15 +39,6 @@
   const LANG_LABELS = { uz: "O‘zbekcha", ru: 'Русский', en: 'English' };
   const LANG_SHORT  = { uz: 'UZ', ru: 'RU', en: 'EN' };
 
-  // LOOM-199: links in the CC BY 4.0 credit of the bundled tee model
-  // (assets/models/t_shirt*.glb). Names and URLs come from its asset.extras.
-  function creditLink(href, text) {
-    return '<a href="' + href + '" target="_blank" rel="noopener">' + text + '</a>';
-  }
-  const CR_TITLE  = creditLink('https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba', 'T Shirt');
-  const CR_AUTHOR = creditLink('https://sketchfab.com/funlab117', 'funlab117');
-  const CR_LICENSE = creditLink('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0');
-
   // ── Dictionary ────────────────────────────────────────────────
   const DICT = {
     'co.priceChanged': { uz: 'Narxlar o‘zgardi. Yangi summani tekshirib, buyurtmani qayta tasdiqlang.', ru: 'Цены изменились. Проверьте новую сумму и подтвердите заказ ещё раз.', en: 'Prices changed. Review the new total and place the order again.' },
@@ -264,12 +255,6 @@
     'cfg.camTurntableZoom': { uz: 'Aylanish + masshtab', ru: 'Вращение + зум', en: 'Turntable + zoom' },
     'cfg.fullscreenEnter': { uz: 'To‘liq ekran', ru: 'Во весь экран', en: 'Full screen' },
     'cfg.viewMode':     { uz: 'Ko‘rinish', ru: 'Вид', en: 'View' },
-    // LOOM-199: shown on the stage while the 3D shows the CC BY tee (data-i18n-html)
-    'cfg.modelCredit': {
-      uz: '“' + CR_TITLE + '” 3D modeli, muallifi ' + CR_AUTHOR + ', ' + CR_LICENSE + ' litsenziyasi asosida. LOOM tomonidan o‘zgartirilgan (veb uchun siqilgan).',
-      ru: '3D-модель «' + CR_TITLE + '», автор ' + CR_AUTHOR + ', лицензия ' + CR_LICENSE + '. Изменена LOOM (сжата для веба).',
-      en: '3D model “' + CR_TITLE + '” by ' + CR_AUTHOR + ', licensed under ' + CR_LICENSE + '. Modified by LOOM (compressed for the web).'
-    },
     'cfg.steps':        { uz: 'Qadamlar', ru: 'Шаги', en: 'Steps' },
     'cfg.designEditor': { uz: 'Dizayn muharriri', ru: 'Редактор дизайна', en: 'Design editor' },
     'cfg.designPanel':  { uz: 'Dizayn paneli', ru: 'Панель дизайна', en: 'Design panel' },
@@ -918,7 +903,6 @@
     'atl.legal.s4': { uz: "Yetkazib berish va to‘lov", ru: "Доставка и оплата", en: "Delivery and payment" },
     'atl.legal.s5': { uz: "Dizaynerlarga", ru: "Дизайнерам", en: "For designers" },
     'atl.legal.s6': { uz: "Akkauntni o‘chirish", ru: "Удаление аккаунта", en: "Deleting your account" },
-    'atl.legal.s7': { uz: "Mualliflar (Credits)", ru: "Авторы (Credits)", en: "Credits" },
     'atl.legal.toc': { uz: "Bo‘limlar", ru: "Разделы", en: "Sections" },
     'atl.legal.consentChange': { uz: "Tanlovni o‘zgartirish", ru: "Изменить выбор", en: "Change my choice" },
     'atl.legal.langNote': { uz: "Matn o‘zbek va rus tillarida. Ikkala tahrir teng kuchga ega.", ru: "Текст на узбекском и русском языках. Обе редакции равнозначны.", en: "The terms are published in Uzbek and Russian; both versions are equally valid. The English page shows the Uzbek text." },
