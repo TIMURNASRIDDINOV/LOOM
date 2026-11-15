@@ -4,6 +4,10 @@
    - data-i18n-html="key"       → element.innerHTML (for markup like <strong>)
    - data-i18n-attr="attr:key;…" → element attribute(s), e.g. "placeholder:order.namePh"
    Language persists in localStorage. Default: Russian.
+   LOOM-330: the pages in PAGES also exist as static /uz/<page> and
+   /en/<page> files (tools/build-locales.mjs writes them from this
+   dictionary). On those URLs the URL decides the language, and picking
+   a language on any page in PAGES goes to that language's URL.
    Public API: window.LOOM_I18N = { getLang, setLang, t, apply, formatPrice, LANGS }
    Fires window event "loom:langchange" with detail.lang so JS-rendered
    content (product cards, orders, toasts) can re-render.
@@ -13,6 +17,24 @@
   const LANGS = ['uz', 'ru', 'en'];
   const DEFAULT = 'ru';
   const STORE_KEY = 'loom_lang';
+
+  // LOOM-330: pages with a URL per language. Russian stays at the root
+  // (/catalog), Uzbek and English live at /uz/catalog and /en/catalog.
+  // tools/build-locales.mjs reads this list; run it after editing a page
+  // in the list or a string one of them uses.
+  const PAGES = ['index', 'catalog', 'futbolka-s-printom', 'hudi-s-printom', 'svitshot-s-printom', 'merch-dlya-kompanii'];
+  // '/uz/catalog.html' -> { lang: 'uz', page: 'catalog' }; '/' -> { lang: null, page: 'index' }
+  function pageOf(pathname) {
+    const m = /^\/(?:(uz|en)(?:\/|$))?(.*)$/.exec(pathname || '/');
+    return { lang: m[1] || null, page: m[2].replace(/\/$/, '').replace(/\.html$/, '') || 'index' };
+  }
+  // The URL of `page` in `lang`, or null when the page has one URL for all languages.
+  function pageUrl(page, lang) {
+    if (PAGES.indexOf(page) === -1) return null;
+    return (lang === DEFAULT ? '/' : '/' + lang + '/') + (page === 'index' ? '' : page);
+  }
+  const HERE = pageOf(location.pathname);
+  const URL_LANG = HERE.lang && PAGES.indexOf(HERE.page) !== -1 ? HERE.lang : null;
 
   const LANG_LABELS = { uz: "O‘zbekcha", ru: 'Русский', en: 'English' };
   const LANG_SHORT  = { uz: 'UZ', ru: 'RU', en: 'EN' };
@@ -782,6 +804,28 @@
     'atl.help.a7': { uz: "PNG, JPG yoki HEIC, 15 MB gacha. Bosma maydoni 30 × 40 sm. Rasmdan foydalanish huquqingiz bo‘lishi kerak.", ru: "PNG, JPG или HEIC, до 15 МБ. Область печати 30 × 40 см. У вас должно быть право использовать изображение.", en: "PNG, JPG or HEIC, up to 15 MB. The print area is 30 × 40 cm. You must have the right to use the image." },
     'atl.help.q8': { uz: "Ranglar ekrandagidek chiqadimi?", ru: "Цвета будут как на экране?", en: "Will the colours match the screen?" },
     'atl.help.a8': { uz: "Matoga bosishda odatiy kichik farq bo‘lishi mumkin.", ru: "При печати на ткани возможна небольшая разница — это нормально.", en: "Printing on fabric can differ slightly from the screen, which is normal." },
+    // LOOM-330: page titles and descriptions per language, product names for the static
+    // cards and the Organization description. Read by tools/build-locales.mjs, which
+    // writes them into the HTML of /, /uz/ and /en/. uz and en are drafts for Content.
+    'seo.index.title': { uz: "Toshkentda o‘z printingiz bilan futbolka va xudi — LOOM", ru: "Футболки и худи со своим принтом в Ташкенте — LOOM", en: "Custom printed T-shirts and hoodies in Tashkent — LOOM" },
+    'seo.index.desc': { uz: "Toshkentda futbolka, xudi va svitshotlarga bosma: o‘z rasmingiz, suratingiz yoki yozuvingiz. Futbolka 265 000 so‘mdan, butun O‘zbekiston bo‘ylab yetkazamiz.", ru: "Печать на футболках, худи и свитшотах в Ташкенте: свой рисунок, фото или текст. Футболка от 265 000 сум, доставка по всему Узбекистану.", en: "Printing on T-shirts, hoodies and sweatshirts in Tashkent: your own artwork, photo or text. T-shirts from 265 000 UZS, delivery across Uzbekistan." },
+    'seo.catalog.title': { uz: "Buyurtma asosida bosmali kiyim: futbolka, xudi, svitshot — LOOM", ru: "Одежда с печатью на заказ: футболки, худи, свитшоты — LOOM", en: "Custom printed clothing: T-shirts, hoodies, sweatshirts — LOOM" },
+    'seo.catalog.desc': { uz: "LOOM katalogi: o‘z printingiz, suratingiz yoki yozuvingiz bilan buyurtma asosida bosiladigan futbolka, xudi va svitshotlar. Futbolka 265 000 so‘mdan, O‘zbekiston bo‘ylab yetkazamiz.", ru: "Каталог LOOM: футболки, худи и свитшоты для печати на заказ со своим принтом, фото или текстом. Футболка от 265 000 сум, доставка по Узбекистану.", en: "The LOOM catalogue: T-shirts, hoodies and sweatshirts printed to order with your own design, photo or text. T-shirts from 265 000 UZS, delivery across Uzbekistan." },
+    'seo.futbolka-s-printom.title': { uz: "Toshkentda o‘z printingiz bilan futbolka buyurtma qiling — LOOM", ru: "Футболка со своим принтом на заказ в Ташкенте — LOOM", en: "Custom T-shirt with your own print in Tashkent — LOOM" },
+    'seo.futbolka-s-printom.desc': { uz: "Printingiz, suratingiz yoki yozuvingiz bilan oversize futbolka: dizayn 3D ko‘rinishli konstruktorda. 265 000 so‘mdan, Toshkent va O‘zbekiston bo‘ylab yetkazamiz.", ru: "Футболка oversize с вашим принтом, фото или надписью: дизайн в конструкторе с 3D-просмотром. От 265 000 сум, доставка по Ташкенту и Узбекистану.", en: "An oversized T-shirt with your print, photo or text: design it in the 3D designer. From 265 000 UZS, delivery in Tashkent and across Uzbekistan." },
+    'seo.hudi-s-printom.title': { uz: "Toshkentda o‘z printingiz bilan xudi buyurtma qiling — LOOM", ru: "Худи со своим принтом на заказ в Ташкенте — LOOM", en: "Custom hoodie with your own print in Tashkent — LOOM" },
+    'seo.hudi-s-printom.desc': { uz: "Printingiz, suratingiz yoki yozuvingiz bilan kapyushonli xudi: dizayn 3D ko‘rinishli konstruktorda. 345 000 so‘mdan, o‘lchamlar XS–XXXL, O‘zbekiston bo‘ylab yetkazamiz.", ru: "Худи с капюшоном и вашим принтом, фото или надписью: дизайн в конструкторе с 3D-просмотром. От 345 000 сум, размеры XS–XXXL, доставка по Узбекистану.", en: "A hooded sweatshirt with your print, photo or text: design it in the 3D designer. From 345 000 UZS, sizes XS–XXXL, delivery across Uzbekistan." },
+    'seo.svitshot-s-printom.title': { uz: "Toshkentda o‘z printingiz bilan svitshot buyurtma qiling — LOOM", ru: "Свитшот со своим принтом на заказ в Ташкенте — LOOM", en: "Custom sweatshirt with your own print in Tashkent — LOOM" },
+    'seo.svitshot-s-printom.desc': { uz: "Printingiz, suratingiz yoki yozuvingiz bilan kapyushonsiz svitshot: dizayn 3D ko‘rinishli konstruktorda. 295 000 so‘mdan, Toshkent va O‘zbekiston bo‘ylab yetkazamiz.", ru: "Свитшот без капюшона с вашим принтом, фото или надписью: дизайн в конструкторе с 3D-просмотром. От 295 000 сум, доставка по Ташкенту и Узбекистану.", en: "A crew-neck sweatshirt with your print, photo or text: design it in the 3D designer. From 295 000 UZS, delivery in Tashkent and across Uzbekistan." },
+    'seo.merch-dlya-kompanii.title': { uz: "Toshkentda kompaniya va jamoa uchun logotipli merch — LOOM", ru: "Мерч с логотипом для компании и команды в Ташкенте — LOOM", en: "Branded merch for companies and teams in Tashkent — LOOM" },
+    'seo.merch-dlya-kompanii.desc': { uz: "Kompaniya logotipi yoki jamoa nomi bilan futbolka, xudi va svitshotlar. Maket buyurtmadan oldin 3D da, futbolka 265 000 so‘mdan, O‘zbekiston bo‘ylab yetkazamiz.", ru: "Футболки, худи и свитшоты с логотипом компании или названием команды. Макет в 3D до заказа, футболка от 265 000 сум, доставка по Узбекистану.", en: "T-shirts, hoodies and sweatshirts with your company logo or team name. See the mock-up in 3D before you order; T-shirts from 265 000 UZS, delivery across Uzbekistan." },
+    'seo.org.desc': { uz: "3D konstruktorli, buyurtma asosida tikiladigan kiyim. Butun O‘zbekiston bo‘ylab yetkazamiz.", ru: "Кастомная одежда с 3D-конфигуратором и доставкой по всему Узбекистану.", en: "Custom clothing with a 3D designer and delivery across Uzbekistan." },
+    // Same names as GET /api/products (name_uz / name_ru / name_en); tools/check-static-prices.mjs compares them.
+    'seo.prod.tshirt-regular': { uz: "Futbolka oversize", ru: "Футболка oversize", en: "Oversized T-Shirt" },
+    'seo.prod.hoodie-regular': { uz: "Klassik xudi", ru: "Худи классическое", en: "Classic Hoodie" },
+    'seo.prod.sweatshirt': { uz: "Svitshot", ru: "Свитшот", en: "Sweatshirt" },
+    'seo.langAria': { uz: "Til", ru: "Язык", en: "Language" },
+
     // Landing pages per garment and company merch (LOOM-329)
     'atl.land.from': { uz: "{price}dan", ru: "от {price}", en: "from {price}" },
     'atl.land.colors': { uz: "Ranglar: oq va qora", ru: "Цвета: белый и чёрный", en: "Colours: white and black" },
@@ -860,6 +904,7 @@
 
   // ── Core ──────────────────────────────────────────────────────
   function getLang() {
+    if (URL_LANG) return URL_LANG; // /uz/… and /en/… stay in their language (LOOM-330)
     try { const l = localStorage.getItem(STORE_KEY); if (LANGS.indexOf(l) !== -1) return l; } catch (e) {}
     return DEFAULT;
   }
@@ -893,6 +938,21 @@
         if (DICT[key]) el.setAttribute(attr, t(key, lang));
       });
     });
+    if (URL_LANG && root.querySelectorAll) root.querySelectorAll('a[href]').forEach(localizeLink);
+  }
+
+  // LOOM-330: /uz/ and /en/ pages carry <base href="/"> so scripts keep
+  // loading assets by their usual relative paths. That sends links built
+  // in JS (shell.js, home.js) to the Russian root, and "#main" to "/#main":
+  // point both back at this language.
+  function localizeLink(a) {
+    const raw = a.getAttribute('href') || '';
+    if (raw.charAt(0) === '#') { a.setAttribute('href', location.pathname + location.search + raw); return; }
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(raw)) return;
+    const m = /^([^?#]*)(.*)$/.exec(raw);
+    const at = pageOf('/' + m[1].replace(/^\//, ''));
+    const to = at.lang ? null : pageUrl(at.page, URL_LANG);
+    if (to) a.setAttribute('href', to + m[2]);
   }
 
   function apply(lang) {
@@ -909,6 +969,14 @@
   function setLang(lang) {
     if (LANGS.indexOf(lang) === -1) return;
     try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+    // LOOM-330: a page with a URL per language goes to that URL. Without
+    // one (configurator, cart, account…) the text is swapped in place.
+    const to = pageUrl(HERE.page, lang);
+    if (to && lang !== (URL_LANG || DEFAULT)) {
+      try { sessionStorage.setItem('loom_lang_nav', '1'); } catch (e) {} // index.html: no intro loader on a language switch
+      location.href = to + location.search + location.hash;
+      return;
+    }
     apply(lang);
   }
 
@@ -988,6 +1056,16 @@
   }
 
   function boot() {
+    if (URL_LANG) {
+      // A first visit that lands on /uz/… or /en/… keeps that language on
+      // the pages without a language URL. A stored choice is not replaced.
+      try { if (LANGS.indexOf(localStorage.getItem(STORE_KEY)) === -1) localStorage.setItem(STORE_KEY, URL_LANG); } catch (e) {}
+      // links drawn later by page scripts, caught at the click
+      document.addEventListener('click', function (e) {
+        const a = e.target && e.target.closest && e.target.closest('a[href]');
+        if (a) localizeLink(a);
+      }, true);
+    }
     initSwitchers();
     apply(getLang());
   }
@@ -1040,6 +1118,7 @@
     getLang: getLang, setLang: setLang, t: t, apply: apply, plural: plural,
     applyTo: applyTo, formatPrice: formatPrice, initSwitchers: initSwitchers,
     productName: productName,
-    LANGS: LANGS
+    LANGS: LANGS,
+    PAGES: PAGES, entry: function (key) { return DICT[key]; } // tools/build-locales.mjs
   };
 })();
