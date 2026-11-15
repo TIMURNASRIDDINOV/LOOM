@@ -199,6 +199,8 @@
       }).slice(0, 6);
       renderGarments();
     }).catch(function () {
+      /* the static cards from index.html (LOOM-328) stay as they are */
+      if (box.querySelector('a.atl-pc')) return;
       /* the error block replaces the row (a row would squeeze it) */
       box.hidden = true;
       var err = document.createElement('div');

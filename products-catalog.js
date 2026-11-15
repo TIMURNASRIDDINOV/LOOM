@@ -60,6 +60,11 @@
   }
 
   var products = null;
+  /* catalog.html ships the on-sale garments as static cards for no-JS
+     crawlers (LOOM-328; tools/check-static-prices.mjs keeps them in
+     step with the API). They stay on screen until live data replaces
+     them, and stay under the error block if the API fails. */
+  var fallback = root.querySelector('.atl-pc') ? root.innerHTML : '';
   var current = (new URLSearchParams(location.search).get('type')) || 'all';
 
   function card(p) {
@@ -115,13 +120,13 @@
 
   function failed() {
     root.removeAttribute('aria-busy');
-    root.innerHTML = '<div class="atl-empty"><h2 class="atl-t2">' + esc(t('atl.state.errT', 'Nimadir noto‘g‘ri ketdi')) + '</h2>' +
+    root.innerHTML = fallback + '<div class="atl-empty"><h2 class="atl-t2">' + esc(t('atl.state.errT', 'Nimadir noto‘g‘ri ketdi')) + '</h2>' +
       '<p class="atl-lead">' + esc(t('atl.state.errL', 'Sahifani yuklab bo‘lmadi. Internetni tekshirib, yangilang.')) + '</p>' +
       '<div class="atl-btns"><button type="button" class="atl-btn atl-btn-g" data-retry>' + esc(t('atl.reload', 'Yangilash')) + '</button></div></div>';
   }
 
   function load() {
-    skeleton();
+    if (!fallback) skeleton();
     fetch(api() + '/api/products')
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (d) { products = (d && d.products) || []; render(); })
