@@ -22,6 +22,10 @@
      data-no-nav    no phone bottom nav (pages with their own action bar)
      data-no-footer no footer
 
+   Static fallback: a page may carry <header class="atl-hdr"
+   data-atl-static> and <footer class="atl-foot" data-atl-static> for
+   no-JS crawlers; the shell removes every [data-atl-static] first.
+
    Draws: skip link, phone top bar, desktop header (logo, Katalog,
    Market, Dizaynerlar, Lab, Yordam, language, theme, cart, profile,
    Dizayn yaratish), phone bottom nav (Asosiy, Katalog, Yaratish,
@@ -195,6 +199,12 @@
     '</footer>';
 
   /* ── inject ──────────────────────────────────────────────────── */
+  /* Indexable pages carry a static header and footer for crawlers that
+     do not run JS (LOOM-328). The shell draws the real ones, so the
+     static copies go first: exactly one header and one footer. */
+  Array.prototype.forEach.call(body.querySelectorAll('[data-atl-static]'), function (el) {
+    el.parentNode.removeChild(el);
+  });
   var main = document.querySelector('main');
   if (main) {
     if (!main.id) main.id = 'main';

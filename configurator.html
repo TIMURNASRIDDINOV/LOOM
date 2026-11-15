@@ -2497,6 +2497,20 @@
 
   <body data-page="configurator" data-cart data-no-footer data-no-smooth data-no-cursor>
     <!-- Header injected by assets/layout.js (data-cart adds the cart button) -->
+    <!-- Site links and contacts for crawlers and visitors without JS (LOOM-328).
+         The configurator needs JS, so this never shows next to layout.js's header. -->
+    <noscript>
+      <nav aria-label="Asosiy">
+        <a href="index.html">LOOM</a> ·
+        <a href="catalog.html">Katalog</a> ·
+        <a href="market.html">Market</a> ·
+        <a href="designers.html">Dizaynerlar</a> ·
+        <a href="lab.html">LOOM Lab</a> ·
+        <a href="help.html">Yordam</a> ·
+        <a href="privacy.html">Maxfiylik va shartlar</a>
+      </nav>
+      <p>Toshkent, O‘zbekiston · <a href="https://t.me/looom_design_bot" rel="noopener">Telegram: @looom_design_bot</a></p>
+    </noscript>
 
     <!-- ===== Studio stage ===== -->
     <main class="studio" data-i18n-attr="aria-label:cfg.eyebrow" aria-label="Конфигуратор">
