@@ -271,10 +271,28 @@
     padding: 0; background: none; color: var(--mut); text-align: center;
     font: 500 10.5px/1.25 var(--f);
   }
-  /* Narrow phones wrap it to 4 or 5 lines: hang it from the row's top so
-     the first line never leaves the screen. */
+  /* Narrow phones wrap it to 3 or 4 lines: hang it from the row's top so
+     the first line never leaves the screen. LOOM-319: 4 lines of 11 px fill
+     the 44 px row exactly, so the credit stays inside the row's overlay box
+     and R-4 does not count it twice. */
   @media (max-width: 374px) {
-    html.cfg-atelye .model-credit { top: calc(var(--atl-st) + 3px); transform: none; font-size: 10px; line-height: 1.2; }
+    html.cfg-atelye .model-credit { top: calc(var(--atl-st) + 5px); transform: none; font-size: 10px; line-height: 1.1; }
+  }
+  /* LOOM-319: the three inline links were 11-24 px tall with 0-2 px
+     between them. On touch the whole credit is one target: the model link
+     (its Sketchfab page names the author and CC BY 4.0) stretches over the
+     line and is at least 44 px tall, centred on it, so it fills the row
+     (5 px to 49 px) and keeps 8 px from Orqaga and 2D / 3D. The other two
+     links stay in the text and in the tab order. The box R-4 measures is
+     the paragraph's, so the preview share does not move. */
+  html.cfg-atelye .model-credit a { pointer-events: none; }
+  html.cfg-atelye .model-credit a:first-of-type { pointer-events: auto; }
+  html.cfg-atelye .model-credit a:first-of-type::after {
+    content: ""; position: absolute; left: 0; right: 0;
+    top: min(0px, calc(50% - 22px)); bottom: min(0px, calc(50% - 22px));
+  }
+  @media (max-width: 374px) {
+    html.cfg-atelye .model-credit a:first-of-type::after { top: 0; bottom: auto; height: max(100%, 44px); }
   }
 
   /* ── LOOM-312: messages on the strip (upload, low quality, 3D failed) ── */
