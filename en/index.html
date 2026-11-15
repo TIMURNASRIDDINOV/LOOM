@@ -42,30 +42,57 @@
 
   <!-- Structured data -->
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Organization",
-        "@id": "https://loomdesign.uz/#organization",
-        "name": "LOOM",
-        "url": "https://loomdesign.uz/",
-        "logo": "https://loomdesign.uz/images/icon-512.png",
-        "image": "https://loomdesign.uz/images/og-image.jpg",
-        "description": "Custom clothing with a 3D designer and delivery across Uzbekistan.",
-        "areaServed": "UZ"
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LocalBusiness",
+      "@id": "https://loomdesign.uz/#org",
+      "name": "LOOM",
+      "url": "https://loomdesign.uz/",
+      "alternateName": [
+        "LOOM Design",
+        "loomdesign.uz"
+      ],
+      "logo": "https://loomdesign.uz/images/icon-512.png",
+      "image": "https://loomdesign.uz/images/og-image.jpg",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "улица Ислама Каримова, 49",
+        "addressLocality": "Ташкент",
+        "addressCountry": "UZ"
       },
-      {
-        "@type": "WebSite",
-        "@id": "https://loomdesign.uz/#website",
-        "url": "https://loomdesign.uz/",
-        "name": "LOOM",
-        "inLanguage": "en",
-        "publisher": { "@id": "https://loomdesign.uz/#organization" }
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 41.310253,
+        "longitude": 69.24964
+      },
+      "areaServed": {
+        "@type": "Country",
+        "name": "Uzbekistan"
+      },
+      "sameAs": [
+        "https://t.me/looom_design_bot"
+      ],
+      "description": "Custom clothing with a 3D designer and delivery across Uzbekistan."
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://loomdesign.uz/#website",
+      "url": "https://loomdesign.uz/",
+      "name": "LOOM",
+      "inLanguage": [
+        "ru",
+        "uz",
+        "en"
+      ],
+      "publisher": {
+        "@id": "https://loomdesign.uz/#org"
       }
-    ]
-  }
-  </script>
+    }
+  ]
+}
+</script>
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
