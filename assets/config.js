@@ -33,6 +33,6 @@
     cfgPhone: true,
     cfgDesktop: false,
     cfgAtelye: true,
-    cfgAtelyeDesktop: false,
+    cfgAtelyeDesktop: true,
   }
 })()
