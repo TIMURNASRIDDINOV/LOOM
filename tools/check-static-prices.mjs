@@ -11,6 +11,8 @@
 //   - a product the page shows live has no static card.
 //
 // The server stays the source of prices; the static cards are display only.
+// The same checks run on the generated /uz/ and /en/ copies (LOOM-330), plus:
+// a static card name must equal the API name in that page's language.
 // Landing pages: see the data-from block below (LOOM-329).
 // Needs the network unless --api points at a saved JSON file. Node 18+.
 //
@@ -38,10 +40,12 @@ const PAGES = {
   'index.html': live.filter((p) => (p.product_type || 'custom') !== 'ready').slice(0, 6),
 };
 
-const CARD = /<a class="atl-pc" href="product\.html\?slug=([^"]+)">[\s\S]*?<span class="atl-pc-nm">([^<]*)<\/span><span class="atl-pc-pr">([\s\S]*?)<\/span><\/span><\/a>/g;
+const LOCALES = [['', 'ru'], ['uz/', 'uz'], ['en/', 'en']]; // folder, language
+const CARD = /<a class="atl-pc" href="\/?product\.html\?slug=([^"]+)">[\s\S]*?<span class="atl-pc-nm"[^>]*>([^<]*)<\/span><span class="atl-pc-pr">([\s\S]*?)<\/span><\/span><\/a>/g;
 const errors = [];
 
-for (const [file, want] of Object.entries(PAGES)) {
+for (const [dir, lang] of LOCALES) for (const [page, want] of Object.entries(PAGES)) {
+  const file = dir + page;
   const html = readFileSync(join(root, file), 'utf8');
   const cards = [...html.matchAll(CARD)].map((m) => ({
     slug: decodeURIComponent(m[1]), name: m[2], price: Number(m[3].replace(/<[^>]+>|&nbsp;|\D/g, '')),
@@ -51,6 +55,8 @@ for (const [file, want] of Object.entries(PAGES)) {
     const p = bySlug.get(c.slug);
     if (!p) errors.push(`${file}: "${c.name}" (${c.slug}) is not in the live catalogue`);
     else if (Number(p.price) !== c.price) errors.push(`${file}: "${c.name}" (${c.slug}) static ${c.price} vs API ${p.price}`);
+    else if (p[`name_${lang}`] && p[`name_${lang}`].trim() !== c.name) errors.push(`${file}: ${c.slug} static name "${c.name}" vs API name_${lang} "${p[`name_${lang}`]}"`);
+    else if (!p[`name_${lang}`]) console.log(`  note: ${c.slug} has no name_${lang} in the API; ${file} shows "${c.name}" from assets/i18n.js`);
   }
   for (const p of want) {
     if (!cards.some((c) => c.slug === p.slug)) errors.push(`${file}: "${p.name_ru}" (${p.slug}) has no static card`);
@@ -64,8 +70,9 @@ for (const [file, want] of Object.entries(PAGES)) {
 // must be one of those prices or the delivery fee.
 const DELIVERY = 30000; // site copy: atl.help.a1, privacy.html §4
 const bySlugAll = new Map(live.map((p) => [p.slug, p]));
-const AMOUNT = /(\d{1,3}(?:(?:&nbsp;|\s)\d{3})+)(?:&nbsp;|\s)*сум/g;
-for (const file of readdirSync(root).filter((f) => f.endsWith('.html'))) {
+const AMOUNT = /(\d{1,3}(?:(?:&nbsp;|\s)\d{3})+)(?:&nbsp;|\s)*(?:сум|so[‘'ʻ]m|UZS)/g;
+const htmlIn = (dir) => readdirSync(join(root, dir)).filter((f) => f.endsWith('.html')).map((f) => dir + f);
+for (const file of LOCALES.flatMap(([dir]) => htmlIn(dir))) {
   const html = readFileSync(join(root, file), 'utf8');
   const tags = [...html.matchAll(/data-slug="([^"]+)" data-from="(\d+)">([^<]*)</g)];
   if (!tags.length) continue;
@@ -79,7 +86,7 @@ for (const file of readdirSync(root).filter((f) => f.endsWith('.html'))) {
   }
   for (const [, n] of html.matchAll(AMOUNT)) {
     const v = Number(n.replace(/&nbsp;|\D/g, ''));
-    if (!allowed.has(v)) errors.push(`${file}: amount ${v} сум is neither a live price on this page nor delivery`);
+    if (!allowed.has(v)) errors.push(`${file}: amount ${v} in the page's currency is neither a live price on this page nor delivery`);
   }
   console.log(`${file}: ${tags.length} landing prices`);
 }

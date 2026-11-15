@@ -4,6 +4,7 @@ name: CI
 #   1. backend/ typechecks (tsc --noEmit)
 #   2. no asset ?v= drift (tools/check-asset-versions.mjs)
 #   3. every site JS file parses (node --check)
+# Plus: the /uz/ and /en/ pages match their sources (LOOM-330).
 #
 # No secrets and no deploys: Cloudflare Pages and Workers publish from the
 # branch themselves, and every step here only reads the checkout.
@@ -87,3 +88,9 @@ jobs:
 
       - name: Site JS parses (node --check)
         run: node tools/check-site-js.mjs
+
+      # /uz/ and /en/ pages, hreflang tags and sitemap.xml are generated from
+      # the Russian pages and assets/i18n.js. Fails when they are stale, when a
+      # string lacks a language, or when Russian text is left in a uz/en page.
+      - name: Language pages up to date (tools/build-locales.mjs --check)
+        run: node tools/build-locales.mjs --check
