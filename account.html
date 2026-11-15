@@ -73,9 +73,10 @@
       #acc-profile-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
       #acc-profile-form > :not(.atl-field) { grid-column: 1 / -1; }
       #acc-profile-form > .atl-btn { justify-self: start; }
-      #acc-addr-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-      #acc-addr-form > .atl-field:first-child { grid-column: 1 / -1; }
-      #acc-addr-form > .atl-btn { grid-column: auto; justify-self: start; }
+      /* Address full width, label half width on its own line, then Save and Cancel side by side. */
+      #acc-addr-form { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+      #acc-addr-form > .atl-field { flex: 0 0 100%; min-width: 0; }
+      #acc-addr-form > .atl-field + .atl-field { flex-basis: calc(50% - 8px); margin-right: calc(50% - 8px); }
       .atl-acc-acts { display: inline-flex; gap: 8px; margin-left: 8px; }
       .atl-acc-acts .atl-btn { height: 44px; padding: 0 14px; }
       .atl-acc-body .atl-banner .atl-btns > * { flex: none; height: 44px; }
@@ -191,7 +192,7 @@
 </script>
 <script src="assets/shell.js?v=4"></script>
 <script src="assets/analytics.js?v=4"></script>
-<script src="assets/address-picker.js?v=4"></script>
+<script src="assets/address-picker.js?v=5"></script>
 <script src="assets/designer.js?v=2"></script>
 <script src="assets/account.js?v=13"></script>
 </body>

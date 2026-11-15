@@ -339,7 +339,7 @@ html.tma body.atl-abar-on:not(:has(.atl-abar-fit)) { padding-bottom: var(--atl-s
 .atl-addr-map-wrap { position: relative; isolation: isolate; contain: paint; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--ln); overflow: hidden; }
 .atl-addr-map { height: 260px; width: 100%; background: var(--canvas); }
 .atl-addr-pin { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-50%, -100%); pointer-events: none; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .3)); }
-.atl-addr-locate { position: absolute; right: 10px; bottom: 34px; z-index: 3; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--ink); box-shadow: var(--e1); }
+.atl-addr-locate { position: absolute; right: 10px; top: 10px; z-index: 3; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--ink); box-shadow: var(--e1); }
 .atl-addr-line { min-height: 22px; }
 .atl-addr-line-text { font-size: 14px; color: var(--mut); }
 .atl-addr-line-text[data-state="ok"] { color: var(--ink); }
@@ -347,7 +347,7 @@ html.tma body.atl-abar-on:not(:has(.atl-abar-fit)) { padding-bottom: var(--atl-s
 .atl-addr-map .maplibregl-ctrl-group button { width: 44px; height: 44px; }
 .atl-addr-map .maplibregl-ctrl-group button + button { border-top-color: var(--ln); }
 html[data-theme="dark"] .atl-addr-map .maplibregl-ctrl-icon { filter: invert(1); }
-.atl-addr-map .maplibregl-ctrl-attrib { background: var(--surface); color: var(--mut); font-size: 10px; max-width: 100%; }
+.atl-addr .atl-addr-map .maplibregl-ctrl-attrib { background: var(--surface); color: var(--mut); font-size: 10px; max-width: 100%; }
 .atl-addr-map .maplibregl-ctrl-attrib a { color: inherit; }
 
 .atl-avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--ink); color: var(--surface); display: grid; place-items: center; font: 700 19px var(--f); flex: none; overflow: hidden; }

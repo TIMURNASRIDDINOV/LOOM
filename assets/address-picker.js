@@ -11,7 +11,9 @@
      human address, so text and coordinates can never disagree
    · "locate me" button
    · theme-aware OpenFreeMap vector map (positron / dark), swaps live on
-     theme change; attribution comes from the OpenFreeMap TileJSON
+     theme change; attribution comes from each map's own sources
+   · if OpenFreeMap does not draw, it falls back on its own to VersaTiles,
+     then to plain OpenStreetMap tiles (all free, no key)
 
    LOOM_ADDRESS.load() fetches MapLibre GL JS (CSS + JS) on demand.
    Returns { get, set, destroy }. get() → {lat, lng, address} | null.
@@ -24,10 +26,20 @@
 
   var TASHKENT = [69.2401, 41.2995]; // [lng, lat], MapLibre order
   var UZ_BBOX = '55.9,37.1,73.2,45.6'; // lon,lat,lon,lat — bias search to Uzbekistan
-  var STYLES = {
-    light: 'https://tiles.openfreemap.org/styles/positron',
-    dark: 'https://tiles.openfreemap.org/styles/dark',
+  var OSM_RASTER = {
+    version: 8,
+    sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>' } },
+    layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
   };
+  /* Tried in order; the next one takes over when the current one does not draw. */
+  var PROVIDERS = [
+    { light: 'https://tiles.openfreemap.org/styles/positron', dark: 'https://tiles.openfreemap.org/styles/dark' },
+    { light: 'https://tiles.versatiles.org/assets/styles/gray/style.json', dark: 'https://tiles.versatiles.org/assets/styles/colorful-dark/style.json' },
+    { light: OSM_RASTER, dark: OSM_RASTER }, // no dark variant
+  ];
+  var FALLBACK_MS = 12000;   // nothing drawn by then: try the next map
+  var FALLBACK_ERRORS = 3;   // tile errors before the first full draw
   /* MapLibre 5.x is the last line with a classic-script build (6.x is ESM
      only). Verified byte-identical to the npm tarball. */
   var ML = 'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.24.0/maplibre-gl';
@@ -156,9 +168,10 @@
     var initial = opts.initial && opts.initial.lat ? [opts.initial.lng, opts.initial.lat] : TASHKENT;
     var theme = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'dark' : 'light';
     var map;
+    var prov = 0, drawn = false, styleReady = false, errors = 0, guard = null;
     try {
       map = new maplibregl.Map({
-        container: mapEl, style: STYLES[theme], center: initial,
+        container: mapEl, style: PROVIDERS[0][theme], center: initial,
         zoom: opts.initial && opts.initial.lat ? 16 : 12, maxZoom: 19,
         attributionControl: { compact: false },
         dragRotate: false, pitchWithRotate: false, touchPitch: false,
@@ -166,9 +179,34 @@
     } catch (e) { container.innerHTML = ''; container.classList.remove('atl-addr'); return null; } // no WebGL
     map.touchZoomRotate.disableRotation();
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+
+    /* fallback: a map counts as working once it has drawn fully (idle) */
+    function watch() {
+      drawn = false; styleReady = false; errors = 0;
+      clearTimeout(guard);
+      guard = setTimeout(nextProvider, FALLBACK_MS);
+    }
+    function nextProvider() {
+      if (destroyed || drawn || prov >= PROVIDERS.length - 1) return;
+      prov++;
+      watch();
+      map.setStyle(PROVIDERS[prov][theme], { diff: false });
+    }
+    map.on('style.load', function () { styleReady = true; });
+    map.on('idle', function () { if (!drawn) { drawn = true; clearTimeout(guard); } });
+    map.on('error', function () {
+      if (drawn) return;                       // a stray tile later on is not an outage
+      if (!styleReady || ++errors >= FALLBACK_ERRORS) nextProvider();
+    });
+    watch();
+
     function onTheme(e) {
       var next = (e.detail && e.detail.theme) === 'dark' ? 'dark' : 'light';
-      if (next !== theme) { theme = next; map.setStyle(STYLES[next]); }
+      if (next === theme) return;
+      theme = next;
+      if (PROVIDERS[prov].light === PROVIDERS[prov].dark) return; // nothing to swap
+      watch();
+      map.setStyle(PROVIDERS[prov][theme], { diff: false });
     }
     window.addEventListener('loom:themechange', onTheme);
 
@@ -261,6 +299,7 @@
     function invalidate() { map.resize(); }
     function destroy() {
       destroyed = true;
+      clearTimeout(guard);
       window.removeEventListener('loom:themechange', onTheme);
       map.remove();
       container.innerHTML = '';
