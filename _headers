@@ -46,9 +46,6 @@
 /products-catalog.js
   Cache-Control: public, max-age=31536000, immutable
 
-/products-catalog.css
-  Cache-Control: public, max-age=31536000, immutable
-
 # ── Media: unversioned, so revalidate rather than freeze ─────────
 # 30 days in cache, then a year of stale-while-revalidate so a repeat
 # visitor never waits on a byte-identical photo.

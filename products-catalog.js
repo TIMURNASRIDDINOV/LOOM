@@ -1,483 +1,148 @@
-// Vanilla JavaScript Product Catalog — dynamic from API
+/* ================================================================
+   LOOM — catalogue grid (catalog.html, Atelye skin, LOOM-323).
+
+   GET /api/products → type chips + product cards. A card opens
+   product.html?slug=…; colour, size and the cart live there.
+   Markup is atl-* only (assets/atelye.css). The chip filter is kept in
+   ?type= so Back returns to the same view.
+================================================================ */
+'use strict';
 (function () {
-  'use strict'
+  var root = document.getElementById('product-list-root');
+  var chips = document.getElementById('catalog-chips');
+  if (!root) return;
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
-  function T(key, fallback) {
-    try { return (window.LOOM_I18N ? window.LOOM_I18N.t(key) : fallback) || fallback }
-    catch (e) { return fallback }
-  }
-
-  /** Product name in the visitor's language, falling back to Russian. */
-  function PN(product) {
-    if (window.LOOM_I18N && window.LOOM_I18N.productName) return window.LOOM_I18N.productName(product)
-    return (product && (product.name_ru || product.slug)) || ''
-  }
-
-  function formatPrice(price) {
-    if (window.LOOM_I18N) return window.LOOM_I18N.formatPrice(price)
-    return Number(price).toLocaleString('ru-RU') + ' сум'
-  }
-
-  function esc(s) {
-    if (!s) return ''
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  }
-
-  function getApiBase() {
-    return window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz'
-  }
-
-  // ── Skeleton placeholders ─────────────────────────────────────────────────
-  function renderSkeletons(container, count) {
-    const grid = document.createElement('div')
-    grid.className = 'product-grid'
-    grid.id = 'catalog-skeleton'
-
-    for (let i = 0; i < count; i++) {
-      const card = document.createElement('div')
-      card.className = 'product-card product-card--skeleton'
-      card.innerHTML = `
-        <div class="product-card__image-container" style="background:var(--hover-wash)">
-          <div style="width:100%;height:100%;background:linear-gradient(90deg,var(--hover-wash) 25%,var(--line-soft) 50%,var(--hover-wash) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite"></div>
-        </div>
-        <div class="product-card__content">
-          <div style="height:18px;background:var(--line-soft);border-radius:0;margin-bottom:0.5rem;animation:shimmer 1.4s infinite"></div>
-          <div style="height:14px;width:60%;background:var(--hover-wash);border-radius:0;animation:shimmer 1.4s infinite"></div>
-        </div>
-      `
-      grid.appendChild(card)
-    }
-
-    if (!document.getElementById('shimmer-style')) {
-      const s = document.createElement('style')
-      s.id = 'shimmer-style'
-      s.textContent = '@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}'
-      document.head.appendChild(s)
-    }
-
-    container.appendChild(grid)
-  }
-
-  // ── Error state ───────────────────────────────────────────────────────────
-  function renderError(container, onRetry) {
-    const wrap = document.createElement('div')
-    wrap.style.cssText = 'text-align:center;padding:4rem 1.5rem;color:var(--ink-55)'
-    wrap.innerHTML = `
-      <p style="margin-bottom:1rem">${T('catalog.loadError', 'Не удалось загрузить каталог.')}</p>
-      <button id="catalog-retry" style="
-        padding:0.85rem 1.6rem;border:var(--rule);
-        background:transparent;color:var(--ink);border-radius:0;font-family:var(--font-display,inherit);
-        font-weight:700;box-shadow:var(--hard-sm);
-        font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;
-        transition:background 0.2s">${T('catalog.retry', 'Повторить')}</button>
-    `
-    container.appendChild(wrap)
-    container.querySelector('#catalog-retry').addEventListener('click', onRetry)
-  }
-
-  // ── Card factory ──────────────────────────────────────────────────────────
-  function createProductCard(product) {
-    const isReady = (product.product_type || 'custom') === 'ready'
-
-    const card = document.createElement('div')
-    card.className = 'product-card' + (isReady ? ' product-card--ready' : '')
-    card.setAttribute('data-product-id', product.id)
-    card.setAttribute('data-slug', product.slug || '')
-
-    const imageContainer = document.createElement('div')
-    imageContainer.className = 'product-card__image-container'
-
-    // Ready designs get a corner chip so the two catalog types never blur
-    if (isReady) {
-      const chip = document.createElement('span')
-      chip.className = 'pcard__ready-chip'
-      chip.textContent = T('catalog.readyBadge', 'Готовый дизайн')
-      imageContainer.appendChild(chip)
-    }
-
-    if (product.thumbnail_url) {
-      const img = document.createElement('img')
-      img.loading = 'lazy'
-      img.decoding = 'async'
-      img.src = product.thumbnail_url
-      img.alt = PN(product)
-      img.className = 'product-card__image'
-      img.onerror = function () {
-        this.style.display = 'none'
-        imageContainer.style.background = 'var(--hover-wash)'
-      }
-      imageContainer.appendChild(img)
-    } else {
-      imageContainer.style.background = 'var(--hover-wash)'
-    }
-
-    // Hover swap: no second photo in the API yet, so the "back" is a
-    // styled ink tile with the product name (classes from theme.css).
-    // When a hover image exists, drop it in here instead.
-    const alt = document.createElement('div')
-    alt.className = 'pcard__media-alt'
-    alt.setAttribute('aria-hidden', 'true')
-    const altTag = document.createElement('span')
-    altTag.className = 'pcard__alt-tag'
-    altTag.textContent = isReady ? T('catalog.readyBadge', 'Готовый дизайн') : 'Apparel'
-    const altName = document.createElement('span')
-    altName.className = 'pcard__alt-name'
-    altName.textContent = PN(product)
-    const altSlash = document.createElement('span')
-    altSlash.className = 'pcard__alt-slash'
-    altSlash.textContent = '/'
-    alt.appendChild(altTag)
-    alt.appendChild(altName)
-    alt.appendChild(altSlash)
-    imageContainer.appendChild(alt)
-
-    // the whole card navigates — on phones the title/price area is the
-    // natural tap zone, not just the image tile. Ready designs never enter
-    // the configurator: the card click opens the size picker instead.
-    card.style.cursor = 'pointer'
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.customize-btn, .quick-sizes')) return // buttons handle themselves
-      if (isReady) {
-        const row = card.querySelector('.quick-sizes')
-        const btn = card.querySelector('.bag-btn')
-        if (row) {
-          const open = !row.classList.contains('open')
-          row.classList.toggle('open', open)
-          if (btn) btn.setAttribute('aria-expanded', String(open))
-        }
-        return
-      }
-      window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
-    })
-
-    const content = document.createElement('div')
-    content.className = 'product-card__content'
-
-    const title = document.createElement('h3')
-    title.className = 'product-card__title'
-    title.textContent = PN(product)
-
-    const desc = document.createElement('p')
-    desc.className = 'product-card__description'
-    desc.textContent = product.description_ru || ''
-
-    const priceDiv = document.createElement('div')
-    priceDiv.className = 'product-card__price'
-    priceDiv.textContent = formatPrice(product.price)
-
-    const actions = document.createElement('div')
-    actions.className = 'product-card__actions'
-
-    // Customize → configurator: only for customizable products
-    if (!isReady) {
-      const btn = document.createElement('button')
-      btn.className = 'customize-btn btn-primary'
-      // A blank garment (LOOM-226) is sold with colour and size only
-      const label = product.product_type === 'blank'
-        ? T('cfg.step2Title', 'Цвет и размер')
-        : T('catalog.customize', 'Настроить дизайн')
-      btn.textContent = label
-      btn.setAttribute('aria-label', `${label} ${esc(PN(product))}`)
-      btn.addEventListener('click', () => {
-        window.location.href = 'configurator.html' + (product.slug ? '?slug=' + encodeURIComponent(product.slug) : '')
-      })
-      actions.appendChild(btn)
-    }
-
-    // ── Quick add-to-bag: size chosen inline ───────────────────────
-    // custom: the plain-garment path; ready: the ONLY purchase path,
-    // so the button is promoted to primary
-    const bagBtn = document.createElement('button')
-    bagBtn.className = isReady ? 'customize-btn btn-primary bag-btn bag-btn--primary' : 'customize-btn bag-btn'
-    bagBtn.type = 'button'
-    bagBtn.textContent = T('cfg.addToCart', 'В корзину')
-    bagBtn.setAttribute('aria-expanded', 'false')
-
-    const sizeRow = document.createElement('div')
-    sizeRow.className = 'quick-sizes'
-    sizeRow.setAttribute('role', 'group')
-    sizeRow.setAttribute('aria-label', T('cart.size', 'Размер'))
-    // Sizes and the garment colour come from the product's config (LOOM-166).
-    const cfg = product.config
-    const sizes = cfg && Array.isArray(cfg.sizes) && cfg.sizes.length ? cfg.sizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL']
-    const firstColor = cfg && Array.isArray(cfg.colors) && cfg.colors.find(c => c.available)
-    const plainColor = firstColor ? firstColor.hex : '#FFFFFF'
-    sizes.forEach(sz => {
-      const b = document.createElement('button')
-      b.className = 'quick-size-btn'
-      b.type = 'button'
-      b.textContent = sz
-      b.addEventListener('click', async () => {
-        if (!window.LOOM_CART) return
-        try {
-          if (window.LOOM_LOGIN_MODAL) await window.LOOM_LOGIN_MODAL.requireAuth()
-        } catch (e) { return } // login cancelled
-        b.disabled = true
-        try {
-          await window.LOOM_CART.add({
-            productId: product.id,
-            designJson: JSON.stringify(
-              isReady
-                ? { ready: true, size: sz }
-                : { plain: true, shirtColor: plainColor, size: sz },
-            ),
-            unitPrice: product.price,
-            quantity: 1,
-          })
-          if (window.LOOM_TRACK) { window.LOOM_TRACK.event('cfg_cart'); window.LOOM_TRACK.event('cfg_checkout_submit'); }
-          window.LOOM_CART.toast(T('cart.added', 'Добавлено в корзину') + ' · ' + sz)
-          sizeRow.classList.remove('open')
-          bagBtn.setAttribute('aria-expanded', 'false')
-        } catch (err) {
-          const unsold = { product_unavailable: 'cfg.productUnavailable', size_unavailable: 'cfg.sizeUnavailable', color_unavailable: 'cfg.colorUnavailable' }[err.code]
-          window.LOOM_CART.toast((unsold && T(unsold, err.message)) || err.message || T('cfg.toastAddError', 'Ошибка добавления'), 'error')
-        } finally {
-          b.disabled = false
-        }
-      })
-      sizeRow.appendChild(b)
-    })
-
-    bagBtn.addEventListener('click', () => {
-      const open = !sizeRow.classList.contains('open')
-      sizeRow.classList.toggle('open', open)
-      bagBtn.setAttribute('aria-expanded', String(open))
-    })
-
-    actions.appendChild(bagBtn)
-    content.appendChild(title)
-    content.appendChild(desc)
-    content.appendChild(priceDiv)
-    content.appendChild(actions)
-    content.appendChild(sizeRow)
-    card.appendChild(imageContainer)
-    card.appendChild(content)
-
-    return card
-  }
-
-  // ── Grid render ───────────────────────────────────────────────────────────
-  function renderGrid(container, products) {
-    const grid = document.createElement('div')
-    grid.className = 'product-grid'
-    products.forEach(p => grid.appendChild(createProductCard(p)))
-    container.appendChild(grid)
-  }
-
-  // ── Sections: customizable vs ready-made ─────────────────────────────────
-  // Both types stay visible at once ("Все") — tabs only narrow the view.
-  let activeTab = 'all' // 'all' | 'custom' | 'ready' — survives langchange re-renders
-
-  function renderCatalogSections(container, products) {
-    const custom = products.filter(p => (p.product_type || 'custom') !== 'ready')
-    const ready = products.filter(p => (p.product_type || 'custom') === 'ready')
-
-    // Only one type present → today's plain grid, no tabs/headers
-    if (!custom.length || !ready.length) {
-      renderGrid(container, products)
-      return
-    }
-
-    const defs = [
-      ['all', T('catalog.tabAll', 'Все'), custom.length + ready.length],
-      ['custom', T('catalog.tabCustom', 'Кастомизация'), custom.length],
-      ['ready', T('catalog.tabReady', 'Готовые дизайны'), ready.length],
-    ]
-
-    const tabs = document.createElement('div')
-    tabs.className = 'catalog-tabs'
-    tabs.setAttribute('role', 'tablist')
-    defs.forEach(([key, label, count]) => {
-      const b = document.createElement('button')
-      b.type = 'button'
-      b.className = 'catalog-tab'
-      b.setAttribute('role', 'tab')
-      b.setAttribute('data-tab', key)
-      b.innerHTML = `${esc(label)} <sup>${count}</sup>`
-      b.addEventListener('click', () => {
-        if (activeTab === key) return
-        activeTab = key
-        renderSections()
-      })
-      tabs.appendChild(b)
-    })
-
-    const sectionsWrap = document.createElement('div')
-    sectionsWrap.className = 'catalog-sections'
-
-    function addSection(items, label, note) {
-      const sec = document.createElement('section')
-      sec.className = 'catalog-section'
-      const head = document.createElement('div')
-      head.className = 'catalog-section__head'
-      head.innerHTML = `
-        <span class="catalog-section__title">${esc(label)}</span>
-        <span class="catalog-section__note">${esc(note)}</span>
-        <span class="catalog-section__count">${String(items.length).padStart(2, '0')}</span>
-      `
-      sec.appendChild(head)
-      renderGrid(sec, items)
-      sectionsWrap.appendChild(sec)
-    }
-
-    function renderSections() {
-      sectionsWrap.innerHTML = ''
-      if (activeTab !== 'ready') {
-        addSection(custom, T('catalog.tabCustom', 'Кастомизация'), T('catalog.customNote', 'Создайте свой дизайн в 3D-конфигураторе'))
-      }
-      if (activeTab !== 'custom') {
-        addSection(ready, T('catalog.tabReady', 'Готовые дизайны'), T('catalog.readyNote', 'Готовы к покупке — просто выберите размер'))
-      }
-      tabs.querySelectorAll('.catalog-tab').forEach(t =>
-        t.classList.toggle('active', t.getAttribute('data-tab') === activeTab))
-      if (window._initReveal) window._initReveal()
-    }
-
-    container.appendChild(tabs)
-    container.appendChild(sectionsWrap)
-    renderSections()
-  }
-
-  // ── Carousel render (index.html, first 3 products) ────────────────────────
-  function renderCarousel(container, products) {
-    const featured = products.slice(0, 3)
-    let currentIndex = 0
-
-    const wrapper = document.createElement('div')
-    wrapper.className = 'product-carousel'
-
-    const prevBtn = document.createElement('button')
-    prevBtn.className = 'carousel-arrow carousel-arrow--prev'
-    prevBtn.setAttribute('aria-label', 'Предыдущий товар')
-    prevBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>'
-
-    const nextBtn = document.createElement('button')
-    nextBtn.className = 'carousel-arrow carousel-arrow--next'
-    nextBtn.setAttribute('aria-label', 'Следующий товар')
-    nextBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
-
-    const viewport = document.createElement('div')
-    viewport.className = 'product-carousel__viewport'
-    const track = document.createElement('div')
-    track.className = 'product-carousel__track'
-
-    featured.forEach(product => {
-      const card = createProductCard(product)
-      card.style.cursor = 'pointer'
-      track.appendChild(card)
-    })
-
-    const dotsEl = document.createElement('div')
-    dotsEl.className = 'carousel-dots'
-    featured.forEach((_, i) => {
-      const dot = document.createElement('button')
-      dot.className = 'carousel-dot' + (i === 0 ? ' active' : '')
-      dot.setAttribute('aria-label', 'Перейти к товару ' + (i + 1))
-      dot.addEventListener('click', () => goTo(i))
-      dotsEl.appendChild(dot)
-    })
-
-    function updateState() {
-      prevBtn.disabled = currentIndex === 0
-      nextBtn.disabled = currentIndex === featured.length - 1
-      dotsEl.querySelectorAll('.carousel-dot').forEach((d, i) => d.classList.toggle('active', i === currentIndex))
-    }
-
-    function goTo(index) {
-      currentIndex = Math.max(0, Math.min(index, featured.length - 1))
-      const card = track.children[currentIndex]
-      viewport.scrollTo({ left: card.offsetLeft - (viewport.offsetWidth - card.offsetWidth) / 2, behavior: 'smooth' })
-      updateState()
-    }
-
-    prevBtn.addEventListener('click', () => goTo(currentIndex - 1))
-    nextBtn.addEventListener('click', () => goTo(currentIndex + 1))
-    viewport.addEventListener('scroll', function () {
-      const center = viewport.scrollLeft + viewport.offsetWidth / 2
-      let closest = 0, closestDist = Infinity
-      for (let i = 0; i < track.children.length; i++) {
-        const c = track.children[i]
-        const dist = Math.abs(c.offsetLeft + c.offsetWidth / 2 - center)
-        if (dist < closestDist) { closestDist = dist; closest = i }
-      }
-      if (closest !== currentIndex) { currentIndex = closest; updateState() }
-    }, { passive: true })
-
-    updateState()
-    viewport.appendChild(track)
-    wrapper.appendChild(prevBtn)
-    wrapper.appendChild(viewport)
-    wrapper.appendChild(nextBtn)
-    wrapper.appendChild(dotsEl)
-    container.appendChild(wrapper)
-  }
-
-  // ── Main fetch & render ───────────────────────────────────────────────────
-  let productsCache = null
-
-  function renderFrom(container, products, isIndexPage) {
-    container.innerHTML = ''
-
-    if (!products.length) {
-      container.innerHTML = `<p style="text-align:center;color:var(--ink-38);padding:3rem">${T('catalog.empty', 'Каталог пуст.')}</p>`
-      return
-    }
-
-    if (isIndexPage) {
-      renderCarousel(container, products)
-    } else {
-      renderCatalogSections(container, products)
-    }
-
-    // Trigger reveal animations on newly rendered cards
-    if (window._initReveal) window._initReveal()
-  }
-
-  async function renderProducts() {
-    const container = document.getElementById('product-list-root')
-    if (!container) return
-
-    container.innerHTML = ''
-
-    const isIndexPage =
-      window.location.pathname.endsWith('index.html') ||
-      window.location.pathname === '/' ||
-      window.location.pathname.endsWith('/')
-
-    // Language switch: re-render labels/prices from cache — no
-    // skeleton flash, no repeat network round-trip
-    if (productsCache) {
-      renderFrom(container, productsCache, isIndexPage)
-      return
-    }
-
-    // Show skeletons while loading
-    renderSkeletons(container, isIndexPage ? 3 : 6)
-
+  function t(key, fallback) {
     try {
-      const res = await fetch(getApiBase() + '/api/products')
-      if (!res.ok) throw new Error('HTTP ' + res.status)
-      const data = await res.json()
-      const products = data.products || []
-      productsCache = products
+      var s = window.LOOM_I18N && window.LOOM_I18N.t(key);
+      return s && s !== key ? s : fallback;
+    } catch (e) { return fallback; }
+  }
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function api() {
+    if (window.LOOM_CONFIG && window.LOOM_CONFIG.API_BASE) return window.LOOM_CONFIG.API_BASE;
+    return location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+      ? 'http://localhost:8787' : 'https://api.loomdesign.uz';
+  }
+  function name(p) {
+    var I = window.LOOM_I18N;
+    return (I && I.productName ? I.productName(p) : p.name_ru) || p.slug || '';
+  }
+  function price(n) {
+    var I = window.LOOM_I18N;
+    return I && I.formatPrice ? I.formatPrice(n) : Number(n).toLocaleString('ru-RU') + ' so‘m';
+  }
 
-      renderFrom(container, products, isIndexPage)
+  /* Garment type from the slug (tshirt-regular, hoodie-regular, …).
+     Unknown slugs show under "Hammasi" only. */
+  var TYPES = [
+    ['tee', /^t-?shirt|^tee/], ['hoodie', /^hood/], ['polo', /^polo/],
+    ['sweat', /^sweatshirt/], ['cap', /^cap/], ['pants', /^(sweat)?pants|^jogger/]
+  ];
+  function typeOf(p) {
+    var s = String(p.slug || '');
+    for (var i = 0; i < TYPES.length; i++) if (TYPES[i][1].test(s)) return TYPES[i][0];
+    return '';
+  }
 
-    } catch (err) {
-      console.error('Catalog fetch failed:', err)
-      container.innerHTML = ''
-      renderError(container, () => { container.innerHTML = ''; renderProducts() })
+  /* Flat art (transparent PNG, the configurator's garment) when the
+     product has it, else the catalogue photo. Paths come from our API;
+     anything that is not a plain relative path or https URL is dropped. */
+  function artOf(p) {
+    var fa = p.config && p.config.flat_art && p.config.flat_art.front;
+    var src = fa && (fa.src_small || fa.src);
+    if (src && /^[\w\/.-]+$/.test(src)) return src;
+    return /^https:\/\//.test(p.thumbnail_url || '') ? p.thumbnail_url : '';
+  }
+
+  var products = null;
+  var current = (new URLSearchParams(location.search).get('type')) || 'all';
+
+  function card(p) {
+    var type = p.product_type || 'custom';
+    var tag = type === 'blank' ? t('atl.blankOnly', 'Faqat printsiz')
+      : type === 'ready' ? t('catalog.readyBadge', 'Tayyor dizayn') : '';
+    var art = artOf(p);
+    return '<a class="atl-pc" href="product.html?slug=' + encodeURIComponent(p.slug) + '">' +
+      '<span class="atl-cv atl-gtile">' + (art ? '<img src="' + esc(art) + '" alt="" loading="lazy" decoding="async">' : '') + '</span>' +
+      '<span class="atl-pc-nm">' + esc(name(p)) + '</span>' +
+      '<span class="atl-pc-pr">' + esc(price(p.price)) + '</span>' +
+      (tag ? '<span class="atl-tag">' + esc(tag) + '</span>' : '') +
+    '</a>';
+  }
+
+  function renderChips() {
+    var have = {};
+    products.forEach(function (p) { var k = typeOf(p); if (k) have[k] = 1; });
+    var keys = TYPES.map(function (x) { return x[0]; }).filter(function (k) { return have[k]; });
+    if (current !== 'all' && !have[current]) current = 'all';
+    if (keys.length < 2) { chips.hidden = true; chips.innerHTML = ''; return; }
+    chips.hidden = false;
+    chips.innerHTML = ['all'].concat(keys).map(function (k) {
+      return '<button type="button" class="atl-chip" data-type="' + k + '" aria-pressed="' + (k === current) + '">' +
+        esc(t('atl.cat.' + k, k)) + '</button>';
+    }).join('');
+  }
+
+  function renderGrid() {
+    var list = current === 'all' ? products : products.filter(function (p) { return typeOf(p) === current; });
+    root.removeAttribute('aria-busy');
+    if (!list.length) {
+      root.innerHTML = '<div class="atl-empty"><h2 class="atl-t2">' + esc(t('catalog.empty', 'Katalog bo‘sh.')) + '</h2>' +
+        '<div class="atl-btns"><a class="atl-btn atl-btn-p" href="configurator.html">' + esc(t('atl.nav.create', 'Dizayn yaratish')) + '</a></div></div>';
+      return;
     }
+    root.innerHTML = '<div class="atl-pgrid">' + list.map(card).join('') + '</div>';
   }
 
-  // Initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderProducts)
-  } else {
-    renderProducts()
+  function render() {
+    if (!products) return;
+    renderChips();
+    renderGrid();
   }
 
-  // Re-render product cards (prices, button labels) when the language changes
-  window.addEventListener('loom:langchange', renderProducts)
-})()
+  function skeleton() {
+    var one = '<div class="atl-pc"><span class="atl-skel atl-gtile"></span>' +
+      '<span class="atl-skel" style="height:14px;width:80%"></span>' +
+      '<span class="atl-skel" style="height:14px;width:50%"></span></div>';
+    root.setAttribute('aria-busy', 'true');
+    root.innerHTML = '<div class="atl-pgrid" aria-label="' + esc(t('atl.loading', 'Yuklanmoqda')) + '">' + new Array(7).join(one) + '</div>';
+  }
+
+  function failed() {
+    root.removeAttribute('aria-busy');
+    root.innerHTML = '<div class="atl-empty"><h2 class="atl-t2">' + esc(t('atl.state.errT', 'Nimadir noto‘g‘ri ketdi')) + '</h2>' +
+      '<p class="atl-lead">' + esc(t('atl.state.errL', 'Sahifani yuklab bo‘lmadi. Internetni tekshirib, yangilang.')) + '</p>' +
+      '<div class="atl-btns"><button type="button" class="atl-btn atl-btn-g" data-retry>' + esc(t('atl.reload', 'Yangilash')) + '</button></div></div>';
+  }
+
+  function load() {
+    skeleton();
+    fetch(api() + '/api/products')
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) { products = (d && d.products) || []; render(); })
+      .catch(function () { failed(); });
+  }
+
+  chips && chips.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-type]');
+    if (!b || b.getAttribute('data-type') === current) return;
+    current = b.getAttribute('data-type');
+    try {
+      var u = new URL(location.href);
+      if (current === 'all') u.searchParams.delete('type'); else u.searchParams.set('type', current);
+      history.replaceState(null, '', u.pathname + u.search);
+    } catch (err) { /* filter still works, URL just does not remember it */ }
+    render();
+  });
+  root.addEventListener('click', function (e) {
+    if (e.target.closest('[data-retry]')) load();
+  });
+  window.addEventListener('loom:langchange', render);
+
+  load();
+})();

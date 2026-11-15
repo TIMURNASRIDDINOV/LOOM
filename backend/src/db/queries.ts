@@ -1268,7 +1268,7 @@ export async function insertNotification(
     button_label: string | null
     button_url: string | null
     telegram_message_id: number | null
-    sent_by_admin_id: number
+    sent_by_admin_id: number | null   // null = sent by the system (payment sweep)
     status: string
     error_detail: string | null
   },
@@ -2332,13 +2332,71 @@ export async function anonymizeUser(db: D1Database, userId: number): Promise<voi
         .prepare(
           `UPDATE users SET email = ?, password_hash = 'deleted', name = NULL, phone = NULL,
              avatar_key = NULL, location_preset = NULL, telegram_user_id = NULL, telegram_username = NULL,
-             first_name = NULL, last_name = NULL, status = 'deleted',
+             first_name = NULL, last_name = NULL, status = 'deleted', delete_requested_at = NULL,
              is_designer = 0, designer_handle = NULL, designer_bio = NULL
            WHERE id = ?`,
         )
         .bind(stamp, userId),
     ])
   })
+}
+
+/**
+ * How long after a payment timeout the order still holds back account
+ * deletion: the customer may have paid and can still send the receipt, which
+ * needs the account. Counted from the order's last pay_deadline.
+ */
+export const LATE_RECEIPT_MS = 24 * 60 * 60 * 1000
+
+/**
+ * SQL: orders (alias `o`) that hold back account deletion. Either still on the
+ * way to the customer, or cancelled by the payment timeout less than
+ * LATE_RECEIPT_MS ago (same test as TIMED_OUT_SQL in lib/prepay.ts).
+ */
+const openOrderSql = (o: string) => `(${o}.status NOT IN ('delivered','cancelled') OR
+  (${o}.status = 'cancelled' AND ${o}.payment_method = 'p2p' AND ${o}.payment_status IN ('unpaid','failed')
+   AND ${o}.pay_deadline > ${Date.now() - LATE_RECEIPT_MS}
+   AND (SELECT note FROM order_status_log WHERE order_id = ${o}.id ORDER BY id DESC LIMIT 1) = 'payment_timeout'))`
+
+export async function hasOpenOrders(db: D1Database, userId: number): Promise<boolean> {
+  return safeQuery('hasOpenOrders', async () =>
+    !!(await db.prepare(`SELECT 1 AS x FROM orders o WHERE o.user_id = ? AND ${openOrderSql('o')} LIMIT 1`).bind(userId).first()))
+}
+
+/** Set (now) or clear (null) the scheduled deletion (migration 0030). */
+export async function setDeleteRequested(db: D1Database, userId: number, at: number | null): Promise<void> {
+  return safeQuery('setDeleteRequested', async () => {
+    await db.prepare('UPDATE users SET delete_requested_at = ? WHERE id = ?').bind(at, userId).run()
+  })
+}
+
+/**
+ * Run every scheduled deletion that is due: the user asked, and no order holds
+ * it back any more. With a userId only that user is looked at (right after one
+ * of their orders closes); without, up to 20 users (the minute sweep). A
+ * deletion that fails keeps its delete_requested_at, so the next sweep takes
+ * it again. Never throws; returns how many accounts were wiped.
+ */
+export async function finishScheduledDeletions(db: D1Database, userId: number | null = null): Promise<number> {
+  let done = 0
+  try {
+    // ponytail: no index on delete_requested_at, the users table is scanned
+    // once a minute. Add a partial index when it has tens of thousands of rows.
+    const { results } = await db.prepare(
+      `SELECT u.id FROM users u WHERE u.delete_requested_at IS NOT NULL AND u.status != 'deleted'
+         AND (?1 IS NULL OR u.id = ?1)
+         AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id AND ${openOrderSql('o')})
+       LIMIT 20`,
+    ).bind(userId).all<{ id: number }>()
+    for (const u of results) {
+      try { await anonymizeUser(db, u.id); done++ } catch (err) {
+        console.error(`[deletion] scheduled deletion of user ${u.id} failed, the next sweep retries:`, err)
+      }
+    }
+  } catch (err) {
+    console.error('[deletion] scheduled deletion lookup failed:', err)
+  }
+  return done
 }
 
 /** Stamp a successful sign-in. Used by the OAuth flow (migration 0017). */

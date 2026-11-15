@@ -156,7 +156,7 @@ try {
   // Cron wiring: the Worker's scheduled handler runs the drafter for its cron only.
   await reset()
   const worker = await mf.getWorker()
-  await worker.scheduled({ cron: '*/5 * * * *' })
+  await worker.scheduled({ cron: '* * * * *', scheduledTime: new Date(0) })
   eq(await db.prepare("SELECT value FROM ig_settings WHERE key = 'ai_batch'").first(), null)
   await worker.scheduled({ cron: D.IG_DRAFTER_CRON })
   // No AI binding in this local Worker: the batch fails cleanly with no rows.

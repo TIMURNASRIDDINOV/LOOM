@@ -21,7 +21,8 @@ const payments = new Hono<BaseEnv>()
 payments.get('/methods', (c) => {
   const env = c.env as unknown as PaymentEnvVars
   return c.json({
-    cod: true,
+    cod: false, // closed for new orders (PRD-216); old clients read this key
+    p2p: providerConfigured('p2p', env),
     payme: providerConfigured('payme', env),
     click: providerConfigured('click', env),
     uzum: providerConfigured('uzum', env),

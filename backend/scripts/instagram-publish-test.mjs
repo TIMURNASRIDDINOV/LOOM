@@ -85,7 +85,7 @@ try {
   const worker = await mf.getWorker()
   // AC-2: paused (the migration default) → the real scheduled handler makes no outbound request.
   const due = await post()
-  await worker.scheduled({ cron: '*/5 * * * *' })
+  await worker.scheduled({ cron: '* * * * *', scheduledTime: new Date(0) }) // minute 0: a publish tick
   eq(outbound, 0, 'paused cron made a request')
   eq((await row(due)).status, 'approved')
   let s = stub()

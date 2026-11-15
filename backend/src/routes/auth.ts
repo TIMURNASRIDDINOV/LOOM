@@ -1,57 +1,25 @@
 import { Hono } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
-  getUserByEmail, getUserById, createUser,
+  getUserByEmail, getUserById,
   updateUserProfile, updateUserPassword, updateUserAvatar,
-  getUserOrderStats, anonymizeUser,
+  getUserOrderStats, anonymizeUser, hasOpenOrders, setDeleteRequested,
 } from '../db/queries'
 import { hashPassword, verifyPassword, hasUsablePassword } from '../lib/password'
 import { signToken } from '../lib/jwt'
 import { requireAuth } from '../middleware/requireAuth'
 import { AVATAR_TYPES, LEGACY_AVATAR_KEY, validateUpload } from '../lib/r2'
-import { clientIp, isRateLimited, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
+import { clientIp, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
+import { SIGN_IN_CLOSED } from './oauth'
 import type { UserEnv } from '../types'
 
 const auth = new Hono<UserEnv>()
 
 // ─── POST /api/auth/register ─────────────────────────────────────────────────
+// Closed (PRD-216): new accounts are made by phone + Telegram only. /login and
+// /password below stay one more release for accounts that already exist.
 
-auth.post('/register', async (c) => {
-  let body: unknown
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Invalid JSON' }, 400)
-  }
-
-  const { email, password, name, phone } = body as Record<string, unknown>
-
-  if (await isRateLimited(c.env.RATE_LIMIT, `register:${clientIp(c)}`, 5, 60 * 60)) {
-    return c.json(TOO_MANY, 429)
-  }
-
-  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return c.json({ error: 'Invalid email format' }, 400)
-  }
-  if (typeof password !== 'string' || password.length < 8) {
-    return c.json({ error: 'Password must be at least 8 characters' }, 400)
-  }
-
-  const normalizedEmail = email.toLowerCase()
-  const existing = await getUserByEmail(c.env.DB, normalizedEmail)
-  if (existing) return c.json({ error: 'Email already registered' }, 409)
-
-  const passwordHash = await hashPassword(password)
-  const userId = await createUser(c.env.DB, {
-    email: normalizedEmail,
-    password_hash: passwordHash,
-    name: typeof name === 'string' ? name : null,
-    phone: typeof phone === 'string' ? phone : null,
-  })
-
-  const token = await signToken({ sub: String(userId), role: 'user' }, c.env.JWT_SECRET, '30d')
-  return c.json({ token, user: { id: userId, email: normalizedEmail, name: name ?? null } }, 201)
-})
+auth.post('/register', (c) => c.json(SIGN_IN_CLOSED, 410))
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
 
@@ -133,6 +101,8 @@ auth.get('/me', requireAuth, async (c) => {
     // migration has neither column, and nobody has opted out of anything.
     notify_orders: (user.notify_orders ?? 1) ? 1 : 0,
     notify_promo: (user.notify_promo ?? 1) ? 1 : 0,
+    // Set while account deletion waits for an open order (migration 0030).
+    delete_requested_at: user.delete_requested_at ?? null,
   })
 })
 
@@ -168,12 +138,32 @@ async function moveLegacyAvatar(bucket: R2Bucket, db: D1Database, userId: number
 // ─── DELETE /api/auth/account  (requires Bearer token) ───────────────────────
 // Store policy: an app that offers sign-up must offer account deletion. Orders
 // are kept as anonymised commercial records; everything personal is wiped.
+//
+// While an order is still on its way (not delivered, not cancelled) the name,
+// phone and address are needed to deliver it, so the deletion is only
+// scheduled: { scheduled: true }. It runs by itself when the last such order
+// is delivered or cancelled (finishScheduledDeletions; an order the payment
+// timeout cancelled counts as open for one more day, LATE_RECEIPT_MS) and can be called off
+// with POST /account/restore until then.
 
 auth.delete('/account', requireAuth, async (c) => {
   const user = await getUserById(c.env.DB, c.get('userId'))
   if (!user) return c.json({ error: 'Not found' }, 404)
+  if (await hasOpenOrders(c.env.DB, user.id)) {
+    const at = user.delete_requested_at ?? Date.now()
+    if (!user.delete_requested_at) await setDeleteRequested(c.env.DB, user.id, at)
+    return c.json({ ok: true, scheduled: true, delete_requested_at: at })
+  }
   await anonymizeUser(c.env.DB, user.id)
-  return c.json({ ok: true })
+  return c.json({ ok: true, scheduled: false })
+})
+
+// ─── POST /api/auth/account/restore  (requires Bearer token) ─────────────────
+// Call off a scheduled deletion. Nothing to do, and still 200, when none is set.
+
+auth.post('/account/restore', requireAuth, async (c) => {
+  await setDeleteRequested(c.env.DB, c.get('userId'), null)
+  return c.json({ ok: true, delete_requested_at: null })
 })
 
 // ─── PATCH /api/auth/profile  (requires Bearer token) ────────────────────────

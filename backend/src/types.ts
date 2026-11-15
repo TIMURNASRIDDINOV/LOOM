@@ -34,8 +34,12 @@ export type Bindings = {
   TELEGRAM_WEBHOOK_SECRET: string
   BOT_USERNAME: string
   ENVIRONMENT: string
-  // Payment providers (optional — checkout falls back to COD until set;
-  // see lib/payments.ts for the wrangler secret names)
+  // Card transfer (PRD-216). Both unset = checkout closed (fail closed).
+  //   wrangler secret put P2P_CARD_NUMBER   (16 digits)
+  //   wrangler secret put P2P_CARD_HOLDER   (name as the bank shows it)
+  P2P_CARD_NUMBER?: string
+  P2P_CARD_HOLDER?: string
+  // Online payment providers (optional; see lib/payments.ts for the secret names)
   PAYME_MERCHANT_ID?: string
   PAYME_KEY?: string
   PAYME_LIVE?: string

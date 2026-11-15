@@ -79,7 +79,7 @@ newer bitstream correctly, are in `assets/models/README.md`.
 
 Deliberately out of scope for this pass — recorded so the list stays honest:
 
-- **Leaflet 1.9.4** (`unpkg.com`) — `assets/map-picker.js`, `assets/checkout.js`,
+- **Leaflet 1.9.4** (`unpkg.com`) — `assets/address-picker.js` (checkout, account),
   `admin/order.html`, `admin/user-detail.html`. Lazy-loaded on demand, so it does not
   appear on a normal page load, but it is a third origin when a map opens.
 - **three 0.128.0** (`cdn.jsdelivr.net`) — `admin/order.html` still loads it from the CDN.

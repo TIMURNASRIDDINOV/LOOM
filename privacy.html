@@ -8,166 +8,258 @@
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <meta name="robots" content="index, follow" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#f4f2ed" />
-  <title>LOOM — Условия и конфиденциальность</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <meta name="theme-color" content="#f5f5f2" />
+  <title>LOOM — Shartlar va maxfiylik</title>
+  <meta name="description" content="LOOM: maxfiylik siyosati, cookie, buyurtma shartlari, yetkazib berish va oldindan to‘lov, dizaynerlarga, akkauntni o‘chirish." />
+  <link rel="canonical" href="https://loomdesign.uz/privacy" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=12" />
-  <script src="assets/boot.js?v=9"></script>
-  <script defer src="assets/i18n.js?v=57"></script>
-  <script defer src="assets/analytics.js?v=3"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/atelye.css?v=1" />
+  <script src="assets/boot.js?v=10"></script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: var(--font-body, Inter, sans-serif); background: var(--paper, #f4f2ed); color: var(--ink, #131311); -webkit-font-smoothing: antialiased; }
-    .legal { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-    .legal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
-    .legal-back { font-size: 0.78rem; color: var(--ink-55, rgba(19,19,17,.55)); text-decoration: none; }
-    .legal-back:hover { color: var(--accent-deep, #c8352b); }
-    .legal-logo { font-family: 'Inter Tight', sans-serif; font-weight: 800; letter-spacing: .14em; text-decoration: none; color: inherit; }
-    .legal-logo .slash { color: var(--accent, #fc5044); }
-    .legal h1 { font-family: 'Inter Tight', sans-serif; font-weight: 700; font-size: clamp(1.9rem, 5vw, 2.6rem); line-height: 1; letter-spacing: -0.035em; margin-bottom: .5rem; }
-    .legal .meta { font-family: 'IBM Plex Mono', monospace; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-38, rgba(19,19,17,.38)); margin-bottom: 2.5rem; }
-    .legal nav.toc { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 2.5rem; }
-    .legal nav.toc a { font-family: 'IBM Plex Mono', monospace; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; text-decoration: none; color: inherit; border: 1.5px solid var(--ink, #131311); padding: .45rem .7rem; background: #fff; }
-    .legal nav.toc a:hover { background: var(--ink, #131311); color: var(--paper, #f4f2ed); }
-    .legal h2 { font-family: 'Inter Tight', sans-serif; font-weight: 700; font-size: 1.35rem; letter-spacing: -0.02em; margin: 2.5rem 0 .9rem; padding-top: 1.25rem; border-top: 1.5px solid var(--ink, #131311); }
-    .legal h3 { font-family: 'Inter Tight', sans-serif; font-weight: 600; font-size: 1rem; margin: 1.4rem 0 .5rem; }
-    .legal p, .legal li { font-size: .95rem; line-height: 1.65; color: var(--ink-70, rgba(19,19,17,.7)); }
-    .legal ul { padding-left: 1.2rem; margin: .4rem 0 .8rem; }
-    .legal li { margin-bottom: .3rem; }
-    .legal strong { color: var(--ink, #131311); }
-    .legal .note { border: 1px solid rgba(19,19,17,.16); background: #fff; padding: .9rem 1rem; font-size: .85rem; margin: 1rem 0; }
-
-    /* ══════════════════════════════════════════════════════════════
-       MAXIMALIST SKIN — legal
-       Matches assets/theme.css §11 (tokens come from there).
-       Also fixes a real dark-theme bug: the TOC chips and the note box
-       hardcoded background:#fff, so on dark they painted a white box and
-       inherited light ink into it — white on white, unreadable.
-       Last in the block so it wins on order, not specificity.
-       ═══════════════════════════════════════════════════════════ */
-    .legal nav.toc a {
-      border: var(--rule);
-      border-radius: 0;
-      background: var(--paper-3);
-      box-shadow: var(--hard-sm);
-      font-weight: 700;
-      transition: background 0.18s, color 0.18s, transform 0.12s ease, box-shadow 0.12s ease;
-    }
-    .legal nav.toc a:hover { transform: translate(-1px, -1px); box-shadow: var(--hard); }
-    .legal nav.toc a:active { transform: translate(2px, 2px); box-shadow: none; }
-    .legal h2 { border-top: var(--rule); }
-    .legal .note {
-      border: var(--rule);
-      background: var(--paper-2);
-      color: var(--ink-70);
-    }
-    /* LOOM-199: model credits. Links inherit the text colour, so they keep its
-       contrast in both themes; the underline marks them as links. */
-    .legal .credit { margin-bottom: .6rem; }
-    .legal .credit a { text-decoration: underline; text-underline-offset: 2px; }
+    /* Legal page only. Components come from assets/atelye.css. */
+    .atl-legal-sec { display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 72px; }
+    .atl-legal-sec h3 { font: 700 15px var(--f); margin-top: 6px; }
+    .atl-legal-sec p, .atl-legal-sec li { max-width: 65ch; line-height: 1.6; }
+    .atl-legal-sec ul { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+    .atl-legal-sec code { font-size: 13px; overflow-wrap: anywhere; }
+    .atl-legal-tx { display: flex; flex-direction: column; gap: 12px; }
+    @media (min-width: 900px) { .atl-legal-sec { scroll-margin-top: 84px; } }
   </style>
 </head>
-<body>
-  <main class="legal" lang="ru">
-    <div class="legal-top">
-      <a href="index.html" class="legal-back">← Вернуться на сайт</a>
-      <a href="index.html" class="legal-logo">LOOM<span class="slash">/</span></a>
+<body data-page="legal" data-title="Shartlar va maxfiylik" data-title-key="atl.legal.title" data-back="index.html">
+  <!-- Legal text: Uzbek (Latin) is the main edition, Russian is the
+       second. The block in the visitor's language shows; English
+       visitors read the Uzbek text (atl.legal.langNote says so).
+       Section titles come from atl.legal.s1..s7. -->
+  <main class="atl-wrap atl-wrap-narrow">
+    <div class="atl-legal-tx">
+      <h1 class="atl-t1" data-i18n="atl.legal.title">Shartlar va maxfiylik</h1>
+      <p class="atl-sm" data-edition>15-noyabr 2026 tahriri · loomdesign.uz va LOOM ilovasi</p>
+      <p class="atl-sm" data-i18n="atl.legal.langNote">Matn o‘zbek va rus tillarida. Ikkala tahrir teng kuchga ega.</p>
     </div>
 
-    <h1>Условия и конфиденциальность</h1>
-    <p class="meta">Редакция от 26 октября 2026 · loomdesign.uz и приложение LOOM</p>
-
-    <nav class="toc" aria-label="Разделы">
-      <a href="#privacy">Конфиденциальность</a>
-      <a href="#analytics">Аналитика и cookie</a>
-      <a href="#terms">Условия заказа</a>
-      <a href="#delivery">Доставка и оплата</a>
-      <a href="#designers">Дизайнерам</a>
-      <a href="#delete">Удаление аккаунта</a>
-      <a href="#credits">Credits</a>
+    <nav class="atl-lst" aria-label="Bo‘limlar" data-i18n-attr="aria-label:atl.legal.toc">
+      <a class="atl-row" href="#privacy"><span class="atl-row-tx"><b><span>1.</span> <span data-i18n="atl.legal.s1">Maxfiylik siyosati</span></b></span><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
+      <a class="atl-row" href="#analytics"><span class="atl-row-tx"><b><span>2.</span> <span data-i18n="atl.legal.s2">Analitika va cookie</span></b></span><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
+      <a class="atl-row" href="#terms"><span class="atl-row-tx"><b><span>3.</span> <span data-i18n="atl.legal.s3">Buyurtma shartlari</span></b></span><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
+      <a class="atl-row" href="#delivery"><span class="atl-row-tx"><b><span>4.</span> <span data-i18n="atl.legal.s4">Yetkazib berish va to‘lov</span></b></span><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
+      <a class="atl-row" href="#designers"><span class="atl-row-tx"><b><span>5.</span> <span data-i18n="atl.legal.s5">Dizaynerlarga</span></b></span><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
+      <a class="atl-row" href="#delete"><span class="atl-row-tx"><b><span>6.</span> <span data-i18n="atl.legal.s6">Akkauntni o‘chirish</span></b></span><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
+      <a class="atl-row" href="#credits"><span class="atl-row-tx"><b><span>7.</span> <span data-i18n="atl.legal.s7">Mualliflar (Credits)</span></b></span><svg class="atl-ic atl-ic-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
     </nav>
 
-    <h2 id="privacy">1. Политика конфиденциальности</h2>
-    <p>Эта политика описывает, какие данные собирает сервис LOOM (сайт <strong>loomdesign.uz</strong> и мобильное приложение <strong>LOOM</strong>), зачем они нужны и как их удалить. Используя сервис, вы соглашаетесь с этой политикой.</p>
+    <!-- 1 -->
+    <section class="atl-legal-sec" id="privacy">
+      <h2 class="atl-t2"><span>1.</span> <span data-i18n="atl.legal.s1">Maxfiylik siyosati</span></h2>
+      <div class="atl-legal-tx" lang="uz" data-legal="uz">
+        <p>Bu siyosat LOOM xizmati (<strong>loomdesign.uz</strong> sayti va <strong>LOOM</strong> mobil ilovasi) qanday ma’lumotlarni yig‘ishini, ular nima uchun kerakligini va ularni qanday o‘chirish mumkinligini tushuntiradi. Xizmatdan foydalanib, siz shu siyosatga rozilik bildirasiz.</p>
+        <h3>Qanday ma’lumotlarni yig‘amiz</h3>
+        <ul>
+          <li><strong>Akkaunt ma’lumotlari:</strong> ism, telefon raqami, Telegram identifikatori va foydalanuvchi nomi (raqam Telegram orqali tasdiqlanadi), profil rasmi (yuklagan bo‘lsangiz). Avval email, Google yoki Discord orqali ochilgan akkauntlarda email va shu xizmat identifikatori ham saqlanadi.</li>
+          <li><strong>Buyurtma ma’lumotlari:</strong> yetkazish manzili va xaritadagi nuqta, podyezd, qavat, xonadon, domofon, izoh, to‘lov usuli, buyurtma holatlari tarixi.</li>
+          <li><strong>To‘lov cheki:</strong> kartaga o‘tkazmadan keyin yuklagan chek skrinshotingiz. Uni faqat to‘lovni tekshiradigan LOOM xodimi ko‘radi.</li>
+          <li><strong>Dizaynlaringiz:</strong> yuklangan rasmlar va maketdagi matnlar, ulardan tayyorlangan bosma fayllar.</li>
+          <li><strong>Texnik ma’lumotlar:</strong> qurilma turi, operatsion tizim, brauzer yoki ilova versiyasi, shaxssiz sessiya identifikatori va konstruktordan foydalanish hodisalari — statistika va xizmatni yaxshilash uchun.</li>
+        </ul>
+        <h3>Ulardan nima uchun foydalanamiz</h3>
+        <ul>
+          <li>buyurtmani qabul qilish, to‘lovni tekshirish, ishlab chiqarish va yetkazish, buyurtma bo‘yicha siz bilan bog‘lanish uchun;</li>
+          <li>buyurtmalarni kuzatib borishingiz va dizaynlarni takrorlashingiz uchun;</li>
+          <li>dizaynerlar ishlarini tekshirish, nashr qilish va ularga haq hisoblash uchun;</li>
+          <li>xizmatni suiiste’moldan himoya qilish uchun (so‘rovlar sonini cheklash, akkauntlarni bloklash);</li>
+          <li>konstruktordan qanday foydalanilishini tushunish va uni yaxshilash uchun.</li>
+        </ul>
+        <h3>Ma’lumotlarni kimga beramiz</h3>
+        <ul>
+          <li><strong>Ishlab chiqarish hamkoriga</strong> — bosma maketi, o‘lcham, rang va buyurtma raqami. Shaxsiy kontaktlaringizni hamkor olmaydi.</li>
+          <li><strong>Kuryer xizmatiga</strong> — ism, telefon va yetkazish manzili.</li>
+          <li><strong>Telegram</strong>ga — raqamni tasdiqlash va buyurtma haqida xabar yuborish uchun.</li>
+          <li><strong>Google, Microsoft va Yandex</strong>ga — saytdan qanday foydalanishingiz haqidagi ma’lumot, faqat analitikaga rozilik bergan bo‘lsangiz (2-bo‘lim).</li>
+        </ul>
+        <p>To‘lovni kartaga o‘tkazma bilan qilasiz: karta ma’lumotlaringizni LOOM so‘ramaydi va saqlamaydi. Payme, Click va Uzum Bank ulanganda buyurtma raqami va summasi shu provayderga beriladi. Ma’lumotlarni sotmaymiz va reklama maqsadida uchinchi shaxslarga bermaymiz.</p>
+        <h3>Ma’lumotlar qayerda va qancha saqlanadi</h3>
+        <p>Ma’lumotlar Cloudflare infratuzilmasida (D1 ma’lumotlar bazasi va R2 xotirasi) uzatishda va saqlashda shifrlangan holda saqlanadi. To‘lov cheklari yopiq xotirada turadi. Akkaunt ma’lumotlari akkaunt mavjud ekan saqlanadi. Buyurtmalar yozuvi akkaunt o‘chirilgandan keyin ham shaxssiz holda saqlanadi — buni buxgalteriya hisobi talab qiladi.</p>
+        <h3>Huquqlaringiz</h3>
+        <p>Istalgan vaqtda «Profil» bo‘limida ism va manzilni o‘zgartirishingiz, akkauntni o‘chirishingiz (6-bo‘lim) yoki ma’lumotlaringiz nusxasini olish uchun bizga yozishingiz mumkin: Telegramda <strong>@looom_design_bot</strong>.</p>
+      </div>
+      <div class="atl-legal-tx" lang="ru" data-legal="ru" hidden>
+        <p>Эта политика описывает, какие данные собирает сервис LOOM (сайт <strong>loomdesign.uz</strong> и мобильное приложение <strong>LOOM</strong>), зачем они нужны и как их удалить. Используя сервис, вы соглашаетесь с этой политикой.</p>
+        <h3>Какие данные мы собираем</h3>
+        <ul>
+          <li><strong>Данные аккаунта:</strong> имя, номер телефона, идентификатор и имя пользователя Telegram (номер подтверждается через Telegram), фото профиля, если вы его загрузили. В аккаунтах, созданных раньше через email, Google или Discord, хранятся также email и идентификатор этого сервиса.</li>
+          <li><strong>Данные заказа:</strong> адрес доставки и точка на карте, подъезд, этаж, квартира, домофон, комментарий к заказу, способ оплаты, история статусов заказа.</li>
+          <li><strong>Чек об оплате:</strong> скриншот чека, который вы загрузили после перевода на карту. Его видит только сотрудник LOOM, проверяющий оплату.</li>
+          <li><strong>Ваши дизайны:</strong> загруженные изображения и тексты на макете, а также сформированные из них макеты для печати.</li>
+          <li><strong>Технические данные:</strong> тип устройства, операционная система, браузер или версия приложения, обезличенный идентификатор сессии и события использования конструктора — для статистики и улучшения сервиса.</li>
+        </ul>
+        <h3>Зачем мы их используем</h3>
+        <ul>
+          <li>чтобы принять заказ, проверить оплату, произвести и доставить заказ и связаться с вами по нему;</li>
+          <li>чтобы вы могли отслеживать заказы и повторять дизайны;</li>
+          <li>чтобы модерировать и публиковать работы дизайнеров и начислять им вознаграждение;</li>
+          <li>чтобы защищать сервис от злоупотреблений (ограничение частоты запросов, блокировка аккаунтов);</li>
+          <li>чтобы понимать, как используется конструктор, и делать его лучше.</li>
+        </ul>
+        <h3>Кому мы передаём данные</h3>
+        <ul>
+          <li><strong>Производственному партнёру</strong> — макет для печати, размер, цвет и номер заказа. Личные контакты партнёр не получает.</li>
+          <li><strong>Курьерской службе</strong> — имя, телефон и адрес доставки.</li>
+          <li><strong>Telegram</strong> — для подтверждения номера и уведомлений о заказе.</li>
+          <li><strong>Google, Microsoft и Яндекс</strong> — данные о том, как вы пользуетесь сайтом, только если вы согласились на аналитику (раздел 2).</li>
+        </ul>
+        <p>Оплата — переводом на карту: данные вашей карты LOOM не запрашивает и не хранит. Когда подключатся Payme, Click и Uzum Bank, номер и сумма заказа будут передаваться этому провайдеру. Мы не продаём и не передаём данные третьим лицам в рекламных целях.</p>
+        <h3>Где и сколько хранятся данные</h3>
+        <p>Данные хранятся в инфраструктуре Cloudflare (база данных D1 и хранилище R2) с шифрованием при передаче и хранении. Чеки об оплате лежат в закрытом хранилище. Данные аккаунта хранятся, пока существует аккаунт. Записи о заказах хранятся в обезличенном виде и после удаления аккаунта — этого требует бухгалтерский учёт.</p>
+        <h3>Ваши права</h3>
+        <p>Вы можете в любой момент изменить имя и адрес в разделе «Профиль», удалить аккаунт (раздел 6) или написать нам, чтобы получить копию своих данных: <strong>@looom_design_bot</strong> в Telegram.</p>
+      </div>
+    </section>
 
-    <h3>Какие данные мы собираем</h3>
-    <ul>
-      <li><strong>Данные аккаунта:</strong> имя, номер телефона, email, идентификатор и имя пользователя Telegram (при входе через Telegram), идентификатор аккаунта Google или Discord (при входе через эти сервисы), фото профиля, если вы его загрузили.</li>
-      <li><strong>Данные заказа:</strong> адрес доставки и координаты на карте, подъезд, этаж, квартира, домофон, комментарий к заказу, способ оплаты, история статусов заказа.</li>
-      <li><strong>Ваши дизайны:</strong> загруженные изображения и тексты, размещённые на макете, а также макеты для печати, сформированные из них.</li>
-      <li><strong>Технические данные:</strong> тип устройства, операционная система, браузер или версия приложения, обезличенный идентификатор сессии и события использования конструктора — для статистики и улучшения сервиса.</li>
-    </ul>
+    <!-- 2 -->
+    <section class="atl-legal-sec" id="analytics">
+      <h2 class="atl-t2"><span>2.</span> <span data-i18n="atl.legal.s2">Analitika va cookie</span></h2>
+      <div class="atl-legal-tx" lang="uz" data-legal="uz">
+        <p>Tashrif buyuruvchilar qayerni bosishini, sahifani qanchalik pastga aylantirishini va qaysi qadamda chiqib ketishini tushunish uchun sayt uchta xizmatdan foydalanadi. Ular <strong>faqat bannerda «Roziman» tugmasini bosganingizdan keyin</strong> yoqiladi. Unga qadar va rad etganingizdan keyin sayt ularni yuklamaydi va ularga hech narsa yubormaydi.</p>
+        <ul>
+          <li><strong>Google Analytics 4</strong> (Google LLC): sahifa ko‘rishlari, reklama kampaniyasi belgilari (utm) bilan sahifa manzili, qayerdan kelganingiz, havola va tugmalar bosilishi (tugma identifikatori va qisqa matni), aylantirish chuqurligi, konstruktor qadamlari, qurilma va brauzer turi, IP manzil bo‘yicha taxminiy joylashuv (mamlakat, shahar). <code>_ga</code> va <code>_ga_*</code> cookie fayllarini 2 yilgacha saqlaydi. Google reklama funksiyalari o‘chirilgan.</li>
+          <li><strong>Microsoft Clarity</strong> (Microsoft Corporation): sichqoncha harakati, bosishlar va aylantirish — issiqlik xaritalari va seans yozuvlari uchun. Forma maydonlari, shuningdek buyurtma, kirish va shaxsiy kabinet sahifalaridagi ma’lumotlar qurilmangizning o‘zidayoq yashiriladi. <code>_clck</code> (1 yilgacha) va <code>_clsk</code> (1 kun) cookie fayllarini saqlaydi.</li>
+          <li><strong>Yandex Metrika</strong> («Yandex» MChJ): sahifa ko‘rishlari, havolalarga o‘tishlar, sahifada o‘tgan vaqt, bosish va aylantirish xaritasi, seans yozuvlari (Vebvizor). Maydonlarga yozilgan matn yozib olinmaydi; buyurtma, kirish va shaxsiy kabinet sahifalaridagi ma’lumotlar qurilmangizning o‘zidayoq yashiriladi. <code>_ym_uid</code>, <code>_ym_d</code> (1 yilgacha) va xizmat <code>_ym_*</code> (1 kungacha) cookie fayllarini saqlaydi.</li>
+        </ul>
+        <p>Bu xizmatlarga ism, telefon, email, manzil yoki buyurtma tarkibini bermaymiz. Ma’lumotlar Google, Microsoft va Yandex serverlarida, jumladan O‘zbekistondan tashqarida qayta ishlanadi.</p>
+        <p><strong>Rozilikni qanday qaytarib olish mumkin:</strong> quyidagi tugmani bosing va «Rad etish»ni tanlang. Sayt bu xizmatlarning cookie fayllarini o‘chiradi va ularni boshqa yuklamaydi. Bu bo‘limga havola sayt pastida bor.</p>
+      </div>
+      <div class="atl-legal-tx" lang="ru" data-legal="ru" hidden>
+        <p>Чтобы понимать, куда посетители нажимают, как далеко прокручивают страницы и на каком шаге уходят, сайт использует три сервиса. Они включаются <strong>только после того, как вы нажали «Принять»</strong> в баннере. До этого и после отказа сайт их не загружает и ничего им не передаёт.</p>
+        <ul>
+          <li><strong>Google Analytics 4</strong> (Google LLC): просмотры страниц, адрес страницы вместе с метками рекламных кампаний (utm), откуда вы пришли, нажатия на ссылки и кнопки (идентификатор и короткий текст кнопки), глубина прокрутки, шаги конструктора, тип устройства и браузера, примерное местоположение (страна, город), определённое по IP-адресу. Сохраняет cookie <code>_ga</code> и <code>_ga_*</code> на срок до 2 лет. Рекламные функции Google выключены.</li>
+          <li><strong>Microsoft Clarity</strong> (Microsoft Corporation): движения мыши, нажатия и прокрутка — для тепловых карт и записей сеансов. Поля форм, а также данные на страницах оформления заказа, входа и в личном кабинете скрываются ещё на вашем устройстве. Сохраняет cookie <code>_clck</code> (до 1 года) и <code>_clsk</code> (1 день).</li>
+          <li><strong>Яндекс Метрика</strong> (ООО «Яндекс»): просмотры страниц, переходы по ссылкам, время на странице, карта кликов и прокрутки, а также записи сеансов (Вебвизор). Вводимый в поля текст не записывается; данные на страницах оформления заказа, входа и в личном кабинете скрываются ещё на вашем устройстве. Сохраняет cookie <code>_ym_uid</code>, <code>_ym_d</code> (до 1 года) и служебные cookie <code>_ym_*</code> (до 1 дня).</li>
+        </ul>
+        <p>Мы не передаём этим сервисам имя, телефон, email, адрес или содержимое заказа. Данные обрабатываются на серверах Google, Microsoft и Яндекса, в том числе за пределами Узбекистана.</p>
+        <p><strong>Как отозвать согласие:</strong> нажмите кнопку ниже и выберите «Отказаться». Сайт удалит cookie этих сервисов и перестанет их загружать. Ссылка на этот раздел есть в подвале сайта.</p>
+      </div>
+      <div class="atl-btns">
+        <button type="button" class="atl-btn" data-consent-open data-i18n="atl.legal.consentChange">Tanlovni o‘zgartirish</button>
+      </div>
+    </section>
 
-    <h3>Зачем мы их используем</h3>
-    <ul>
-      <li>чтобы принять, произвести и доставить ваш заказ и связаться с вами по нему;</li>
-      <li>чтобы вы могли отслеживать заказы и повторять дизайны;</li>
-      <li>чтобы модерировать и публиковать работы дизайнеров и начислять им вознаграждение;</li>
-      <li>чтобы защищать сервис от злоупотреблений (ограничение частоты запросов, блокировка аккаунтов);</li>
-      <li>чтобы понимать, как используется конструктор, и делать его лучше.</li>
-    </ul>
+    <!-- 3 -->
+    <section class="atl-legal-sec" id="terms">
+      <h2 class="atl-t2"><span>3.</span> <span data-i18n="atl.legal.s3">Buyurtma shartlari</span></h2>
+      <div class="atl-legal-tx" lang="uz" data-legal="uz">
+        <ul>
+          <li>Buyurtma to‘lov tasdiqlangandan keyin qabul qilingan hisoblanadi; bu haqda Telegramga xabar keladi. Ishlab chiqarish faqat to‘lov tasdiqlangach boshlanadi.</li>
+          <li>Buyurtmani «Ishlab chiqarish» holatigacha bekor qilish mumkin: <strong>@looom_design_bot</strong> ga yozing, to‘langan summani qaytarish tartibini shu yerda kelishamiz.</li>
+          <li>Printli kiyim siz uchun tayyorlanadi, shuning uchun almashtirish yoki qaytarish faqat ishlab chiqarish nuqsoni yoki tasdiqlangan maketga mos kelmaslik holatida mumkin. Printsiz tayyor kiyimni tovar ko‘rinishi saqlangan holda 14 kun ichida qaytarish mumkin.</li>
+          <li>Ekrandagi ranglar matoga bosilganda odatiy kichik farq qilishi mumkin. Bosma o‘lchami maketda santimetrda ko‘rsatiladi.</li>
+          <li>Rasm yuklab, undan foydalanish huquqingiz borligini tasdiqlaysiz. LOOM qonunni yoki boshqalarning huquqlarini buzadigan rasmlarni bosishdan bosh tortishi mumkin.</li>
+        </ul>
+      </div>
+      <div class="atl-legal-tx" lang="ru" data-legal="ru" hidden>
+        <ul>
+          <li>Заказ считается принятым после подтверждения оплаты; об этом придёт уведомление в Telegram. Производство начинается только после подтверждения оплаты.</li>
+          <li>До перевода в статус «Производство» заказ можно отменить: напишите в <strong>@looom_design_bot</strong>, там же договоримся о возврате оплаченной суммы.</li>
+          <li>Изделие с индивидуальным принтом изготавливается под вас, поэтому обмен и возврат возможны только при производственном браке или несоответствии утверждённому макету. Готовые изделия без принта возвращаются в течение 14 дней при сохранении товарного вида.</li>
+          <li>Цвета на экране могут отличаться от печати в пределах, обычных для текстильной печати. Размер печати указан в сантиметрах на макете.</li>
+          <li>Загружая изображение, вы подтверждаете, что имеете право на его использование. LOOM может отказать в печати изображений, нарушающих закон или права третьих лиц.</li>
+        </ul>
+      </div>
+    </section>
 
-    <h3>Кому мы передаём данные</h3>
-    <ul>
-      <li><strong>Производственному партнёру</strong> — макет для печати, размер, цвет и номер заказа. Личные контакты партнёр не получает.</li>
-      <li><strong>Курьерской службе</strong> — имя, телефон и адрес доставки.</li>
-      <li><strong>Платёжным провайдерам</strong> (Payme, Click, Uzum Bank) — номер и сумму заказа при онлайн-оплате. Данные карты обрабатывает провайдер; LOOM их не получает и не хранит.</li>
-      <li><strong>Telegram</strong> — для подтверждения номера и уведомлений о заказе, если вы вошли через Telegram.</li>
-      <li><strong>Google, Microsoft и Яндекс</strong> — данные о том, как вы пользуетесь сайтом, только если вы согласились на аналитику (см. «Аналитика и cookie» ниже).</li>
-    </ul>
-    <p>Мы не продаём и не передаём данные третьим лицам в рекламных целях.</p>
+    <!-- 4 -->
+    <section class="atl-legal-sec" id="delivery">
+      <h2 class="atl-t2"><span>4.</span> <span data-i18n="atl.legal.s4">Yetkazib berish va to‘lov</span></h2>
+      <div class="atl-legal-tx" lang="uz" data-legal="uz">
+        <ul>
+          <li><strong>To‘lov:</strong> buyurtma oldindan va to‘liq to‘lanadi — LOOM kartasiga o‘tkazma bilan. Karta raqami va aniq summa to‘lov sahifasida ko‘rsatiladi. Buyurtma berilgandan keyin 30 daqiqa ichida pulni o‘tkazib, chek skrinshotini yuklaysiz; chek majburiy.</li>
+          <li><strong>Tekshiruv:</strong> xodimimiz chekni ish vaqtida qo‘lda tekshiradi va natijani Telegramga yuboradi. To‘lov topilmasa yoki summa mos kelmasa, sababini yozamiz; yangi chek yuklashingiz mumkin.</li>
+          <li><strong>Muddat:</strong> 30 daqiqa ichida chek yuklanmasa, buyurtma bekor bo‘ladi. Pulni o‘tkazgan bo‘lsangiz, chekni baribir yuboring — tekshirib, buyurtmani tiklaymiz.</li>
+          <li><strong>Toshkent:</strong> kuryer orqali, ishlab chiqarishdan keyin 2–4 ish kunida. Yetkazib berish — 30 000 so‘m, buyurtmada alohida qator bilan ko‘rsatiladi.</li>
+          <li><strong>O‘zbekiston viloyatlari:</strong> muddat va narx buyurtmani tasdiqlashda aytiladi.</li>
+          <li>Payme, Click va Uzum Bank orqali to‘lov tez orada qo‘shiladi.</li>
+        </ul>
+      </div>
+      <div class="atl-legal-tx" lang="ru" data-legal="ru" hidden>
+        <ul>
+          <li><strong>Оплата:</strong> заказ оплачивается заранее и полностью — переводом на карту LOOM. Номер карты и точная сумма указаны на странице оплаты. В течение 30 минут после оформления заказа переведите деньги и загрузите скриншот чека; чек обязателен.</li>
+          <li><strong>Проверка:</strong> сотрудник проверяет чек вручную в рабочее время и сообщает результат в Telegram. Если оплата не найдена или сумма не совпала, мы напишем причину; можно загрузить новый чек.</li>
+          <li><strong>Срок:</strong> если чек не загружен за 30 минут, заказ отменяется. Если вы уже перевели деньги, всё равно отправьте чек — мы проверим и восстановим заказ.</li>
+          <li><strong>Ташкент:</strong> курьером за 2–4 рабочих дня после производства. Доставка — 30 000 сум, отдельной строкой в заказе.</li>
+          <li><strong>Регионы Узбекистана:</strong> сроки и стоимость уточняются при подтверждении заказа.</li>
+          <li>Оплата через Payme, Click и Uzum Bank появится скоро.</li>
+        </ul>
+      </div>
+    </section>
 
-    <h3 id="analytics">Аналитика и cookie</h3>
-    <p>Чтобы понимать, куда посетители нажимают, как далеко прокручивают страницы и на каком шаге уходят, сайт использует три сервиса. Они включаются <strong>только после того, как вы нажали «Принять»</strong> в баннере. До этого и после отказа сайт их не загружает и ничего им не передаёт.</p>
-    <ul>
-      <li><strong>Google Analytics 4</strong> (Google LLC): просмотры страниц, адрес страницы вместе с метками рекламных кампаний (utm), откуда вы пришли, нажатия на ссылки и кнопки (идентификатор и короткий текст кнопки), глубина прокрутки, шаги конструктора, тип устройства и браузера, примерное местоположение (страна, город), определённое по IP-адресу. Сохраняет cookie <code>_ga</code> и <code>_ga_*</code> на срок до 2 лет. Рекламные функции Google выключены.</li>
-      <li><strong>Microsoft Clarity</strong> (Microsoft Corporation): движения мыши, нажатия и прокрутка — для тепловых карт и записей сеансов. Поля форм, а также данные на страницах оформления заказа, входа, регистрации и в личном кабинете скрываются ещё на вашем устройстве. Сохраняет cookie <code>_clck</code> (до 1 года) и <code>_clsk</code> (1 день).</li>
-      <li><strong>Яндекс Метрика</strong> (ООО «Яндекс»): просмотры страниц, переходы по ссылкам, время на странице, карта кликов и прокрутки, а также записи сеансов (Вебвизор) — движения мыши, нажатия и прокрутка. Вводимый в поля текст не записывается; данные на страницах оформления заказа, входа, регистрации и в личном кабинете скрываются ещё на вашем устройстве. Сохраняет cookie <code>_ym_uid</code>, <code>_ym_d</code> (до 1 года) и служебные cookie <code>_ym_*</code> (до 1 дня).</li>
-    </ul>
-    <p>Мы не передаём этим сервисам имя, телефон, email, адрес или содержимое заказа. Данные обрабатываются на серверах Google, Microsoft и Яндекса, в том числе за пределами Узбекистана.</p>
-    <p><strong>Как отозвать согласие:</strong> нажмите кнопку ниже и выберите «Отказаться». Сайт удалит cookie этих сервисов и перестанет их загружать. Ссылка на этот раздел есть в подвале сайта.</p>
-    <p><button type="button" class="btn btn--outline" data-consent-open>Изменить выбор</button></p>
+    <!-- 5 -->
+    <section class="atl-legal-sec" id="designers">
+      <h2 class="atl-t2"><span>5.</span> <span data-i18n="atl.legal.s5">Dizaynerlarga</span></h2>
+      <div class="atl-legal-tx" lang="uz" data-legal="uz">
+        <ul>
+          <li>Ishni nashr qilib, uning muallifi ekaningizni yoki undan tijoriy foydalanish huquqiga ega ekaningizni kafolatlaysiz.</li>
+          <li>Har bir ish tekshiruvdan o‘tadi (odatda 1–2 kun). Rad etilgan ish sababi bilan qaytariladi; uni tuzatib, qayta yuborish mumkin.</li>
+          <li>Kiyim narxiga ustamani o‘zingiz belgilaysiz. Har bir sotuvdan sizga <strong>ustamaning 70%</strong> hisoblanadi, LOOM 30% ni oladi. Hisoblangan summa dizayner kabinetida ko‘rinadi; to‘lovlar yetkazilgan buyurtmalar bo‘yicha amalga oshiriladi.</li>
+          <li>Ishni nashrdan olish uchun qo‘llab-quvvatlash xizmatiga yozing. Rasmiylashtirilgan buyurtmalar bajariladi.</li>
+        </ul>
+      </div>
+      <div class="atl-legal-tx" lang="ru" data-legal="ru" hidden>
+        <ul>
+          <li>Публикуя работу, вы гарантируете, что являетесь её автором или имеете права на коммерческое использование.</li>
+          <li>Каждая работа проходит модерацию (обычно 1–2 дня). Отклонённая работа возвращается с причиной; её можно исправить и отправить снова.</li>
+          <li>Вы сами назначаете наценку к цене вещи. С каждой продажи вам начисляется <strong>70% наценки</strong>, LOOM удерживает 30%. Начисления видны в кабинете дизайнера; выплаты производятся по доставленным заказам.</li>
+          <li>Вы можете снять работу с публикации, написав в поддержку. Уже оформленные заказы будут выполнены.</li>
+        </ul>
+      </div>
+    </section>
 
-    <h3>Где и сколько хранятся данные</h3>
-    <p>Данные хранятся в инфраструктуре Cloudflare (база данных D1 и хранилище R2) с шифрованием при передаче и хранении. Данные аккаунта хранятся, пока существует аккаунт. Записи о заказах хранятся в обезличенном виде и после удаления аккаунта — этого требует бухгалтерский учёт.</p>
+    <!-- 6 -->
+    <section class="atl-legal-sec" id="delete">
+      <h2 class="atl-t2"><span>6.</span> <span data-i18n="atl.legal.s6">Akkauntni o‘chirish</span></h2>
+      <div class="atl-legal-tx" lang="uz" data-legal="uz">
+        <p>Saytda va ilovada: <strong>Profil → Akkauntni o‘chirish</strong>. Yakunlanmagan buyurtmangiz bo‘lsa, o‘chirish oxirgi buyurtma yetkazilgach yoki bekor qilingach bajariladi; unga qadar o‘chirishni Profilda bekor qilishingiz mumkin. O‘chirilgandan keyin ism, kontaktlar, rasm, manzil va Telegram, Google, Discord bog‘lanishlari o‘chiriladi; nashr qilinmagan ishlar tekshiruvdan olinadi. Buyurtmalar yozuvi shaxssiz holda saqlanadi.</p>
+      </div>
+      <div class="atl-legal-tx" lang="ru" data-legal="ru" hidden>
+        <p>На сайте и в приложении: <strong>Профиль → Удалить аккаунт</strong>. Если у вас есть незавершённый заказ, удаление выполнится после того, как последний заказ будет доставлен или отменён; до этого удаление можно отменить в Профиле. После удаления стираются имя, контакты, фото, адрес и привязки к Telegram, Google и Discord; неопубликованные работы снимаются с модерации. Обезличенные записи о заказах сохраняются.</p>
+      </div>
+    </section>
 
-    <h3>Ваши права</h3>
-    <p>Вы можете в любой момент изменить имя, телефон, фото и адрес в разделе «Профиль», удалить аккаунт (см. раздел 5) или написать нам, чтобы получить копию своих данных: <strong>@looom_design_bot</strong> в Telegram.</p>
+    <!-- 7 -->
+    <section class="atl-legal-sec" id="credits">
+      <h2 class="atl-t2"><span>7.</span> <span data-i18n="atl.legal.s7">Mualliflar (Credits)</span></h2>
+      <p lang="uz"><strong>UZ.</strong> “<a href="https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba" target="_blank" rel="noopener">T Shirt</a>” 3D modeli, muallifi <a href="https://sketchfab.com/funlab117" target="_blank" rel="noopener">funlab117</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> litsenziyasi asosida. LOOM tomonidan o‘zgartirilgan (veb uchun siqilgan).</p>
+      <p lang="ru"><strong>RU.</strong> 3D-модель «<a href="https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba" target="_blank" rel="noopener">T Shirt</a>», автор <a href="https://sketchfab.com/funlab117" target="_blank" rel="noopener">funlab117</a>, лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Изменена LOOM (сжата для веба).</p>
+      <p lang="en"><strong>EN.</strong> 3D model “<a href="https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba" target="_blank" rel="noopener">T Shirt</a>” by <a href="https://sketchfab.com/funlab117" target="_blank" rel="noopener">funlab117</a>, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Modified by LOOM (compressed for the web).</p>
+    </section>
 
-    <h2 id="terms">2. Условия заказа</h2>
-    <ul>
-      <li>Заказ считается принятым после подтверждения в приложении или на сайте и уведомления в Telegram. До перевода в статус «Производство» заказ можно отменить, написав в поддержку.</li>
-      <li>Изделие с индивидуальным принтом изготавливается под вас, поэтому обмен и возврат возможны только при производственном браке или несоответствии утверждённому макету. Готовые изделия без принта возвращаются в течение 14 дней при сохранении товарного вида.</li>
-      <li>Цвета на экране могут отличаться от печати в пределах, обычных для текстильной печати. Размер печати указан в сантиметрах на макете.</li>
-      <li>Загружая изображение, вы подтверждаете, что имеете право на его использование. LOOM может отказать в печати изображений, нарушающих закон или права третьих лиц.</li>
-    </ul>
-
-    <h2 id="delivery">3. Доставка и оплата</h2>
-    <ul>
-      <li><strong>Ташкент:</strong> курьером за 2–4 рабочих дня после производства. Доставка бесплатна.</li>
-      <li><strong>Регионы Узбекистана:</strong> сроки и стоимость уточняются при подтверждении заказа.</li>
-      <li><strong>Оплата:</strong> наличными или картой курьеру при получении; онлайн через Payme, Click или Uzum Bank — там, где способ доступен в приложении.</li>
-    </ul>
-
-    <h2 id="designers">4. Дизайнерам</h2>
-    <ul>
-      <li>Публикуя работу, вы гарантируете, что являетесь её автором или имеете права на коммерческое использование.</li>
-      <li>Каждая работа проходит модерацию (обычно 1–2 дня). Отклонённая работа возвращается с причиной; её можно исправить и отправить снова.</li>
-      <li>Вы сами назначаете наценку к цене вещи. С каждой продажи вам начисляется <strong>70% наценки</strong>, LOOM удерживает 30%. Начисления видны в кабинете дизайнера; выплаты производятся по доставленным заказам.</li>
-      <li>Вы можете снять работу с публикации, написав в поддержку. Уже оформленные заказы будут выполнены.</li>
-    </ul>
-
-    <h2 id="delete">5. Удаление аккаунта</h2>
-    <p>В приложении: <strong>Профиль → Удалить аккаунт</strong>. На сайте: напишите в <strong>@looom_design_bot</strong>. После удаления стираются имя, контакты, фото, адрес и привязки к Telegram, Google и Discord; неопубликованные работы снимаются с модерации. Обезличенные записи о заказах сохраняются.</p>
-
-    <h2 id="credits">6. Credits</h2>
-    <p class="credit" lang="uz"><strong>UZ.</strong> “<a href="https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba" target="_blank" rel="noopener">T Shirt</a>” 3D modeli, muallifi <a href="https://sketchfab.com/funlab117" target="_blank" rel="noopener">funlab117</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> litsenziyasi asosida. LOOM tomonidan o‘zgartirilgan (veb uchun siqilgan).</p>
-    <p class="credit" lang="ru"><strong>RU.</strong> 3D-модель «<a href="https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba" target="_blank" rel="noopener">T Shirt</a>», автор <a href="https://sketchfab.com/funlab117" target="_blank" rel="noopener">funlab117</a>, лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Изменена LOOM (сжата для веба).</p>
-    <p class="credit" lang="en"><strong>EN.</strong> 3D model “<a href="https://sketchfab.com/3d-models/t-shirt-c1a3e5eb9b5445f4b7d4be82f1127eba" target="_blank" rel="noopener">T Shirt</a>” by <a href="https://sketchfab.com/funlab117" target="_blank" rel="noopener">funlab117</a>, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Modified by LOOM (compressed for the web).</p>
-
-    <div class="note">Вопросы по этим условиям и данным: Telegram <strong>@looom_design_bot</strong>, сайт <strong>loomdesign.uz</strong>.</div>
+    <div class="atl-banner atl-banner-info"><span class="atl-banner-tx" data-i18n="atl.legal.questions">Shartlar va ma’lumotlar bo‘yicha savollar: Telegram @looom_design_bot, sayt loomdesign.uz.</span></div>
   </main>
+
+  <script src="assets/config.js?v=9"></script>
+  <script src="assets/i18n.js?v=58"></script>
+  <script src="assets/auth.js?v=6"></script>
+  <script src="assets/tma.js?v=5"></script>
+  <script src="assets/shell.js?v=1"></script>
+  <script>
+    /* Russian visitors read the Russian edition; everyone else the Uzbek
+       one. The edition line comes from atl.legal.edition. */
+    (function () {
+      var DATE = { uz: '15-noyabr 2026', ru: '15 ноября 2026', en: '15 November 2026' };
+      function show() {
+        var I = window.LOOM_I18N;
+        var lang = I ? I.getLang() : 'uz';
+        var text = lang === 'ru' ? 'ru' : 'uz';
+        document.querySelectorAll('[data-legal]').forEach(function (el) {
+          el.hidden = el.getAttribute('data-legal') !== text;
+        });
+        var ed = document.querySelector('[data-edition]');
+        if (ed && I) ed.textContent = I.t('atl.legal.edition').replace('{date}', DATE[lang] || DATE.uz);
+      }
+      show();
+      window.addEventListener('loom:langchange', show);
+    })();
+  </script>
+  <script src="assets/track.js?v=6"></script>
+  <script src="assets/analytics.js?v=4"></script>
 </body>
 </html>
