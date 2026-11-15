@@ -270,7 +270,9 @@
   function desc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function drawerOn() {
     var page = document.body.getAttribute('data-page');
-    return ATELYE && page !== 'cart' && page !== 'checkout' &&
+    // the configurator loads cfg-atelye.css, not atelye.css (LOOM-338)
+    return (ATELYE || document.documentElement.classList.contains('cfg-atelye-d')) &&
+      page !== 'cart' && page !== 'checkout' &&
       !document.documentElement.classList.contains('tma') &&
       !!(window.matchMedia && window.matchMedia(DESK).matches);
   }
@@ -389,7 +391,7 @@
     e.preventDefault();
     // the toast's link: hand focus back to the header link, not the vanishing toast
     openDrawer(a.closest('.atl-toast') ? document.querySelector('.atl-hdr [data-atl-cart-link]') : a);
-  });
+  }, true); // capture: runs before motion.js's page-leave wipe on the configurator (LOOM-338)
 
   /* ── boot ───────────────────────────────────────────────────── */
   function boot() {
