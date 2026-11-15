@@ -97,7 +97,7 @@
     if (document.getElementById('cartDrawer')) return;
     var html =
       '<div class="drawer-backdrop" id="cartBackdrop"></div>' +
-      '<aside class="cart-drawer" id="cartDrawer" aria-label="Cart" aria-hidden="true">' +
+      '<aside class="cart-drawer" id="cartDrawer" aria-label="Cart" aria-hidden="true" inert>' +
         '<div class="cart-head">' +
           '<h2 class="cart-title"><span data-i18n="cfg.cartTitle">Корзина</span><span class="cart-title-slash">/</span></h2>' +
           '<button class="mobile-menu-close" id="cartClose" aria-label="Close">' +
@@ -119,6 +119,9 @@
     if (window.LOOM_I18N && window.LOOM_I18N.apply) window.LOOM_I18N.apply();
     document.getElementById('cartClose').addEventListener('click', function () { close(); });
     document.getElementById('cartBackdrop').addEventListener('click', function () { close(); });
+    document.getElementById('cartDrawer').addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
     document.getElementById('cartCheckoutBtn').addEventListener('click', function () {
       if (!state.items.length) { toast(t('cfg.cartEmpty', 'Корзина пуста'), 'error'); return; }
       if (window.LOOM_TRACK) window.LOOM_TRACK.event('cfg_checkout_submit');
@@ -373,10 +376,19 @@
 
   /* ── open / close (iOS scroll lock + Android back button) ───── */
   var scrollY = 0;
+  var opener = null;
+  /* Closed drawer is off-screen only by transform: inert keeps its controls
+     out of Tab order and the a11y tree (LOOM-321). */
+  function setOpen(drawer, on) {
+    if (on) drawer.removeAttribute('inert'); else drawer.setAttribute('inert', '');
+    drawer.setAttribute('aria-hidden', on ? 'false' : 'true');
+  }
   function openDrawer() {
     ensureDrawer();
     var drawer = document.getElementById('cartDrawer');
     if (drawer.classList.contains('active')) return;
+    opener = document.activeElement;
+    setOpen(drawer, true);
     drawer.classList.add('active');
     document.getElementById('cartBackdrop').classList.add('active');
     document.body.classList.add('menu-open');
@@ -387,6 +399,7 @@
     document.body.style.right = '0';
     document.body.style.width = '100%';
     try { history.pushState({ loomBag: 1 }, ''); } catch (e) {}
+    document.getElementById('cartClose').focus({ preventScroll: true });
   }
   async function open() {
     if (ATELYE) { location.href = 'cart.html'; return; }
@@ -398,6 +411,7 @@
     var drawer = document.getElementById('cartDrawer');
     if (!drawer || !drawer.classList.contains('active')) return;
     drawer.classList.remove('active');
+    setOpen(drawer, false);
     var bd = document.getElementById('cartBackdrop');
     if (bd) bd.classList.remove('active');
     document.body.classList.remove('menu-open');
@@ -407,6 +421,8 @@
     document.body.style.right = '';
     document.body.style.width = '';
     window.scrollTo(0, scrollY);
+    if (opener && opener.isConnected && opener.focus) opener.focus({ preventScroll: true });
+    opener = null;
     if (!fromPopstate && history.state && history.state.loomBag) {
       try { history.back(); } catch (e) {}
     }
