@@ -33,8 +33,33 @@
     <link rel="stylesheet" href="assets/nav.css?v=13" />
     <link rel="stylesheet" href="assets/auth.css?v=13" />
     <link rel="stylesheet" href="assets/login-modal.css?v=6" />
-    <link rel="stylesheet" href="assets/cfg-atelye.css?v=14" />
+    <link rel="stylesheet" href="assets/cfg-atelye.css?v=15" />
     <script src="assets/boot.js?v=10"></script>
+    <!-- Flags first, without defer: the Atelye layout is decided below, before first paint. -->
+    <script src="assets/config.js?v=11"></script>
+    <!-- LOOM-341 atelye-prepaint: the one place that decides the Atelye layout
+         (configurator.js asks window.__loomAtlMode). The class lands before the
+         first paint, so the old skin never shows. cfg-atl-boot hides the studio's
+         controls (not its background) until configurator.js has built the Atelye
+         rows; the timeout reveals the page anyway if that script never runs. -->
+    <script>
+      (function () {
+        var d = document.documentElement;
+        window.__loomAtlMode = function () {
+          var f = window.LOOM_FLAGS || {};
+          return window.matchMedia("(max-width: 900px)").matches
+            ? (f.cfgAtelye ? "p" : "") : (f.cfgAtelyeDesktop ? "d" : "");
+        };
+        var m = window.__loomAtlMode();
+        if (!m) return;
+        d.classList.add(m === "d" ? "cfg-atelye-d" : "cfg-atelye", "cfg-atl-boot");
+        setTimeout(function () { d.classList.remove("cfg-atl-boot"); }, 4000);
+      })();
+    </script>
+    <style>
+      html.cfg-atl-boot body > :not(.studio),
+      html.cfg-atl-boot .studio > * { visibility: hidden; }
+    </style>
 
     <!-- three.js, its four example scripts and the meshopt decoder are NOT
          here any more. They are injected in order by ensureThreeLoaded() in
@@ -43,19 +68,16 @@
          garment were being paid for on every load by everyone, including the
          people who never opened the preview. Page scripts stay deferred so
          none of them blocks the parser. -->
-    <script defer src="assets/vendor/gsap.min.js?v=1"></script>
-    <script defer src="assets/config.js?v=11"></script>
     <script defer src="assets/i18n.js?v=63"></script>
     <script defer src="assets/auth.js?v=6"></script>
     <script defer src="assets/tma.js?v=5"></script>
     <script defer src="assets/login-modal.js?v=3"></script>
     <!-- LOOM-338: the Atelye site header, as on every other page (styles in cfg-atelye.css) -->
     <script defer src="assets/shell.js?v=4"></script>
-    <script defer src="assets/motion.js?v=11"></script>
     <script defer src="assets/track.js?v=6"></script>
     <script defer src="assets/analytics.js?v=5"></script>
     <script defer src="assets/cart.js?v=12"></script>
-    <script defer src="configurator.js?v=111"></script>
+    <script defer src="configurator.js?v=112"></script>
 
     <style>
       /* ============================================================
