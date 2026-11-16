@@ -338,6 +338,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   // response must not leave dead controls. The render loop starts with the
   // renderer, in ensurePreview3D(); in flat mode it only ever early-returned.
   initUI();
+  document.documentElement.classList.remove("cfg-atl-boot"); // LOOM-341: the Atelye rows are built
   bindPreview3DPrefetch();
 
   // Auth nav
@@ -4993,9 +4994,12 @@ function atelyeEnabled() {
 function atelyeDeskEnabled() {
   try { return !!(window.LOOM_FLAGS && window.LOOM_FLAGS.cfgAtelyeDesktop); } catch (e) { return false; }
 }
+// LOOM-341: the layout is decided once, by the pre-paint script in
+// configurator.html's <head> ("p" phone, "d" desktop, "" off).
+function _atlLayout() { return window.__loomAtlMode ? window.__loomAtlMode() : ""; }
 /** The Atelye desktop layout applies now (html.cfg-atelye-d). */
-function _atlD() { return atelyeDeskEnabled() && !_isSheetLayout(); }
-function _atl() { return _isSheetLayout() ? atelyeEnabled() : atelyeDeskEnabled(); }
+function _atlD() { return _atlLayout() === "d"; }
+function _atl() { return _atlLayout() !== ""; }
 
 const _ATL_BACK_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
 let _atlHomes = null; // [element, placeholder comment] pairs while moved
