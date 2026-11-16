@@ -95,11 +95,16 @@
   }
   function safePath(s) { return s && /^[\w\/.-]+$/.test(s) ? s : ''; }
 
-  /* The garment: flat art tinted to the colour (configurator art), else
-     the catalogue photo. */
+  /* Photoreal transparent pictures, by slug (LOOM-343). A garment without
+     one still tints the configurator's flat art: add its picture here when
+     it exists. */
+  var PHOTO = { 'tshirt-regular': 'images/home/hero-tee-v1.webp' };
+
+  /* The garment: a transparent picture tinted to the colour, else the
+     catalogue photo. */
   function garment(p, col) {
     var fa = p.config && p.config.flat_art && p.config.flat_art.front;
-    var art = safePath(fa && (fa.src || fa.src_small));
+    var art = PHOTO[p.slug] || safePath(fa && (fa.src || fa.src_small));
     var alt = esc(nameOf(p) + (col ? ', ' + colorName(col) : ''));
     if (art) {
       var u = 'url(' + art + ')';
