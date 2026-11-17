@@ -86,6 +86,10 @@ jobs:
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
 
+      # Customer pages must not load the old maximalist skin (LOOM-341).
+      - name: No old skin on customer pages (tools/check-old-skin.mjs)
+        run: node tools/check-old-skin.mjs
+
       - name: Site JS parses (node --check)
         run: node tools/check-site-js.mjs
 

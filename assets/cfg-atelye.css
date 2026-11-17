@@ -560,7 +560,8 @@
 @media (min-width: 901px) {
   html.cfg-atelye-d .studio,
   html.cfg-atelye-d .atl-drw,
-  html.cfg-atelye-d .atl-drw-dim {
+  html.cfg-atelye-d .atl-drw-dim,
+  html.cfg-atelye-d .loom-modal-backdrop {
     --canvas: #e4e7ea; --grid: rgba(20, 23, 26, .07); --surface: #ffffff; --surface2: #e9ecef;
     --ink: #14171a; --mut: #59616a; --ln: rgba(20, 23, 26, .16);
     --brand: #fc5044; --cta: #d93529; --cta-press: #b82a20; --on-cta: #ffffff;
@@ -576,7 +577,8 @@
   }
   html.cfg-atelye-d[data-theme="dark"] .studio,
   html.cfg-atelye-d[data-theme="dark"] .atl-drw,
-  html.cfg-atelye-d[data-theme="dark"] .atl-drw-dim {
+  html.cfg-atelye-d[data-theme="dark"] .atl-drw-dim,
+  html.cfg-atelye-d[data-theme="dark"] .loom-modal-backdrop {
     --canvas: #1c1f23; --grid: rgba(255, 255, 255, .05); --surface: #2a2e33; --surface2: #3a4047;
     --ink: #f0f2f4; --mut: #a3abb3; --ln: rgba(255, 255, 255, .16);
     --alert: #ff9a8f; --alert-bg: #40211e;
@@ -1243,3 +1245,51 @@
 @media (min-width: 901px) and (prefers-reduced-motion: reduce) {
   .atl-hdr nav a, .atl-hdr .atl-menu { transition: none; animation: none; }
 }
+
+/* ── LOOM-341: the phone-login modal (assets/login-modal.js) ─────────
+   It hangs off <body>, outside .studio: the phone tokens come from
+   html.cfg-atelye, the desktop ones from the list above. Overrides the
+   old skin of login-modal.css only while an Atelye layout applies. */
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal-backdrop { background: rgba(14, 18, 24, .45); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal {
+  --font-body: var(--f); --font-display: var(--f); --font-mono: var(--f);
+  background: var(--surface); color: var(--ink); font-family: var(--f);
+  border: 1px solid var(--ln); border-radius: var(--r-sheet);
+  box-shadow: 0 24px 48px -18px rgba(14, 18, 24, .4);
+  padding: 28px 24px 24px;
+}
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__title { font: 700 20px/1.2 var(--f); font-stretch: 108%; letter-spacing: 0; }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__title::before { content: none; }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__sub,
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__waiting-sub,
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__success-sub { font-size: 14px; color: var(--mut); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__close { color: var(--mut); border-radius: var(--r-chip); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__close:hover { color: var(--ink); background: var(--surface2); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__phone-wrap {
+  border: 1px solid var(--ln); border-radius: var(--r-btn); box-shadow: none; min-height: 48px;
+}
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__phone-wrap:focus-within { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__phone-prefix {
+  border-right: 1px solid var(--ln); background: var(--surface2); color: var(--ink); font-weight: 600;
+}
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__phone-input { color: var(--ink); font-variant-numeric: tabular-nums; }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__phone-input::placeholder { color: var(--mut); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__btn {
+  min-height: 48px; border: 0; border-radius: var(--r-btn); box-shadow: none;
+  background: var(--cta); color: var(--on-cta); font: 700 15px var(--f); letter-spacing: 0; text-transform: none;
+  transition: background var(--t-fast) var(--ease);
+}
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__btn:hover:not(:disabled),
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__btn:active:not(:disabled) { background: var(--cta-press); transform: none; box-shadow: none; }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__cancel-btn {
+  min-height: 44px; border: 0; box-shadow: none; font: 600 14px var(--f); color: var(--mut);
+}
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__cancel-btn:hover { color: var(--ink); transform: none; box-shadow: none; }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__tg-link { min-height: 48px; border-radius: var(--r-btn); font: 700 15px var(--f); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__error { color: var(--alert); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__spinner { border-color: var(--ln); border-top-color: var(--ink); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__timeout-bar { border: 0; border-radius: 2px; background: var(--surface2); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__timeout-fill { background: var(--ink); }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__success-icon { border: 0; }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+html:is(.cfg-atelye, .cfg-atelye-d) .loom-modal__phone-input:focus-visible { outline: none; }
