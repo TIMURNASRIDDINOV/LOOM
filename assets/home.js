@@ -318,6 +318,30 @@
   window.addEventListener('loom:langchange', paintStrip);
 
   window.addEventListener('loom:langchange', renderGarments);
+
+  /* ── Hero picture set in the admin panel (GET /api/site/hero) ── */
+  /* The static tee in index.html stays as the default and as the
+     fallback: the custom picture swaps in only once it has loaded.
+     A custom picture is a whole photo, so the print overlay goes. */
+  function loadHero() {
+    var g = document.querySelector('.atl-hero-g');
+    var img = g && g.querySelector('img');
+    if (!img) return;
+    fetch(api() + '/api/site/hero').then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.url) return;
+        var pre = new Image();
+        pre.onload = function () {
+          img.src = j.url;
+          img.alt = j.alt || '';
+          var pr = g.querySelector('.atl-hero-pr');
+          if (pr) pr.hidden = true;
+        };
+        pre.src = j.url;
+      })
+      .catch(function () { /* keep the default */ });
+  }
+  loadHero();
   loadUnpaid();
   loadGarments();
   loadWorks();

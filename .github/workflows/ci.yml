@@ -83,6 +83,9 @@ jobs:
       - name: Clarity snapshot cron and admin route (local D1, Clarity stubbed)
         run: node backend/scripts/clarity-test.mjs
 
+      - name: Home-page hero picture admin API (local D1/R2)
+        run: node backend/scripts/site-hero-test.mjs
+
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
 
