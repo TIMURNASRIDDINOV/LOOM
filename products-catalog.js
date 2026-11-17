@@ -49,11 +49,16 @@
     return '';
   }
 
-  /* The product render, the same picture the home page tiles show
-     (LOOM-343: the configurator's flat art is for its 2D canvas only).
-     The URL comes from our API; anything that is not https is dropped. */
+  /* Photoreal transparent pictures, by slug (LOOM-344); the same map is in
+     assets/product.js and assets/home.js. A garment without one shows the
+     product render from our API; anything that is not https is dropped. */
+  var PHOTO = {
+    'tshirt-regular': 'images/home/hero-tee-v1.webp',
+    'hoodie-regular': 'images/garments/hoodie-front-v1.webp',
+    'sweatshirt': 'images/garments/sweatshirt-front-v1.webp'
+  };
   function artOf(p) {
-    return /^https:\/\//.test(p.thumbnail_url || '') ? p.thumbnail_url : '';
+    return PHOTO[p.slug] || (/^https:\/\//.test(p.thumbnail_url || '') ? p.thumbnail_url : '');
   }
 
   var products = null;

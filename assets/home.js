@@ -208,9 +208,18 @@
   function productName(p) {
     return I() && I().productName ? I().productName(p) : (p.name_ru || p.slug || '');
   }
+  /* Photoreal transparent pictures, by slug (LOOM-344); the same map is in
+     products-catalog.js and assets/product.js. A garment without one shows
+     the product render from our API. */
+  var PHOTO = {
+    'tshirt-regular': 'images/home/hero-tee-v1.webp',
+    'hoodie-regular': 'images/garments/hoodie-front-v1.webp',
+    'sweatshirt': 'images/garments/sweatshirt-front-v1.webp'
+  };
   function garmentCard(p) {
-    var img = p.thumbnail_url
-      ? '<img src="' + esc(p.thumbnail_url) + '" alt="" loading="lazy" decoding="async">' : '';
+    var art = PHOTO[p.slug] || p.thumbnail_url;
+    var img = art
+      ? '<img src="' + esc(art) + '" alt="" loading="lazy" decoding="async">' : '';
     return '<a class="atl-pc" href="product.html?slug=' + encodeURIComponent(p.slug) + '">' +
       '<span class="atl-cv atl-gtile">' + img + '</span>' +
       '<span class="atl-pc-nm">' + esc(productName(p)) + '</span>' +

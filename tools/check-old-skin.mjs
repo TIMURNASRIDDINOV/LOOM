@@ -30,13 +30,9 @@ const ALLOW = {
 
 const RETIRED = /configuratorprodutcs\/[\w.-]*|images\/lab\/suzani\.png/g
 // Keyed by file name; the uz/ and en/ copies of a page share its entry.
-// The landing pages wait for photoreal front and back pictures of each
-// garment: delete an entry when its pictures land. Never add a page here.
+// Only the configurator may use the flat files. Never add a page here.
 const RETIRED_ALLOW = {
   'configurator.js': null, // the 2D canvas: every flat file is allowed
-  'futbolka-s-printom.html': ['tshirt_oversized_front_600.png', 'tshirt_oversized_back_600.png'],
-  'hudi-s-printom.html': ['hoodie_flat_front_600.png', 'hoodie_flat_back_600.png'],
-  'svitshot-s-printom.html': ['sweatshirt_flat_front_600.png', 'sweatshirt_flat_back_600.png'],
 }
 
 function htmlFiles(dir) {

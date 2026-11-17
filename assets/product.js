@@ -95,10 +95,15 @@
   }
   function safePath(s) { return s && /^[\w\/.-]+$/.test(s) ? s : ''; }
 
-  /* Photoreal transparent pictures, by slug (LOOM-343). A garment without
+  /* Photoreal transparent pictures, by slug (LOOM-343, LOOM-344); the same
+     map is in products-catalog.js and assets/home.js. A garment without
      one still tints the configurator's flat art: add its picture here when
      it exists. */
-  var PHOTO = { 'tshirt-regular': 'images/home/hero-tee-v1.webp' };
+  var PHOTO = {
+    'tshirt-regular': 'images/home/hero-tee-v1.webp',
+    'hoodie-regular': 'images/garments/hoodie-front-v1.webp',
+    'sweatshirt': 'images/garments/sweatshirt-front-v1.webp'
+  };
 
   /* The garment: a transparent picture tinted to the colour, else the
      catalogue photo. */
