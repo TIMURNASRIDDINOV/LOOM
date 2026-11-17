@@ -80,11 +80,11 @@
 
   /* ── 2. Onboarding ───────────────────────────────────────────── */
   var ONB_KEY = 'loom_onb';
-  var TEE = '<img src="configuratorprodutcs/tshirt_flat_white_600.png" alt="" width="600" height="600">';
+  var TEE = '<img src="images/home/hero-tee-v1.webp" alt="" width="1200" height="1200">';
   var ART = [
     '<span class="atl-onb-g">' + TEE + '</span>',
-    '<span class="atl-onb-g">' + TEE + '<img class="atl-hero-pr" src="images/lab/suzani.png" alt="" width="400" height="400"></span>',
-    '<span class="atl-onb-g"><svg viewBox="0 0 300 340" aria-hidden="true"><rect x="40" y="110" width="220" height="150" rx="10" fill="var(--surface)" stroke="var(--ink)" stroke-width="3"/><path d="M40 150h220" stroke="var(--ink)" stroke-width="3"/><circle cx="150" cy="205" r="30" fill="none" stroke="var(--cta)" stroke-width="4"/><path d="M138 205l9 9 16-18" fill="none" stroke="var(--cta)" stroke-width="4"/></svg></span>'
+    '<span class="atl-onb-g">' + TEE + '<img class="atl-hero-pr" src="images/home/hero-print-suzani-v1.png" alt="" width="800" height="800"></span>',
+    '<span class="atl-onb-g"><img class="atl-onb-pay" src="images/home/onb-pay-v1.webp" alt="" width="600" height="600"></span>'
   ];
 
   function wantsOnboarding() {
