@@ -289,13 +289,14 @@
         <p id="glb-optional-note" class="field-hint" style="display:none;margin:0 0 var(--sp-3)">Для готовых дизайнов 3D-модель необязательна — товар продаётся как есть.</p>
         <p class="upload-current" id="glb-current" style="display:none"></p>
         <div class="upload-zone" id="glb-zone">
-          <input type="file" id="f-glb" accept=".glb,.gltf" />
+          <input type="file" id="f-glb" accept=".glb" />
           <div class="upload-zone-text">
             <strong>Выберите .glb файл</strong> или перетащите сюда<br>
-            <span class="dim">Максимум 20 МБ</span>
+            <span class="dim">Максимум 3 МБ · Body_Front / Body_Back · FLOAT32 UV · без Draco</span>
           </div>
           <p class="upload-filename" id="glb-filename"></p>
         </div>
+        <div id="model-preview" aria-live="polite"></div>
         <div class="progress-bar-wrap" id="glb-progress-wrap">
           <div class="progress-bar" id="glb-progress-bar"></div>
         </div>
@@ -328,6 +329,6 @@
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=31"></script>
   <script>LOOM_LAYOUT.init('products', { title: 'Товар', crumbs: [{ label: 'Товары', href: 'products.html' }] })</script>
-  <script src="assets/product-edit.js?v=34"></script>
+  <script src="assets/product-edit.js?v=35"></script>
 </body>
 </html>

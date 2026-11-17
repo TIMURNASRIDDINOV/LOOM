@@ -215,9 +215,30 @@ for (const zoneId of ['glb-zone', 'thumb-zone']) {
   })
 }
 
+let modelCheck = null
+let disposeModelPreview = null
+let modelGeneration = 0
+async function checkModel(file) {
+  const generation = ++modelGeneration
+  const host = document.getElementById('model-preview')
+  if (disposeModelPreview) { disposeModelPreview(); disposeModelPreview = null }
+  host.textContent = 'Checking model…'
+  const { previewModel } = await import('./model-preview.mjs?v=1')
+  const num = (id, fallback) => { const value = document.getElementById(id).value; return value === '' ? fallback : Number(value) }
+  const target = document.createElement('div')
+  const dispose = await previewModel(file, target, {
+    platen_cm: { w: num('f-platen-w', 30), h: num('f-platen-h', 40) },
+    width_frac: num('f-width-frac', 0.55), top_frac: num('f-top-frac', 0.20),
+  })
+  if (generation !== modelGeneration) { dispose(); return }
+  disposeModelPreview = dispose
+  host.replaceChildren(target)
+}
 document.getElementById('f-glb').addEventListener('change', (e) => {
   const file = e.target.files[0]
   document.getElementById('glb-filename').textContent = file ? file.name : ''
+  modelCheck = file ? checkModel(file) : null
+  modelCheck?.catch((err) => { document.getElementById('model-preview').textContent = err.message })
 })
 
 // GLB is optional for ready-made designs — surface that in the form
@@ -298,7 +319,7 @@ function submitWithXHR(url, method, formData) {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(data)
       } else {
-        reject(new Error(data.error || `HTTP ${xhr.status}`))
+        reject(new Error(data.error?.message || data.error || `HTTP ${xhr.status}`))
       }
     })
 
@@ -359,7 +380,15 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
     return
   }
 
-  if (glbFile) fd.append('glb', glbFile)
+  if (glbFile) {
+    try { await checkModel(glbFile) }
+    catch (err) {
+      errEl.textContent = err.message
+      btn.disabled = false; btn.textContent = 'Сохранить'
+      return
+    }
+    fd.append('glb', glbFile)
+  }
   if (thumbFile) fd.append('thumbnail', thumbFile)
 
   try {
