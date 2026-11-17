@@ -16,6 +16,7 @@ import filesRoutes from './routes/files'
 import userProfile from './routes/user-profile'
 import oauthRoutes from './routes/oauth'
 import designerRoutes from './routes/designers'
+import { sitePublic, siteAdmin } from './routes/site'
 import { IG_DRAFTER_CRON, draftWeeklyPosts } from './lib/instagram-drafter'
 import { publishDuePosts } from './lib/instagram-publish'
 import { pullInsights } from './lib/instagram-insights'
@@ -71,8 +72,10 @@ app.route('/api/admin', adminUsersRoutes)     // /api/admin/users/*, /api/admin/
 app.route('/api/admin', adminAiRoutes)        // /api/admin/ai/{models,budget,runs,generate}
 app.route('/api/admin', adminArtworkRoutes)   // /api/admin/artworks, /api/admin/artworks/:id/review
 app.route('/api/admin', adminInstagramRoutes) // /api/admin/instagram/{posts,media,settings,insights}
+app.route('/api/admin', siteAdmin)            // /api/admin/site/hero (GET/PUT/DELETE)
 app.route('/api/ai', aiCutoutRoutes)          // GET /api/ai/cutout/* (admin-only)
 app.route('/api/files', filesRoutes)          // GET /api/files/models/:key, POST /api/files/track
+app.route('/api/site', sitePublic)            // GET /api/site/hero
 app.route('/api/auth', userProfile)
 app.route('/api/auth', oauthRoutes)         // GET /api/auth/oauth/providers, POST /api/auth/oauth/:provider
 app.route('/api', designerRoutes)             // GET /api/artworks, /api/designers/:handle, /api/designer/{apply,artworks,stats}
