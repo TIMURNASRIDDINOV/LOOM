@@ -117,10 +117,9 @@
         /* a language switch reloads the page at /, /uz/ or /en/ (assets/i18n.js): no loader for that */
         var sw = false;
         try { sw = !!sessionStorage.getItem('loom_lang_nav'); sessionStorage.removeItem('loom_lang_nav'); } catch (e) {}
-        /* desktop (mockup 2026-11-15): once per browser session */
-        var desk = window.matchMedia && matchMedia('(min-width: 900px)').matches;
+        /* once per browser session, phone and desktop (founder, 2026-11-16) */
         var seen = false;
-        if (desk) { try { seen = !!sessionStorage.getItem('loom_intro'); sessionStorage.setItem('loom_intro', '1'); } catch (e) {} }
+        try { seen = !!sessionStorage.getItem('loom_intro'); sessionStorage.setItem('loom_intro', '1'); } catch (e) {}
         if (force || (!tg && !reduce && !sw && !seen && nav !== 'back_forward')) {
           d.classList.add('atl-intro');
           if (force) window.__atlIntroHold = true;
