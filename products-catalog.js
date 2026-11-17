@@ -49,13 +49,10 @@
     return '';
   }
 
-  /* Flat art (transparent PNG, the configurator's garment) when the
-     product has it, else the catalogue photo. Paths come from our API;
-     anything that is not a plain relative path or https URL is dropped. */
+  /* The product render, the same picture the home page tiles show
+     (LOOM-343: the configurator's flat art is for its 2D canvas only).
+     The URL comes from our API; anything that is not https is dropped. */
   function artOf(p) {
-    var fa = p.config && p.config.flat_art && p.config.flat_art.front;
-    var src = fa && (fa.src_small || fa.src);
-    if (src && /^[\w\/.-]+$/.test(src)) return src;
     return /^https:\/\//.test(p.thumbnail_url || '') ? p.thumbnail_url : '';
   }
 
