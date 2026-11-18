@@ -68,15 +68,6 @@ const STATUS_LABELS = {
   cancelled: 'Отменён',
 }
 
-const STATUS_COLORS = {
-  new: '#3b82f6',        // blue
-  confirmed: '#eab308',  // yellow
-  producing: '#f97316',  // orange
-  shipped: '#a855f7',    // purple
-  delivered: '#22c55e',  // green
-  cancelled: '#6b7280',  // gray
-}
-
 function statusBadge(status) {
   const label = STATUS_LABELS[status] ?? window.LOOM_UI.esc(status)
   // Colours live in theme.css (.badge / .badge-<status>) so they adapt per theme.
@@ -273,19 +264,19 @@ function showBootError(detail) {
   // thing that failed to load.
   bar.style.cssText = [
     'position:fixed', 'left:0', 'right:0', 'top:0', 'z-index:9999',
-    'padding:14px 18px', 'background:#fef2f2', 'color:#7f1d1d',
-    'border-bottom:1px solid #fca5a5', 'box-shadow:0 2px 10px rgba(0,0,0,0.12)',
-    'font:500 14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif',
+    'padding:14px 18px', 'background:#fdecea', 'color:#14171a',
+    'border-bottom:1.5px solid #c4291d', 'box-shadow:0 2px 10px rgba(0,0,0,0.12)',
+    'font:500 14px/1.5 "Archivo",system-ui,-apple-system,"Segoe UI",sans-serif',
     'display:flex', 'gap:12px', 'align-items:center', 'flex-wrap:wrap',
   ].join(';')
-  const btnCss = 'padding:8px 16px;border-radius:4px;font:inherit;cursor:pointer;'
+  const btnCss = 'padding:8px 16px;border-radius:8px;font:inherit;font-weight:700;cursor:pointer;'
   bar.innerHTML =
     '<span style="flex:1;min-width:240px">Не удалось загрузить часть данных на этой ' +
     'странице. Попробуйте обновить — если не помогает, сообщите разработчику.</span>' +
     '<button type="button" data-act="reload" style="' + btnCss +
-    'border:1px solid #7f1d1d;background:#7f1d1d;color:#fff">Обновить</button>' +
+    'border:1.5px solid #c4291d;background:#c4291d;color:#fff">Обновить</button>' +
     '<button type="button" data-act="dismiss" aria-label="Скрыть сообщение" style="' + btnCss +
-    'border:1px solid #fca5a5;background:transparent;color:#7f1d1d">Скрыть</button>'
+    'border:1.5px solid #c4291d;background:transparent;color:#c4291d">Скрыть</button>'
 
   bar.querySelector('[data-act="reload"]').addEventListener('click', () => {
     const url = new URL(window.location.href)
@@ -366,4 +357,4 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 // Export for other scripts
-window.LOOM = { API_BASE, apiFetch, apiJSON, checkAuth, loginUrl, logout, statusBadge, formatPrice, formatDate, formatPhone, STATUS_LABELS, STATUS_COLORS, showBootError, describeActivity, userRoleLabel, USER_ROLE_LABELS }
+window.LOOM = { API_BASE, apiFetch, apiJSON, checkAuth, loginUrl, logout, statusBadge, formatPrice, formatDate, formatPhone, STATUS_LABELS, showBootError, describeActivity, userRoleLabel, USER_ROLE_LABELS }

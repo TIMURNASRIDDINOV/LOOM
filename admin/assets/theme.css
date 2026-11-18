@@ -12,8 +12,9 @@
    - Never hardcode a colour. Always reference a --token below.
    - Never set a font-size below --fs-sm (13px) on text a human has to read.
      This is a back-office someone stares at all day, not a landing page.
-   - Light = neutral canvas + white elevated surfaces + subtle shadow.
-     Dark  = neutral, borders rather than shadows.
+   - Colours, font and radii are the customer site's Atelye tokens
+     (assets/atelye.css), shared since 2026-11-18. Layout stays the admin's.
+   - Surfaces are flat in both themes: borders, not shadows.
    ════════════════════════════════════════════════════════════════════════ */
 
 /* ── Typography scale ────────────────────────────────────────────────────
@@ -32,9 +33,9 @@
   --lh-base:  1.5;
   --lh-loose: 1.65;
 
-  --radius-sm: 4px;
-  --radius:    6px;
-  --radius-lg: 10px;
+  --radius-sm: 8px;
+  --radius:    12px;
+  --radius-lg: 14px;
 
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
@@ -46,11 +47,13 @@
   --sidebar-w: 248px;
   --topbar-h: 60px;
 
-  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: var(--font);
 }
 
 /* ── Dark (default fallback if JS is disabled) ───────────────────────────────
+   Values are the customer site's Atelye tokens (assets/atelye.css), shared
+   since 2026-11-18; layout and components stay the admin's own.
    NOTE: theme selectors are scoped to the ROOT element (:root[data-theme=…]).
    A bare [data-theme="dark"] would also match the theme-toggle buttons, which
    carry data-theme attributes of their own — wrongly giving them dark tokens. */
@@ -59,145 +62,153 @@
   color-scheme: dark;
 
   /* Surfaces */
-  --bg:            #0a0a0a;   /* app canvas                              */
-  --bg-sidebar:    #080808;   /* sidebar                                 */
-  --bg-card:       #131313;   /* raised surface (lighter = elevated)     */
-  --bg-elevated:   #1b1b1b;   /* modals / popovers                       */
-  --bg-subtle:     #101010;   /* table headers, inset fills              */
+  --bg:            #121315;
+  --bg-sidebar:    #1b1d20;
+  --bg-card:       #1b1d20;
+  --bg-elevated:   #2a2e33;
+  --bg-subtle:     #121315;
 
-  /* Text — muted/dim raised from 0.52/0.32 so secondary text clears AA
-     (8.8:1 and 4.6:1 on the canvas respectively). */
-  --text:          #ffffff;
-  --text-secondary:rgba(255,255,255,0.82);
-  --text-muted:    rgba(255,255,255,0.68);
-  --text-dim:      rgba(255,255,255,0.48);
+  /* Text */
+  --text:          #f0f2f4;
+  --text-secondary:#c9ced4;
+  --text-muted:    #a3abb3;
+  --text-dim:      #a3abb3;
 
   /* Borders */
-  --hairline:      rgba(255,255,255,0.12);
-  --hairline2:     rgba(255,255,255,0.07);
+  --hairline:      rgba(255,255,255,.16);
+  --hairline2:     rgba(255,255,255,.08);
 
-  /* Inputs */
-  --input-bg:      rgba(255,255,255,0.05);
-  --input-border:  rgba(255,255,255,0.16);
-  --input-border-focus: rgba(255,255,255,0.55);
+  /* Inputs — .5/.4 alpha, not the site's .16 --ln: inputs need 3:1 */
+  --input-bg:      #2a2e33;
+  --input-border:  rgba(255,255,255,.40);
+  --input-border-focus: #f0f2f4;
 
   /* Buttons (outline) */
-  --btn-border:        rgba(255,255,255,0.20);
-  --btn-color:         rgba(255,255,255,0.82);
-  --btn-hover:         #ffffff;
-  --btn-hover-border:  rgba(255,255,255,0.45);
+  --btn-border:        rgba(255,255,255,.40);
+  --btn-color:         #c9ced4;
+  --btn-hover:         #f0f2f4;
+  --btn-hover-border:  #f0f2f4;
   --logout-bg:         transparent;
 
-  /* Inverted / primary solid button */
-  --invert-bg:     #ffffff;
-  --invert-text:   #111111;
+  /* Ink solid — switches, avatar, chips. NOT the primary button (--cta). */
+  --invert-bg:     #f0f2f4;
+  --invert-text:   #121315;
+
+  /* Primary call to action + logo slash (same in both themes) */
+  --cta:           #d93529;
+  --cta-press:     #b82a20;
+  --on-cta:        #ffffff;
+  --brand:         #fc5044;
 
   /* Interactive surfaces */
-  --hover-bg:      rgba(255,255,255,0.06);
-  --link-color:    rgba(255,255,255,0.72);
-  --link-hover:    #ffffff;
-  --link-active:   #ffffff;
-  --link-active-bg:rgba(255,255,255,0.08);
+  --hover-bg:      #3a4047;
+  --link-color:    #c9ced4;
+  --link-hover:    #f0f2f4;
+  --link-active:   #f0f2f4;
+  --link-active-bg:#3a4047;
 
   /* Form controls (toggle switches etc.) */
-  --control-track:    rgba(255,255,255,0.16);
-  --control-track-border: rgba(255,255,255,0.20);
+  --control-track:    #3a4047;
+  --control-track-border: rgba(255,255,255,.40);
   --control-knob:     #ffffff;
-  --control-knob-off: rgba(255,255,255,0.65);
+  --control-knob-off: #ffffff;
 
   /* Semantic */
-  --danger:        #f87171;
-  --danger-bg:     rgba(239,68,68,0.14);
-  --danger-border: rgba(239,68,68,0.38);
-  --success:       #4ade80;
-  --success-bg:    rgba(34,197,94,0.14);
-  --success-border:rgba(34,197,94,0.38);
-  --warning:       #facc15;
-  --warning-bg:    rgba(234,179,8,0.14);
-  --warning-border:rgba(234,179,8,0.38);
-  --accent:        #ffffff;
+  --danger:        #ff9a8f;
+  --danger-bg:     #40211e;
+  --danger-border: rgba(255,154,143,.4);
+  --success:       #5fd08f;
+  --success-bg:    #163223;
+  --success-border:rgba(95,208,143,.4);
+  --warning:       #f0c060;
+  --warning-bg:    #3a2e12;
+  --warning-border:rgba(240,192,96,.4);
+  --accent:        #f0f2f4;
 
   /* Elevation */
   --shadow-card:   none;
   --shadow-pop:    0 12px 34px rgba(0,0,0,0.6);
-  --focus-ring:    0 0 0 3px rgba(255,255,255,0.22);
+  --focus-ring:    0 0 0 1px #f0f2f4;
 
   /* Back-compat alias (older pages use --muted) */
-  --muted:         rgba(255,255,255,0.68);
+  --muted:         #a3abb3;
 }
 
-/* ── Light (neutral zinc — corporate back-office look) ───────────────────── */
+/* ── Light (Atelye paper + white cards) ──────────────────────────────────── */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  /* Surfaces — canvas is light grey, cards are WHITE (raised) */
-  --bg:            #f5f5f6;
+  /* Surfaces */
+  --bg:            #f5f5f2;
   --bg-sidebar:    #ffffff;
   --bg-card:       #ffffff;
   --bg-elevated:   #ffffff;
-  --bg-subtle:     #fafafa;
+  --bg-subtle:     #f5f5f2;
 
-  /* Text — accessible zinc scale. Measured against the CANVAS (#f5f5f6), not
-     white: zinc-500 clears AA on a white card but lands at 4.44:1 on the
-     canvas, which is where .page-sub and .page-info actually sit.
-     muted 5.5:1, dim 4.6:1 on canvas. */
-  --text:          #18181b;
-  --text-secondary:#3f3f46;
-  --text-muted:    #63636b;
-  --text-dim:      #6e6e77;
+  /* Text */
+  --text:          #14171a;
+  --text-secondary:#3a4047;
+  --text-muted:    #59616a;
+  --text-dim:      #59616a;
 
-  /* Borders — solid greys (alpha-black on white reads muddy) */
-  --hairline:      #e4e4e7;
-  --hairline2:     #efeff1;
+  /* Borders */
+  --hairline:      rgba(20,23,26,.16);
+  --hairline2:     rgba(20,23,26,.08);
 
-  /* Inputs */
+  /* Inputs — .5/.4 alpha, not the site's .16 --ln: inputs need 3:1 */
   --input-bg:      #ffffff;
-  --input-border:  #d4d4d8;
-  --input-border-focus: #18181b;
+  --input-border:  rgba(20,23,26,.5);
+  --input-border-focus: #14171a;
 
   /* Buttons (outline) */
-  --btn-border:        #d4d4d8;
-  --btn-color:         #3f3f46;
-  --btn-hover:         #18181b;
-  --btn-hover-border:  #a1a1aa;
+  --btn-border:        rgba(20,23,26,.5);
+  --btn-color:         #3a4047;
+  --btn-hover:         #14171a;
+  --btn-hover-border:  #14171a;
   --logout-bg:         transparent;
 
-  /* Inverted / primary solid button */
-  --invert-bg:     #18181b;
+  /* Ink solid — switches, avatar, chips. NOT the primary button (--cta). */
+  --invert-bg:     #14171a;
   --invert-text:   #ffffff;
 
+  /* Primary call to action + logo slash (same in both themes) */
+  --cta:           #d93529;
+  --cta-press:     #b82a20;
+  --on-cta:        #ffffff;
+  --brand:         #fc5044;
+
   /* Interactive surfaces */
-  --hover-bg:      #f4f4f5;
-  --link-color:    #3f3f46;
-  --link-hover:    #18181b;
-  --link-active:   #18181b;
-  --link-active-bg:#f0f0f1;
+  --hover-bg:      #e9ecef;
+  --link-color:    #3a4047;
+  --link-hover:    #14171a;
+  --link-active:   #14171a;
+  --link-active-bg:#e9ecef;
 
-  /* Form controls */
-  --control-track:    #d4d4d8;
-  --control-track-border: #c4c4c8;
+  /* Form controls (toggle switches etc.) */
+  --control-track:    #e9ecef;
+  --control-track-border: rgba(20,23,26,.5);
   --control-knob:     #ffffff;
-  --control-knob-off: #ffffff;
+  --control-knob-off: #59616a;   /* white on #e9ecef was 1.19:1; this clears 3:1 */
 
-  /* Semantic — darker text for contrast on light fills */
-  --danger:        #dc2626;
-  --danger-bg:     #fef2f2;
-  --danger-border: #fca5a5;
-  --success:       #15803d;
-  --success-bg:    #f0fdf4;
-  --success-border:#86efac;
-  --warning:       #a16207;
-  --warning-bg:    #fefce8;
-  --warning-border:#fde047;
-  --accent:        #18181b;
+  /* Semantic */
+  --danger:        #c4291d;
+  --danger-bg:     #fdecea;
+  --danger-border: rgba(196,41,29,.4);
+  --success:       #1d7a46;
+  --success-bg:    #e3f2e9;
+  --success-border:rgba(29,122,70,.4);
+  --warning:       #8a5a00;
+  --warning-bg:    #fbf1dc;
+  --warning-border:rgba(138,90,0,.4);
+  --accent:        #14171a;
 
-  /* Elevation — subtle shadow is what makes a light surface read as raised */
-  --shadow-card:   0 1px 2px rgba(24,24,27,0.04), 0 1px 3px rgba(24,24,27,0.06);
-  --shadow-pop:    0 10px 30px rgba(24,24,27,0.14);
-  --focus-ring:    0 0 0 3px rgba(24,24,27,0.18);
+  /* Elevation */
+  --shadow-card:   none;
+  --shadow-pop:    0 6px 14px -6px rgba(14,18,24,.28), 0 10px 30px rgba(14,18,24,.12);
+  --focus-ring:    0 0 0 1px #14171a;
 
-  /* Back-compat alias */
-  --muted:         #63636b;
+  /* Back-compat alias (older pages use --muted) */
+  --muted:         #59616a;
 }
 
 /* ── No-flash transition guard ──────────────────────────────────────────────
@@ -234,6 +245,7 @@ body {
   font-family: var(--font);
   font-size: var(--fs-base);
   line-height: var(--lh-base);
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   transition: background 0.18s ease, color 0.18s ease;
@@ -303,12 +315,14 @@ body.has-sidebar { display: flex; flex-direction: row; min-height: 100vh; }
 
 .sidebar-brand {
   display: flex; align-items: center; gap: var(--sp-2);
-  font-family: var(--mono);
-  font-size: var(--fs-sm); letter-spacing: 0.22em; text-transform: uppercase;
+  font: 800 18px/1 var(--font); font-stretch: 125%;
+  letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--text); padding: 1.15rem 1.25rem;
   border-bottom: 1px solid var(--hairline2);
   text-decoration: none; white-space: nowrap;
 }
+
+.sidebar-brand .brand-text::after { content: "/"; color: var(--brand); margin-left: 0.06em; }
 
 .sidebar-nav { flex: 1; padding: var(--sp-3) 0 var(--sp-5); }
 
@@ -346,7 +360,7 @@ body.has-sidebar { display: flex; flex-direction: row; min-height: 100vh; }
 .sidebar-link .nav-count {
   margin-left: auto; font-family: var(--mono); font-size: var(--fs-xs);
   color: var(--text-dim); background: var(--hover-bg);
-  border: 1px solid var(--hairline2); border-radius: 999px; padding: 1px 7px;
+  border: 1px solid var(--hairline2); border-radius: 4px; padding: 1px 7px;
 }
 
 /* Collapsed rail: icons only, labels revealed on hover as tooltips. */
@@ -444,7 +458,7 @@ body.sidebar-collapsed .sidebar-collapse-btn span:last-child { display: none; }
 /* Segmented control (theme switch) */
 .segmented { display: flex; gap: 2px; padding: 3px; background: var(--hover-bg); border-radius: var(--radius-sm); }
 .segmented button {
-  flex: 1; padding: 0.4rem 0.3rem; border-radius: 3px;
+  flex: 1; padding: 0.4rem 0.3rem; border-radius: 6px;
   border: 1px solid transparent; background: transparent;
   color: var(--text-muted); font-family: inherit; font-size: var(--fs-sm);
   cursor: pointer; transition: color 0.12s, background 0.12s;
@@ -460,9 +474,9 @@ body.sidebar-collapsed .sidebar-collapse-btn span:last-child { display: none; }
   .sidebar {
     position: fixed; inset: 0 auto 0 0; width: min(280px, 84vw);
     transform: translateX(-100%); transition: transform 0.22s ease;
-    box-shadow: var(--shadow-pop);
   }
-  body.nav-open .sidebar { transform: translateX(0); }
+  /* Shadow only while open: on the closed drawer it bleeds onto the page edge. */
+  body.nav-open .sidebar { transform: translateX(0); box-shadow: var(--shadow-pop); }
   body.nav-open .scrim {
     display: block; position: fixed; inset: 0;
     background: rgba(0,0,0,0.45); z-index: 55;
@@ -516,7 +530,7 @@ body.sidebar-collapsed .sidebar-collapse-btn span:last-child { display: none; }
 .tab .count {
   font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-muted);
   background: var(--hover-bg); border: 1px solid var(--hairline2);
-  border-radius: 999px; padding: 1px 7px;
+  border-radius: 4px; padding: 1px 7px;
 }
 .tab[aria-selected="true"] .count { color: var(--text); }
 
@@ -596,7 +610,7 @@ body.sidebar-collapsed .sidebar-collapse-btn span:last-child { display: none; }
   padding: var(--sp-4) var(--sp-5);
 }
 .stat-label { font-size: var(--fs-sm); color: var(--text-muted); margin: 0 0 var(--sp-2); font-weight: 500; }
-.stat-value { font-family: var(--mono); font-size: var(--fs-2xl); font-weight: 500; color: var(--text); margin: 0; line-height: 1.15; letter-spacing: -0.02em; }
+.stat-value { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: var(--fs-2xl); font-weight: 500; color: var(--text); margin: 0; line-height: 1.15; letter-spacing: -0.02em; }
 .stat-sub { font-size: var(--fs-sm); color: var(--text-muted); margin: var(--sp-2) 0 0; }
 .stat--action { border-color: var(--warning-border); background: var(--warning-bg); }
 .stat--action .stat-label, .stat--action .stat-sub { color: var(--warning); }
@@ -617,9 +631,9 @@ a.stat:hover { border-color: var(--btn-hover-border); }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
   min-height: 40px; padding: 0.5rem 1rem;
-  border-radius: var(--radius-sm); border: 1px solid var(--btn-border);
+  border-radius: var(--radius-sm); border: 1.5px solid var(--btn-border);
   background: transparent; color: var(--btn-color);
-  font-family: inherit; font-size: var(--fs-base); font-weight: 500;
+  font-family: inherit; font-size: var(--fs-base); font-weight: 700;
   line-height: 1.2; cursor: pointer; text-decoration: none; white-space: nowrap;
   transition: color 0.12s, border-color 0.12s, background 0.12s, opacity 0.12s;
 }
@@ -627,8 +641,10 @@ a.stat:hover { border-color: var(--btn-hover-border); }
 .btn:disabled, .btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
 .btn:disabled:hover { color: var(--btn-color); border-color: var(--btn-border); background: transparent; }
 
-.btn--primary { background: var(--invert-bg); color: var(--invert-text); border-color: var(--invert-bg); }
-.btn--primary:hover { background: var(--invert-bg); color: var(--invert-text); opacity: 0.88; border-color: var(--invert-bg); }
+/* Primary is the site's red CTA. Never --invert-bg: switches share that
+   token and would turn red. Danger stays outline-only to differ by shape. */
+.btn--primary { background: var(--cta); color: var(--on-cta); border-color: var(--cta); }
+.btn--primary:hover { background: var(--cta-press); color: var(--on-cta); border-color: var(--cta-press); }
 
 .btn--danger { color: var(--danger); border-color: var(--danger-border); }
 .btn--danger:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-bg); }
@@ -661,7 +677,7 @@ a.stat:hover { border-color: var(--btn-hover-border); }
 .input, .select, .textarea {
   width: 100%; min-height: 40px;
   padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-sm); border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm); border: 1.5px solid var(--input-border);
   background: var(--input-bg); color: var(--text);
   font-family: inherit; font-size: var(--fs-base); line-height: 1.4;
   outline: none; transition: border-color 0.12s, box-shadow 0.12s;
@@ -716,7 +732,8 @@ a.stat:hover { border-color: var(--btn-hover-border); }
 }
 .switch input:checked ~ .track { background: var(--invert-bg); border-color: var(--invert-bg); }
 .switch input:checked ~ .knob { transform: translateX(16px); background: var(--invert-text); }
-.switch input:focus-visible ~ .track { box-shadow: var(--focus-ring); }
+/* Outline, not --focus-ring: a 1px ink ring vanishes on the ink-filled track. */
+.switch input:focus-visible ~ .track { outline: 2px solid var(--accent); outline-offset: 2px; }
 .switch input:disabled ~ .track { opacity: 0.6; }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -781,25 +798,26 @@ a.stat:hover { border-color: var(--btn-hover-border); }
    Badges — statusBadge() in app.js renders .badge.badge-<status>
    ════════════════════════════════════════════════════════════════════════ */
 .badge {
-  display: inline-block; padding: 3px 10px; border-radius: 9999px;
-  font-size: var(--fs-xs); font-weight: 500; letter-spacing: 0.02em;
+  display: inline-block; padding: 3px 10px; border-radius: 4px;
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.02em;
   background: var(--hover-bg); color: var(--text-secondary);
-  border: 1px solid var(--hairline); white-space: nowrap; line-height: 1.4;
+  border: 1px solid transparent; white-space: nowrap; line-height: 1.4;
 }
 
-:root[data-theme="dark"] .badge-new        { background: rgba(59,130,246,0.18);  color: #a9cbfd; border-color: rgba(59,130,246,0.45); }
-:root[data-theme="dark"] .badge-confirmed  { background: rgba(234,179,8,0.18);   color: #fde68a; border-color: rgba(234,179,8,0.45); }
-:root[data-theme="dark"] .badge-producing  { background: rgba(249,115,22,0.18);  color: #fdc492; border-color: rgba(249,115,22,0.45); }
-:root[data-theme="dark"] .badge-shipped    { background: rgba(168,85,247,0.18);  color: #e0c4fe; border-color: rgba(168,85,247,0.45); }
-:root[data-theme="dark"] .badge-delivered  { background: rgba(34,197,94,0.18);   color: #9fedb8; border-color: rgba(34,197,94,0.45); }
-:root[data-theme="dark"] .badge-cancelled  { background: rgba(107,114,128,0.22); color: #d5dbe4; border-color: rgba(107,114,128,0.5); }
+/* One hue per status (staff read them by colour); Atelye-tuned shades. */
+:root[data-theme="dark"] .badge-new       { background: #1a2a40; color: #8fbaf0; }
+:root[data-theme="dark"] .badge-confirmed { background: #3a2e12; color: #f0c060; }
+:root[data-theme="dark"] .badge-producing { background: #3d2617; color: #f5a878; }
+:root[data-theme="dark"] .badge-shipped   { background: #2e2340; color: #c9a6f0; }
+:root[data-theme="dark"] .badge-delivered { background: #163223; color: #5fd08f; }
+:root[data-theme="dark"] .badge-cancelled { background: #3a4047; color: #a3abb3; }
 
-:root[data-theme="light"] .badge-new       { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-:root[data-theme="light"] .badge-confirmed { background: #fefce8; color: #a16207; border-color: #fde68a; }
-:root[data-theme="light"] .badge-producing { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
-:root[data-theme="light"] .badge-shipped   { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
-:root[data-theme="light"] .badge-delivered { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
-:root[data-theme="light"] .badge-cancelled { background: #f4f4f5; color: #52525b; border-color: #d4d4d8; }
+:root[data-theme="light"] .badge-new       { background: #e6eef8; color: #1f5fa8; }
+:root[data-theme="light"] .badge-confirmed { background: #fbf1dc; color: #8a5a00; }
+:root[data-theme="light"] .badge-producing { background: #fcebdf; color: #a3470f; }
+:root[data-theme="light"] .badge-shipped   { background: #f1eaf8; color: #6b3fa0; }
+:root[data-theme="light"] .badge-delivered { background: #e3f2e9; color: #1d7a46; }
+:root[data-theme="light"] .badge-cancelled { background: #e9ecef; color: #59616a; }
 
 /* Role badges (team page) */
 .badge-role-owner   { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }

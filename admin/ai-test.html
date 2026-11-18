@@ -10,19 +10,18 @@
   <meta name="robots" content="noindex, nofollow" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI-лаборатория — LOOM Admin</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=31" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=32" />
   <script src="assets/theme-init.js?v=30"></script>
   <style>
-    *, *::before, *::after { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-    :root { --mono: 'DM Mono', monospace; }
 
     .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
     .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap; }
     .page-title { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.015em; margin: 0; }
 
     /* ── Budget bar ─────────────────────────────────────────────── */
-    .budget { border: 0.5px solid var(--hairline); border-radius: 4px; background: var(--bg-card); padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+    .budget { border: 0.5px solid var(--hairline); border-radius: var(--radius); background: var(--bg-card); padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
     .budget-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
     .budget-label { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
     .budget-value { font-family: var(--mono); font-size: 1.15rem; color: var(--text); }
@@ -39,14 +38,14 @@
     .budget.disabled { opacity: 0.55; }
 
     /* ── Form ───────────────────────────────────────────────────── */
-    .panel { border: 0.5px solid var(--hairline); border-radius: 4px; background: var(--bg-card); padding: 1.25rem; margin-bottom: 1.5rem; }
+    .panel { border: 0.5px solid var(--hairline); border-radius: var(--radius); background: var(--bg-card); padding: 1.25rem; margin-bottom: 1.5rem; }
     .field { margin-bottom: 1.1rem; }
     .field:last-child { margin-bottom: 0; }
     .field-label { display: block; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
     .field-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.35rem; line-height: 1.5; }
 
     .form-textarea, .form-input-sm, .form-select {
-      width: 100%; padding: 0.6rem 0.9rem; border-radius: 4px; border: 0.5px solid var(--input-border);
+      width: 100%; padding: 0.6rem 0.9rem; border-radius: var(--radius-sm); border: 0.5px solid var(--input-border);
       background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.875rem; outline: none;
     }
     .form-textarea { min-height: 84px; resize: vertical; line-height: 1.6; }
@@ -59,7 +58,7 @@
 
     /* ── Model checkboxes ───────────────────────────────────────── */
     .models { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.6rem; }
-    .model-opt { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.7rem 0.85rem; border: 0.5px solid var(--hairline); border-radius: 4px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+    .model-opt { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.7rem 0.85rem; border: 0.5px solid var(--hairline); border-radius: var(--radius-sm); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
     .model-opt:hover { background: var(--hover-bg); border-color: var(--btn-hover-border); }
     .model-opt input { margin-top: 0.15rem; accent-color: var(--text); cursor: pointer; }
     .model-opt-body { min-width: 0; }
@@ -73,22 +72,22 @@
     .model-cost .seed-unknown { color: var(--text-dim); }
     .model-opt.opt-disabled { opacity: 0.5; cursor: not-allowed; }
     .model-opt.opt-disabled:hover { background: transparent; border-color: var(--hairline); }
-    .prov { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.05rem 0.3rem; border-radius: 3px; vertical-align: middle; }
+    .prov { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.05rem 0.3rem; border-radius: 4px; vertical-align: middle; }
     .prov-google { background: var(--warning-bg); color: var(--warning); border: 0.5px solid var(--warning-border); }
-    .unverified { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.05rem 0.3rem; border-radius: 3px; vertical-align: middle; background: var(--danger-bg); color: var(--danger); border: 0.5px solid var(--danger-border); }
+    .unverified { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.05rem 0.3rem; border-radius: 4px; vertical-align: middle; background: var(--danger-bg); color: var(--danger); border: 0.5px solid var(--danger-border); }
 
     /* ── Actions ────────────────────────────────────────────────── */
     .actions { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-top: 1.25rem; }
-    .btn-sm { padding: 0.55rem 1rem; border-radius: 4px; border: 0.5px solid var(--btn-border); background: var(--input-bg); color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+    .btn-sm { padding: 0.55rem 1rem; border-radius: var(--radius-sm); border: 0.5px solid var(--btn-border); background: var(--input-bg); color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
     .btn-sm:hover { color: var(--text); background: var(--control-track); }
-    .btn-primary { padding: 0.55rem 1.3rem; border-radius: 4px; border: 0.5px solid var(--btn-border); background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; font-weight: 500; }
+    .btn-primary { padding: 0.55rem 1.3rem; border-radius: var(--radius-sm); border: 0.5px solid var(--btn-border); background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; font-weight: 500; }
     .btn-primary:hover:not(:disabled) { background: var(--hover-bg); border-color: var(--btn-hover-border); }
     .btn-primary:disabled, .btn-sm:disabled { opacity: 0.45; cursor: not-allowed; }
     .est { font-family: var(--mono); font-size: 0.8rem; color: var(--text-muted); }
     .est.over { color: var(--danger); }
 
     /* ── Alerts ─────────────────────────────────────────────────── */
-    .alert { border-radius: 4px; padding: 0.8rem 1rem; font-size: 0.83rem; line-height: 1.55; margin-bottom: 1.25rem; }
+    .alert { border-radius: var(--radius-sm); padding: 0.8rem 1rem; font-size: 0.83rem; line-height: 1.55; margin-bottom: 1.25rem; }
     .alert-danger { background: var(--danger-bg); border: 0.5px solid var(--danger-border); color: var(--danger); }
     .alert-warn { background: var(--warning-bg); border: 0.5px solid var(--warning-border); color: var(--warning); }
     .hidden { display: none !important; }
@@ -99,7 +98,7 @@
     .run-meta { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-    .tile { border: 0.5px solid var(--hairline); border-radius: 4px; background: var(--bg-card); overflow: hidden; display: flex; flex-direction: column; }
+    .tile { border: 0.5px solid var(--hairline); border-radius: var(--radius); background: var(--bg-card); overflow: hidden; display: flex; flex-direction: column; }
     .tile-img-wrap { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
 
     /* Backdrops — edge fringing only shows on solid black. */
@@ -122,7 +121,7 @@
     .tile-name { font-size: 0.82rem; color: var(--text); }
     .tile-facts { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); margin-top: 0.3rem; line-height: 1.6; }
     .tile-toggles { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
-    .chip { padding: 0.28rem 0.6rem; border-radius: 3px; border: 0.5px solid var(--input-border); background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.7rem; cursor: pointer; transition: all 0.15s; }
+    .chip { padding: 0.28rem 0.6rem; border-radius: 6px; border: 0.5px solid var(--input-border); background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.7rem; cursor: pointer; transition: all 0.15s; }
     .chip:hover { color: var(--text); border-color: var(--input-border-focus); }
     .chip.active { background: var(--invert-bg); color: var(--invert-text); border-color: var(--invert-bg); }
     .chip:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -212,7 +211,7 @@
     <div id="empty" class="empty">Выберите модели и запустите генерацию.</div>
   </main>
 
-  <script src="assets/app.js?v=32"></script>
+  <script src="assets/app.js?v=33"></script>
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=34"></script>
   <script>LOOM_LAYOUT.init('ai-test')</script>
