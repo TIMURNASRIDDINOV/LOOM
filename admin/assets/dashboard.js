@@ -452,17 +452,19 @@
     })
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
+  // A Worker with LOOM-353 buckets days in Tashkent time (UTC+5, no DST); an older one in UTC.
+  // Set from the stats response, which load() renders before the visitors series.
+  let tashkentDays = false
+
   // Fill gaps so a quiet day reads as zero rather than vanishing from the axis.
   function fillDays(rows, n, dateKey, countKey) {
     dateKey = dateKey || 'day'; countKey = countKey || 'count'
     const map = {}
     ;(rows || []).forEach((row) => { map[row[dateKey]] = row[countKey] })
     const labels = [], counts = []
-    const now = new Date()
+    const now = Date.now() + (tashkentDays ? 5 * 3600000 : 0)
     for (let i = n - 1; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const key = d.toISOString().slice(0, 10)
+      const key = new Date(now - i * 86400000).toISOString().slice(0, 10)
       labels.push(key.slice(5))
       counts.push(map[key] ?? 0)
     }
@@ -490,15 +492,25 @@
     el('stat-week').textContent = stats.ordersLast7Days
     el('stat-revenue').textContent = formatPrice(stats.revenueLast30Days)
 
-    const newCount = stats.ordersByStatus['new'] ?? 0
+    // A Worker older than LOOM-353 has no payment split: then every new order counts as waiting.
+    const split = typeof stats.newToProcess === 'number' && typeof stats.newAwaitingPayment === 'number'
+    tashkentDays = split
+    const newCount = split ? stats.newToProcess : (stats.ordersByStatus['new'] ?? 0)
     el('stat-new').textContent = newCount
+    if (split) {
+      el('stat-new-sub').textContent = 'Ещё ждут оплаты: ' + stats.newAwaitingPayment
+      el('stat-revenue-sub').textContent = 'Оплаченные, без отменённых'
+    }
     el('stat-producing').textContent = stats.ordersByStatus['producing'] ?? 0
     // The "needs attention" treatment is only warranted when something does.
     if (!newCount) el('tile-new').classList.remove('stat--action')
 
+    const awaiting = split ? stats.newAwaitingPayment : 0
     el('greeting').textContent = newCount
       ? plural(newCount, 'заказ ждёт', 'заказа ждут', 'заказов ждут') + ' обработки.'
-      : 'Необработанных заказов нет — всё в работе.'
+      : awaiting
+        ? 'Необработанных заказов нет. Ещё ' + plural(awaiting, 'заказ ждёт', 'заказа ждут', 'заказов ждут') + ' оплаты.'
+        : 'Необработанных заказов нет — всё в работе.'
 
     const order = ['new', 'confirmed', 'producing', 'shipped', 'delivered', 'cancelled']
     el('status-bar').innerHTML = order.map((s) =>
@@ -533,7 +545,7 @@
         '<div class="rank-row">' +
           '<span class="rank-left"><span class="rank-num">' + (i + 1) + '</span>' +
           '<span>' + esc(p.name_ru ?? 'Без названия') + '</span></span>' +
-          '<span class="rank-count">' + p.count + ' зак.</span>' +
+          '<span class="rank-count">' + p.count + (split ? ' шт.' : ' зак.') + '</span>' +
         '</div>').join('')
     }
   }
