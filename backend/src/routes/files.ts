@@ -80,15 +80,16 @@ files.post('/track', async (c) => {
     'cfg_order',       // place-order click (server writes order_placed)
   ]
   const evt = typeof event === 'string' && EVENTS.includes(event) ? event : null
+  const DEVICES = ['mobile', 'tablet', 'desktop'] // what assets/track.js sends
 
   // Fire-and-forget — don't await so we don't add latency
   ;(c as unknown as { executionCtx?: { waitUntil: (p: Promise<unknown>) => void } }).executionCtx?.waitUntil(
     trackPageVisit(c.env.DB, {
       session_id: String(session_id).slice(0, 64),
       page: typeof page === 'string' ? page.slice(0, 200) : '/',
-      device_type: typeof device_type === 'string' ? device_type : null,
-      os: typeof os === 'string' ? os : null,
-      browser: typeof browser === 'string' ? browser : null,
+      device_type: typeof device_type === 'string' && DEVICES.includes(device_type) ? device_type : null,
+      os: typeof os === 'string' ? os.slice(0, 32) : null,
+      browser: typeof browser === 'string' ? browser.slice(0, 32) : null,
       referrer: typeof referrer === 'string' ? referrer.slice(0, 500) : null,
       event: evt,
     }).catch(() => {}),

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import {
   getAdminProducts,
   getProductById,
+  getProductBySlug,
   createProduct,
   updateProduct,
   softDeleteProduct,
@@ -10,6 +11,7 @@ import {
   AdminProductsFilter,
 } from '../db/queries'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
+import { sniffType } from '../lib/r2'
 import type { AdminEnv } from '../types'
 
 // Product writes require manager or owner (staff is read-only here).
@@ -44,40 +46,36 @@ function getFileField(formData: FormData, key: string): FileField | null {
   return f as unknown as FileField
 }
 
-function validateGlb(f: FileField): string | null {
-  const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
-  const allowedExts = new Set(['glb', 'gltf'])
-  // Accept any content-type when the extension is valid — browsers often send
-  // application/octet-stream or empty string for .glb files.
-  if (!allowedExts.has(ext)) return 'GLB file must have .glb or .gltf extension'
-  if (f.size > 20 * 1024 * 1024) return 'GLB file must be ≤ 20 MB'
-  if (f.size <= 0) return 'Invalid GLB file size'
+// The type is taken from the file's leading bytes (lib/r2.ts), never from the
+// declared MIME type or the file name.
+async function validateGlb(f: FileField): Promise<string | null> {
+  if (f.size > 20 * 1024 * 1024) return 'Файл GLB должен быть не больше 20 МБ'
+  if (f.size <= 0) return 'Пустой файл GLB'
+  if (sniffType(new Uint8Array(await f.arrayBuffer()))?.ext !== 'glb') return 'Нужен файл .glb (бинарный glTF)'
   return null
 }
 
-const THUMB_TYPES: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/webp': 'webp',
-}
+const THUMB_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
-function validateThumbnail(f: FileField): { ext: string } | { error: string } {
-  const ext = THUMB_TYPES[f.type]
-  if (!ext) return { error: 'Thumbnail must be image/png, image/jpeg, or image/webp' }
-  if (f.size > 2 * 1024 * 1024) return { error: 'Thumbnail must be ≤ 2 MB' }
-  if (f.size <= 0) return { error: 'Invalid thumbnail file size' }
-  return { ext }
+async function validateThumbnail(f: FileField): Promise<{ ext: string; mime: string } | { error: string }> {
+  if (f.size > 2 * 1024 * 1024) return { error: 'Превью должно быть не больше 2 МБ' }
+  if (f.size <= 0) return { error: 'Пустой файл превью' }
+  const type = sniffType(new Uint8Array(await f.arrayBuffer()))
+  if (!type || !THUMB_TYPES.has(type.mime)) return { error: 'Превью должно быть PNG, JPEG или WebP' }
+  return type
 }
 
 function parseColors(val: unknown): string | null | { error: string } {
   if (val == null || val === '') return null
-  if (typeof val !== 'string') return { error: 'base_colors must be a JSON string' }
+  if (typeof val !== 'string') return { error: 'base_colors: нужна JSON-строка' }
   try {
     const parsed = JSON.parse(val)
-    if (!Array.isArray(parsed)) return { error: 'base_colors must be a JSON array' }
-    return val
+    if (!Array.isArray(parsed) || parsed.length > 50 || !parsed.every((c) => typeof c === 'string' && HEX_RE.test(c))) {
+      return { error: 'base_colors: нужен список цветов #RRGGBB' }
+    }
+    return JSON.stringify(parsed)
   } catch {
-    return { error: 'base_colors must be valid JSON' }
+    return { error: 'base_colors: некорректный JSON' }
   }
 }
 
@@ -211,8 +209,8 @@ const router = new Hono<AdminEnv>()
 router.get('/products', requireAdmin, requireCap('products.view'), async (c) => {
   const active = c.req.query('active') ?? ''
   const q = c.req.query('q') || undefined
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
-  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10)))
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10) || 50))
 
   const filter: AdminProductsFilter = { active, q, page, limit }
   const { products, total } = await getAdminProducts(c.env.DB, filter)
@@ -241,11 +239,16 @@ router.get('/products/:id', requireAdmin, requireCap('products.view'), async (c)
 // ─── POST /api/admin/products ─────────────────────────────────────────────────
 
 router.post('/products', requireAdmin, requireCap('products.edit'), async (c) => {
+  // Errors: { ok: false, error: '<Russian message>', code, field? }. `error` is a
+  // string so the panel can show it as is.
+  const fail = (status: 400 | 409 | 500, code: string, error: string, field?: string) =>
+    c.json({ ok: false, error, code, ...(field ? { field } : {}) }, status)
+
   let formData: FormData
   try {
     formData = await c.req.formData()
   } catch {
-    return c.json({ ok: false, error: { code: 'INVALID_CONTENT_TYPE', message: 'Expected multipart/form-data' } }, 400)
+    return fail(400, 'INVALID_CONTENT_TYPE', 'Ожидается multipart/form-data')
   }
 
   // Required text fields
@@ -255,16 +258,16 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
   const name_uz = (formData.get('name_uz') as string | null)?.trim() || null
   const description_ru = (formData.get('description_ru') as string | null)?.trim() || null
 
-  if (!slug) return c.json({ ok: false, error: { code: 'REQUIRED', message: 'slug is required', field: 'slug' } }, 400)
+  if (!slug) return fail(400, 'REQUIRED', 'Укажите slug', 'slug')
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
-    return c.json({ ok: false, error: { code: 'INVALID', message: 'slug must be kebab-case (a-z, 0-9, hyphens)', field: 'slug' } }, 400)
+    return fail(400, 'INVALID', 'Slug: только латинские строчные буквы, цифры и дефисы', 'slug')
   }
-  if (!name_ru) return c.json({ ok: false, error: { code: 'REQUIRED', message: 'name_ru is required', field: 'name_ru' } }, 400)
+  if (!name_ru) return fail(400, 'REQUIRED', 'Укажите название (RU)', 'name_ru')
 
   const priceRaw = formData.get('price')
   const price = parseInt(String(priceRaw ?? ''), 10)
   if (Number.isNaN(price) || price < 0) {
-    return c.json({ ok: false, error: { code: 'INVALID', message: 'price must be a non-negative integer', field: 'price' } }, 400)
+    return fail(400, 'INVALID', 'Цена должна быть целым неотрицательным числом', 'price')
   }
 
   const display_order = parseInt(String(formData.get('display_order') ?? '0'), 10) || 0
@@ -272,53 +275,50 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
 
   const product_type = ((formData.get('product_type') as string | null)?.trim() || 'custom')
   if (product_type !== 'custom' && product_type !== 'ready' && product_type !== 'blank') {
-    return c.json({ ok: false, error: { code: 'INVALID', message: "product_type must be 'custom', 'ready' or 'blank'", field: 'product_type' } }, 400)
+    return fail(400, 'INVALID', "Тип продукта: 'custom', 'ready' или 'blank'", 'product_type')
   }
 
   const colorsResult = parseColors(formData.get('base_colors'))
   if (colorsResult !== null && typeof colorsResult === 'object' && 'error' in colorsResult) {
-    return c.json({ ok: false, error: { code: 'INVALID', message: colorsResult.error, field: 'base_colors' } }, 400)
+    return fail(400, 'INVALID', colorsResult.error, 'base_colors')
   }
   const base_colors = colorsResult as string | null
 
   const config = parseProductConfig(formData)
-  if ('error' in config) {
-    return c.json({ ok: false, error: { code: 'INVALID', message: config.error, field: config.field } }, 400)
-  }
+  if ('error' in config) return fail(400, 'INVALID', config.error, config.field)
 
   // GLB — required for configurator products; ready-made designs are
   // bought as-is and never open the 3D scene, so the model is optional
   const glbFile = getFileField(formData, 'glb')
-  if (!glbFile && product_type !== 'ready') {
-    return c.json({ ok: false, error: { code: 'REQUIRED', message: 'glb file is required', field: 'glb' } }, 400)
-  }
+  if (!glbFile && product_type !== 'ready') return fail(400, 'REQUIRED', 'Нужен файл GLB', 'glb')
   if (glbFile) {
-    const glbError = validateGlb(glbFile)
-    if (glbError) return c.json({ ok: false, error: { code: 'INVALID', message: glbError, field: 'glb' } }, 400)
+    const glbError = await validateGlb(glbFile)
+    if (glbError) return fail(400, 'INVALID', glbError, 'glb')
+  }
+  const thumbFile = getFileField(formData, 'thumbnail')
+  const thumbResult = thumbFile ? await validateThumbnail(thumbFile) : null
+  if (thumbResult && 'error' in thumbResult) return fail(400, 'INVALID', thumbResult.error, 'thumbnail')
+
+  // Checked before any upload, so a duplicate leaves no orphaned files.
+  if (await getProductBySlug(c.env.DB, slug)) {
+    return fail(409, 'SLUG_EXISTS', `Продукт со slug «${slug}» уже существует`, 'slug')
   }
 
   try {
-    // Thumbnail (optional)
-    const thumbFile = getFileField(formData, 'thumbnail')
     let thumbnail_key: string | null = null
-    if (thumbFile) {
-      const thumbResult = validateThumbnail(thumbFile)
-      if ('error' in thumbResult) {
-        return c.json({ ok: false, error: { code: 'INVALID', message: thumbResult.error, field: 'thumbnail' } }, 400)
-      }
+    if (thumbFile && thumbResult) {
       thumbnail_key = newAssetKey('thumbnails', slug, thumbResult.ext)
       await c.env.LOOM_MODELS.put(thumbnail_key, thumbFile.stream(), {
-        httpMetadata: { contentType: thumbFile.type },
+        httpMetadata: { contentType: thumbResult.mime },
       })
     }
 
     // Upload GLB (absent only for ready-made designs — checked above)
     let glb_key: string | null = null
     if (glbFile) {
-      const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
-      glb_key = newAssetKey('glb', slug, glbExt)
+      glb_key = newAssetKey('glb', slug, 'glb')
       await c.env.LOOM_MODELS.put(glb_key, glbFile.stream(), {
-        httpMetadata: { contentType: glbFile.type || 'model/gltf-binary' },
+        httpMetadata: { contentType: 'model/gltf-binary' },
       })
     }
 
@@ -331,15 +331,8 @@ router.post('/products', requireAdmin, requireCap('products.edit'), async (c) =>
     const product = await getProductById(c.env.DB, id)
     return c.json({ ok: true, product: withUrls(c.req.url, product as unknown as Record<string, unknown>) }, 201)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error('[admin-products] POST /products failed:', msg)
-
-    // Detect duplicate slug
-    if (msg.includes('UNIQUE constraint failed') || msg.includes('unique')) {
-      return c.json({ ok: false, error: { code: 'SLUG_EXISTS', message: `A product with slug "${slug}" already exists`, field: 'slug' } }, 409)
-    }
-
-    return c.json({ ok: false, error: { code: 'INTERNAL', message: 'Failed to create product. Check server logs.' } }, 500)
+    console.error('[admin-products] POST /products failed:', err instanceof Error ? err.message : String(err))
+    return fail(500, 'INTERNAL', 'Не удалось создать продукт. Подробности в логах сервера.')
   }
 })
 
@@ -363,13 +356,22 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
 
   const slug = (formData.get('slug') as string | null)?.trim()
   if (slug != null) {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return c.json({ error: 'slug must be kebab-case' }, 400)
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+      return c.json({ error: 'Slug: только латинские строчные буквы, цифры и дефисы', code: 'INVALID', field: 'slug' }, 400)
+    }
+    const owner = await getProductBySlug(c.env.DB, slug)
+    if (owner && owner.id !== id) {
+      return c.json({ error: `Продукт со slug «${slug}» уже существует`, code: 'SLUG_EXISTS', field: 'slug' }, 409)
+    }
     updates.slug = slug
   }
   const effectiveSlug = updates.slug ?? existing.slug
 
   const name_ru = (formData.get('name_ru') as string | null)?.trim()
-  if (name_ru != null) updates.name_ru = name_ru
+  if (name_ru != null) {
+    if (!name_ru) return c.json({ error: 'Укажите название (RU)', code: 'REQUIRED', field: 'name_ru' }, 400)
+    updates.name_ru = name_ru
+  }
 
   const name_en = formData.get('name_en') as string | null
   if (name_en !== null) updates.name_en = name_en.trim() || null
@@ -415,12 +417,11 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
   // New GLB
   const glbFile = getFileField(formData, 'glb')
   if (glbFile) {
-    const glbError = validateGlb(glbFile)
+    const glbError = await validateGlb(glbFile)
     if (glbError) return c.json({ error: glbError }, 400)
-    const glbExt = glbFile.name.split('.').pop()?.toLowerCase() ?? 'glb'
-    const glb_key = newAssetKey('glb', effectiveSlug, glbExt)
+    const glb_key = newAssetKey('glb', effectiveSlug, 'glb')
     await c.env.LOOM_MODELS.put(glb_key, glbFile.stream(), {
-      httpMetadata: { contentType: glbFile.type || 'model/gltf-binary' },
+      httpMetadata: { contentType: 'model/gltf-binary' },
     })
     updates.glb_key = glb_key
   }
@@ -428,11 +429,11 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
   // New thumbnail
   const thumbFile = getFileField(formData, 'thumbnail')
   if (thumbFile) {
-    const thumbResult = validateThumbnail(thumbFile)
+    const thumbResult = await validateThumbnail(thumbFile)
     if ('error' in thumbResult) return c.json({ error: thumbResult.error }, 400)
     const thumbnail_key = newAssetKey('thumbnails', effectiveSlug, thumbResult.ext)
     await c.env.LOOM_MODELS.put(thumbnail_key, thumbFile.stream(), {
-      httpMetadata: { contentType: thumbFile.type },
+      httpMetadata: { contentType: thumbResult.mime },
     })
     updates.thumbnail_key = thumbnail_key
   }
@@ -457,23 +458,23 @@ router.delete('/products/:id', requireAdmin, requireCap('products.edit'), async 
     { glb_key?: string | null; thumbnail_key?: string | null } | null
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
-  // Referential integrity: a product referenced by orders cannot be removed
-  // without orphaning that order history — archive it instead.
+  // Referential integrity: a product referenced by orders, order lines or carts
+  // cannot be removed without orphaning that history — archive it instead.
   const orderCount = await countOrdersForProduct(c.env.DB, id)
   if (orderCount > 0) {
     await softDeleteProduct(c.env.DB, id)
     return c.json({ ok: true, mode: 'archived', orders: orderCount })
   }
 
-  // No orders → permanently delete. Best-effort R2 cleanup first (don't fail the
-  // delete if an asset is already gone), then remove the row.
+  // Nothing references it → remove the row first, then best-effort R2 cleanup
+  // (an asset that is already gone does not fail the delete).
+  await hardDeleteProduct(c.env.DB, id)
   try {
     if (existing.glb_key) await c.env.LOOM_MODELS.delete(existing.glb_key)
     if (existing.thumbnail_key) await c.env.LOOM_MODELS.delete(existing.thumbnail_key)
   } catch (err) {
     console.warn('[admin-products] R2 cleanup during delete failed (non-fatal):', err)
   }
-  await hardDeleteProduct(c.env.DB, id)
   return c.json({ ok: true, mode: 'deleted' })
 })
 

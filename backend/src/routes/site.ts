@@ -49,18 +49,45 @@ sitePublic.get('/hero', async (c) => {
 
 export const siteAdmin = new Hono<AdminEnv>()
 
+// Until the founder applies migration 0032 the table is missing: answer 503
+// with a plain reason instead of a 500.
+const noTable = (err: unknown) => String(err).includes('no such table')
+const MIGRATION_MISSING = { error: 'Миграция 0032 не применена.', code: 'migration_0032' }
+
 siteAdmin.get('/site/hero', requireAdmin, requireCap('products.edit'), async (c) => {
-  return c.json({ hero: heroJson(c.req.url, await readHero(c.env.DB)) })
+  try {
+    return c.json({ hero: heroJson(c.req.url, await readHero(c.env.DB)) })
+  } catch (err) {
+    if (noTable(err)) return c.json(MIGRATION_MISSING, 503)
+    throw err
+  }
 })
 
 // Multipart: `image` (PNG, JPEG or WebP, ≤ 3 MB, checked by content) and an
-// optional `alt`.
+// optional `alt`. Without `image`, an existing hero keeps its picture and only
+// the alt text changes.
 siteAdmin.put('/site/hero', requireAdmin, requireCap('products.edit'), async (c) => {
   const form = await c.req.formData().catch(() => null)
   const file = form?.get('image') as File | string | null | undefined
-  if (!file || typeof file === 'string') return c.json({ error: 'Выберите файл.', code: 'hero_file' }, 400)
   const alt = String(form?.get('alt') ?? '').trim()
   if (alt.length > MAX_ALT) return c.json({ error: `Описание — до ${MAX_ALT} символов.`, code: 'hero_alt' }, 400)
+  let current: Hero | null
+  try {
+    current = await readHero(c.env.DB)
+  } catch (err) {
+    if (noTable(err)) return c.json(MIGRATION_MISSING, 503)
+    throw err
+  }
+  const save = (hero: Hero) => c.env.DB.prepare(`INSERT INTO site_settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
+    .bind(HERO, JSON.stringify(hero), c.get('adminId'), new Date().toISOString()).run()
+
+  if (!file || typeof file === 'string') {
+    if (!current) return c.json({ error: 'Выберите файл.', code: 'hero_file' }, 400)
+    const hero = { key: current.key, alt }
+    await save(hero)
+    return c.json({ hero: heroJson(c.req.url, hero) })
+  }
   const bytes = new Uint8Array(await file.arrayBuffer())
   if (bytes.length > MAX_HERO_BYTES) return c.json({ error: 'Файл больше 3 МБ.', code: 'hero_size' }, 413)
   const checked = validateUpload(bytes, HERO_TYPES, MAX_HERO_BYTES)
@@ -69,14 +96,22 @@ siteAdmin.put('/site/hero', requireAdmin, requireCap('products.edit'), async (c)
   const key = `site/hero/${crypto.randomUUID()}.${checked.type.ext}`
   await c.env.LOOM_MODELS.put(key, bytes, { httpMetadata: { contentType: checked.type.mime } })
   const hero = { key, alt }
-  await c.env.DB.prepare(`INSERT INTO site_settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
-    .bind(HERO, JSON.stringify(hero), c.get('adminId'), new Date().toISOString()).run()
+  try {
+    await save(hero)
+  } catch (err) {
+    await c.env.LOOM_MODELS.delete(key) // no row points at it
+    throw err
+  }
   return c.json({ hero: heroJson(c.req.url, hero) })
 })
 
 // Back to the static default picture.
 siteAdmin.delete('/site/hero', requireAdmin, requireCap('products.edit'), async (c) => {
-  await c.env.DB.prepare('DELETE FROM site_settings WHERE key = ?').bind(HERO).run()
+  try {
+    await c.env.DB.prepare('DELETE FROM site_settings WHERE key = ?').bind(HERO).run()
+  } catch (err) {
+    if (noTable(err)) return c.json(MIGRATION_MISSING, 503)
+    throw err
+  }
   return c.json({ hero: null })
 })
