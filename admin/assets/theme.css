@@ -188,7 +188,7 @@
   --control-track:    #e9ecef;
   --control-track-border: rgba(20,23,26,.5);
   --control-knob:     #ffffff;
-  --control-knob-off: #ffffff;
+  --control-knob-off: #59616a;   /* white on #e9ecef was 1.19:1; this clears 3:1 */
 
   /* Semantic */
   --danger:        #c4291d;
