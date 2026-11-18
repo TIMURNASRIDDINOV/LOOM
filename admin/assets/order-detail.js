@@ -136,15 +136,15 @@ async function loadOrder(id) {
     const PAY_NAMES = { cod: 'При получении', p2p: 'Перевод на карту', payme: 'Payme', click: 'Click', uzum: 'Uzum' }
     const PAY_STATES = {
       unpaid: ['Не оплачен', 'var(--muted)'],
-      pending: ['Ожидает оплаты', 'var(--warn, #eab308)'],
-      paid: ['Оплачен', 'var(--ok, #3ecf72)'],
+      pending: ['Ожидает оплаты', 'var(--warning)'],
+      paid: ['Оплачен', 'var(--success)'],
       refunded: ['Возврат', 'var(--muted)'],
-      failed: ['Ошибка оплаты', 'var(--danger, #ff6b5e)'],
+      failed: ['Ошибка оплаты', 'var(--danger)'],
     }
     // A card transfer is checked by a person, so its states read differently.
     if (o.payment_method === 'p2p') {
-      PAY_STATES.pending = ['Чек на проверке', 'var(--warn, #eab308)']
-      PAY_STATES.failed = ['Чек отклонён', 'var(--danger, #ff6b5e)']
+      PAY_STATES.pending = ['Чек на проверке', 'var(--warning)']
+      PAY_STATES.failed = ['Чек отклонён', 'var(--danger)']
     }
     const pm = PAY_NAMES[o.payment_method] || o.payment_method || 'При получении'
     const ps = PAY_STATES[o.payment_status] || PAY_STATES.unpaid

@@ -10,15 +10,16 @@
   <meta name="robots" content="noindex, nofollow" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Товар — LOOM Admin</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=31" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=32" />
   <script src="assets/theme-init.js?v=30"></script>
   <style>
     /* Aliases onto the design-system components (theme.css). The markup below
        and product-edit.js still speak .form-input / .form-textarea / .toggle. */
     .form-input, .form-textarea {
       width: 100%; min-height: 40px; padding: 0.5rem 0.75rem;
-      border-radius: var(--radius-sm); border: 1px solid var(--input-border);
+      border-radius: var(--radius-sm); border: 1.5px solid var(--input-border);
       background: var(--input-bg); color: var(--text);
       font-family: inherit; font-size: var(--fs-base); line-height: 1.4;
       outline: none; transition: border-color 0.12s, box-shadow 0.12s;
@@ -41,7 +42,7 @@
     .toggle-slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: var(--control-knob-off); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
     .toggle input:checked + .toggle-slider { background: var(--invert-bg); border-color: var(--invert-bg); }
     .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: var(--invert-text); }
-    .toggle input:focus-visible + .toggle-slider { box-shadow: var(--focus-ring); }
+    .toggle input:focus-visible + .toggle-slider { outline: 2px solid var(--accent); outline-offset: 2px; }
     .toggle-label { font-size: var(--fs-base); color: var(--text); }
 
     /* Colours */
@@ -307,7 +308,7 @@
     </form>
   </main>
 
-  <script src="assets/app.js?v=32"></script>
+  <script src="assets/app.js?v=33"></script>
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=34"></script>
   <script>LOOM_LAYOUT.init('products', { title: 'Товар', crumbs: [{ label: 'Товары', href: 'products.html' }] })</script>
