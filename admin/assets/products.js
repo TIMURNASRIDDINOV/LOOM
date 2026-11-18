@@ -8,6 +8,7 @@
   let currentPage = 1
   let debounceTimer = null
   let canEdit = false
+  let loadSeq = 0 // only the newest request may paint the table
 
   const el = (id) => document.getElementById(id)
 
@@ -54,9 +55,14 @@
 
     const tbody = el('products-tbody')
     tbody.innerHTML = stateRow('Загрузка…')
+    const seq = ++loadSeq
 
     try {
       const { products, total, page, limit } = await apiJSON('/api/admin/products?' + params)
+      if (seq !== loadSeq) return
+
+      // The last row of a later page was just removed: step back, not "empty".
+      if (!products.length && currentPage > 1) { currentPage--; return loadProducts() }
 
       const totalPages = Math.ceil(total / limit) || 1
       el('page-info').textContent = 'Страница ' + page + ' из ' + totalPages + ' · всего ' + total
@@ -73,7 +79,8 @@
       tbody.innerHTML = products.map(rowHtml).join('')
       wireRows()
     } catch (err) {
-      if (err.status === 401) { window.location.href = 'login.html'; return }
+      if (seq !== loadSeq) return
+      if (err.status === 401) { window.location.href = window.LOOM.loginUrl(); return }
       tbody.innerHTML = stateRow(esc(apiErrorMessage(err)), 'error')
     }
   }

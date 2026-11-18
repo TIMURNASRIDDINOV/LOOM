@@ -7,6 +7,7 @@
   const LIMIT = 50
   let currentPage = 1
   let debounceTimer = null
+  let loadSeq = 0 // only the newest request may paint the table
 
   const el = (id) => document.getElementById(id)
 
@@ -24,9 +25,11 @@
 
     const tbody = el('orders-tbody')
     tbody.innerHTML = stateRow('Загрузка…')
+    const seq = ++loadSeq
 
     try {
       const { orders, total, page, limit } = await apiJSON('/api/admin/orders?' + params)
+      if (seq !== loadSeq) return
 
       const totalPages = Math.ceil(total / limit) || 1
       el('page-info').textContent = 'Страница ' + page + ' из ' + totalPages + ' · всего ' + total
@@ -72,7 +75,8 @@
         })
       })
     } catch (err) {
-      if (err.status === 401) { window.location.href = 'login.html'; return }
+      if (seq !== loadSeq) return
+      if (err.status === 401) { window.location.href = window.LOOM.loginUrl(); return }
       tbody.innerHTML = stateRow(esc(apiErrorMessage(err)), 'error')
     }
   }

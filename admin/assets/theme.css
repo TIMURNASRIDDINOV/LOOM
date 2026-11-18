@@ -671,6 +671,7 @@ a.stat:hover { border-color: var(--btn-hover-border); }
   box-shadow: var(--focus-ring);
 }
 .input::placeholder, .textarea::placeholder { color: var(--text-dim); }
+.input.is-invalid, .select.is-invalid, .textarea.is-invalid { border-color: var(--danger); }
 .input:disabled, .select:disabled, .textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 .textarea { min-height: 96px; resize: vertical; line-height: var(--lh-base); }
 .select { cursor: pointer; padding-right: 2rem; appearance: none;

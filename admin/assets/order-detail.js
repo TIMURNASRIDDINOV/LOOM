@@ -17,6 +17,13 @@ function safeColor(c) {
   return /^#[0-9a-f]{3,8}$|^[a-z]{3,20}$|^rgba?\([0-9.,%\s]+\)$/i.test(s) ? s : 'transparent'
 }
 
+// System notes the Worker writes into the status history as slugs.
+const LOG_NOTE_LABELS = {
+  payment_confirmed: 'Оплата подтверждена',
+  payment_timeout: 'Не оплачен вовремя — заказ отменён автоматически',
+  payment_revived: 'Клиент прислал чек после срока — заказ снова на проверке',
+}
+
 function parseDesign(json) {
   try { return JSON.parse(json) } catch { return {} }
 }
@@ -105,8 +112,9 @@ async function loadOrder(id) {
 
   try {
     const res = await apiFetch(`/api/admin/orders/${id}`)
-    if (res.status === 401) { window.location.href = 'login.html'; return }
+    if (res.status === 401) { window.location.href = window.LOOM.loginUrl(); return }
     if (res.status === 404) { showError('Заказ не найден'); return }
+    if (!res.ok) { showError('Ошибка загрузки: сервер ответил ' + res.status); return }
     const o = await res.json()
 
     document.getElementById('loading').style.display = 'none'
@@ -261,6 +269,7 @@ async function loadOrder(id) {
     if (updateBtn) updateBtn.addEventListener('click', async () => {
       const newStatus = statusSelect.value
       const note = document.getElementById('status-note').value.trim()
+      if (newStatus === o.status && !note) { window.LOOM_UI.toast('Статус не изменён'); return }
       const btn = updateBtn
       btn.disabled = true
       btn.textContent = 'Обновляю…'
@@ -270,7 +279,8 @@ async function loadOrder(id) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: newStatus, note: note || undefined }),
         })
-        await loadOrder(id)  // reload to refresh log + badge
+        // A fresh page: re-running loadOrder() stacks listeners, cards and the map.
+        location.reload()
       } catch (e) {
         window.LOOM_UI.toast(window.LOOM_UI.apiErrorMessage(e), 'error')
         btn.disabled = false
@@ -292,7 +302,7 @@ async function loadOrder(id) {
             </div>
             <span class="muted" style="font-size:var(--fs-sm);white-space:nowrap">${formatDate(entry.changed_at)}</span>
           </div>
-          ${entry.note ? `<p style="margin:var(--sp-2) 0 0;font-size:var(--fs-base);color:var(--text-secondary)">${escHtml(entry.note)}</p>` : ''}
+          ${entry.note ? `<p style="margin:var(--sp-2) 0 0;font-size:var(--fs-base);color:var(--text-secondary)">${escHtml(LOG_NOTE_LABELS[entry.note] || entry.note)}</p>` : ''}
         </div>
       `).join('')
     }
@@ -777,11 +787,13 @@ function setupPayment(o) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      await loadOrder(o.id)
+      location.reload()
     } catch (e) {
       window.LOOM_UI.toast(window.LOOM_UI.apiErrorMessage(e), 'error')
-      // Someone else may have answered meanwhile: show the order as it is now.
-      await loadOrder(o.id)
+      // 409: someone else answered meanwhile, so show the order as it is now
+      // (after a moment, so the toast can be read). Anything else: try again.
+      if (e && e.status === 409) setTimeout(() => location.reload(), 1500)
+      else confirmBtn.disabled = rejectBtn.disabled = false
     }
   }
   confirmBtn.onclick = () => send({ action: 'confirm' }, {
@@ -814,7 +826,7 @@ function setupApproval(o) {
     if (btn) { btn.textContent = 'Снять подтверждение'; btn.dataset.approve = 'false' }
   } else {
     stateEl.innerHTML = `<span class="ps-pending">● Ожидает подтверждения</span>`
-    if (btn) { btn.textContent = 'Макет проверен — в производство'; btn.dataset.approve = 'true' }
+    if (btn) { btn.textContent = 'Макет проверен'; btn.dataset.approve = 'true' }
   }
 
   if (!btn) return
@@ -828,7 +840,7 @@ function setupApproval(o) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approved: wantApprove }),
       })
-      await loadOrder(o.id)
+      location.reload()
     } catch (e) {
       window.LOOM_UI.toast(window.LOOM_UI.apiErrorMessage(e), 'error')
       btn.disabled = false

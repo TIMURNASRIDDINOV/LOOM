@@ -92,6 +92,9 @@
       baseline[c.id] = (admin.capabilities || []).indexOf(c.id) !== -1
     })
     draft = Object.assign({}, baseline)
+    // A fresh draft has nothing pending; members whose rights are not rendered
+    // (owner, yourself) would otherwise keep the previous member's bar.
+    hideSaveBar()
 
     renderRoster()
     renderDetail()
@@ -192,6 +195,11 @@
     return catalog && catalog.capabilities.some((c) => !!draft[c.id] !== !!baseline[c.id])
   }
 
+  function hideSaveBar() {
+    el('save-bar').hidden = true
+    document.body.classList.remove('has-unsaved')
+  }
+
   function updateSaveBar() {
     const admin = selected()
     if (!admin) return
@@ -256,6 +264,7 @@
       renderPermissions(admin, true)
     } catch (err) {
       toast(apiErrorMessage(err), 'error')
+    } finally {
       el('btn-save-perms').disabled = false
     }
   }
@@ -306,6 +315,9 @@
       await apiJSON('/api/admin/admins/' + admin.id, { method: 'DELETE' })
       toast('Администратор удалён', 'success')
       selectedId = null
+      draft = {}
+      baseline = {}
+      hideSaveBar()
       el('detail').hidden = true
       el('detail-empty').hidden = false
       await loadAdmins()
@@ -389,8 +401,8 @@
   }
 
   async function init() {
-    me = await checkAuth()
-    if (!me) { window.location.href = 'login.html'; return }
+    try { me = await checkAuth() } catch { return }   // checkAuth already shows the banner
+    if (!me) { window.location.href = window.LOOM.loginUrl(); return }
 
     el('readonly-flag').hidden = isOwner()
     el('btn-show-invite').hidden = !isOwner()
