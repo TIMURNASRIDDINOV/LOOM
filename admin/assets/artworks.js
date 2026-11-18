@@ -12,6 +12,7 @@
   const PAGE_SIZE = 30
   let status = 'pending'
   let page = 1
+  let loadSeq = 0 // only the newest request may paint the grid
   let categories = []
   let categoriesError = ''
   const artworks = new Map()
@@ -127,14 +128,19 @@
     const grid = el('art-grid')
     grid.innerHTML = stateBlock('Загрузка…')
     const taxonomy = loadCategories()
+    const seq = ++loadSeq
     try {
       const qs = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) })
       if (status) qs.set('status', status)
       const data = await apiJSON('/api/admin/artworks?' + qs)
       await taxonomy
+      if (seq !== loadSeq) return
+      // The last card of a later page was just acted on: step back, not "empty".
+      if (!(data.items || []).length && page > 1) { page--; return load() }
       render(data)
     } catch (err) {
-      if (err.status === 401) { window.location.href = 'login.html'; return }
+      if (seq !== loadSeq) return
+      if (err.status === 401) { window.location.href = window.LOOM.loginUrl(); return }
       grid.innerHTML = stateBlock(esc(apiErrorMessage(err)), 'error')
     }
   }

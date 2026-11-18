@@ -5,7 +5,6 @@ import {
   getAdminById,
   countAdmins,
   createAdmin,
-  updateAdminPassword,
   getAdminOrders,
   getOrderById,
   getOrderStatusLog,
@@ -20,6 +19,7 @@ import {
   listAdmins,
   updateAdminRole,
   deleteAdmin,
+  reenableAdmin,
   countAdminsByRole,
   listAllAdminPermissions,
   setAdminPermission,
@@ -53,16 +53,19 @@ const admin = new Hono<AdminEnv>()
 
 // ─── POST /api/admin/setup ────────────────────────────────────────────────────
 // One-time endpoint to set the first admin's password.
-// Only works when the admins table has rows with placeholder passwords.
+// Only works while no admin has a real password: on an empty table, or for
+// the placeholder row seeded by migration 0002.
+
+const PLACEHOLDER_HASH = 'PLACEHOLDER_USE_SETUP_ENDPOINT'
 
 const setupRouter = new Hono<BaseEnv>()
 setupRouter.post('/setup', async (c) => {
-  const adminCount = await c.env.DB.prepare(
-    'SELECT COUNT(*) as count FROM admins'
-  ).first<{ count: number }>();
+  const withPassword = await c.env.DB.prepare(
+    'SELECT COUNT(*) as count FROM admins WHERE password_hash != ?'
+  ).bind(PLACEHOLDER_HASH).first<{ count: number }>()
 
-  if (adminCount && adminCount.count > 0) {
-    return c.json({ error: 'Setup already completed' }, 403);
+  if (withPassword && withPassword.count > 0) {
+    return c.json({ error: 'Setup already completed' }, 403)
   }
 
   let body: unknown
@@ -93,12 +96,16 @@ setupRouter.post('/setup', async (c) => {
   // Admins exist — only allow setup if this specific email has a placeholder password.
   // If any admin already has a real password, the endpoint is permanently locked.
   const existing = await getAdminByEmail(c.env.DB, normalizedEmail)
-  if (!existing || existing.password_hash !== 'PLACEHOLDER_USE_SETUP_ENDPOINT') {
+  if (!existing || existing.password_hash !== PLACEHOLDER_HASH) {
     return c.json({ error: 'Setup already completed' }, 403)
   }
 
+  // Conditional on the placeholder still being there: of two requests racing
+  // for the same row, only one sets the password.
   const hash = await hashPassword(password)
-  await updateAdminPassword(c.env.DB, normalizedEmail, hash)
+  const set = await c.env.DB.prepare('UPDATE admins SET password_hash = ? WHERE email = ? AND password_hash = ?')
+    .bind(hash, normalizedEmail, PLACEHOLDER_HASH).run()
+  if (!set.meta.changes) return c.json({ error: 'Setup already completed' }, 403)
   return c.json({ ok: true })
 })
 
@@ -117,20 +124,18 @@ admin.post('/login', async (c) => {
     return c.json({ error: 'email and password required' }, 400)
   }
 
-  // Failed attempts are counted per IP and per account; either one tripping
-  // blocks further attempts for the window.
-  const failKeys = [`admin-login:ip:${clientIp(c)}`, `admin-login:id:${email.toLowerCase()}`]
+  // Failed attempts are counted per IP.
+  const failKeys = [`admin-login:ip:${clientIp(c)}`]
   if (await tooManyFailures(c.env.RATE_LIMIT, failKeys, 5)) return c.json(TOO_MANY, 429)
 
+  // Every failure gets the same answer: unknown email, no password set yet,
+  // disabled account (migration 0033) or wrong password.
   const adminRow = await getAdminByEmail(c.env.DB, email.toLowerCase())
-  if (adminRow?.password_hash === 'PLACEHOLDER_USE_SETUP_ENDPOINT') {
-    return c.json({ error: 'Password not set. Use POST /api/admin/setup first.' }, 403)
-  }
-
-  const valid = !!adminRow && (await verifyPassword(password, adminRow.password_hash))
+  const usable = !!adminRow && adminRow.password_hash !== PLACEHOLDER_HASH && !adminRow.disabled_at
+  const valid = usable && (await verifyPassword(password, adminRow.password_hash))
   if (!adminRow || !valid) {
     await recordFailure(c.env.RATE_LIMIT, failKeys, 15 * 60)
-    return c.json({ error: 'Invalid credentials' }, 401)
+    return c.json({ error: 'Неверный email или пароль' }, 401)
   }
 
   const token = await signToken(
@@ -219,7 +224,8 @@ admin.put('/admins/:id/permissions', requireAdmin, requireRole('owner'), async (
   }
 
   const target = await getAdminById(c.env.DB, id)
-  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+  // A disabled admin (migration 0033) is gone as far as the team is concerned.
+  if (!target || target.disabled_at) return c.json({ error: 'Админ не найден' }, 404)
   // The owner always resolves to every capability, so storing overrides for one
   // would be a silent no-op that reads as a working toggle in the UI.
   if ((target.role || 'staff') === 'owner') {
@@ -265,8 +271,14 @@ admin.post('/admins', requireAdmin, requireRole('owner'), async (c) => {
   const r = typeof role === 'string' && (ADMIN_ROLES as readonly string[]).includes(role) ? role : 'staff'
   if (r === 'owner') return c.json({ error: 'Нельзя создать второго владельца. Сначала передайте роль.' }, 400)
   const existing = await getAdminByEmail(c.env.DB, email.toLowerCase())
-  if (existing) return c.json({ error: 'Админ с таким email уже существует' }, 409)
+  if (existing && !existing.disabled_at) return c.json({ error: 'Админ с таким email уже существует' }, 409)
   const hash = await hashPassword(password)
+  // A removed admin with history keeps their row (disabled); adding the same
+  // email again reactivates it with a fresh password, role and permissions.
+  if (existing) {
+    await reenableAdmin(c.env.DB, existing.id, hash, r)
+    return c.json({ ok: true, id: existing.id, role: r })
+  }
   const id = await createAdmin(c.env.DB, { email: email.toLowerCase(), password_hash: hash, role: r })
   return c.json({ ok: true, id, role: r })
 })
@@ -282,17 +294,21 @@ admin.patch('/admins/:id/role', requireAdmin, requireRole('owner'), async (c) =>
     return c.json({ error: 'Недопустимая роль' }, 400)
   }
   const target = await getAdminById(c.env.DB, id)
-  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+  // A disabled admin (migration 0033) is gone as far as the team is concerned.
+  if (!target || target.disabled_at) return c.json({ error: 'Админ не найден' }, 404)
 
   // Transfer of ownership: demote the current owner so there is exactly one.
   if (role === 'owner') {
     if (id === c.get('adminId')) return c.json({ ok: true, role }) // already owner
-    await updateAdminRole(c.env.DB, c.get('adminId'), 'manager')
-    await updateAdminRole(c.env.DB, id, 'owner')
+    // One batch (one transaction): never zero or two owners halfway through.
     // The new owner's old overrides no longer mean anything (owner = all), and
     // the outgoing owner starts from a clean manager preset.
-    await clearAllAdminPermissions(c.env.DB, id)
-    await clearAllAdminPermissions(c.env.DB, c.get('adminId'))
+    const db = c.env.DB
+    await db.batch([
+      db.prepare("UPDATE admins SET role = 'manager' WHERE id = ?").bind(c.get('adminId')),
+      db.prepare("UPDATE admins SET role = 'owner' WHERE id = ?").bind(id),
+      db.prepare('DELETE FROM admin_permissions WHERE admin_id IN (?, ?)').bind(id, c.get('adminId')),
+    ])
     return c.json({ ok: true, role, transferred: true })
   }
 
@@ -315,18 +331,22 @@ admin.delete('/admins/:id', requireAdmin, requireRole('owner'), async (c) => {
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
   if (id === c.get('adminId')) return c.json({ error: 'Нельзя удалить свой аккаунт' }, 400)
   const target = await getAdminById(c.env.DB, id)
-  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+  // A disabled admin (migration 0033) is gone as far as the team is concerned.
+  if (!target || target.disabled_at) return c.json({ error: 'Админ не найден' }, 404)
   if (target.role === 'owner') return c.json({ error: 'Нельзя удалить владельца' }, 400)
-  await deleteAdmin(c.env.DB, id)
-  return c.json({ ok: true })
+  const mode = await deleteAdmin(c.env.DB, id)
+  if (mode === 'needs_migration') {
+    return c.json({ error: 'Сначала примените миграцию 0033', code: 'migration_0033' }, 409)
+  }
+  return c.json({ ok: true, mode })
 })
 
 // ─── GET /api/admin/orders ────────────────────────────────────────────────────
 
 admin.get('/orders', requireAdmin, requireCap('orders.view'), async (c) => {
   const status = c.req.query('status') || undefined
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
-  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10)))
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10) || 50))
   const q = c.req.query('q') || undefined
 
   const { orders, total } = await getAdminOrders(c.env.DB, { status, page, limit, q })
@@ -497,6 +517,11 @@ admin.patch('/orders/:id/status', requireAdmin, requireCap('orders.status'), asy
   const order = await getOrderById(c.env.DB, id)
   if (!order) return c.json({ error: 'Not found' }, 404)
 
+  // Same status: nothing to record and nothing to tell the customer. A log row
+  // here would also hide a 'payment_timeout' note that late-receipt revival
+  // looks for (lib/prepay.ts).
+  if (status === order.status) return c.json({ ok: true, unchanged: true })
+
   // Production gate: the design proof must be approved before an order can advance
   // to production or beyond. Approving is an owner/manager action (see /approve).
   const GATED_STATUSES = ['producing', 'shipped', 'delivered']
@@ -517,7 +542,25 @@ admin.patch('/orders/:id/status', requireAdmin, requireCap('orders.status'), asy
     )
   }
 
-  await updateOrderStatus(c.env.DB, id, status)
+  // Back to 'new' for an unpaid card-transfer order (e.g. one the payment
+  // timeout cancelled): a fresh window, or the minute sweep cancels it again.
+  // Written before the status, so the sweep never sees 'new' with the old deadline.
+  if (status === 'new' && order.payment_method === 'p2p' && (order.payment_status === 'unpaid' || order.payment_status === 'failed')) {
+    await c.env.DB.prepare('UPDATE orders SET pay_deadline = ?, pay_reminded_at = NULL WHERE id = ?')
+      .bind(Date.now() + PAY_WINDOW_MS, id).run()
+  }
+  if (status === 'cancelled') {
+    // A receipt is waiting for staff: answer it in the payment block first, or
+    // the order is left cancelled with a payment still pending. Checked in the
+    // write itself, so a receipt sent after the read above still blocks it.
+    const cancel = await c.env.DB.prepare(
+      `UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?
+         AND NOT (payment_method = 'p2p' AND payment_status = 'pending')`,
+    ).bind(Date.now(), id).run()
+    if (!cancel.meta.changes) return c.json({ error: 'Сначала подтвердите или отклоните чек', code: 'receipt_pending' }, 409)
+  } else {
+    await updateOrderStatus(c.env.DB, id, status)
+  }
   await insertOrderStatusLog(c.env.DB, {
     order_id: id,
     old_status: order.status,
@@ -612,8 +655,13 @@ async function notifyOrderStatus(
 // ─── GET /api/admin/media/:key  (serve R2 logo to admin panel) ───────────────
 // The admin panel fetches this with credentials: 'include' and creates a blob URL.
 
-admin.get('/media/:key{.+}', requireAdmin, requireCap('orders.view'), async (c) => {
+// AI-lab results (keys under ai-tests/) are also open to ai.use.
+admin.get('/media/:key{.+}', requireAdmin, async (c) => {
   const key = c.req.param('key')
+  const caps = c.get('adminCaps')
+  if (!caps.has('orders.view') && !(key.startsWith('ai-tests/') && caps.has('ai.use'))) {
+    return c.json({ error: 'Недостаточно прав для этого действия. Обратитесь к владельцу аккаунта.', code: 'forbidden', missing: ['orders.view'] }, 403)
+  }
   const object = await c.env.LOOM_UPLOADS.get(key)
   if (!object) return c.json({ error: 'Not found' }, 404)
   return serveObject(object, key, 'private, max-age=3600')

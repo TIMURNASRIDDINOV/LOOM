@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { requireAdmin } from '../middleware/requireAdmin'
+import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import { inspectPng } from '../lib/ai-image'
 import type { AiEnv } from '../types'
 
@@ -24,7 +24,7 @@ const ALLOWED_PREFIX = 'ai-tests/'
 
 // ─── GET /api/ai/cutout/*  (admin-only) ──────────────────────────────────────
 
-cutout.get('/cutout/:key{.+}', requireAdmin, async (c) => {
+cutout.get('/cutout/:key{.+}', requireAdmin, requireCap('ai.use'), async (c) => {
   const key = c.req.param('key')
 
   if (!key.startsWith(ALLOWED_PREFIX) || key.includes('..')) {

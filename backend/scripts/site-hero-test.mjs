@@ -97,6 +97,11 @@ try {
   assert.notEqual(second.url, first.url)
   assert.deepEqual((await call('/api/admin/site/hero')).data.hero, second)
 
+  // No file while a hero exists: only the alt text changes (B26).
+  const altOnly = new FormData()
+  altOnly.append('alt', 'Новое описание')
+  assert.deepEqual((await call('/api/admin/site/hero', { method: 'PUT', form: altOnly })).data.hero, { url: second.url, alt: 'Новое описание' })
+
   // Reset: back to the static default.
   assert.equal((await call('/api/admin/site/hero', { method: 'DELETE' })).data.hero, null)
   assert.equal((await call('/api/site/hero', { admin: 0 })).data, null)

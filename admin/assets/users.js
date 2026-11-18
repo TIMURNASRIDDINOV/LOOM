@@ -8,6 +8,12 @@
   let currentPage = 1
   let currentQ = ''
   let debounceTimer = null
+  let loadSeq = 0 // only the newest request may paint the table
+
+  // Telegram and deleted accounts carry placeholder addresses
+  // (tg…@telegram.loom, deleted_…@deleted.loom): not a contact.
+  const realEmail = (e) => (e && !/\.loom$/i.test(e) ? e : '')
+  const STATUS_BADGES = { banned: 'Заблокирован', deleted: 'Удалён' }
 
   const el = (id) => document.getElementById(id)
 
@@ -21,7 +27,7 @@
   }
 
   function initials(u) {
-    const name = displayName(u) || u.email || u.phone || ''
+    const name = displayName(u) || realEmail(u.email) || u.phone || ''
     return name.slice(0, 2).toUpperCase()
   }
 
@@ -57,11 +63,12 @@
     } else {
       tbody.innerHTML = users.map((u) => {
         const name = displayName(u)
-        const contact = u.email || u.phone || (u.telegram_username ? '@' + u.telegram_username : '—')
+        const contact = realEmail(u.email) || u.phone || (u.telegram_username ? '@' + u.telegram_username : '—')
+        const status = STATUS_BADGES[u.status] ? ' <span class="badge">' + STATUS_BADGES[u.status] + '</span>' : ''
         return '<tr class="is-clickable" data-id="' + u.id + '" tabindex="0">' +
           '<td>' + avatarHtml(u) + '</td>' +
           '<td class="num">' + esc(contact) + '</td>' +
-          '<td>' + (name ? esc(name) : '<span class="muted">—</span>') + '</td>' +
+          '<td>' + (name ? esc(name) : '<span class="muted">—</span>') + status + '</td>' +
           '<td class="num muted">' + (u.phone ? esc(formatPhone(u.phone)) : '—') + '</td>' +
           '<td>' + roleBadge(u.role || 'user') + '</td>' +
           '<td class="num right">' + (u.orders_count ?? 0) + '</td>' +
@@ -88,13 +95,16 @@
   async function loadUsers() {
     const tbody = el('users-tbody')
     tbody.innerHTML = stateRow('Загрузка…')
+    const seq = ++loadSeq
     try {
       const qs = new URLSearchParams({ page: currentPage, limit: PAGE_SIZE })
       if (currentQ) qs.set('q', currentQ)
       const data = await apiJSON('/api/admin/users?' + qs)
+      if (seq !== loadSeq) return
       renderUsers(data.users, data.total, data.page, data.limit)
     } catch (err) {
-      if (err.status === 401) { window.location.href = 'login.html'; return }
+      if (seq !== loadSeq) return
+      if (err.status === 401) { window.location.href = window.LOOM.loginUrl(); return }
       tbody.innerHTML = stateRow(esc(apiErrorMessage(err)), 'error')
     }
   }

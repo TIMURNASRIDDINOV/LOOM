@@ -95,13 +95,15 @@ export async function createAdmin(
   })
 }
 
+// Disabled admins (migration 0033) are left out. SELECT * so this keeps
+// working before 0033 adds the column.
 export async function listAdmins(db: D1Database): Promise<Array<{ id: number; email: string; role: string; created_at: number }>> {
   return safeQuery('listAdmins', async () => {
-    const res = await db
-      .prepare('SELECT id, email, role, created_at FROM admins ORDER BY created_at ASC')
-      .all<{ id: number; email: string; role: string; created_at: number }>()
-    return res.results ?? []
-  }) as Promise<Array<{ id: number; email: string; role: string; created_at: number }>>
+    const res = await db.prepare('SELECT * FROM admins ORDER BY created_at ASC').all<Admin>()
+    return (res.results ?? [])
+      .filter((a) => !a.disabled_at)
+      .map((a) => ({ id: a.id, email: a.email, role: a.role ?? 'staff', created_at: a.created_at }))
+  })
 }
 
 export async function updateAdminRole(db: D1Database, id: number, role: string): Promise<void> {
@@ -110,9 +112,49 @@ export async function updateAdminRole(db: D1Database, id: number, role: string):
   })
 }
 
-export async function deleteAdmin(db: D1Database, id: number): Promise<void> {
-  return safeQuery('deleteAdmin', async () => {
-    await db.prepare('DELETE FROM admins WHERE id = ?').bind(id).run()
+/**
+ * Remove an admin. An admin with history (status changes, approvals, reviews,
+ * Instagram posts, payment checks, messages…) is disabled instead, so that
+ * history keeps its author: 'disabled'. 'needs_migration' when that is needed
+ * but migration 0033 (admins.disabled_at) is not applied yet.
+ */
+export async function deleteAdmin(db: D1Database, id: number): Promise<'deleted' | 'disabled' | 'needs_migration'> {
+  // Columns without a foreign key: DELETE would succeed and lose the author.
+  const soft = await db
+    .prepare(
+      `SELECT EXISTS(SELECT 1 FROM orders WHERE pay_checked_by = ?1)
+           OR EXISTS(SELECT 1 FROM notifications_sent WHERE sent_by_admin_id = ?1) AS used`,
+    )
+    .bind(id)
+    .first<{ used: number }>()
+  if (!soft?.used) {
+    try {
+      await db.prepare('DELETE FROM admins WHERE id = ?').bind(id).run()
+      return 'deleted'
+    } catch (err) {
+      if (!String(err).includes('FOREIGN KEY')) throw err
+    }
+  }
+  try {
+    await db
+      .prepare('UPDATE admins SET disabled_at = ?, tokens_valid_after = ? WHERE id = ?')
+      .bind(Date.now(), nowSec(), id)
+      .run()
+    return 'disabled'
+  } catch (err) {
+    if (String(err).includes('no such column')) return 'needs_migration'
+    throw err
+  }
+}
+
+/** Give a disabled admin's row back to a re-added account. */
+export async function reenableAdmin(db: D1Database, id: number, passwordHash: string, role: string): Promise<void> {
+  return safeQuery('reenableAdmin', async () => {
+    await db.batch([
+      db.prepare('UPDATE admins SET disabled_at = NULL, password_hash = ?, role = ?, tokens_valid_after = ? WHERE id = ?')
+        .bind(passwordHash, role, nowSec(), id),
+      db.prepare('DELETE FROM admin_permissions WHERE admin_id = ?').bind(id),
+    ])
   })
 }
 
@@ -475,6 +517,16 @@ export interface AdminOrdersFilter {
   q?: string
 }
 
+/** The digits of a search term, when it has at least 3 of them (a phone search). */
+function phoneDigits(q: string): string | null {
+  const d = q.replace(/\D/g, '')
+  return d.length >= 3 ? d : null
+}
+
+/** SQL for a phone column with spaces, dashes, brackets and '+' removed. */
+const digitsOnlySql = (col: string) =>
+  `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`
+
 export async function getAdminOrders(
   db: D1Database,
   filter: AdminOrdersFilter,
@@ -489,8 +541,9 @@ export async function getAdminOrders(
       params.push(filter.status)
     }
     if (filter.q) {
-      conditions.push('(o.customer_name LIKE ? OR o.customer_phone LIKE ?)')
-      params.push(`%${filter.q}%`, `%${filter.q}%`)
+      const digits = phoneDigits(filter.q)
+      conditions.push(`(o.customer_name LIKE ? OR o.customer_phone LIKE ?${digits ? ` OR ${digitsOnlySql('o.customer_phone')} LIKE ?` : ''})`)
+      params.push(`%${filter.q}%`, `%${filter.q}%`, ...(digits ? [`%${digits}%`] : []))
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -672,10 +725,16 @@ export async function softDeleteProduct(db: D1Database, id: number): Promise<voi
 // Number of orders that reference this product — used to decide whether a
 // product can be permanently deleted or must be archived (soft-deleted) to
 // keep order history intact.
+// Counts every row with a foreign key to the product: orders (first line),
+// order_items and cart_items.
 export async function countOrdersForProduct(db: D1Database, id: number): Promise<number> {
   return safeQuery('countOrdersForProduct', async () => {
     const row = await db
-      .prepare('SELECT COUNT(*) as c FROM orders WHERE product_id = ?')
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM orders WHERE product_id = ?1)
+              + (SELECT COUNT(*) FROM order_items WHERE product_id = ?1)
+              + (SELECT COUNT(*) FROM cart_items WHERE product_id = ?1) as c`,
+      )
       .bind(id)
       .first<{ c: number }>()
     return row?.c ?? 0
@@ -1194,6 +1253,10 @@ export interface AdminUserRow {
   notify_promo?: number | null
 }
 
+/** Orders (alias `o`) that count toward a customer's totals: not cancelled, and
+ *  card-transfer orders only once the money is confirmed. */
+const COUNTED_ORDER = "o.status != 'cancelled' AND (o.payment_method != 'p2p' OR o.payment_status = 'paid')"
+
 export async function getAdminUsers(
   db: D1Database,
   filter: AdminUsersFilter,
@@ -1204,8 +1267,9 @@ export async function getAdminUsers(
     const params: (string | number | null)[] = []
 
     if (filter.q) {
-      conditions.push('(u.phone LIKE ? OR u.email LIKE ? OR u.name LIKE ? OR u.telegram_username LIKE ? OR u.first_name LIKE ?)')
-      params.push(`%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`)
+      const digits = phoneDigits(filter.q)
+      conditions.push(`(u.phone LIKE ? OR u.email LIKE ? OR u.name LIKE ? OR u.telegram_username LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?${digits ? ` OR ${digitsOnlySql('u.phone')} LIKE ?` : ''})`)
+      params.push(`%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`, `%${filter.q}%`, ...(digits ? [`%${digits}%`] : []))
     }
     if (filter.role) {
       conditions.push('u.role = ?')
@@ -1232,7 +1296,7 @@ export async function getAdminUsers(
                 COUNT(o.id) as orders_count,
                 COALESCE(SUM(o.total_price), 0) as total_spent
          FROM users u
-         LEFT JOIN orders o ON o.user_id = u.id
+         LEFT JOIN orders o ON o.user_id = u.id AND ${COUNTED_ORDER}
          ${where}
          GROUP BY u.id
          ORDER BY u.created_at DESC
@@ -1256,7 +1320,7 @@ export async function getAdminUserById(db: D1Database, id: number): Promise<Admi
                 COUNT(o.id) as orders_count,
                 COALESCE(SUM(o.total_price), 0) as total_spent
          FROM users u
-         LEFT JOIN orders o ON o.user_id = u.id
+         LEFT JOIN orders o ON o.user_id = u.id AND ${COUNTED_ORDER}
          WHERE u.id = ?
          GROUP BY u.id`,
       )
@@ -1537,9 +1601,10 @@ export async function getVisitorStats(db: D1Database): Promise<VisitorStats> {
       db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM page_visits WHERE visited_at >= ?').bind(monthAgo).first<{ c: number }>(),
       db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM page_visits WHERE visited_at >= ?').bind(yearAgo).first<{ c: number }>(),
       db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM page_visits').first<{ c: number }>(),
-      db.prepare("SELECT COALESCE(device_type,'unknown') as device_type, COUNT(*) as count FROM page_visits GROUP BY device_type ORDER BY count DESC").all<{ device_type: string; count: number }>(),
-      db.prepare("SELECT COALESCE(browser,'other') as browser, COUNT(*) as count FROM page_visits GROUP BY browser ORDER BY count DESC").all<{ browser: string; count: number }>(),
-      db.prepare("SELECT COALESCE(os,'other') as os, COUNT(*) as count FROM page_visits GROUP BY os ORDER BY count DESC").all<{ os: string; count: number }>(),
+      // Shares count visitors (sessions), not pageviews; funnel-event rows are not visits.
+      db.prepare("SELECT COALESCE(device_type,'unknown') as device_type, COUNT(DISTINCT session_id) as count FROM page_visits WHERE event IS NULL GROUP BY device_type ORDER BY count DESC").all<{ device_type: string; count: number }>(),
+      db.prepare("SELECT COALESCE(browser,'other') as browser, COUNT(DISTINCT session_id) as count FROM page_visits WHERE event IS NULL GROUP BY browser ORDER BY count DESC").all<{ browser: string; count: number }>(),
+      db.prepare("SELECT COALESCE(os,'other') as os, COUNT(DISTINCT session_id) as count FROM page_visits WHERE event IS NULL GROUP BY os ORDER BY count DESC").all<{ os: string; count: number }>(),
       db.prepare(
         `SELECT strftime('%Y-%m-%d', (visited_at + ?) / 1000, 'unixepoch') as day, COUNT(DISTINCT session_id) as count
          FROM page_visits WHERE visited_at >= ?
@@ -2307,6 +2372,8 @@ export interface DesignerPayoutRow {
   name: string | null
   phone: string | null
   telegram_username: string | null
+  /** active | banned | deleted — a blocked designer can still be owed money. */
+  status: string
   works_approved: number
   units_sold: number
   /** UZS across all non-cancelled orders. */
@@ -2322,7 +2389,7 @@ export async function getDesignerPayouts(db: D1Database): Promise<DesignerPayout
   return safeQuery('getDesignerPayouts', async () => {
     const { results } = await db
       .prepare(
-        `SELECT u.id AS user_id, u.designer_handle, u.name, u.phone, u.telegram_username,
+        `SELECT u.id AS user_id, u.designer_handle, u.name, u.phone, u.telegram_username, u.status,
                 (SELECT COUNT(*) FROM artworks a WHERE a.user_id = u.id AND a.status = 'approved') AS works_approved,
                 COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN s.quantity ELSE 0 END), 0) AS units_sold,
                 COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN s.designer_share ELSE 0 END), 0) AS earned,
@@ -2332,7 +2399,7 @@ export async function getDesignerPayouts(db: D1Database): Promise<DesignerPayout
          FROM users u
          LEFT JOIN artwork_sales s ON s.designer_user_id = u.id
          LEFT JOIN orders o ON o.id = s.order_id
-         WHERE u.is_designer = 1 AND u.status = 'active'
+         WHERE u.is_designer = 1 OR s.id IS NOT NULL
          GROUP BY u.id
          ORDER BY payable DESC, earned DESC, u.designer_handle`,
       )
@@ -2359,10 +2426,10 @@ export async function anonymizeUser(db: D1Database, userId: number): Promise<voi
           `UPDATE users SET email = ?, password_hash = 'deleted', name = NULL, phone = NULL,
              avatar_key = NULL, location_preset = NULL, telegram_user_id = NULL, telegram_username = NULL,
              first_name = NULL, last_name = NULL, status = 'deleted', delete_requested_at = NULL,
-             is_designer = 0, designer_handle = NULL, designer_bio = NULL
+             is_designer = 0, designer_handle = NULL, designer_bio = NULL, tokens_valid_after = ?
            WHERE id = ?`,
         )
-        .bind(stamp, userId),
+        .bind(stamp, nowSec(), userId),
     ])
   })
 }

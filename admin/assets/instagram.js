@@ -132,7 +132,7 @@
     try {
       render((await apiJSON('/api/admin/instagram/posts')).items || [])
     } catch (err) {
-      if (err.status === 401) { window.location.href = 'login.html'; return }
+      if (err.status === 401) { window.location.href = window.LOOM.loginUrl(); return }
       el('ig-groups').innerHTML = '<div class="state state--error">' + esc(apiErrorMessage(err)) + '</div>'
     }
   }
@@ -373,7 +373,7 @@
             items.map(adRow).join('') + '</tbody></table></div>'
           : '<div class="state"><p class="state-title">Объявлений пока нет</p><p class="state-sub">Создайте рекламу кнопкой на опубликованном посте.</p></div>')
     } catch (err) {
-      if (err.status === 401) { window.location.href = 'login.html'; return }
+      if (err.status === 401) { window.location.href = window.LOOM.loginUrl(); return }
       el('ads-spend').textContent = ''
       el('ads-list').innerHTML = '<div class="state state--error">' + esc(apiErrorMessage(err)) + '</div>'
     }
