@@ -401,7 +401,7 @@
   }
 
   async function init() {
-    me = await checkAuth()
+    try { me = await checkAuth() } catch { return }   // checkAuth already shows the banner
     if (!me) { window.location.href = window.LOOM.loginUrl(); return }
 
     el('readonly-flag').hidden = isOwner()

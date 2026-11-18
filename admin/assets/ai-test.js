@@ -403,7 +403,8 @@ async function generate() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const me = await checkAuth()
+  const me = await checkAuth().catch(() => false)   // checkAuth already shows the banner
+  if (me === false) return
   if (!me) { window.location.href = window.LOOM.loginUrl(); return }
 
   try {

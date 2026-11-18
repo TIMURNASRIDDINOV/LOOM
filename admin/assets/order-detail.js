@@ -790,9 +790,10 @@ function setupPayment(o) {
       location.reload()
     } catch (e) {
       window.LOOM_UI.toast(window.LOOM_UI.apiErrorMessage(e), 'error')
-      // Someone else may have answered meanwhile: show the order as it is now
-      // (after a moment, so the toast can be read).
-      setTimeout(() => location.reload(), 1500)
+      // 409: someone else answered meanwhile, so show the order as it is now
+      // (after a moment, so the toast can be read). Anything else: try again.
+      if (e && e.status === 409) setTimeout(() => location.reload(), 1500)
+      else confirmBtn.disabled = rejectBtn.disabled = false
     }
   }
   confirmBtn.onclick = () => send({ action: 'confirm' }, {

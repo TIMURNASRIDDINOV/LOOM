@@ -321,7 +321,7 @@
         }
 
         document.dispatchEvent(new CustomEvent('loom:ready', { detail: { me: me, caps: caps } }))
-      })
+      }).catch(() => {})   // checkAuth already shows the banner
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run)

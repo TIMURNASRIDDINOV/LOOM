@@ -155,17 +155,20 @@
   }
 
   async function loadOrders() {
+    const prev = document.getElementById('orders-prev')
+    const next = document.getElementById('orders-next')
+    // Off while the page loads, so a double click cannot run past the end.
+    prev.disabled = next.disabled = true
+    let totalPages = ordersPage   // on error: no going forward, back still works
     try {
       const data = await apiJSON(`/api/admin/users/${userId}/orders?page=${ordersPage}`)
       const tbody = document.getElementById('orders-tbody')
       const countEl = document.getElementById('orders-count')
       if (countEl) countEl.textContent = data.total ?? 0
       // Same pager as the other admin lists; the API pages by 25.
-      const totalPages = Math.ceil((data.total || 0) / data.limit) || 1
+      totalPages = Math.ceil((data.total || 0) / data.limit) || 1
       document.getElementById('orders-pager').hidden = totalPages <= 1
       document.getElementById('orders-page-info').textContent = 'Страница ' + data.page + ' из ' + totalPages
-      document.getElementById('orders-prev').disabled = data.page <= 1
-      document.getElementById('orders-next').disabled = data.page >= totalPages
       if (!data.orders?.length) {
         tbody.innerHTML = '<tr><td colspan="4"><div class="state">У этого клиента ещё нет заказов</div></td></tr>'
         return
@@ -184,6 +187,9 @@
     } catch (err) {
       document.getElementById('orders-tbody').innerHTML =
         `<tr><td colspan="4"><div class="state state--error">${escHtml(apiErrorMessage(err))}</div></td></tr>`
+    } finally {
+      prev.disabled = ordersPage <= 1
+      next.disabled = ordersPage >= totalPages
     }
   }
 
@@ -322,7 +328,7 @@
 
     // Capability gating deletes items outright; a trigger opening an empty menu
     // is worse than no trigger at all.
-    if (!menu.querySelector('.menu-item')) { wrap.remove(); return }
+    if (!menu.querySelector('.menu-item:not([hidden])')) { wrap.remove(); return }
 
     const setOpen = (open) => {
       menu.hidden = !open
@@ -409,11 +415,15 @@
     // An empty or untouched email is left out: the column cannot be blanked.
     const email = document.getElementById('edit-email').value.trim()
     if (email && email !== realEmail(currentUser && currentUser.email)) body.email = email
-    // Store the number as +998 and 9 digits, never the masked display text.
-    let digits = document.getElementById('edit-phone').value.replace(/\D/g, '')
-    if (digits.startsWith('998')) digits = digits.slice(3)
-    if (digits && digits.length !== 9) { toast('Введите номер полностью: +998 и 9 цифр', 'error'); return }
-    body.phone = digits ? '+998' + digits : null
+    // An untouched phone is left out, so a foreign number on file still saves.
+    // A changed one is stored as +998 and 9 digits, never the masked display text.
+    const phoneVal = document.getElementById('edit-phone').value
+    if (phoneVal !== (currentUser && currentUser.phone ? formatPhone(currentUser.phone) : '')) {
+      let digits = phoneVal.replace(/\D/g, '')
+      if (digits.startsWith('998')) digits = digits.slice(3)
+      if (digits && digits.length !== 9) { toast('Введите номер полностью: +998 и 9 цифр', 'error'); return }
+      body.phone = digits ? '+998' + digits : null
+    }
     btn.disabled = true
     try {
       const updated = await apiJSON(`/api/admin/users/${userId}/profile`, {
@@ -459,7 +469,7 @@
     const btn = e.currentTarget
     // The saved point is the last one found or picked; typed text alone has no
     // coordinates, so it must go through «Найти» or the map first.
-    if (document.getElementById('edit-location-addr').value.trim() !== (_adminLocAddr || '')) {
+    if (document.getElementById('edit-location-addr').value.trim() !== (_adminLocAddr || '').trim()) {
       toast('Нажмите «Найти» или выберите точку на карте', 'error')
       return
     }
