@@ -86,6 +86,9 @@ jobs:
       - name: Home-page hero picture admin API (local D1/R2)
         run: node backend/scripts/site-hero-test.mjs
 
+      - name: Admin dashboard statistics (local D1)
+        run: node backend/scripts/dashboard-stats-test.mjs
+
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
 

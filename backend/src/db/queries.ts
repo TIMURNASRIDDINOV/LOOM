@@ -698,7 +698,16 @@ export interface AdminStats {
   topProducts: Array<{ product_id: number; name_ru: string | null; count: number }>
   ordersPerDay: Array<{ day: string; count: number }>
   recentOrders: Array<{ id: number; customer_name: string; status: string; total_price: number; created_at: number }>
+  // Split of ordersByStatus.new (LOOM-353): staff can act now vs card transfer not received yet.
+  newToProcess: number
+  newAwaitingPayment: number
 }
+
+// The shop runs on Tashkent time (UTC+5, no DST): dashboard days start at its midnight.
+const TASHKENT_OFFSET_MS = 5 * 60 * 60 * 1000
+// A p2p order counts as money only once staff confirmed the transfer.
+const PAID_ORDER = "status != 'cancelled' AND (payment_method != 'p2p' OR payment_status = 'paid')"
+const AWAITING_PAYMENT = "payment_method = 'p2p' AND payment_status IN ('unpaid', 'failed')"
 
 export async function getAdminStats(db: D1Database): Promise<AdminStats> {
   return safeQuery('getAdminStats', async () => {
@@ -706,14 +715,14 @@ export async function getAdminStats(db: D1Database): Promise<AdminStats> {
     const day30ago = now - 30 * 24 * 60 * 60 * 1000
     const day7ago = now - 7 * 24 * 60 * 60 * 1000
 
-    const [statusRows, revenueRow, ordersWeekRow, topRows, dailyRows, recentRows] =
+    const [statusRows, revenueRow, ordersWeekRow, topRows, dailyRows, recentRows, awaitingRow] =
       await Promise.all([
         db
           .prepare('SELECT status, COUNT(*) as count FROM orders GROUP BY status')
           .all<{ status: string; count: number }>(),
         db
           .prepare(
-            "SELECT SUM(total_price) as total FROM orders WHERE status != 'cancelled' AND created_at >= ?",
+            `SELECT SUM(total_price) as total FROM orders WHERE ${PAID_ORDER} AND created_at >= ?`,
           )
           .bind(day30ago)
           .first<{ total: number | null }>(),
@@ -723,20 +732,21 @@ export async function getAdminStats(db: D1Database): Promise<AdminStats> {
           .first<{ count: number }>(),
         db
           .prepare(
-            `SELECT o.product_id, p.name_ru, COUNT(*) as count
-             FROM orders o LEFT JOIN products p ON o.product_id = p.id
-             WHERE o.product_id IS NOT NULL
-             GROUP BY o.product_id ORDER BY count DESC LIMIT 3`,
+            `SELECT oi.product_id, p.name_ru, SUM(oi.quantity) as count
+             FROM order_items oi JOIN orders o ON o.id = oi.order_id
+             LEFT JOIN products p ON oi.product_id = p.id
+             WHERE oi.product_id IS NOT NULL AND o.status != 'cancelled'
+             GROUP BY oi.product_id ORDER BY count DESC LIMIT 3`,
           )
           .all<{ product_id: number; name_ru: string | null; count: number }>(),
         db
           .prepare(
-            `SELECT strftime('%Y-%m-%d', created_at / 1000, 'unixepoch') as day,
+            `SELECT strftime('%Y-%m-%d', (created_at + ?) / 1000, 'unixepoch') as day,
                     COUNT(*) as count
              FROM orders WHERE created_at >= ?
              GROUP BY day ORDER BY day ASC`,
           )
-          .bind(day30ago)
+          .bind(TASHKENT_OFFSET_MS, day30ago)
           .all<{ day: string; count: number }>(),
         db
           .prepare(
@@ -744,6 +754,9 @@ export async function getAdminStats(db: D1Database): Promise<AdminStats> {
              FROM orders ORDER BY created_at DESC LIMIT 5`,
           )
           .all<{ id: number; customer_name: string; status: string; total_price: number; created_at: number }>(),
+        db
+          .prepare(`SELECT COUNT(*) as count FROM orders WHERE status = 'new' AND ${AWAITING_PAYMENT}`)
+          .first<{ count: number }>(),
       ])
 
     const ordersByStatus: Record<string, number> = {}
@@ -756,6 +769,8 @@ export async function getAdminStats(db: D1Database): Promise<AdminStats> {
       topProducts: topRows.results,
       ordersPerDay: dailyRows.results,
       recentOrders: recentRows.results,
+      newToProcess: (ordersByStatus['new'] ?? 0) - (awaitingRow?.count ?? 0),
+      newAwaitingPayment: awaitingRow?.count ?? 0,
     }
   })
 }
@@ -1354,14 +1369,14 @@ export async function getAdminStatsExtended(db: D1Database): Promise<AdminStatsE
 
     const [totalRow, week7Row, month30Row] = await Promise.all([
       db
-        .prepare('SELECT COUNT(*) as c FROM users WHERE phone IS NOT NULL')
+        .prepare("SELECT COUNT(*) as c FROM users WHERE status != 'deleted'")
         .first<{ c: number }>(),
       db
-        .prepare('SELECT COUNT(*) as c FROM users WHERE phone IS NOT NULL AND created_at >= ?')
+        .prepare("SELECT COUNT(*) as c FROM users WHERE status != 'deleted' AND created_at >= ?")
         .bind(day7ago)
         .first<{ c: number }>(),
       db
-        .prepare('SELECT COUNT(*) as c FROM users WHERE phone IS NOT NULL AND created_at >= ?')
+        .prepare("SELECT COUNT(*) as c FROM users WHERE status != 'deleted' AND created_at >= ?")
         .bind(day30ago)
         .first<{ c: number }>(),
     ])
@@ -1499,7 +1514,7 @@ export interface VisitorStats {
 
 export async function getVisitorStats(db: D1Database): Promise<VisitorStats> {
   const now = Date.now()
-  const dayStart = now - (now % 86400000)
+  const dayStart = now - ((now + TASHKENT_OFFSET_MS) % 86400000)
   const weekAgo  = now - 7 * 86400000
   const monthAgo = now - 30 * 86400000
   const yearAgo  = now - 365 * 86400000
@@ -1515,10 +1530,10 @@ export async function getVisitorStats(db: D1Database): Promise<VisitorStats> {
       db.prepare("SELECT COALESCE(browser,'other') as browser, COUNT(*) as count FROM page_visits GROUP BY browser ORDER BY count DESC").all<{ browser: string; count: number }>(),
       db.prepare("SELECT COALESCE(os,'other') as os, COUNT(*) as count FROM page_visits GROUP BY os ORDER BY count DESC").all<{ os: string; count: number }>(),
       db.prepare(
-        `SELECT strftime('%Y-%m-%d', visited_at / 1000, 'unixepoch') as day, COUNT(DISTINCT session_id) as count
+        `SELECT strftime('%Y-%m-%d', (visited_at + ?) / 1000, 'unixepoch') as day, COUNT(DISTINCT session_id) as count
          FROM page_visits WHERE visited_at >= ?
          GROUP BY day ORDER BY day ASC`,
-      ).bind(monthAgo).all<{ day: string; count: number }>(),
+      ).bind(TASHKENT_OFFSET_MS, monthAgo).all<{ day: string; count: number }>(),
     ])
 
   return {
