@@ -37,6 +37,10 @@ async function get(path) {
 
 const DAY = 86400000, TZ = 5 * 3600000
 const ymd = (ms) => new Date(ms).toISOString().slice(0, 10)
+// The Worker reads its own clock. Never start within a minute of Tashkent
+// midnight (19:00 UTC), so "today" cannot flip between seeding and asking.
+const toMidnight = DAY - ((Date.now() + TZ) % DAY)
+if (toMidnight < 60000) await new Promise((r) => setTimeout(r, toMidnight + 1000))
 const now = Date.now()
 const utcMidnight = now - (now % DAY)
 const D = utcMidnight - 3 * DAY              // a UTC day three days back
@@ -55,7 +59,7 @@ try {
   const before = await get('/api/admin/stats')
   assert.equal(Object.values(before.ordersByStatus).reduce((a, b) => a + b, 0), 0, 'migrations seed no orders')
 
-  for (const [id, name] of [[901, 'P1'], [902, 'P2'], [903, 'P3']]) {
+  for (const [id, name] of [[901, 'P1'], [902, 'P2'], [903, 'P3'], [904, 'P4']]) {
     await db.prepare('INSERT INTO products (id,slug,name_ru,price,created_at,updated_at) VALUES (?,?,?,1,1,1)').bind(id, `t-${id}`, name).run()
   }
   // id, status, method, payment_status, total, created_at, lines [product, qty]
@@ -66,11 +70,13 @@ try {
     [4, 'new', 'p2p', 'pending', 800, T0, [[901, 1]]],                // receipt uploaded, staff must confirm
     [5, 'cancelled', 'cod', 'unpaid', 1600, T0, [[902, 10]]],         // cancelled: nowhere
     [6, 'new', 'p2p', 'failed', 3200, LATE, [[901, 1]]],              // receipt rejected, waits for payment again
+    [7, 'delivered', 'cod', 'paid', 6400, T0, [[903, 0]]],            // before order_items: no lines, counts once via orders.product_id
+    [8, 'producing', 'cod', 'unpaid', 12800, T0, [[904, 1]]],         // non-p2p and unpaid: the ticket formula counts it as revenue
   ]
   for (const [id, status, method, pay, total, at, lines] of orders) {
     await db.prepare(`INSERT INTO orders (id,customer_name,customer_phone,design_json,total_price,status,payment_method,payment_status,product_id,created_at,updated_at)
       VALUES (?,'T','+998000000000','{}',?,?,?,?,?,?,?)`).bind(id, total, status, method, pay, lines[0][0], at, at).run()
-    for (const [product, qty] of lines) {
+    for (const [product, qty] of lines.filter(([, qty]) => qty > 0)) {
       await db.prepare("INSERT INTO order_items (order_id,product_id,design_json,unit_price,quantity,created_at) VALUES (?,?,'{}',1,?,?)").bind(id, product, qty, at).run()
     }
   }
@@ -78,16 +84,18 @@ try {
   await db.prepare("INSERT INTO users (email,password_hash,phone,status,created_at) VALUES ('a@t.invalid','x','+998900000001','active',?)").bind(now).run()
   await db.prepare("INSERT INTO users (email,password_hash,phone,telegram_user_id,status,created_at) VALUES ('b@t.invalid','x',NULL,42,'active',?)").bind(now).run()
   await db.prepare("INSERT INTO users (email,password_hash,phone,status,created_at) VALUES ('c@t.invalid','deleted',NULL,'deleted',?)").bind(now).run()
+  await db.prepare("INSERT INTO users (email,password_hash,phone,role,status,created_at) VALUES ('d@t.invalid','x','+998900000002','admin','active',?)").bind(now).run()
   await db.prepare("INSERT INTO page_visits (session_id,page,visited_at) VALUES ('yesterday','/',?),('today','/',?)").bind(tashMidnight - 60000, tashMidnight).run()
 
   const s = await get('/api/admin/stats')
-  assert.equal(s.revenueLast30Days, 300, 'revenue: cod + paid p2p only')
-  assert.deepEqual(s.topProducts.map((p) => [p.product_id, p.count]), [[903, 5], [901, 4], [902, 3]], 'top products: quantities from order_items, cancelled left out')
+  assert.equal(s.revenueLast30Days, 100 + 200 + 6400 + 12800, 'revenue: non-p2p (paid or not) + paid p2p, no cancelled')
+  assert.deepEqual(s.topProducts.map((p) => [p.product_id, p.count]), [[903, 6], [901, 4], [902, 3]], 'top products: order_items quantities + line-less orders once, cancelled left out')
+  assert.equal(s.ordersLast7Days, 8, 'ordersLast7Days counts every order, cancelled included')
   assert.equal(s.ordersByStatus.new, 4)
   assert.equal(s.newToProcess, 2, 'cod new + receipt waiting for staff')
   assert.equal(s.newAwaitingPayment, 2, 'unpaid + rejected transfer')
-  assert.equal(s.totalUsers - usersBefore, 2, 'Telegram-only customer counts, deleted does not')
-  assert.deepEqual(s.ordersPerDay, [{ day: ymd(T0), count: 5 }, { day: ymd(D + DAY), count: 1 }], '21:00 UTC lands on the next Tashkent day')
+  assert.equal(s.totalUsers - usersBefore, 2, 'Telegram-only customer counts; deleted and admin-role do not')
+  assert.deepEqual(s.ordersPerDay, [{ day: ymd(T0), count: 7 }, { day: ymd(D + DAY), count: 1 }], '21:00 UTC lands on the next Tashkent day')
   for (const key of ['ordersByStatus', 'revenueLast30Days', 'ordersLast7Days', 'topProducts', 'ordersPerDay', 'recentOrders', 'totalUsers', 'newUsersLast7Days', 'newUsersLast30Days']) {
     assert.ok(key in s, `field ${key} still returned`)
   }

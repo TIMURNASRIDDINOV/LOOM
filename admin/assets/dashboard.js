@@ -451,14 +451,17 @@
     })
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
+  // A Worker with LOOM-353 buckets days in Tashkent time (UTC+5, no DST); an older one in UTC.
+  // Set from the stats response, which load() renders before the visitors series.
+  let tashkentDays = false
+
   // Fill gaps so a quiet day reads as zero rather than vanishing from the axis.
-  // Days are Tashkent days (UTC+5, no DST), the same buckets the Worker returns.
   function fillDays(rows, n, dateKey, countKey) {
     dateKey = dateKey || 'day'; countKey = countKey || 'count'
     const map = {}
     ;(rows || []).forEach((row) => { map[row[dateKey]] = row[countKey] })
     const labels = [], counts = []
-    const now = Date.now() + 5 * 3600000
+    const now = Date.now() + (tashkentDays ? 5 * 3600000 : 0)
     for (let i = n - 1; i >= 0; i--) {
       const key = new Date(now - i * 86400000).toISOString().slice(0, 10)
       labels.push(key.slice(5))
@@ -490,6 +493,7 @@
 
     // A Worker older than LOOM-353 has no payment split: then every new order counts as waiting.
     const split = typeof stats.newToProcess === 'number' && typeof stats.newAwaitingPayment === 'number'
+    tashkentDays = split
     const newCount = split ? stats.newToProcess : (stats.ordersByStatus['new'] ?? 0)
     el('stat-new').textContent = newCount
     if (split) {
@@ -500,9 +504,12 @@
     // The "needs attention" treatment is only warranted when something does.
     if (!newCount) el('tile-new').classList.remove('stat--action')
 
+    const awaiting = split ? stats.newAwaitingPayment : 0
     el('greeting').textContent = newCount
       ? plural(newCount, 'заказ ждёт', 'заказа ждут', 'заказов ждут') + ' обработки.'
-      : 'Необработанных заказов нет — всё в работе.'
+      : awaiting
+        ? 'Необработанных заказов нет. Ещё ' + plural(awaiting, 'заказ ждёт', 'заказа ждут', 'заказов ждут') + ' оплаты.'
+        : 'Необработанных заказов нет — всё в работе.'
 
     const order = ['new', 'confirmed', 'producing', 'shipped', 'delivered', 'cancelled']
     el('status-bar').innerHTML = order.map((s) =>

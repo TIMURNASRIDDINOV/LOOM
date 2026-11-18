@@ -708,6 +708,8 @@ const TASHKENT_OFFSET_MS = 5 * 60 * 60 * 1000
 // A p2p order counts as money only once staff confirmed the transfer.
 const PAID_ORDER = "status != 'cancelled' AND (payment_method != 'p2p' OR payment_status = 'paid')"
 const AWAITING_PAYMENT = "payment_method = 'p2p' AND payment_status IN ('unpaid', 'failed')"
+// Customer accounts: users.role can be set to an admin role from the admin users page; those are not counted.
+const CUSTOMER = "status != 'deleted' AND role NOT IN ('admin', 'super_admin', 'owner')"
 
 export async function getAdminStats(db: D1Database): Promise<AdminStats> {
   return safeQuery('getAdminStats', async () => {
@@ -732,11 +734,20 @@ export async function getAdminStats(db: D1Database): Promise<AdminStats> {
           .first<{ count: number }>(),
         db
           .prepare(
-            `SELECT oi.product_id, p.name_ru, SUM(oi.quantity) as count
-             FROM order_items oi JOIN orders o ON o.id = oi.order_id
-             LEFT JOIN products p ON oi.product_id = p.id
-             WHERE oi.product_id IS NOT NULL AND o.status != 'cancelled'
-             GROUP BY oi.product_id ORDER BY count DESC LIMIT 3`,
+            // Orders from before order_items (migration 0007) have no lines: they
+            // count once through orders.product_id (orders has no quantity column).
+            `SELECT l.product_id, p.name_ru, SUM(l.qty) as count
+             FROM (
+               SELECT oi.product_id, oi.quantity as qty
+               FROM order_items oi JOIN orders o ON o.id = oi.order_id
+               WHERE o.status != 'cancelled'
+               UNION ALL
+               SELECT o.product_id, 1 FROM orders o
+               WHERE o.status != 'cancelled'
+                 AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id)
+             ) l LEFT JOIN products p ON l.product_id = p.id
+             WHERE l.product_id IS NOT NULL
+             GROUP BY l.product_id ORDER BY count DESC LIMIT 3`,
           )
           .all<{ product_id: number; name_ru: string | null; count: number }>(),
         db
@@ -1369,14 +1380,14 @@ export async function getAdminStatsExtended(db: D1Database): Promise<AdminStatsE
 
     const [totalRow, week7Row, month30Row] = await Promise.all([
       db
-        .prepare("SELECT COUNT(*) as c FROM users WHERE status != 'deleted'")
+        .prepare(`SELECT COUNT(*) as c FROM users WHERE ${CUSTOMER}`)
         .first<{ c: number }>(),
       db
-        .prepare("SELECT COUNT(*) as c FROM users WHERE status != 'deleted' AND created_at >= ?")
+        .prepare(`SELECT COUNT(*) as c FROM users WHERE ${CUSTOMER} AND created_at >= ?`)
         .bind(day7ago)
         .first<{ c: number }>(),
       db
-        .prepare("SELECT COUNT(*) as c FROM users WHERE status != 'deleted' AND created_at >= ?")
+        .prepare(`SELECT COUNT(*) as c FROM users WHERE ${CUSTOMER} AND created_at >= ?`)
         .bind(day30ago)
         .first<{ c: number }>(),
     ])

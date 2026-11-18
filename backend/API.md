@@ -437,7 +437,15 @@ All endpoints require `admin_token` cookie (set by `/api/admin/login`).
 |--------|------|-------|-------------|
 | GET | `/api/admin/stats` | — | Orders + user stats |
 
-Response includes: `ordersByStatus`, `revenueLast30Days`, `ordersLast7Days`, `topProducts`, `ordersPerDay`, `recentOrders`, `totalUsers`, `newUsersLast7Days`, `newUsersLast30Days`
+Response includes: `ordersByStatus`, `revenueLast30Days`, `ordersLast7Days`, `topProducts`, `ordersPerDay`, `recentOrders`, `totalUsers`, `newUsersLast7Days`, `newUsersLast30Days`, `newToProcess`, `newAwaitingPayment`
+
+Meanings (LOOM-353):
+
+- `revenueLast30Days`: sum of `total_price` over the last 30 days for orders that are not cancelled and are paid: `payment_method != 'p2p' OR payment_status = 'paid'` (every non-p2p order counts as paid).
+- `topProducts`: top 3 products by pieces, `count` = summed `order_items.quantity` over non-cancelled orders, all time. An order without lines (before migration 0007) counts once through `orders.product_id`.
+- `newToProcess` / `newAwaitingPayment`: split of `ordersByStatus.new`. Awaiting payment = p2p with `payment_status` `unpaid` or `failed`; to process = every other new order (cash on delivery, receipt waiting for staff).
+- `ordersPerDay`: orders per Tashkent day (UTC+5) for the last 30 days. `/api/admin/analytics/visitors` uses Tashkent days too for `today` and `dailyLast30`.
+- `totalUsers`, `newUsersLast7Days`, `newUsersLast30Days`: customer accounts with or without a phone; deleted accounts and users with an admin role are left out.
 
 ### Configurator funnel
 
