@@ -28,7 +28,10 @@
         '<td class="msg-cell" title="' + esc(n.message) + '">' + esc(n.message) + '</td>' +
         '<td>' + (n.status === 'sent'
           ? '<span class="badge badge-delivered">Отправлено</span>'
-          : '<span class="badge badge-cancelled">Ошибка</span>') + '</td>' +
+          : n.status === 'no_telegram'
+            // Saved to the customer's site notifications; Telegram was not linked.
+            ? '<span class="badge">В кабинете</span>'
+            : '<span class="badge badge-cancelled">Ошибка</span>') + '</td>' +
         '<td class="muted">' + formatDate(n.sent_at) + '</td>' +
       '</tr>').join('')
     updatePagination(total)
@@ -76,6 +79,8 @@
       loadHistory()
     } catch (err) {
       toast(apiErrorMessage(err), 'error')
+      // A failed send is still recorded: show it in the history.
+      loadHistory()
     } finally {
       btn.disabled = false
     }

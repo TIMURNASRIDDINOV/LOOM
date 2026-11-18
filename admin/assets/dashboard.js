@@ -406,12 +406,12 @@
   function chartPalette() {
     const light = isLight()
     return {
-      tick:     light ? 'rgba(24,24,27,0.66)'   : 'rgba(255,255,255,0.68)',
-      grid:     light ? 'rgba(24,24,27,0.08)'   : 'rgba(255,255,255,0.07)',
-      barFill:  light ? 'rgba(24,24,27,0.16)'   : 'rgba(255,255,255,0.18)',
-      barEdge:  light ? 'rgba(24,24,27,0.5)'    : 'rgba(255,255,255,0.45)',
-      line:     light ? 'rgba(13,148,136,0.9)'  : 'rgba(99,202,183,0.9)',
-      lineFill: light ? 'rgba(13,148,136,0.12)' : 'rgba(99,202,183,0.1)',
+      tick:     light ? '#59616a'               : '#a3abb3',
+      grid:     light ? 'rgba(20,23,26,0.08)'   : 'rgba(255,255,255,0.08)',
+      barFill:  light ? 'rgba(20,23,26,0.16)'   : 'rgba(255,255,255,0.18)',
+      barEdge:  light ? 'rgba(20,23,26,0.5)'    : 'rgba(255,255,255,0.45)',
+      line:     '#d93529',
+      lineFill: 'rgba(217,53,41,0.12)',
     }
   }
 
@@ -430,6 +430,7 @@
     const canvas = el(canvasId)
     if (!canvas || !window.Chart) return
     const p = chartPalette()
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy()
 
     const dataset = kind === 'line'

@@ -10,10 +10,11 @@
   <meta name="robots" content="noindex, nofollow" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Обзор — LOOM Admin</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=30" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/theme.css?v=32" />
   <script src="assets/theme-init.js?v=30"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous" defer></script>
   <style>
     .chart-wrap { position: relative; height: 220px; }
 
@@ -21,6 +22,7 @@
 
     .two-col { display: grid; grid-template-columns: 1fr 360px; gap: var(--sp-4); align-items: start; }
     @media (max-width: 1000px) { .two-col { grid-template-columns: 1fr; } }
+    .two-col > * { min-width: 0; }
 
     .mini-table { width: 100%; border-collapse: collapse; }
     .mini-table td { padding: 0.6rem 0; font-size: var(--fs-base); border-bottom: 1px solid var(--hairline2); vertical-align: middle; }
@@ -270,10 +272,10 @@
     </section>
   </main>
 
-  <script src="assets/app.js?v=31"></script>
+  <script src="assets/app.js?v=33"></script>
   <script src="assets/ui.js?v=31"></script>
-  <script src="assets/layout.js?v=32"></script>
+  <script src="assets/layout.js?v=34"></script>
   <script>LOOM_LAYOUT.init('dashboard')</script>
-  <script src="assets/dashboard.js?v=34"></script>
+  <script src="assets/dashboard.js?v=35"></script>
 </body>
 </html>
