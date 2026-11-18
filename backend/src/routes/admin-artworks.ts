@@ -40,8 +40,8 @@ function artworkUrl(requestUrl: string, key: string): string {
 router.get('/artworks', requireAdmin, requireCap('artworks.view'), async (c) => {
   const statusQ = c.req.query('status')
   const status = statusQ && STATUSES.has(statusQ) ? statusQ : null
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
-  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '30', 10)))
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '30', 10) || 30))
 
   const { items, total } = await getArtworksForReview(c.env.DB, status, page, limit)
   const sold = await getArtworkSalesCounts(c.env.DB, items.map((a) => a.id))
@@ -170,6 +170,12 @@ router.post('/artworks/:id/review', requireAdmin, requireCap('artworks.review'),
   const artwork = await getArtworkById(c.env.DB, id)
   if (!artwork) return c.json({ error: 'Not found' }, 404)
 
+  // Approving puts the work in the public catalogue under its author's name.
+  const designer = await getUserById(c.env.DB, artwork.user_id)
+  if (decision === 'approve' && designer?.status !== 'active') {
+    return c.json({ error: 'Аккаунт автора удалён или заблокирован', code: 'author_inactive' }, 409)
+  }
+
   const status = decision === 'approve' ? 'approved' : 'rejected'
   const adminId = c.get('adminId')
   await reviewArtwork(c.env.DB, id, status, adminId, decision === 'reject' ? note : null)
@@ -183,7 +189,6 @@ router.post('/artworks/:id/review', requireAdmin, requireCap('artworks.review'),
   // Tell the designer — the app promises "ответ придёт в Telegram". Best effort:
   // a designer who signed in with Google has no chat to write to, and the app
   // shows the status on their works page either way.
-  const designer = await getUserById(c.env.DB, artwork.user_id)
   if (designer?.telegram_user_id && c.env.TELEGRAM_BOT_TOKEN) {
     const text =
       status === 'approved'

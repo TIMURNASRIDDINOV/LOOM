@@ -17,7 +17,9 @@ export const requireAdmin = createMiddleware<AdminEnv>(async (c, next) => {
   if (!payload || payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 401)
 
   const admin = await getAdminById(c.env.DB, parseInt(payload.sub, 10))
-  if (!admin) return c.json({ error: 'Unauthorized' }, 401)
+  // disabled_at (migration 0033) is read from SELECT *, so this is a no-op
+  // until the column exists.
+  if (!admin || admin.disabled_at) return c.json({ error: 'Unauthorized' }, 401)
   // Tokens issued before the admin's last logout are dead.
   if ((payload.iat ?? 0) < (admin.tokens_valid_after ?? 0)) return c.json({ error: 'Unauthorized' }, 401)
 

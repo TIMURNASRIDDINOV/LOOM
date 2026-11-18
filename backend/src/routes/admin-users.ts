@@ -12,6 +12,8 @@ import {
   getAdminStatsExtended,
   getUsersWithRole,
   setUserRole,
+  getUserByPhone,
+  revokeUserTokens,
 } from '../db/queries'
 import { requireAdmin, requireCap } from '../middleware/requireAdmin'
 import type { AdminEnv } from '../types'
@@ -22,6 +24,22 @@ const router = new Hono<AdminEnv>()
 
 const ALLOWED_ROLES = new Set(['user', 'admin', 'super_admin', 'owner'])
 const ALLOWED_STATUSES = new Set(['active', 'banned'])
+
+// A deleted account is anonymised for good (queries.ts anonymizeUser).
+const DELETED_FINAL = { error: 'Аккаунт удалён — изменить его статус нельзя', code: 'account_deleted' }
+
+const NO_RIGHTS = 'Недостаточно прав для этого действия. Обратитесь к владельцу аккаунта.'
+
+/** Phone as +<9–15 digits>; spaces, brackets and dashes of the input mask are dropped. */
+function normalizeAdminPhone(raw: string): string | null {
+  const p = raw.replace(/[\s()\-]/g, '')
+  return /^\+\d{9,15}$/.test(p) ? p : null
+}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** page / limit query values; anything unparsable falls back to the default. */
+const pageParam = (raw: string | undefined) => Math.max(1, parseInt(raw ?? '1', 10) || 1)
+const limitParam = (raw: string | undefined, def: number) => Math.min(100, Math.max(1, parseInt(raw ?? String(def), 10) || def))
 
 // ─── GET /api/admin/stats (extended) ─────────────────────────────────────────
 
@@ -36,8 +54,8 @@ router.get('/users', requireAdmin, requireCap('users.view'), async (c) => {
   const q = c.req.query('q') || undefined
   const role = c.req.query('role') || undefined
   const status = c.req.query('status') || undefined
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
-  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '25', 10)))
+  const page = pageParam(c.req.query('page'))
+  const limit = limitParam(c.req.query('limit'), 25)
 
   const { users, total } = await getAdminUsers(c.env.DB, { q, role, status, page, limit })
   return c.json({ users, total, page, limit })
@@ -68,6 +86,14 @@ router.patch('/users/:id', requireAdmin, requireCap('users.edit'), async (c) => 
 
   const { role, status } = body as Record<string, unknown>
 
+  // The same capabilities as the dedicated /role and /status routes.
+  const caps = c.get('adminCaps')
+  const missing = [
+    ...(role !== undefined && !caps.has('users.role') ? ['users.role'] : []),
+    ...(status !== undefined && !caps.has('users.status') ? ['users.status'] : []),
+  ]
+  if (missing.length) return c.json({ error: NO_RIGHTS, code: 'forbidden', missing }, 403)
+
   const updates: { role?: string; status?: string } = {}
 
   if (role !== undefined) {
@@ -89,6 +115,7 @@ router.patch('/users/:id', requireAdmin, requireCap('users.edit'), async (c) => 
 
   const existing = await getAdminUserById(c.env.DB, id)
   if (!existing) return c.json({ error: 'Not found' }, 404)
+  if (updates.status && existing.status === 'deleted') return c.json(DELETED_FINAL, 409)
 
   await updateUserRoleAndStatus(c.env.DB, id, updates)
 
@@ -182,6 +209,7 @@ router.patch('/users/:id/status', requireAdmin, requireCap('users.status'), asyn
 
   const existing = await getAdminUserById(c.env.DB, id)
   if (!existing) return c.json({ error: 'Not found' }, 404)
+  if (existing.status === 'deleted') return c.json(DELETED_FINAL, 409)
 
   await updateUserRoleAndStatus(c.env.DB, id, { status })
 
@@ -204,7 +232,7 @@ router.get('/users/:id/orders', requireAdmin, requireCap('users.view'), async (c
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const page = pageParam(c.req.query('page'))
   const { orders, total } = await getOrdersByUserId(c.env.DB, id, page, 25)
   return c.json({ orders, total, page, limit: 25 })
 })
@@ -215,13 +243,18 @@ router.get('/users/:id/activity', requireAdmin, requireCap('users.view'), async 
   const id = parseInt(c.req.param('id'), 10)
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
 
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const page = pageParam(c.req.query('page'))
   const since = c.req.query('since') ?? undefined
   const { items, total } = await getUserActivity(c.env.DB, id, page, 100, since)
   return c.json({ items, total, page, limit: 100 })
 })
 
 // ─── POST /api/admin/notifications ───────────────────────────────────────────
+
+function isButtonUrl(u: string): boolean {
+  if (u.length > 500 || !/^https:\/\/\S+$/i.test(u)) return false
+  try { return new URL(u).protocol === 'https:' } catch { return false }
+}
 
 router.post('/notifications', requireAdmin, requireCap('notifications.send'), async (c) => {
   let body: unknown
@@ -232,29 +265,29 @@ router.post('/notifications', requireAdmin, requireCap('notifications.send'), as
   const { user_id, message, button_label, button_url, category } = body as Record<string, unknown>
 
   if (typeof user_id !== 'number' && typeof user_id !== 'string') {
-    return c.json({ error: 'user_id is required' }, 400)
+    return c.json({ error: 'Укажите ID клиента' }, 400)
   }
   if (typeof message !== 'string' || !message.trim()) {
-    return c.json({ error: 'message is required' }, 400)
+    return c.json({ error: 'Введите текст сообщения' }, 400)
   }
   if (message.length > 4096) {
-    return c.json({ error: 'message must be ≤ 4096 characters' }, 400)
+    return c.json({ error: 'Сообщение — до 4096 символов' }, 400)
   }
-  if (button_label !== undefined && typeof button_label !== 'string') {
-    return c.json({ error: 'button_label must be a string' }, 400)
+  if (button_label != null && typeof button_label !== 'string') {
+    return c.json({ error: 'Текст кнопки должен быть строкой' }, 400)
   }
-  if (button_url !== undefined && typeof button_url !== 'string') {
-    return c.json({ error: 'button_url must be a string' }, 400)
+  if (button_url != null && (typeof button_url !== 'string' || (button_url.trim() !== '' && !isButtonUrl(button_url.trim())))) {
+    return c.json({ error: 'Ссылка кнопки должна начинаться с https:// (до 500 символов)', code: 'button_url' }, 400)
   }
 
   const userId = parseInt(String(user_id), 10)
-  if (Number.isNaN(userId)) return c.json({ error: 'Invalid user_id' }, 400)
+  if (Number.isNaN(userId)) return c.json({ error: 'Некорректный ID клиента' }, 400)
 
   const user = await getAdminUserById(c.env.DB, userId)
-  if (!user) return c.json({ error: 'User not found' }, 404)
+  if (!user) return c.json({ error: 'Клиент не найден' }, 404)
 
   if (!user.telegram_user_id) {
-    return c.json({ error: 'User has no Telegram account linked' }, 422)
+    return c.json({ error: 'У клиента не привязан Telegram', code: 'no_telegram' }, 422)
   }
 
   // The customer's switches (0019) are the point of having them: refuse rather
@@ -275,7 +308,7 @@ router.post('/notifications', requireAdmin, requireCap('notifications.send'), as
   }
 
   const botToken = c.env.TELEGRAM_BOT_TOKEN
-  if (!botToken) return c.json({ error: 'Bot not configured' }, 503)
+  if (!botToken) return c.json({ error: 'Telegram-бот не настроен' }, 503)
 
   const adminId = c.get('adminId')
   let telegramMessageId: number | null = null
@@ -283,14 +316,15 @@ router.post('/notifications', requireAdmin, requireCap('notifications.send'), as
   let errorDetail: string | null = null
 
   try {
+    // Plain text: the panel sends no markup, and with parse_mode HTML a "<"
+    // in the message made Telegram refuse it.
     const payload: Record<string, unknown> = {
       chat_id: user.telegram_user_id,
       text: message,
-      parse_mode: 'HTML',
     }
-    if (button_label && button_url) {
+    if (typeof button_label === 'string' && button_label.trim() && typeof button_url === 'string' && button_url.trim()) {
       payload.reply_markup = {
-        inline_keyboard: [[{ text: button_label, url: button_url }]],
+        inline_keyboard: [[{ text: button_label.trim(), url: button_url.trim() }]],
       }
     }
 
@@ -316,7 +350,7 @@ router.post('/notifications', requireAdmin, requireCap('notifications.send'), as
     user_id: userId,
     message: (message as string).trim(),
     button_label: typeof button_label === 'string' ? button_label.trim() : null,
-    button_url: typeof button_url === 'string' ? button_url.trim() : null,
+    button_url: typeof button_url === 'string' ? button_url.trim() || null : null,
     telegram_message_id: telegramMessageId,
     sent_by_admin_id: adminId,
     status,
@@ -352,18 +386,51 @@ router.patch('/users/:id/profile', requireAdmin, requireCap('users.edit'), async
 
   const params: { name?: string | null; email?: string | null; phone?: string | null; first_name?: string | null; last_name?: string | null } = {}
 
-  if ('name' in (body as object)) params.name = typeof name === 'string' ? name.trim() || null : null
-  if ('email' in (body as object)) params.email = typeof email === 'string' ? email.trim() || null : null
-  if ('phone' in (body as object)) params.phone = typeof phone === 'string' ? phone.trim() || null : null
-  if ('first_name' in (body as object)) params.first_name = typeof first_name === 'string' ? first_name.trim() || null : null
-  if ('last_name' in (body as object)) params.last_name = typeof last_name === 'string' ? last_name.trim() || null : null
-
-  if (!Object.keys(params).length) return c.json({ error: 'No valid fields' }, 400)
-
   const existing = await getAdminUserById(c.env.DB, id)
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
+  if ('name' in (body as object)) params.name = typeof name === 'string' ? name.trim() || null : null
+  // Phone and email are checked only when they change: the panel sends both
+  // back on every save, and a stored value in an older form must not block
+  // an edit of another field.
+  // email is NOT NULL: a blank or null value keeps the stored one. Stored
+  // lowercased; uniqueness is case-insensitive.
+  const e = typeof email === 'string' ? email.trim().toLowerCase() : ''
+  const emailChanged = !!e && e !== (existing.email ?? '').toLowerCase()
+  if (emailChanged) {
+    if (e.length > 254 || !EMAIL_RE.test(e)) return c.json({ error: 'Введите корректный email', code: 'email_invalid', field: 'email' }, 400)
+    const other = await c.env.DB.prepare('SELECT id FROM users WHERE LOWER(email) = ? AND id != ?').bind(e, id).first()
+    if (other) return c.json({ error: 'Этот email уже используется', code: 'email_taken', field: 'email' }, 409)
+    params.email = e
+  }
+  // The panel masks the stored number for display ("+998 90 123 45 67"), so
+  // the same number in another spelling is not a change either.
+  const rawPhone = typeof phone === 'string' ? phone.trim() : ''
+  const storedPhone = (existing.phone ?? '').trim()
+  let phoneChanged = false
+  if ('phone' in (body as object) && rawPhone !== storedPhone) {
+    if (rawPhone) {
+      const p = normalizeAdminPhone(rawPhone)
+      if (!p) return c.json({ error: 'Телефон в формате +998 90 123 45 67', code: 'phone_invalid', field: 'phone' }, 400)
+      if (p !== normalizeAdminPhone(storedPhone)) {
+        const other = await getUserByPhone(c.env.DB, p)
+        if (other && other.id !== id) return c.json({ error: 'Этот телефон уже используется', code: 'phone_taken', field: 'phone' }, 409)
+        params.phone = p
+        phoneChanged = true
+      }
+    } else {
+      params.phone = null
+      phoneChanged = true
+    }
+  }
+  if ('first_name' in (body as object)) params.first_name = typeof first_name === 'string' ? first_name.trim() || null : null
+  if ('last_name' in (body as object)) params.last_name = typeof last_name === 'string' ? last_name.trim() || null : null
+
+  if (!Object.keys(params).length) return c.json(existing)
+
   await updateUserProfile(c.env.DB, id, params)
+  // A new phone or email changes how the account signs in: end its sessions.
+  if (phoneChanged || emailChanged) await revokeUserTokens(c.env.DB, id)
 
   const adminId = c.get('adminId')
   await insertUserActivity(c.env.DB, {
@@ -466,8 +533,8 @@ router.patch('/users/:id/password', requireAdmin, requireCap('users.password'), 
 // ─── GET /api/admin/notifications ────────────────────────────────────────────
 
 router.get('/notifications', requireAdmin, requireCap('notifications.view'), async (c) => {
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
-  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') ?? '25', 10)))
+  const page = pageParam(c.req.query('page'))
+  const limit = limitParam(c.req.query('limit'), 25)
   const { items, total } = await getNotifications(c.env.DB, page, limit)
   return c.json({ items, total, page, limit })
 })

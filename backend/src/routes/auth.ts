@@ -172,11 +172,12 @@ auth.patch('/profile', requireAuth, async (c) => {
   let body: unknown
   try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
 
-  const { name, phone, location_preset, notify_orders, notify_promo } = body as Record<string, unknown>
+  // `phone` is not taken here: the number on an account comes from the Telegram
+  // phone check. An older app build may still send it; it is ignored.
+  const { name, location_preset, notify_orders, notify_promo } = body as Record<string, unknown>
   const updates: Parameters<typeof updateUserProfile>[2] = {}
 
   if (name !== undefined) updates.name = typeof name === 'string' ? name.trim() || null : null
-  if (phone !== undefined) updates.phone = typeof phone === 'string' ? phone.trim() || null : null
   if (notify_orders !== undefined) updates.notify_orders = notify_orders ? 1 : 0
   if (notify_promo !== undefined) updates.notify_promo = notify_promo ? 1 : 0
   if (location_preset !== undefined) {
