@@ -1,7 +1,7 @@
 'use strict'
 
 ;(function () {
-  const { apiJSON, formatPrice, formatDate, formatPhone, statusBadge, describeActivity } = window.LOOM
+  const { apiJSON, formatPrice, formatDate, formatPhone, statusBadge, describeActivity, API_BASE } = window.LOOM
   const { toast, confirmDialog, apiErrorMessage } = window.LOOM_UI
 
   // Every action button below lives behind a data-cap and may be absent from
@@ -15,6 +15,11 @@
 
   let userId = null
   let currentUser = null
+  let ordersPage = 1
+
+  // Telegram and deleted accounts carry placeholder addresses
+  // (tg…@telegram.loom, deleted_…@deleted.loom): not a way to reach anyone.
+  const realEmail = (e) => (e && !/\.loom$/i.test(e) ? e : '')
 
   // Shared escaper (ui.js): safe in text and in quoted attributes.
   const escHtml = (s) => window.LOOM_UI.esc(s)
@@ -26,7 +31,7 @@
   function renderUserInfo(u) {
     currentUser = u
     const title = [u.first_name, u.last_name].filter(Boolean).join(' ')
-      || (u.phone ? formatPhone(u.phone) : u.email) || `Клиент #${u.id}`
+      || (u.phone ? formatPhone(u.phone) : realEmail(u.email)) || `Клиент #${u.id}`
     document.getElementById('page-title').textContent = title
 
     // «Имя» is dropped: the header already shows it, and repeating it is noise.
@@ -41,20 +46,20 @@
     ]
 
     // Identity header (avatar/initials + name + email + status)
-    const displayName = [u.first_name, u.last_name].filter(Boolean).join(' ')
-      || (u.phone ? formatPhone(u.phone) : u.email) || ('Клиент #' + u.id)
+    const displayName = title
     const initials = (displayName || '?').replace(/[^A-Za-zА-Яа-яЁё]/g, '').slice(0, 2).toUpperCase() || '#'
-    const statusHtml = `<span class="badge badge-${u.status === 'banned' ? 'banned' : 'active'}">${u.status === 'banned' ? 'Заблокирован' : 'Активен'}</span>`
+    const STATUS = { banned: 'Заблокирован', deleted: 'Удалён' }
+    const statusHtml = `<span class="badge badge-${STATUS[u.status] ? u.status : 'active'}">${STATUS[u.status] || 'Активен'}</span>`
     const tgHtml = u.telegram_user_id ? '<span class="badge">Telegram ✓</span>' : ''
     const ident = document.getElementById('user-identity')
     if (ident) {
       ident.innerHTML =
-        (u.avatar_url
-          ? `<img src="${escHtml(u.avatar_url)}" alt="" class="ud-avatar" />`
+        (u.avatar_key
+          ? `<img src="${API_BASE}/api/files/avatars/${escHtml(u.avatar_key)}" alt="" class="ud-avatar" />`
           : `<div class="ud-avatar ud-avatar-ph">${escHtml(initials)}</div>`) +
         `<div style="flex:1;min-width:0">
            <div class="ud-name">${escHtml(displayName)}</div>
-           <div class="ud-email">${escHtml(u.email || '—')}</div>
+           <div class="ud-email">${escHtml(realEmail(u.email) || '—')}</div>
            <div class="ud-badges">${statusHtml}${tgHtml}</div>
          </div>`
     }
@@ -91,15 +96,22 @@
         : 'Закрыть клиенту вход и оформление заказов'
     }
 
-    const noTgNote = document.getElementById('notif-no-tg-note')
-    if (noTgNote) noTgNote.style.display = u.telegram_user_id ? 'none' : ''
+    // Manual messages go out through Telegram only (the API answers 422 without it).
+    const notifyBtn = document.getElementById('btn-notify')
+    if (notifyBtn) notifyBtn.hidden = !u.telegram_user_id
+
+    // An anonymised account has nothing left to edit, block or write to.
+    if (u.status === 'deleted') {
+      document.getElementById('actions-menu-wrap')?.remove()
+      document.getElementById('btn-toggle-status')?.remove()
+    }
 
     // Pre-fill the edit panel when the admin is allowed to see it at all.
     const setVal = (id, v) => { const n = document.getElementById(id); if (n) n.value = v || '' }
     setVal('edit-first-name', u.first_name)
     setVal('edit-last-name', u.last_name)
-    setVal('edit-email', u.email)
-    setVal('edit-phone', u.phone)
+    setVal('edit-email', realEmail(u.email))
+    setVal('edit-phone', u.phone ? formatPhone(u.phone) : '')
 
     // Pre-fill location form from JSON
     try {
@@ -144,10 +156,16 @@
 
   async function loadOrders() {
     try {
-      const data = await apiJSON(`/api/admin/users/${userId}/orders`)
+      const data = await apiJSON(`/api/admin/users/${userId}/orders?page=${ordersPage}`)
       const tbody = document.getElementById('orders-tbody')
       const countEl = document.getElementById('orders-count')
-      if (countEl) countEl.textContent = data.orders?.length ?? 0
+      if (countEl) countEl.textContent = data.total ?? 0
+      // Same pager as the other admin lists; the API pages by 25.
+      const totalPages = Math.ceil((data.total || 0) / data.limit) || 1
+      document.getElementById('orders-pager').hidden = totalPages <= 1
+      document.getElementById('orders-page-info').textContent = 'Страница ' + data.page + ' из ' + totalPages
+      document.getElementById('orders-prev').disabled = data.page <= 1
+      document.getElementById('orders-next').disabled = data.page >= totalPages
       if (!data.orders?.length) {
         tbody.innerHTML = '<tr><td colspan="4"><div class="state">У этого клиента ещё нет заказов</div></td></tr>'
         return
@@ -252,8 +270,14 @@
     { control: 'btn-notify',         panel: 'notif-form' },
     { control: 'btn-edit-profile',   panel: 'edit-profile-card' },
     { control: 'btn-edit-location',  panel: 'edit-location-card' },
-    { control: 'btn-reset-password', panel: 'reset-password-card' },
   ]
+  const ACTIVITY_SEGMENT = 1
+
+  // After an action writes to the log: reload it if it was already shown,
+  // otherwise its first open loads it fresh anyway.
+  function refreshActivity() {
+    if (opened.has(ACTIVITY_SEGMENT)) loadActivity()
+  }
 
   const opened = new Set()
   let activeSegment = 0
@@ -336,7 +360,7 @@
     })
     if (!ok) return
     try {
-      await apiJSON(`/api/admin/users/${userId}`, {
+      await apiJSON(`/api/admin/users/${userId}/status`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: banning ? 'banned' : 'active' }),
       })
@@ -366,6 +390,7 @@
       toast('Сообщение отправлено', 'success')
       document.getElementById('notif-msg').value = ''
       closePanels()
+      refreshActivity()
     } catch (err) {
       toast(apiErrorMessage(err), 'error')
     } finally {
@@ -380,9 +405,15 @@
     const body = {
       first_name: document.getElementById('edit-first-name').value.trim() || null,
       last_name: document.getElementById('edit-last-name').value.trim() || null,
-      email: document.getElementById('edit-email').value.trim() || null,
-      phone: document.getElementById('edit-phone').value.trim() || null,
     }
+    // An empty or untouched email is left out: the column cannot be blanked.
+    const email = document.getElementById('edit-email').value.trim()
+    if (email && email !== realEmail(currentUser && currentUser.email)) body.email = email
+    // Store the number as +998 and 9 digits, never the masked display text.
+    let digits = document.getElementById('edit-phone').value.replace(/\D/g, '')
+    if (digits.startsWith('998')) digits = digits.slice(3)
+    if (digits && digits.length !== 9) { toast('Введите номер полностью: +998 и 9 цифр', 'error'); return }
+    body.phone = digits ? '+998' + digits : null
     btn.disabled = true
     try {
       const updated = await apiJSON(`/api/admin/users/${userId}/profile`, {
@@ -391,6 +422,7 @@
       toast('Данные сохранены', 'success')
       renderUserInfo(updated)
       closePanels()
+      refreshActivity()
     } catch (err) {
       toast(apiErrorMessage(err), 'error')
     } finally {
@@ -425,6 +457,12 @@
 
   on('btn-save-location', 'click', async (e) => {
     const btn = e.currentTarget
+    // The saved point is the last one found or picked; typed text alone has no
+    // coordinates, so it must go through «Найти» or the map first.
+    if (document.getElementById('edit-location-addr').value.trim() !== (_adminLocAddr || '')) {
+      toast('Нажмите «Найти» или выберите точку на карте', 'error')
+      return
+    }
     const loc = _adminLocAddr ? { address: _adminLocAddr, lat: _adminLocLat, lng: _adminLocLng } : null
     btn.disabled = true
     try {
@@ -433,6 +471,12 @@
         body: JSON.stringify({ location_preset: loc }),
       })
       toast('Адрес сохранён', 'success')
+      const curEl = document.getElementById('admin-loc-current')
+      if (curEl && loc) {
+        curEl.textContent = `Текущий: ${loc.address}${loc.lat ? ` (${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)})` : ''}`
+        curEl.style.display = ''
+      } else if (curEl) curEl.style.display = 'none'
+      refreshActivity()
     } catch (err) {
       toast(apiErrorMessage(err), 'error')
     } finally {
@@ -462,37 +506,7 @@
         body: JSON.stringify({ location_preset: null }),
       })
       toast('Адрес очищен', 'success')
-    } catch (err) {
-      toast(apiErrorMessage(err), 'error')
-    } finally {
-      btn.disabled = false
-    }
-  })
-
-  // ── Reset password ────────────────────────────────────────────────────────
-  // The admin can only TRIGGER a reset — the client sets their own new password
-  // via Telegram. No plaintext password is ever shown to or set by an admin.
-
-  on('btn-save-password', 'click', async (e) => {
-    const btn = e.currentTarget
-    if (currentUser && !currentUser.telegram_user_id) {
-      toast('У клиента не привязан Telegram — отправить запрос некуда', 'error')
-      return
-    }
-    const ok = await confirmDialog({
-      title: 'Отправить запрос на сброс пароля?',
-      body: 'Клиент получит сообщение в Telegram и сам задаст новый пароль на сайте.',
-      confirmLabel: 'Отправить',
-    })
-    if (!ok) return
-
-    btn.disabled = true
-    try {
-      await apiJSON(`/api/admin/users/${userId}/password`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
-      })
-      toast('Запрос отправлен в Telegram', 'success')
-      closePanels()
+      refreshActivity()
     } catch (err) {
       toast(apiErrorMessage(err), 'error')
     } finally {
@@ -529,6 +543,8 @@
     } catch (err) {
       document.getElementById('user-info').innerHTML =
         `<span class="state--error">${escHtml(apiErrorMessage(err))}</span>`
+      document.getElementById('orders-tbody').innerHTML =
+        '<tr><td colspan="4"><div class="state state--error">Не удалось загрузить клиента — обновите страницу.</div></td></tr>'
       return
     }
 
@@ -537,6 +553,8 @@
 
     wireContentStrip()
     selectSegment(0)
+    on('orders-prev', 'click', () => { if (ordersPage > 1) { ordersPage--; loadOrders() } })
+    on('orders-next', 'click', () => { ordersPage++; loadOrders() })
     await loadOrders()
   })
 })()

@@ -11,7 +11,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Клиент — LOOM Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/theme.css?v=30" />
+  <link rel="stylesheet" href="assets/theme.css?v=31" />
   <script src="assets/theme-init.js?v=30"></script>
   <style>
     /* Reference details as labelled pairs that wrap into columns, rather than
@@ -101,7 +101,6 @@
               <button type="button" class="menu-item" role="menuitem" id="btn-notify" data-cap="notifications.send">Написать в Telegram</button>
               <button type="button" class="menu-item" role="menuitem" id="btn-edit-profile" data-cap="users.edit">Изменить данные</button>
               <button type="button" class="menu-item" role="menuitem" id="btn-edit-location" data-cap="users.edit">Адрес доставки</button>
-              <button type="button" class="menu-item" role="menuitem" id="btn-reset-password" data-cap="users.password">Сбросить пароль</button>
             </div>
           </div>
           <button class="btn btn--sm btn--danger ud-block" id="btn-toggle-status" data-cap="users.status">
@@ -142,6 +141,11 @@
           </table>
         </div>
       </div>
+      <div class="pagination" id="orders-pager" hidden>
+        <span class="page-info" id="orders-page-info"></span>
+        <button class="btn btn--sm" id="orders-prev" disabled>← Назад</button>
+        <button class="btn btn--sm" id="orders-next" disabled>Вперёд →</button>
+      </div>
     </section>
 
     <section id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
@@ -159,7 +163,7 @@
       <div class="card-head">
         <div>
           <h3 class="card-title">Сообщение клиенту</h3>
-          <p class="card-sub" id="notif-no-tg-note" style="display:none;color:var(--warning)">Telegram не привязан — сообщение сохранится только в личном кабинете на сайте.</p>
+          <p class="card-sub">Сообщение уйдёт клиенту в Telegram. Написать можно только клиенту с привязанным Telegram.</p>
         </div>
         <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
       </div>
@@ -239,20 +243,6 @@
       </div>
     </div>
 
-    <div class="card panel" id="reset-password-card" hidden>
-      <div class="card-head">
-        <h3 class="card-title">Сброс пароля</h3>
-        <button type="button" class="btn btn--sm btn--ghost" data-close-panel>Закрыть</button>
-      </div>
-      <div class="notice">
-        <span aria-hidden="true">🔒</span>
-        <span>Вы не задаёте и не видите пароль. Клиенту придёт запрос в Telegram, и после подтверждения он сам задаст новый пароль на сайте.</span>
-      </div>
-      <div class="card-foot">
-        <button class="btn btn--primary" id="btn-save-password">Отправить запрос в Telegram</button>
-      </div>
-    </div>
-
   </main>
 
   <!-- Admin map picker modal -->
@@ -266,13 +256,13 @@
     <div id="admin-map-el"></div>
   </div>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="assets/app.js?v=31"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="assets/app.js?v=32"></script>
   <script src="assets/ui.js?v=31"></script>
-  <script src="assets/layout.js?v=32"></script>
+  <script src="assets/layout.js?v=33"></script>
   <script>LOOM_LAYOUT.init('users', { title: 'Клиент', crumbs: [{ label: 'Клиенты', href: 'users.html' }] })</script>
-  <script src="assets/user-detail.js?v=31"></script>
+  <script src="assets/user-detail.js?v=32"></script>
   <script src="assets/admin-map-picker.js?v=30"></script>
 </body>
 </html>

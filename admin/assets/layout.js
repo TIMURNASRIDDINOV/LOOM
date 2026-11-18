@@ -289,7 +289,11 @@
 
       if (!(window.LOOM && window.LOOM.checkAuth)) return
       window.LOOM.checkAuth().then((me) => {
-        if (!me) { window.location.href = 'login.html'; return }
+        if (!me) { window.location.href = window.LOOM.loginUrl(); return }
+
+        // Slide the 12 h session forward once per page load, so an admin who
+        // keeps working is not sent to login mid-shift. Failure is harmless.
+        window.LOOM.apiFetch('/api/admin/refresh', { method: 'POST' }).catch(() => {})
 
         const caps = new Set(me.capabilities || [])
         window.LOOM.me = me

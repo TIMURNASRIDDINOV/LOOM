@@ -12,43 +12,11 @@ const { API_BASE, apiJSON } = window.LOOM
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let editId = null
-let baseColors = []
 let canEdit = true
 // Set false when a loaded product has no config columns (API before migration
 // 0022): the card stays locked and nothing config-related is sent, so saves
 // still work against the old API.
 let hasConfig = true
-
-// ── Colors UI ─────────────────────────────────────────────────────────────────
-
-function renderColors() {
-  const list = document.getElementById('colors-list')
-  if (!baseColors.length) {
-    list.innerHTML = '<span style="font-size:0.78rem;color:var(--text-dim)">Нет цветов</span>'
-    return
-  }
-  list.innerHTML = baseColors.map((c, i) => `
-    <div class="color-chip">
-      <span class="color-swatch" style="background:${c}"></span>
-      ${c}
-      <button type="button" class="color-remove" data-index="${i}" aria-label="Удалить цвет">×</button>
-    </div>
-  `).join('')
-  list.querySelectorAll('.color-remove').forEach(btn => {
-    btn.addEventListener('click', () => {
-      baseColors.splice(parseInt(btn.dataset.index), 1)
-      renderColors()
-    })
-  })
-}
-
-document.getElementById('btn-add-color').addEventListener('click', () => {
-  const color = document.getElementById('color-picker').value.toLowerCase()
-  if (!baseColors.includes(color)) {
-    baseColors.push(color)
-    renderColors()
-  }
-})
 
 // ── Configurator config (LOOM-165) ────────────────────────────────────────────
 // Mirrors the server checks in backend/src/routes/admin-products.ts so the
@@ -247,12 +215,11 @@ async function loadProduct(id) {
   document.getElementById('f-active').checked = !!p.active
   document.getElementById('f-type').value = ['ready', 'blank'].includes(p.product_type) ? p.product_type : 'custom'
   syncGlbNote()
+  renderCurrentFiles(p)
+}
 
-  if (p.base_colors) {
-    try { baseColors = JSON.parse(p.base_colors) } catch { baseColors = [] }
-  }
-  renderColors()
-
+// «Текущий файл» lines and the preview, from a product as the API returns it.
+function renderCurrentFiles(p) {
   if (p.glb_key) {
     const el = document.getElementById('glb-current')
     el.textContent = 'Текущий файл: ' + p.glb_key
@@ -298,7 +265,9 @@ function submitWithXHR(url, method, formData) {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(data)
       } else {
-        reject(new Error(data.error || `HTTP ${xhr.status}`))
+        // Create answers { error: { code, message, field } }, edit a plain string.
+        const err = data.error
+        reject(new Error((err && typeof err === 'object' ? err.message : err) || `HTTP ${xhr.status}`))
       }
     })
 
@@ -332,7 +301,6 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
   fd.append('display_order', document.getElementById('f-order').value || '0')
   fd.append('active', document.getElementById('f-active').checked ? '1' : '0')
   fd.append('product_type', document.getElementById('f-type').value)
-  fd.append('base_colors', JSON.stringify(baseColors))
   if (!editId || hasConfig) {
     fd.append('description_uz', document.getElementById('f-desc-uz').value.trim())
     fd.append('description_en', document.getElementById('f-desc-en').value.trim())
@@ -354,6 +322,17 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
   // Ready-made designs never open the 3D scene — GLB optional for them
   if (!editId && !glbFile && document.getElementById('f-type').value !== 'ready') {
     errEl.textContent = 'GLB файл обязателен для кастомизируемого продукта'
+    btn.disabled = false
+    btn.textContent = 'Сохранить'
+    return
+  }
+
+  // Same limits as the server, checked before a long upload starts.
+  const tooBig = glbFile && glbFile.size > 20 * 1024 * 1024 ? 'Файл GLB больше 20 МБ — уменьшите модель'
+    : thumbFile && thumbFile.size > 2 * 1024 * 1024 ? 'Изображение больше 2 МБ — сожмите его'
+    : ''
+  if (tooBig) {
+    errEl.textContent = tooBig
     btn.disabled = false
     btn.textContent = 'Сохранить'
     return
@@ -386,14 +365,19 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
 
     okEl.textContent = editId ? 'Сохранено!' : `Продукт создан (id: ${product.id})`
 
+    // The files are on the server now: clear the pickers so the next save does
+    // not upload them again, and show what is stored.
+    document.getElementById('f-glb').value = ''
+    document.getElementById('f-thumbnail').value = ''
+    document.getElementById('glb-filename').textContent = ''
+    renderCurrentFiles(product)
+    document.getElementById('page-title').textContent = product.name_ru || product.slug
+    window.LOOM_LAYOUT.setTitle(product.name_ru || product.slug)
+
     if (!editId) {
       // Switch to edit mode after creation
       editId = product.id
       history.replaceState(null, '', `?id=${editId}`)
-      document.getElementById('page-title').textContent = product.name_ru || product.slug
-      const glbEl = document.getElementById('glb-current')
-      glbEl.textContent = 'Текущий файл: ' + (product.glb_key || '')
-      glbEl.style.display = 'block'
       fillConfig(product)
       syncConfigMode()
     }
@@ -415,8 +399,6 @@ window.LOOM_LAYOUT.onReady(async (me, caps) => {
     document.querySelectorAll('#product-form input, #product-form textarea, #product-form select, #product-form button')
       .forEach((node) => { node.disabled = true })
   }
-
-  renderColors()
 
   editId = new URLSearchParams(window.location.search).get('id')
   syncConfigMode()

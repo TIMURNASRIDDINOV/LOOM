@@ -119,6 +119,8 @@ function modelDisabled(m) {
 }
 
 function renderModels() {
+  // A re-render (budget refresh) keeps the admin's ticks.
+  const checked = new Set(selectedModels().map((cb) => cb.value))
   el('models').innerHTML = REGISTRY.map((m) => {
     const disabled = modelDisabled(m)
     const badges =
@@ -130,7 +132,7 @@ function renderModels() {
       <input type="checkbox" value="${esc(m.id)}"
              data-cost="${m.estNeurons}" data-usd="${m.estUsd}"
              data-max="${m.maxCount}" data-provider="${esc(m.provider)}"
-             ${disabled ? 'disabled' : ''} />
+             ${disabled ? 'disabled' : checked.has(m.id) ? 'checked' : ''} />
       <span class="model-opt-body">
         <span class="model-name">${esc(m.label)}${badges}</span>
         <span class="model-id">${esc(m.id)}</span>
@@ -402,7 +404,7 @@ async function generate() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   const me = await checkAuth()
-  if (!me) { window.location.href = 'login.html'; return }
+  if (!me) { window.location.href = window.LOOM.loginUrl(); return }
 
   try {
     const data = await apiJSON('/api/admin/ai/models')

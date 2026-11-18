@@ -18,20 +18,36 @@ async function apiFetch(path, options = {}) {
 
 async function apiJSON(path, options = {}) {
   const res = await apiFetch(path, options)
-  const data = await res.json()
-  if (!res.ok) throw Object.assign(new Error(data.error || 'Request failed'), { status: res.status, data })
+  let data = null
+  let parsed = true
+  try { data = await res.json() } catch { parsed = false }
+  if (!res.ok || !parsed) {
+    const d = data || {}
+    const msg = typeof d.error === 'string' ? d.error
+      : (d.error && d.error.message) || (res.ok ? 'Сервер вернул неожиданный ответ.' : 'Ошибка сервера (' + res.status + ').')
+    throw Object.assign(new Error(msg), { status: res.status, data: d })
+  }
   return data
 }
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
+// null only when the session is gone (401). Any other failure (network, 5xx)
+// is not a logout: show it and stay on the page instead of bouncing to login.
 async function checkAuth() {
   try {
-    const data = await apiJSON('/api/admin/me')
-    return data
-  } catch {
-    return null
+    return await apiJSON('/api/admin/me')
+  } catch (e) {
+    if (e && e.status === 401) return null
+    showBootError(e)
+    throw e
   }
+}
+
+// login.html?next=<this page>, so signing in returns the admin where they were.
+function loginUrl() {
+  const here = window.location.pathname.split('/').pop() + window.location.search
+  return 'login.html?next=' + encodeURIComponent(here)
 }
 
 async function logout() {
@@ -62,7 +78,7 @@ const STATUS_COLORS = {
 }
 
 function statusBadge(status) {
-  const label = STATUS_LABELS[status] ?? status
+  const label = STATUS_LABELS[status] ?? window.LOOM_UI.esc(status)
   // Colours live in theme.css (.badge / .badge-<status>) so they adapt per theme.
   const safe = STATUS_LABELS[status] ? status : 'cancelled'
   return `<span class="badge badge-${safe}">${label}</span>`
@@ -188,6 +204,15 @@ function describeActivity(action, meta) {
 
     case 'password_reset':
       return { title: 'Клиент сменил пароль', note: LOGIN_VIA_LABELS[m.via] || '' }
+
+    case 'artwork_approved':
+      return { title: 'Работа одобрена', note: m.title ? '«' + m.title + '»' : '' }
+
+    case 'artwork_rejected':
+      return { title: 'Работа отклонена', note: [m.title ? '«' + m.title + '»' : '', m.note || ''].filter(Boolean).join(' · ') }
+
+    case 'artwork_edited':
+      return { title: 'Работа изменена', note: m.title ? '«' + m.title + '»' : '' }
 
     case 'password_reset_verified':
       return { title: 'Номер телефона подтверждён', note: LOGIN_VIA_LABELS[m.via] || '' }
@@ -341,4 +366,4 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 // Export for other scripts
-window.LOOM = { API_BASE, apiFetch, apiJSON, checkAuth, logout, statusBadge, formatPrice, formatDate, formatPhone, STATUS_LABELS, STATUS_COLORS, showBootError, describeActivity, userRoleLabel, USER_ROLE_LABELS }
+window.LOOM = { API_BASE, apiFetch, apiJSON, checkAuth, loginUrl, logout, statusBadge, formatPrice, formatDate, formatPhone, STATUS_LABELS, STATUS_COLORS, showBootError, describeActivity, userRoleLabel, USER_ROLE_LABELS }

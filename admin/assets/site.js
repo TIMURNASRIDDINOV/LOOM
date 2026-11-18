@@ -4,7 +4,7 @@
 ;(function () {
   const { apiJSON, apiFetch } = window.LOOM
   const { toast, confirmDialog, apiErrorMessage } = window.LOOM_UI
-  const DEFAULT_SRC = '/images/home/hero-tee-v1.webp'
+  const DEFAULT_SRC = '/images/home/hero-khabib-tee-v1.webp'
   const MAX_BYTES = 3 * 1024 * 1024
 
   const el = (id) => document.getElementById(id)
@@ -13,7 +13,7 @@
     el('hero-img').src = hero ? hero.url : DEFAULT_SRC
     el('hero-status').textContent = hero
       ? 'Сейчас на сайте ваша картинка.'
-      : 'Сейчас на сайте стандартная картинка (футболка с принтом).'
+      : 'Сейчас на сайте стандартная картинка (футболка KHABIB).'
     el('hero-alt').value = hero ? hero.alt : ''
     el('hero-reset').hidden = !hero
   }
@@ -53,7 +53,7 @@
   el('hero-reset').addEventListener('click', async () => {
     const ok = await confirmDialog({
       title: 'Вернуть стандартную картинку?',
-      body: 'На главной снова будет футболка с принтом. Вашу картинку можно будет загрузить заново.',
+      body: 'На главной снова будет футболка KHABIB. Вашу картинку можно будет загрузить заново.',
       confirmLabel: 'Вернуть стандартную',
     })
     if (!ok) return
