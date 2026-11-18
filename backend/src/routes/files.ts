@@ -80,7 +80,7 @@ files.post('/track', async (c) => {
     'cfg_order',       // place-order click (server writes order_placed)
   ]
   const evt = typeof event === 'string' && EVENTS.includes(event) ? event : null
-  const DEVICES = ['mobile', 'tablet', 'desktop'] // what assets/track.js sends
+  const DEVICES = ['mobile', 'tablet', 'desktop', 'app'] // assets/track.js and mobile/src/api/track.ts
 
   // Fire-and-forget — don't await so we don't add latency
   ;(c as unknown as { executionCtx?: { waitUntil: (p: Promise<unknown>) => void } }).executionCtx?.waitUntil(

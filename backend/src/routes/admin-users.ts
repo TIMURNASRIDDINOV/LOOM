@@ -12,7 +12,6 @@ import {
   getAdminStatsExtended,
   getUsersWithRole,
   setUserRole,
-  getUserByEmail,
   getUserByPhone,
   revokeUserTokens,
 } from '../db/queries'
@@ -387,40 +386,47 @@ router.patch('/users/:id/profile', requireAdmin, requireCap('users.edit'), async
 
   const params: { name?: string | null; email?: string | null; phone?: string | null; first_name?: string | null; last_name?: string | null } = {}
 
+  const existing = await getAdminUserById(c.env.DB, id)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
   if ('name' in (body as object)) params.name = typeof name === 'string' ? name.trim() || null : null
-  // email is NOT NULL: a blank or null value keeps the stored one.
-  if (typeof email === 'string' && email.trim()) {
-    const e = email.trim()
+  // Phone and email are checked only when they change: the panel sends both
+  // back on every save, and a stored value in an older form must not block
+  // an edit of another field.
+  // email is NOT NULL: a blank or null value keeps the stored one. Stored
+  // lowercased; uniqueness is case-insensitive.
+  const e = typeof email === 'string' ? email.trim().toLowerCase() : ''
+  const emailChanged = !!e && e !== (existing.email ?? '').toLowerCase()
+  if (emailChanged) {
     if (e.length > 254 || !EMAIL_RE.test(e)) return c.json({ error: 'Введите корректный email', code: 'email_invalid', field: 'email' }, 400)
+    const other = await c.env.DB.prepare('SELECT id FROM users WHERE LOWER(email) = ? AND id != ?').bind(e, id).first()
+    if (other) return c.json({ error: 'Этот email уже используется', code: 'email_taken', field: 'email' }, 409)
     params.email = e
   }
-  if ('phone' in (body as object)) {
-    if (typeof phone === 'string' && phone.trim()) {
-      const p = normalizeAdminPhone(phone)
+  // The panel masks the stored number for display ("+998 90 123 45 67"), so
+  // the same number in another spelling is not a change either.
+  const rawPhone = typeof phone === 'string' ? phone.trim() : ''
+  const storedPhone = (existing.phone ?? '').trim()
+  let phoneChanged = false
+  if ('phone' in (body as object) && rawPhone !== storedPhone) {
+    if (rawPhone) {
+      const p = normalizeAdminPhone(rawPhone)
       if (!p) return c.json({ error: 'Телефон в формате +998 90 123 45 67', code: 'phone_invalid', field: 'phone' }, 400)
-      params.phone = p
+      if (p !== normalizeAdminPhone(storedPhone)) {
+        const other = await getUserByPhone(c.env.DB, p)
+        if (other && other.id !== id) return c.json({ error: 'Этот телефон уже используется', code: 'phone_taken', field: 'phone' }, 409)
+        params.phone = p
+        phoneChanged = true
+      }
     } else {
       params.phone = null
+      phoneChanged = true
     }
   }
   if ('first_name' in (body as object)) params.first_name = typeof first_name === 'string' ? first_name.trim() || null : null
   if ('last_name' in (body as object)) params.last_name = typeof last_name === 'string' ? last_name.trim() || null : null
 
-  if (!Object.keys(params).length) return c.json({ error: 'No valid fields' }, 400)
-
-  const existing = await getAdminUserById(c.env.DB, id)
-  if (!existing) return c.json({ error: 'Not found' }, 404)
-
-  const phoneChanged = 'phone' in params && params.phone !== existing.phone
-  const emailChanged = 'email' in params && params.email !== existing.email
-  if (phoneChanged && params.phone) {
-    const other = await getUserByPhone(c.env.DB, params.phone)
-    if (other && other.id !== id) return c.json({ error: 'Этот телефон уже используется', code: 'phone_taken', field: 'phone' }, 409)
-  }
-  if (emailChanged && params.email) {
-    const other = await getUserByEmail(c.env.DB, params.email)
-    if (other && other.id !== id) return c.json({ error: 'Этот email уже используется', code: 'email_taken', field: 'email' }, 409)
-  }
+  if (!Object.keys(params).length) return c.json(existing)
 
   await updateUserProfile(c.env.DB, id, params)
   // A new phone or email changes how the account signs in: end its sessions.

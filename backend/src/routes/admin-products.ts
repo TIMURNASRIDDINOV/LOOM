@@ -404,7 +404,12 @@ router.patch('/products/:id', requireAdmin, requireCap('products.edit'), async (
   }
 
   const colorsRaw = formData.get('base_colors')
-  if (colorsRaw !== null) {
+  // The panel resends the stored list on every save; a list stored in an
+  // older form (e.g. "#fff") must not block an edit of another field, so it
+  // is checked and written only when it changed.
+  let colorsSame = false
+  try { colorsSame = JSON.stringify(JSON.parse(String(colorsRaw))) === JSON.stringify(JSON.parse(String(existing.base_colors))) } catch { /* differs */ }
+  if (colorsRaw !== null && !colorsSame) {
     const result = parseColors(colorsRaw)
     if (result !== null && typeof result === 'object' && 'error' in result) return c.json({ error: result.error }, 400)
     updates.base_colors = result as string | null

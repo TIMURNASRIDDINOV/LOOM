@@ -5,7 +5,6 @@ import {
   getAdminById,
   countAdmins,
   createAdmin,
-  updateAdminPassword,
   getAdminOrders,
   getOrderById,
   getOrderStatusLog,
@@ -101,8 +100,12 @@ setupRouter.post('/setup', async (c) => {
     return c.json({ error: 'Setup already completed' }, 403)
   }
 
+  // Conditional on the placeholder still being there: of two requests racing
+  // for the same row, only one sets the password.
   const hash = await hashPassword(password)
-  await updateAdminPassword(c.env.DB, normalizedEmail, hash)
+  const set = await c.env.DB.prepare('UPDATE admins SET password_hash = ? WHERE email = ? AND password_hash = ?')
+    .bind(hash, normalizedEmail, PLACEHOLDER_HASH).run()
+  if (!set.meta.changes) return c.json({ error: 'Setup already completed' }, 403)
   return c.json({ ok: true })
 })
 
@@ -221,7 +224,8 @@ admin.put('/admins/:id/permissions', requireAdmin, requireRole('owner'), async (
   }
 
   const target = await getAdminById(c.env.DB, id)
-  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+  // A disabled admin (migration 0033) is gone as far as the team is concerned.
+  if (!target || target.disabled_at) return c.json({ error: 'Админ не найден' }, 404)
   // The owner always resolves to every capability, so storing overrides for one
   // would be a silent no-op that reads as a working toggle in the UI.
   if ((target.role || 'staff') === 'owner') {
@@ -290,7 +294,8 @@ admin.patch('/admins/:id/role', requireAdmin, requireRole('owner'), async (c) =>
     return c.json({ error: 'Недопустимая роль' }, 400)
   }
   const target = await getAdminById(c.env.DB, id)
-  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+  // A disabled admin (migration 0033) is gone as far as the team is concerned.
+  if (!target || target.disabled_at) return c.json({ error: 'Админ не найден' }, 404)
 
   // Transfer of ownership: demote the current owner so there is exactly one.
   if (role === 'owner') {
@@ -326,7 +331,8 @@ admin.delete('/admins/:id', requireAdmin, requireRole('owner'), async (c) => {
   if (Number.isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
   if (id === c.get('adminId')) return c.json({ error: 'Нельзя удалить свой аккаунт' }, 400)
   const target = await getAdminById(c.env.DB, id)
-  if (!target) return c.json({ error: 'Админ не найден' }, 404)
+  // A disabled admin (migration 0033) is gone as far as the team is concerned.
+  if (!target || target.disabled_at) return c.json({ error: 'Админ не найден' }, 404)
   if (target.role === 'owner') return c.json({ error: 'Нельзя удалить владельца' }, 400)
   const mode = await deleteAdmin(c.env.DB, id)
   if (mode === 'needs_migration') {
@@ -516,12 +522,6 @@ admin.patch('/orders/:id/status', requireAdmin, requireCap('orders.status'), asy
   // looks for (lib/prepay.ts).
   if (status === order.status) return c.json({ ok: true, unchanged: true })
 
-  // A receipt is waiting for staff: answer it in the payment block first, or
-  // the order is left cancelled with a payment still pending.
-  if (status === 'cancelled' && order.payment_method === 'p2p' && order.payment_status === 'pending') {
-    return c.json({ error: 'Сначала подтвердите или отклоните чек', code: 'receipt_pending' }, 409)
-  }
-
   // Production gate: the design proof must be approved before an order can advance
   // to production or beyond. Approving is an owner/manager action (see /approve).
   const GATED_STATUSES = ['producing', 'shipped', 'delivered']
@@ -549,7 +549,18 @@ admin.patch('/orders/:id/status', requireAdmin, requireCap('orders.status'), asy
     await c.env.DB.prepare('UPDATE orders SET pay_deadline = ?, pay_reminded_at = NULL WHERE id = ?')
       .bind(Date.now() + PAY_WINDOW_MS, id).run()
   }
-  await updateOrderStatus(c.env.DB, id, status)
+  if (status === 'cancelled') {
+    // A receipt is waiting for staff: answer it in the payment block first, or
+    // the order is left cancelled with a payment still pending. Checked in the
+    // write itself, so a receipt sent after the read above still blocks it.
+    const cancel = await c.env.DB.prepare(
+      `UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?
+         AND NOT (payment_method = 'p2p' AND payment_status = 'pending')`,
+    ).bind(Date.now(), id).run()
+    if (!cancel.meta.changes) return c.json({ error: 'Сначала подтвердите или отклоните чек', code: 'receipt_pending' }, 409)
+  } else {
+    await updateOrderStatus(c.env.DB, id, status)
+  }
   await insertOrderStatusLog(c.env.DB, {
     order_id: id,
     old_status: order.status,
