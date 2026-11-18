@@ -137,6 +137,7 @@ export interface Admin {
   created_at: number
   role: string  // owner|manager|staff
   tokens_valid_after?: number | null  // migration 0021
+  disabled_at?: number | null  // migration 0033; undefined before it is applied
 }
 
 export interface Order {
