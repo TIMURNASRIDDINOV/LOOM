@@ -1891,12 +1891,12 @@ function showProductUnavailable() {
 function applyProductConfig(product) {
   const cfg = product && product.config;
   if (!cfg) return;
-  try { _applyProductConfig(cfg); }
+  try { _applyProductConfig(cfg, PHOTO_ART[product.slug]); }
   catch (e) { console.warn("[LOOM] product config not applied:", e); } // never costs the product load
 }
-function _applyProductConfig(cfg) {
+function _applyProductConfig(cfg, photo) {
   applyPrintArea(cfg.print_area);
-  applyFlatArt(cfg.flat_art);
+  applyFlatArt(photo || cfg.flat_art);
   if (Array.isArray(cfg.colors) && cfg.colors.length) {
     SHIRT_COLORS.splice(0, SHIRT_COLORS.length, ...cfg.colors.map((c) => ({
       hex: String(c.hex).toUpperCase(),
@@ -1934,6 +1934,29 @@ function applyPrintArea(pa) {
     PRINT_RECTS[v] = { x: d.x + (d.w - w) / 2, y: d.y + tf * w - SEED_TOP_FRAC * d.w, w, h: w * PLATEN_CM.h / PLATEN_CM.w };
   });
 }
+
+// LOOM-357: the 2D garment is the photoreal picture the catalogue shows
+// (LOOM-343/344; the same slugs as PHOTO in products-catalog.js), in
+// config.flat_art's shape. A garment without one keeps its config.flat_art.
+// `print` is where the 3D print rect shows on each picture: measured against
+// the 3D front and back views (a centred 28 cm print: its width against the
+// body and the outline, its centre against the height), then kept clear of
+// the collar, the hood and the hoodie pocket, which sit differently on the
+// pictures. Re-measure when a picture, a model or a print_area changes.
+const PHOTO_ART = {
+  "tshirt-regular": {
+    front: { src: "images/home/hero-tee-v1.webp", print: { x: 0.308, y: 0.165, w: 0.39 } },
+    back: { src: "images/garments/tee-back-v1.webp", print: { x: 0.312, y: 0.134, w: 0.373 } },
+  },
+  "hoodie-regular": {
+    front: { src: "images/garments/hoodie-front-v1.webp", print: { x: 0.3125, y: 0.225, w: 0.375 } },
+    back: { src: "images/garments/hoodie-back-v1.webp", print: { x: 0.311, y: 0.229, w: 0.378 } },
+  },
+  "sweatshirt": {
+    front: { src: "images/garments/sweatshirt-front-v1.webp", print: { x: 0.291, y: 0.196, w: 0.418 } },
+    back: { src: "images/garments/sweatshirt-back-v1.webp", print: { x: 0.316, y: 0.169, w: 0.368 } },
+  },
+};
 
 /**
  * The product's flat-editor art (config.flat_art). The built-in T-shirt art is
@@ -2531,10 +2554,8 @@ function setCamMode(mode) {
   if (_preview3D) _preview3D.then(() => { if (camMode === mode && !_turn) _startTurn(); }, () => {});
 }
 
-/** Drag, Front/Back, Reset view and 2D end any motion (and the first-design
- *  reward) and select Free. */
+/** Drag, Front/Back, Reset view and 2D end any motion and select Free. */
 function stopCamMotion() {
-  cancelReward();
   if (camMode !== "free") setCamMode("free");
 }
 
@@ -3877,9 +3898,6 @@ function addTextElement() {
   redrawActive();
   updateViewToggleMarkers();
   trackStep("cfg_design_add");
-  // No 3D reward here on purpose: adding text focuses the input so the user can
-  // type, and swapping the surface out from under a focused field is hostile.
-  // The reward fires on the image path, where the action is already finished.
   if (_atl()) { atlTextOpen(); return el; } // LOOM-313: the text bar on the keyboard
   const ti = document.getElementById("text-content-input");
   if (ti) ti.focus();
@@ -7658,10 +7676,10 @@ function setFlatMode(on) {
 
   flushBake(); // the 3D must not show the texture from before the last 2D gesture
 
-  // Every route into the 3D — the toggle, the tab buttons, the first-design
-  // reward — lands here, so this is the single gate that boots it. Fire and
-  // forget: ensurePreview3D() owns the loading and error states, and a
-  // rejection is already surfaced there.
+  // Every route into the 3D — the toggle, the tab buttons — lands here, so
+  // this is the single gate that boots it. Fire and forget:
+  // ensurePreview3D() owns the loading and error states, and a rejection is
+  // already surfaced there.
   ensurePreview3D().then(() => {
     if (!flatMode && typeof onWindowResize === "function") onWindowResize();
   }).catch(() => {});
@@ -7684,34 +7702,9 @@ function bindSurfaceToggle() {
   });
 }
 
-// First design placed → show it on the shirt, once. The payoff is the reason
-// people came; they should not have to discover the 3D toggle to get it.
-// The dwell starts once the model is in and its entrance has played: a fixed
-// 2.2s from the flip ran out while a slow load was still showing the loader.
-const REWARD_DWELL_MS = 2200;
-let _flatRewardShown = false;
-let _reward = null; // { timer } from the flip until the flip back
-function maybeShowFirstDesignReward() {
-  if (_flatRewardShown || !_viewHasContent(designState.activeView)) return;
-  _flatRewardShown = true;
-  if (!flatMode) return; // already in 3D by choice: nothing to flip
-  setFlatMode(false);
-  const r = (_reward = {});
-  _preview3D.then(() => _entranceEnd).then(() => {
-    if (_reward !== r) return;
-    r.timer = setTimeout(() => { _reward = null; if (!flatMode) setFlatMode(true); }, REWARD_DWELL_MS);
-  }, cancelReward);
-}
-
-/** The customer took over: the reward leaves the stage as it is. */
-function cancelReward() {
-  if (_reward) clearTimeout(_reward.timer);
-  _reward = null;
-}
-// A tile tap or a 2D/3D pick cancels it; a drag does through stopCamMotion.
-document.addEventListener("click", (e) => {
-  if (_reward && e.target.closest && e.target.closest(".cam-tile, .choice-tile, .surface-btn")) cancelReward();
-}, true);
+// LOOM-357: adding a design never changes the surface. The first upload used
+// to flip to the 3D and back to 2D after 2.2 s; now the 3D opens only from its
+// own controls, and only a failed 3D load returns to 2D (showPreviewError).
 
 // ── Undo (single level) ─────────────────────────────────────────
 // Covers the realistic beginner mistake: something was deleted or everything
@@ -8682,6 +8675,22 @@ function checkPrintDpi(el) {
   el._lowDpi = low;
 }
 
+/**
+ * LOOM-357: the scalePct that makes a face's first image as wide as the large
+ * preset (28 cm of the 30 cm platen), or as tall as that share of the print
+ * area when its height is what runs out. The aspect is the image's own.
+ */
+const FIRST_IMAGE_FILL = 28 / 30;
+function firstImageScale(img) {
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  const r = printRect();
+  if (!w || !h || !r.w || !r.h) return 100;
+  const long = Math.max(w, h);
+  // The long edge as a share of the print rect's width (scalePct 100 = 0.30 × TEX_SIZE on REF_RECT's).
+  const share = FIRST_IMAGE_FILL * Math.min(long / w, (r.h / r.w) * (long / h));
+  return Math.round(Math.max(10, Math.min(200, 100 * share / (TEX_SIZE * 0.30 / REF_RECT.w))));
+}
+
 // tok: the HEIC re-run passes its upload's token (LOOM-312); a fresh pick has none.
 function handleImageFile(file, meta, tok) {
   if (_blankOnly) return;
@@ -8760,9 +8769,9 @@ function handleImageFile(file, meta, tok) {
       // "+ Логотип" adds a layer; the upload area swaps the selected layer's art.
       let el = (!_pendingLogoIsNew && sel && sel.type === "image") ? sel : null;
       let scalePct = 100;
-      // LOOM-294: a phone step 2 upload opens Joylash, and a face's first layer
-      // lands in the middle of the print area (nx/ny are its centre, as
-      // fractions of the print rect).
+      // LOOM-294: a phone step 2 upload opens Joylash. LOOM-357: a face's
+      // first image lands in the middle of the print area (nx/ny are its
+      // centre, as fractions of the print rect) at the large preset's size.
       const p3Open = _flow3() && currentStep === "design";
       if (!el) {
         // A 100% logo's long edge is 0.30 × TEX_SIZE against REF_RECT's width.
@@ -8772,10 +8781,12 @@ function handleImageFile(file, meta, tok) {
         const free = Math.max(0, 0.94 - _stackTopNy(designState.activeView));
         if (st.elements.length && free < fullH) {
           scalePct = Math.max(25, Math.round(100 * (free / fullH)));
+        } else if (!st.elements.length) {
+          scalePct = firstImageScale(finalImg);
         }
         const ownH = fullH * (scalePct / 100);
         el = newImageElement({
-          ny: st.elements.length ? _stackNy(designState.activeView, ownH) : p3Open ? 0.5 : 0.28,
+          ny: st.elements.length ? _stackNy(designState.activeView, ownH) : 0.5,
         });
         st.elements.push(el);
         st.selId = el.id;
@@ -8821,7 +8832,6 @@ function handleImageFile(file, meta, tok) {
       trackStep("cfg_design_add");
       p3NeedDesign(false);
       if (p3Open) setStep("order");
-      maybeShowFirstDesignReward();
       }; // apply()
 
       if (finalImg === img) apply();
