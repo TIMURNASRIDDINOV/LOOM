@@ -130,10 +130,19 @@
     var alt = esc(nameOf(p) + (col ? ', ' + colorName(col) : ''));
     if (art) {
       var u = 'url(' + art + ')', dk = darkTint(col && col.hex);
-      var folds = dk ? new Array(DARK.copies + 1).join('<img class="pd-fold" src="' + esc(art) + '" alt="" style="opacity:' + dk.k.toFixed(3) + '">') : '';
+      var mask = '-webkit-mask-image:' + u + ';mask-image:' + u;
+      if (dk) {
+        /* the colour fills the whole box and the group is cut to the
+           picture afterwards, so the copies never multiply against the
+           transparent edge (that left a light halo round the garment) */
+        return '<span class="pd-g is-tint is-dark" style="' + mask + '">' +
+          '<span class="pd-tint" style="background:' + dk.fill + '"></span>' +
+          '<img src="' + esc(art) + '" alt="' + alt + '">' +
+          new Array(DARK.copies + 1).join('<img class="pd-fold" src="' + esc(art) + '" alt="" style="opacity:' + dk.k.toFixed(3) + '">') + '</span>';
+      }
       return '<span class="pd-g is-tint">' +
-        '<span class="pd-tint" style="background:' + (dk ? dk.fill : col ? col.hex : '#ffffff') + ';-webkit-mask-image:' + u + ';mask-image:' + u + '"></span>' +
-        '<img src="' + esc(art) + '" alt="' + alt + '">' + folds + '</span>';
+        '<span class="pd-tint" style="background:' + (col ? col.hex : '#ffffff') + ';' + mask + '"></span>' +
+        '<img src="' + esc(art) + '" alt="' + alt + '"></span>';
     }
     var ph = /^https:\/\//.test(p.thumbnail_url || '') ? p.thumbnail_url : '';
     return ph ? '<span class="pd-g"><img src="' + esc(ph) + '" alt="' + alt + '"></span>' : '';
