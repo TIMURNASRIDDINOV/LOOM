@@ -139,16 +139,20 @@
   /* ── markup ──────────────────────────────────────────────────── */
   var skip = '<a class="atl-skip" href="#main">' + tx('atl.nav.skipToMain', 'Asosiy qismga o‘tish') + '</a>';
 
+  /* LOOM-361: the same theme button as the desktop header, last in the phone bar */
+  var themeIb = '<button type="button" class="atl-ib" data-atl-theme></button>';
   var mbar = title
     ? '<div class="atl-mbar atl-mbar-sub">' +
         '<a class="atl-ib" href="' + esc(backHref) + '" data-atl-back ' + lbl('atl.nav.back', 'Orqaga') + '>' + ic('back') + '</a>' +
         (titleKey ? '<h1>' + tx(titleKey, title) + '</h1>' : '<h1>' + esc(title) + '</h1>') +
+        themeIb +
       '</div>'
     : '<div class="atl-mbar">' +
         '<a class="atl-wm" href="index.html" ' + lbl('atl.nav.homeAria', 'LOOM bosh sahifa') + '>' + wm + '</a>' +
         '<span class="atl-mbar-sp"></span>' +
         '<a class="atl-ib" href="help.html" ' + lbl('atl.nav.help', 'Yordam') + '>' + ic('help') + '</a>' +
         '<a class="atl-ib" href="catalog.html" ' + lbl('atl.nav.search', 'Qidirish') + '>' + ic('search') + '</a>' +
+        themeIb +
       '</div>';
 
   var HDR = [
@@ -168,7 +172,7 @@
       '</nav>' +
       '<div class="atl-hdr-r">' +
         '<div class="atl-hdr-pop" data-atl-pop="lang"></div>' +
-        '<button type="button" class="atl-ib" data-atl-theme></button>' +
+        themeIb +
         '<a class="atl-ib atl-hdr-cart" href="cart.html" data-atl-cart-link ' + lbl('atl.nav.cart', 'Savat') + '>' + ic('bag') +
           tx('atl.nav.cart', 'Savat') + '<span class="atl-bdg" data-atl-cart hidden>0</span></a>' +
         '<div class="atl-hdr-pop" data-atl-pop="me"></div>' +
@@ -299,13 +303,14 @@
 
   /* ── theme: the button sets the opposite theme (boot.js handles
         [data-theme-set] clicks) ─────────────────────────────────── */
-  var themeBtn = body.querySelector('[data-atl-theme]');
+  var themeBtns = body.querySelectorAll('[data-atl-theme]');
   function paintTheme() {
-    if (!themeBtn) return;
     var dark = root.getAttribute('data-theme') === 'dark';
-    themeBtn.setAttribute('data-theme-set', dark ? 'light' : 'dark');
-    themeBtn.setAttribute('aria-label', t('atl.nav.theme', 'Mavzu') + ': ' + (dark ? t('atl.theme.light', 'Yorug‘') : t('atl.theme.dark', 'Qorong‘i')));
-    themeBtn.innerHTML = ic(dark ? 'sun' : 'moon');
+    Array.prototype.forEach.call(themeBtns, function (b) {
+      b.setAttribute('data-theme-set', dark ? 'light' : 'dark');
+      b.setAttribute('aria-label', t('atl.nav.theme', 'Mavzu') + ': ' + (dark ? t('atl.theme.light', 'Yorug‘') : t('atl.theme.dark', 'Qorong‘i')));
+      b.innerHTML = ic(dark ? 'sun' : 'moon');
+    });
   }
   paintTheme();
   window.addEventListener('loom:themechange', paintTheme);
