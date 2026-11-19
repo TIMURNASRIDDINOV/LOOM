@@ -3,8 +3,8 @@
    every customer page.
 
    0. Theme bootstrap: stamps data-theme + color-scheme on <html>
-      BEFORE first paint (localStorage `loom_theme`, else system
-      preference). Owns the theme API (window.__loomTheme) and the
+      BEFORE first paint (localStorage `loom_theme_v2`, else light;
+      'auto' follows the system preference). Owns the theme API (window.__loomTheme) and the
       delegated [data-theme-set] click handler for the nav dots.
 
    1. Page-transition arrival: when the previous page left through
@@ -22,18 +22,26 @@
 (function () {
   'use strict';
   var d = document.documentElement;
-  var KEY = 'loom_theme';
+  /* LOOM-360: light is the default. The old key `loom_theme` also held values
+     saved without a click (a live OS switch, pre-LOOM-205 Telegram), so only
+     choices stored under the new key count; the old one is dropped once. */
+  var KEY = 'loom_theme_v2';
   var META_COLORS = { light: '#f5f5f2', dark: '#121315' };  // Atelye --page (atelye.css)
+  try { localStorage.removeItem('loom_theme'); } catch (e) { /* private mode */ }
 
+  /* 'light' | 'dark' | 'auto' (account page: follow the device) | null */
   function stored() {
-    try { var v = localStorage.getItem(KEY); return (v === 'light' || v === 'dark') ? v : null; }
+    try { var v = localStorage.getItem(KEY); return (v === 'light' || v === 'dark' || v === 'auto') ? v : null; }
     catch (e) { return null; }
   }
   function systemTheme() {
     return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
       ? 'dark' : 'light';
   }
-  function effective() { return stored() || systemTheme(); }
+  function effective() {
+    var s = stored();
+    return s === 'auto' ? systemTheme() : (s || 'light');
+  }
 
   function paintMeta(theme) {
     var m = document.querySelector('meta[name="theme-color"]');
@@ -60,9 +68,10 @@
   }
 
   var animTimer = null;
-  function set(theme, opts) {
-    if (theme !== 'light' && theme !== 'dark') return;
-    try { localStorage.setItem(KEY, theme); } catch (e) { /* private mode */ }
+  function set(choice, opts) {
+    if (choice !== 'light' && choice !== 'dark' && choice !== 'auto') return;
+    try { localStorage.setItem(KEY, choice); } catch (e) { /* private mode */ }
+    var theme = choice === 'auto' ? systemTheme() : choice;
     if (!opts || opts.animate !== false) {
       d.classList.add('theme-anim');
       clearTimeout(animTimer);
@@ -111,10 +120,10 @@
     if (b) set(b.getAttribute('data-theme-set'));
   });
 
-  /* no explicit choice yet → follow live system changes */
+  /* 'auto' only → follow live system changes, never stored */
   if (window.matchMedia) {
     var mq = window.matchMedia('(prefers-color-scheme: dark)');
-    var onSys = function () { if (!stored()) set(systemTheme(), { animate: true }); };
+    var onSys = function () { if (stored() === 'auto') applyOnly(systemTheme()); };
     if (mq.addEventListener) mq.addEventListener('change', onSys);
     else if (mq.addListener) mq.addListener(onSys);
   }

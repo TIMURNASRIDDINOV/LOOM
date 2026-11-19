@@ -47,17 +47,8 @@ html.tma {
   --atl-st: var(--tma-top, env(safe-area-inset-top, 0px));
   --atl-sb: var(--tma-bottom, env(safe-area-inset-bottom, 0px));
 }
-/* boot.js always stamps data-theme; the media query covers a page
-   whose boot script failed. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --page: #121315; --card: #1b1d20; --canvas: #1c1f23; --grid: rgba(255, 255, 255, .05);
-    --surface: #2a2e33; --surface2: #3a4047;
-    --ink: #f0f2f4; --mut: #a3abb3; --ln: rgba(255, 255, 255, .16);
-    --alert: #ff9a8f; --alert-bg: #40211e; --ok: #5fd08f; --ok-bg: #163223;
-    color-scheme: dark;
-  }
-}
+/* boot.js stamps data-theme; light is the default (LOOM-360), so a page
+   whose boot script failed stays light whatever the device setting. */
 :root[data-theme="dark"] {
   --page: #121315; --card: #1b1d20; --canvas: #1c1f23; --grid: rgba(255, 255, 255, .05);
   --surface: #2a2e33; --surface2: #3a4047;
