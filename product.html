@@ -31,6 +31,8 @@
        multiplied on top (the configurator's flat editor does the same). */
     .pd-tint { position: absolute; inset: 0; z-index: -1; -webkit-mask: center / contain no-repeat; mask: center / contain no-repeat; }
     .pd-g.is-tint img { mix-blend-mode: multiply; }
+    /* Dark colours: extra copies of the photo on top, multiplied, deepen the folds (product.js DARK) */
+    .pd-fold { position: absolute; inset: 0; pointer-events: none; }
     .pd-info { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
     .pd-head { display: flex; flex-direction: column; gap: 6px; }
     .pd-head .atl-tag { align-self: flex-start; }
@@ -140,6 +142,6 @@
   <script defer src="assets/track.js?v=6"></script>
   <script defer src="assets/analytics.js?v=5"></script>
   <script src="assets/cart.js?v=12"></script>
-  <script src="assets/product.js?v=4"></script>
+  <script src="assets/product.js?v=5"></script>
 </body>
 </html>

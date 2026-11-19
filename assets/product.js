@@ -105,6 +105,23 @@
     'sweatshirt': 'images/garments/sweatshirt-front-v1.webp'
   };
 
+  /* Black (LOOM-359): the photo times #000 is #000 everywhere, so folds,
+     seams and outline vanish. Same display tint as the configurator's 2D
+     view (DARK_FABRIC in configurator.js; keep the numbers in step): the
+     photo is multiplied by itself (copies: 3 = the configurator's
+     flatContrast 2, photo^4; white stays white, folds deepen), and the
+     colour is lifted towards `lift` (0-255; the knob if black reads too
+     grey or too flat). Display only: the chosen colour is unchanged. */
+  var DARK = { luma: 0.12, lift: 80, copies: 3 };
+  function darkTint(hex) {
+    var m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return null;
+    var n = parseInt(m[1], 16), rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    var t = Math.min(1, (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 / DARK.luma);
+    var k = 1 - t * t * (3 - 2 * t); // 1 at black, 0 from the threshold up
+    return k > 0 ? { k: k, fill: 'rgb(' + rgb.map(function (v) { return Math.round(v + k * (Math.max(v, DARK.lift) - v)); }).join(',') + ')' } : null;
+  }
+
   /* The garment: a transparent picture tinted to the colour, else the
      catalogue photo. */
   function garment(p, col) {
@@ -112,10 +129,11 @@
     var art = PHOTO[p.slug] || safePath(fa && (fa.src || fa.src_small));
     var alt = esc(nameOf(p) + (col ? ', ' + colorName(col) : ''));
     if (art) {
-      var u = 'url(' + art + ')';
+      var u = 'url(' + art + ')', dk = darkTint(col && col.hex);
+      var folds = dk ? new Array(DARK.copies + 1).join('<img class="pd-fold" src="' + esc(art) + '" alt="" style="opacity:' + dk.k.toFixed(3) + '">') : '';
       return '<span class="pd-g is-tint">' +
-        '<span class="pd-tint" style="background:' + (col ? col.hex : '#ffffff') + ';-webkit-mask-image:' + u + ';mask-image:' + u + '"></span>' +
-        '<img src="' + esc(art) + '" alt="' + alt + '"></span>';
+        '<span class="pd-tint" style="background:' + (dk ? dk.fill : col ? col.hex : '#ffffff') + ';-webkit-mask-image:' + u + ';mask-image:' + u + '"></span>' +
+        '<img src="' + esc(art) + '" alt="' + alt + '">' + folds + '</span>';
     }
     var ph = /^https:\/\//.test(p.thumbnail_url || '') ? p.thumbnail_url : '';
     return ph ? '<span class="pd-g"><img src="' + esc(ph) + '" alt="' + alt + '"></span>' : '';
