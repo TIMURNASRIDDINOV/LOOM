@@ -330,7 +330,7 @@ async function main() {
             const w_ = who(target)
             const tok = w_ ? (opt.as[w_] || '') : opt.token
             if (w_ && w_ !== 'anon' && !opt.as[w_]) { console.error('no --as=' + w_ + '=<jwt> for ' + target); process.exit(2) }
-            const src = `try{localStorage.setItem('loom_theme',${JSON.stringify(theme)});localStorage.setItem('loom_lang',${JSON.stringify(lang)});` +
+            const src = `try{localStorage.setItem('loom_theme_v2',${JSON.stringify(theme)});localStorage.setItem('loom_lang',${JSON.stringify(lang)});` +
               (tok ? `localStorage.setItem('loom_auth_token',${JSON.stringify(tok)})` : `localStorage.removeItem('loom_auth_token')`) + `;sessionStorage.removeItem('loom_user')}catch(e){};` +
               (tma ? TG_STUB : `try{sessionStorage.removeItem('__telegram__initParams')}catch(e){}`) + ';\n' + opt.inject
             scriptId = (await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: src })).identifier

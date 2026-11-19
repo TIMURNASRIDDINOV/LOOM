@@ -308,8 +308,9 @@
 
   function themeNow() {
     let stored = null
-    try { stored = localStorage.getItem('loom_theme') } catch (e) { /* private mode */ }
-    return stored === 'light' || stored === 'dark' ? stored : 'auto'
+    const B = window.__loomTheme
+    try { stored = localStorage.getItem(B ? B.KEY : 'loom_theme_v2') } catch (e) { /* private mode */ }
+    return stored === 'dark' || stored === 'auto' ? stored : 'light'   // LOOM-360: light by default
   }
   function theme() {
     const th = themeNow()
@@ -560,10 +561,7 @@
     } else if (el.hasAttribute('data-theme')) {
       const v = el.getAttribute('data-theme')
       const B = window.__loomTheme
-      if (v === 'auto') {
-        try { localStorage.removeItem('loom_theme') } catch (err) { /* private mode */ }
-        if (B) B.applyOnly(B.effective())
-      } else if (B) B.set(v)
+      if (B) B.set(v)   // 'auto' is stored too: no stored value now means light
       render()
     } else if (el.hasAttribute('data-notif')) {
       const key = el.getAttribute('data-notif')
