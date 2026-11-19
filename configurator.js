@@ -1100,24 +1100,40 @@ let fabricPreset = FABRIC_PRESETS.jersey;
 // Black cloth (LOOM-219). A #000000 map has no diffuse term at all, so only
 // specular, sheen and the environment show, and the fleece reads as plastic.
 // Real black cotton still reflects a few percent, so near-black renders on a
-// lifted albedo (#141414) and sheds most of its sheen, specular and
-// reflections. 3D only: the swatch, the flat editor, the order and the cart
-// keep the real hex. The amount is 0 from `luma` (sRGB, 0-1) up, so every
-// other colour gets exactly the texture and material it had before.
-const DARK_FABRIC = { luma: 0.12, lift: 20, sheen: 0.7, spec: 0.5, env: 0.5 };
+// lifted albedo and sheds most of its sheen, specular and reflections. The
+// swatch, the order and the cart keep the real hex. The amount is 0 from
+// `luma` (sRGB, 0-1) up, so every other colour gets exactly the texture and
+// material it had before.
+//
+// Display calibration for black (LOOM-358), the knobs to nudge if black reads
+// too dark or too grey. `lift` is the 3D albedo floor (sRGB 0-255; at 20 the
+// body sat at luma 9-18, under the dark stage's 31). The 2D view multiplies
+// the white photo by the colour, and x * #000 is #000 everywhere, so dark
+// colours get a display tint there too: the photo is first multiplied by
+// itself `flatContrast` times, each pass squaring it (white stays white, the
+// folds deepen), then by the colour lifted to `flatLift`. Measured to land 2D
+// and 3D on the same body tone: median luma ~40 in both on the sweatshirt.
+const DARK_FABRIC = { luma: 0.12, lift: 50, sheen: 0.7, spec: 0.5, env: 0.5, flatLift: 80, flatContrast: 2 };
 let _darkFabric = 0;          // 0-1: how close to black the garment is
 const _sheenTint = [1, 1, 1]; // the garment's hue, so dark sheen is not grey
+
+/** How close to black a "#rrggbb" is: { k: 0-1 (0 above DARK_FABRIC.luma), rgb } or null. */
+function darkAmount(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const t = Math.min(1, (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 / DARK_FABRIC.luma);
+  return { k: 1 - t * t * (3 - 2 * t), rgb }; // smoothstep: 1 at black, 0 from the threshold up
+}
 
 /** The 3D albedo for a garment colour. Also sets _darkFabric and _sheenTint. */
 function darkFabricFill(hex) {
   _darkFabric = 0;
   _sheenTint[0] = _sheenTint[1] = _sheenTint[2] = 1;
-  const m = /^#([0-9a-f]{6})$/i.exec(hex || "");
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  const t = Math.min(1, (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 / DARK_FABRIC.luma);
-  const k = 1 - t * t * (3 - 2 * t); // smoothstep: 1 at black, 0 from the threshold up
+  const d = darkAmount(hex);
+  if (!d) return hex;
+  const { k, rgb } = d;
   if (k <= 0) return hex;
   _darkFabric = k;
   const lifted = rgb.map((v) => v + k * (Math.max(v, DARK_FABRIC.lift) - v));
@@ -4163,7 +4179,17 @@ function _flatGarmentLayer(face, box, color) {
     // Both are safe here because this offscreen canvas holds nothing else.
     if (String(color).toUpperCase() !== "#FFFFFF") {
       c.globalCompositeOperation = "multiply";
-      c.fillStyle = color;
+      // Dark colours (LOOM-358): deepen the folds, then tint to a lifted
+      // colour instead of #000, which would erase them. See DARK_FABRIC.
+      const dark = darkAmount(color);
+      let fill = color;
+      if (dark && dark.k > 0) {
+        c.globalAlpha = dark.k;
+        for (let i = 0; i < DARK_FABRIC.flatContrast; i++) c.drawImage(cv, 0, 0, w, h); // squares the shading
+        c.globalAlpha = 1;
+        fill = "rgb(" + dark.rgb.map((v) => Math.round(v + dark.k * (Math.max(v, DARK_FABRIC.flatLift) - v))).join(",") + ")";
+      }
+      c.fillStyle = fill;
       c.fillRect(0, 0, w, h);
       c.globalCompositeOperation = "destination-in";
       c.drawImage(img, 0, 0, w, h);
