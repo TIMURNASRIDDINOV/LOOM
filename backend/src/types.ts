@@ -33,6 +33,8 @@ export type Bindings = {
   TELEGRAM_CHAT_ID: string
   TELEGRAM_WEBHOOK_SECRET: string
   BOT_USERNAME: string
+  // Code sign-in through Telegram Gateway (LOOM-362). Unset = bot flow only.
+  TELEGRAM_GATEWAY_TOKEN?: string
   ENVIRONMENT: string
   // Card transfer (PRD-216). Both unset = checkout closed (fail closed).
   //   wrangler secret put P2P_CARD_NUMBER   (16 digits)

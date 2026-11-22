@@ -89,6 +89,9 @@ jobs:
       - name: Admin dashboard statistics (local D1)
         run: node backend/scripts/dashboard-stats-test.mjs
 
+      - name: Code sign-in through Telegram Gateway (local D1/KV, faked Gateway)
+        run: node backend/scripts/code-auth-test.mjs
+
       - name: Asset ?v= drift (no stale immutable asset)
         run: node tools/check-asset-versions.mjs --base "${{ github.event.pull_request.base.sha }}"
 

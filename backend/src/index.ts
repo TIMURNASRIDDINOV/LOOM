@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import publicRoutes from './routes/public'
 import authRoutes from './routes/auth'
 import telegramAuthRoutes, { webhookRouter } from './routes/telegram-auth'
+import codeAuthRoutes from './routes/code-auth'
 import adminRoutes, { setupRouter } from './routes/admin'
 import adminProductsRoutes from './routes/admin-products'
 import adminUsersRoutes from './routes/admin-users'
@@ -79,6 +80,7 @@ app.route('/api/site', sitePublic)            // GET /api/site/hero
 app.route('/api/auth', userProfile)
 app.route('/api/auth', oauthRoutes)         // GET /api/auth/oauth/providers, POST /api/auth/oauth/:provider
 app.route('/api', designerRoutes)             // GET /api/artworks, /api/designers/:handle, /api/designer/{apply,artworks,stats}
+app.route('/api/auth', codeAuthRoutes)          // POST /api/auth/code/{send,check} (Telegram Gateway)
 app.route('/api/auth', telegramAuthRoutes)     // POST /api/auth/telegram/{start,status}, /api/auth/logout
 app.route('/api/telegram', webhookRouter)      // POST /api/telegram/webhook
 

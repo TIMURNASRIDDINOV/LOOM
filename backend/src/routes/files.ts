@@ -78,6 +78,10 @@ files.post('/track', async (c) => {
     'cfg_mockup_miss',  // mockup renderer timeout diagnostic
     'cfg_cart',        // added to cart
     'cfg_order',       // place-order click (server writes order_placed)
+    'login_start',     // LOOM-362: sign-in modal opened
+    'login_code_sent', // Telegram code sent
+    'login_fallback_bot', // no code possible, bot round-trip shown
+    'login_done',      // signed in from the modal
   ]
   const evt = typeof event === 'string' && EVENTS.includes(event) ? event : null
   const DEVICES = ['mobile', 'tablet', 'desktop', 'app'] // assets/track.js and mobile/src/api/track.ts

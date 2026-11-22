@@ -1072,6 +1072,27 @@ export async function upsertPhoneUser(
   })
 }
 
+// Code sign-in (LOOM-362): Telegram Gateway proved the buyer owns this number,
+// but no Telegram user id comes with it, so the account is keyed by phone only.
+export async function upsertPhoneOnlyUser(db: D1Database, phone: string): Promise<number> {
+  return safeQuery('upsertPhoneOnlyUser', async () => {
+    const now = Date.now()
+    const existing = await db.prepare('SELECT id FROM users WHERE phone = ?').bind(phone).first<{ id: number }>()
+    if (existing) {
+      await db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').bind(now, existing.id).run()
+      return existing.id
+    }
+    const result = await db
+      .prepare(
+        `INSERT INTO users (email, password_hash, phone, role, status, created_at, last_login_at)
+         VALUES (?, 'telegram_auth', ?, 'user', 'active', ?, ?)`,
+      )
+      .bind(`p${phone.replace(/\D/g, '')}@phone.loom`, phone, now, now)
+      .run()
+    return Number(result.meta.last_row_id)
+  })
+}
+
 // Mini App onboarding upsert. Unlike upsertPhoneUser this REFUSES to take over
 // an account that already belongs to a different Telegram user.
 //
