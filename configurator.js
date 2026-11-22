@@ -6615,8 +6615,8 @@ function bindPhoneFlow() {
 // "Savatga qo'shish · <price>" in #D93529, SecondaryButton (7.10+) is
 // Hozir sotib olish (older clients keep it in the page, html.tma-atl-buy),
 // and BackButton closes the text bar, else the sheet, else the selection,
-// else goes back a page; with nothing to close and no page behind it is
-// hidden, so Telegram shows its own close control.
+// else goes back a page, else home (LOOM-366: an ad link lands here with
+// no page behind).
 // Telegram's MainButton mirrors the bar's primary CTA, SecondaryButton
 // (Bot API 7.10+) is Buy now, BackButton goes back a step; html.tma-cfg hides
 // the site header and the bar. Bound only inside Telegram with cfgPhone on,
@@ -6747,7 +6747,9 @@ let _tmaBack = null; // LOOM-314: BackButton shown (true) / hidden (false); null
 /** Atelye: show BackButton while something can close or a page lies behind. */
 function tmaBackSync() {
   if (!_tma || !_tmaOn || _tmaBusy || !_atl()) return;
-  const on = _atlKb || !!_atlSh || (flatMode && !!selectedElement()) || _atlHasPrev();
+  // Always: with nothing to close and no page behind (an ad opened the Mini
+  // App right here), it goes to the home page (LOOM-366).
+  const on = true;
   if (on === _tmaBack) return;
   _tmaBack = on;
   if (on) _tma.BackButton.show(); else _tma.BackButton.hide();
@@ -6759,6 +6761,7 @@ function atlTmaBack() {
   else if (_atlSh) atlSheetClose();
   else if (flatMode && selectedElement()) { selectElement(null); renderFlatEditor(); }
   else if (_atlHasPrev()) history.back();
+  else location.href = "/";
   tmaBackSync();
 }
 
