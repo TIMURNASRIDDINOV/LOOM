@@ -220,6 +220,39 @@
         </div>
         <p class="field-hint" data-funnel-i18n="note">Оформление подтверждается сервером. Заказы без отменённых и известного тестового №54; одна сессия может оформить несколько заказов.</p>
       </div>
+      <!-- LOOM-368: funnel per ad campaign + user flow, same dates as above -->
+      <div class="card" style="margin-top:var(--sp-4)">
+        <div class="card-head"><div>
+          <h3 class="card-title" data-funnel-i18n="adsHeading">Рекламные кампании</h3>
+          <p class="card-sub" data-funnel-i18n="adsDefinition">Все сессии с визитом за выбранные даты. Источник — первая метка UTM в сессии; без метки — сайт-реферер или «(direct)». Под числом — сколько отпало от предыдущего шага.</p>
+        </div></div>
+        <form id="campaign-filters" class="funnel-filters">
+          <label class="field-label"><span data-funnel-i18n="channel">Канал</span><select class="select" id="campaign-channel">
+            <option value="" data-funnel-i18n="all">Все</option><option value="miniapp" data-funnel-i18n="miniapp">Telegram Mini App</option><option value="web" data-funnel-i18n="web">Сайт</option><option value="app" data-funnel-i18n="app">Приложение</option>
+          </select></label>
+          <label class="field-label"><span data-funnel-i18n="campaign">Кампания</span><select class="select" id="campaign-name">
+            <option value="" data-funnel-i18n="all">Все</option>
+          </select></label>
+          <button class="btn" id="campaign-apply" type="submit" data-funnel-i18n="apply">Показать</button>
+        </form>
+        <p class="field-hint" id="campaign-message" role="status" aria-live="polite"></p>
+        <div id="campaign-results" hidden>
+          <div class="table-wrap"><table class="table funnel-table">
+            <thead><tr><th data-funnel-i18n="source">Источник</th><th data-funnel-i18n="medium">Тип</th><th data-funnel-i18n="campaign">Кампания</th><th data-funnel-i18n="sessions">Сессии</th><th data-funnel-i18n="opens">Открыли</th><th data-funnel-i18n="carts">В корзину</th><th data-funnel-i18n="checkouts">Отправили заказ</th><th data-funnel-i18n="placed">Оформили заказ</th><th data-funnel-i18n="orders">Заказы</th></tr></thead>
+            <tbody id="campaign-rows"></tbody>
+          </table></div>
+          <h4 data-funnel-i18n="paths">Пути посетителей (первые 6 страниц)</h4>
+          <div class="table-wrap"><table class="table">
+            <thead><tr><th data-funnel-i18n="path">Путь</th><th data-funnel-i18n="sessions">Сессии</th></tr></thead>
+            <tbody id="flow-paths"></tbody>
+          </table></div>
+          <h4 data-funnel-i18n="exits">Где ушли (последняя страница)</h4>
+          <div class="table-wrap"><table class="table">
+            <thead><tr><th data-funnel-i18n="page">Страница</th><th data-funnel-i18n="sessions">Сессии</th></tr></thead>
+            <tbody id="flow-exits"></tbody>
+          </table></div>
+        </div>
+      </div>
     </section>
     <!-- ── GA4 panel: loaded on first open (lib/ga4.ts, cached 10 min) ── -->
     <section id="panel-ga4" role="tabpanel" aria-labelledby="tab-ga4" hidden>
@@ -276,6 +309,6 @@
   <script src="assets/ui.js?v=31"></script>
   <script src="assets/layout.js?v=34"></script>
   <script>LOOM_LAYOUT.init('dashboard')</script>
-  <script src="assets/dashboard.js?v=36"></script>
+  <script src="assets/dashboard.js?v=37"></script>
 </body>
 </html>

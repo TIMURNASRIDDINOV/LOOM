@@ -18,6 +18,11 @@
       checkouts: 'Отправили заказ', placed: 'Оформили заказ', orders: 'Заказы',
       note: 'Оформление подтверждается сервером. Заказы без отменённых и известного тестового №54; одна сессия может оформить несколько заказов.',
       loading: 'Загрузка…', empty: 'За этот период открытий конфигуратора нет.',
+      adsHeading: 'Рекламные кампании', channel: 'Канал', miniapp: 'Telegram Mini App', campaign: 'Кампания',
+      adsDefinition: 'Все сессии с визитом за выбранные даты. Источник — первая метка UTM в сессии; без метки — сайт-реферер или «(direct)». Под числом — сколько отпало от предыдущего шага.',
+      source: 'Источник', medium: 'Тип', sessions: 'Сессии', paths: 'Пути посетителей (первые 6 страниц)', path: 'Путь',
+      exits: 'Где ушли (последняя страница)', page: 'Страница', adsEmpty: 'За эти даты по этому фильтру сессий нет.',
+      truncated: 'Слишком много визитов: показана только часть периода. Сократите даты.',
       failed: 'Не удалось загрузить воронку. Повторите попытку.', range: 'Выберите корректные даты UTC: не более 366 дней.',
     },
     uz: {
@@ -28,6 +33,11 @@
       checkouts: 'Buyurtma yuborilgan', placed: 'Buyurtma berilgan', orders: 'Buyurtmalar',
       note: 'Buyurtma server tomonidan tasdiqlanadi. Bekor qilingan va ma’lum №54 test buyurtmasi hisoblanmaydi; bir sessiyada bir nechta buyurtma bo‘lishi mumkin.',
       loading: 'Yuklanmoqda…', empty: 'Bu davrda konfigurator ochilmagan.',
+      adsHeading: 'Reklama kampaniyalari', channel: 'Kanal', miniapp: 'Telegram Mini App', campaign: 'Kampaniya',
+      adsDefinition: 'Tanlangan sanalarda tashrif bo‘lgan barcha sessiyalar. Manba — sessiyadagi birinchi UTM belgisi; belgisiz — referer sayt yoki «(direct)». Son ostida — oldingi bosqichdan qancha tushib qolgani.',
+      source: 'Manba', medium: 'Tur', sessions: 'Sessiyalar', paths: 'Tashrifchilar yo‘li (birinchi 6 sahifa)', path: 'Yo‘l',
+      exits: 'Qayerda chiqib ketishdi (oxirgi sahifa)', page: 'Sahifa', adsEmpty: 'Bu sanalarda ushbu filtr bo‘yicha sessiya yo‘q.',
+      truncated: 'Tashriflar juda ko‘p: davrning faqat bir qismi ko‘rsatildi. Sanalarni qisqartiring.',
       failed: 'Voronkani yuklab bo‘lmadi. Qayta urinib ko‘ring.', range: 'To‘g‘ri UTC sanalarini tanlang: 366 kundan oshmasin.',
     },
     en: {
@@ -38,6 +48,11 @@
       checkouts: 'Submitted checkout', placed: 'Placed an order', orders: 'Orders',
       note: 'Placement is confirmed by the server. Orders exclude cancellations and known test #54; one session can place several orders.',
       loading: 'Loading…', empty: 'No configurator opens in this period.',
+      adsHeading: 'Ad campaigns', channel: 'Channel', miniapp: 'Telegram Mini App', campaign: 'Campaign',
+      adsDefinition: 'Every session with a visit in the selected dates. Source is the first UTM tag in the session; without one, the referring site or “(direct)”. Under each number: how many dropped since the previous step.',
+      source: 'Source', medium: 'Medium', sessions: 'Sessions', paths: 'Visitor paths (first 6 pages)', path: 'Path',
+      exits: 'Where they left (last page)', page: 'Page', adsEmpty: 'No sessions for this filter in these dates.',
+      truncated: 'Too many visits: only part of the period is shown. Shorten the dates.',
       failed: 'Could not load the funnel. Please try again.', range: 'Choose valid UTC dates, up to 366 days.',
     },
   }
@@ -80,6 +95,52 @@
     }
   }
 
+  // ── Ad campaigns + user flow (LOOM-368): uses the funnel's dates ──
+  let campaignData = null
+  let flowData = null
+
+  function renderCampaigns() {
+    const selected = el('campaign-name').value
+    const drop = (count, previous) => '<td class="num">' + count + '<span class="funnel-rate">' +
+      (previous ? '−' + ((previous - count) / previous * 100).toFixed(0) + '%' : '—') + '</span></td>'
+    const rows = campaignData.campaigns.filter((r) => !selected || r.campaign === selected)
+    el('campaign-rows').innerHTML = rows.map((r) => '<tr><td>' + esc(r.source) + '</td><td>' + esc(r.medium) + '</td>' +
+      '<th scope="row">' + esc(r.campaign) + '</th><td class="num">' + r.sessions + '</td>' + drop(r.opens, r.sessions) +
+      drop(r.carts, r.opens) + drop(r.checkouts, r.carts) + drop(r.placed, r.checkouts) + '<td class="num">' + r.orders + '</td></tr>').join('')
+    el('flow-paths').innerHTML = flowData.paths.map((p) => '<tr><td>' + p.steps.map(esc).join(' → ') +
+      '</td><td class="num">' + p.sessions + '</td></tr>').join('')
+    el('flow-exits').innerHTML = flowData.exits.map((p) => '<tr><td>' + esc(p.page) + '</td><td class="num">' + p.sessions + '</td></tr>').join('')
+    el('campaign-message').textContent = campaignData.truncated || flowData.truncated ? ft.truncated : rows.length ? '' : ft.adsEmpty
+    el('campaign-results').hidden = !rows.length
+  }
+
+  async function loadCampaigns() {
+    el('campaign-apply').disabled = true
+    el('campaign-results').hidden = true
+    el('campaign-message').textContent = ft.loading
+    el('campaign-message').classList.remove('state--error')
+    const select = el('campaign-name')
+    const selected = select.value
+    const dates = el('funnel-from').value && el('funnel-to').value ? { from: el('funnel-from').value, to: el('funnel-to').value } : {}
+    const base = { ...dates, ...(el('campaign-channel').value ? { channel: el('campaign-channel').value } : {}) }
+    try {
+      ;[campaignData, flowData] = await Promise.all([
+        apiJSON('/api/admin/analytics/funnel?' + new URLSearchParams({ ...base, groupBy: 'campaign' })),
+        apiJSON('/api/admin/analytics/flow?' + new URLSearchParams({ ...base, ...(selected ? { campaign: selected } : {}) })),
+      ])
+      const names = [...new Set(campaignData.campaigns.map((r) => r.campaign).concat(selected ? [selected] : []))].sort()
+      select.innerHTML = '<option value="">' + esc(ft.all) + '</option>' +
+        names.map((name) => '<option value="' + esc(name) + '">' + esc(name) + '</option>').join('')
+      select.value = selected
+      renderCampaigns()
+    } catch (error) {
+      el('campaign-message').textContent = error.data?.code === 'funnel_range' ? ft.range : ft.failed
+      el('campaign-message').classList.add('state--error')
+    } finally {
+      el('campaign-apply').disabled = false
+    }
+  }
+
   function wireFunnel() {
     document.querySelectorAll('[data-funnel-i18n]').forEach((node) => {
       if (ft[node.dataset.funnelI18n]) node.textContent = ft[node.dataset.funnelI18n]
@@ -87,9 +148,15 @@
     el('funnel-filters').addEventListener('submit', (event) => {
       event.preventDefault()
       loadFunnel()
+      loadCampaigns()
+    })
+    el('campaign-filters').addEventListener('submit', (event) => {
+      event.preventDefault()
+      loadCampaigns()
     })
     el('funnel-platform').addEventListener('change', renderFunnel)
     loadFunnel(true)
+    loadCampaigns()
   }
 
   // ── GA4 tab (LOOM-285): GET /api/admin/analytics/ga4, loaded on first open ──

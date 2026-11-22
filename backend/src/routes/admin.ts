@@ -29,7 +29,7 @@ import {
   finishScheduledDeletions,
 } from '../db/queries'
 import { hashPassword, verifyPassword } from '../lib/password'
-import { funnelRange, getFunnelStats } from '../db/funnel'
+import { funnelRange, getCampaignFunnel, getFunnelStats, getUserFlow, sessionFilter } from '../db/funnel'
 import { Ga4Error, ga4Days, ga4Report } from '../lib/ga4'
 import { clarityReadout } from '../lib/clarity'
 import { signToken, verifyToken } from '../lib/jwt'
@@ -699,7 +699,22 @@ admin.get('/analytics/funnel', requireAdmin, requireCap('analytics.view'), async
   c.header('Cache-Control', 'no-store')
   const range = funnelRange(c.req.query('from'), c.req.query('to'))
   if (!range) return c.json({ error: 'Choose valid UTC dates, up to 366 days.', code: 'funnel_range' }, 400)
+  const groupBy = c.req.query('groupBy')
+  const filter = sessionFilter(c.req.query('channel'), c.req.query('campaign'))
+  if (!filter || (groupBy !== undefined && groupBy !== 'campaign')) return c.json({ error: 'Unknown channel, campaign or groupBy.', code: 'funnel_filter' }, 400)
+  // channel / campaign filter the per-campaign rows; the daily funnel is unchanged.
+  if (groupBy === 'campaign') return c.json(await getCampaignFunnel(c.env.DB, range, filter))
   return c.json(await getFunnelStats(c.env.DB, range))
+})
+
+// Where visitors of a campaign / channel go and where they leave (LOOM-368).
+admin.get('/analytics/flow', requireAdmin, requireCap('analytics.view'), async (c) => {
+  c.header('Cache-Control', 'no-store')
+  const range = funnelRange(c.req.query('from'), c.req.query('to'))
+  if (!range) return c.json({ error: 'Choose valid UTC dates, up to 366 days.', code: 'funnel_range' }, 400)
+  const filter = sessionFilter(c.req.query('channel'), c.req.query('campaign'))
+  if (!filter) return c.json({ error: 'Unknown channel or campaign.', code: 'funnel_filter' }, 400)
+  return c.json(await getUserFlow(c.env.DB, range, filter))
 })
 
 // GA4 Data API readout (lib/ga4.ts). Google failures are 502 with a stable

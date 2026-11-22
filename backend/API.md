@@ -461,6 +461,24 @@ grouped by the session's first open day within the range. `orders` counts
 matching server-confirmed orders, excluding cancellations and known test #54.
 See [funnel QA and counting contract](scripts/funnel.md).
 
+**By ad campaign (LOOM-368).** `groupBy=campaign` returns `from`, `to`,
+`timezone`, `channel`, `campaign`, `truncated` and `campaigns` rows with
+`source`, `medium`, `campaign`, `sessions`, `opens`, `carts`, `checkouts`,
+`placed`, `orders`. Every session with a visit in the range counts once. Its
+source is the `utm_source` / `utm_medium` / `utm_campaign` of the first visit
+whose page carries `utm_` parameters; without one it is the referring host (or
+`(direct)`) with medium and campaign `(none)`. Its channel is `miniapp` (a
+Telegram visit or `utm_medium=miniapp`), `app` or `web`. Optional `channel` and
+`campaign` filter these rows only; the default daily response ignores them.
+Unknown `groupBy` or `channel`, or a campaign over 64 characters, return 400
+with code `funnel_filter`. At most 50 000 visits are read; past that
+`truncated` is `true`.
+
+GET `/api/admin/analytics/flow` takes the same `from`, `to`, `channel` and
+`campaign` and returns `sessions`, `paths` (top 10 `{ steps, sessions }`, each
+step a path without query, consecutive repeats collapsed, first 6 steps) and
+`exits` (top 10 `{ page, sessions }`, the last page of each session).
+
 ### GA4 readout
 
 GET `/api/admin/analytics/ga4?days=7|28` (default 28) requires an admin session

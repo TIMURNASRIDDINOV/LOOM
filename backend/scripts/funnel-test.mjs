@@ -196,6 +196,72 @@ try {
     assert.equal(rejected.code, 'artwork_price_changed')
     assert.deepEqual(await db.prepare('SELECT COUNT(*) AS n FROM orders').first(), before)
   }
+  // LOOM-368: per-campaign funnel and user flow. Fixtures on 2026-09-10, away from the rest.
+  const adDay = Date.parse('2026-09-10')
+  async function visit(session, page, time, { event = null, browser = 'chrome', device = 'mobile', referrer = null } = {}) {
+    await db.prepare('INSERT INTO page_visits (session_id,page,device_type,browser,referrer,event,visited_at) VALUES (?,?,?,?,?,?,?)')
+      .bind(session, page, device, browser, referrer, event, time).run()
+  }
+  const adPage = '/configurator?slug=tee&utm_source=telegram&utm_medium=miniapp&utm_campaign=nov_ads'
+  // Mini App ad buyer: lands with UTM, later pages have none; placed a real order.
+  await visit('tg-buyer', adPage, adDay, { browser: 'telegram' })
+  for (const [name, offset] of [['cfg_open', 1], ['cfg_cart', 2], ['cfg_checkout_submit', 3]]) await visit('tg-buyer', '/configurator', adDay + offset, { event: name, browser: 'telegram' })
+  await visit('tg-buyer', '/checkout?x=1', adDay + 4, { browser: 'telegram' })
+  await order(200, 'tg-buyer', adDay + 5)
+  await visit('tg-buyer', '/checkout', adDay + 5, { event: 'order_placed', browser: 'telegram' })
+  // Same campaign, opened and left at the configurator.
+  await visit('tg-drop', adPage, adDay + 10, { browser: 'telegram' })
+  await visit('tg-drop', '/configurator', adDay + 11, { event: 'cfg_open', browser: 'telegram' })
+  // Same campaign, placed order #54 (known test): never counted.
+  await visit('tg-test', adPage, adDay + 20, { browser: 'telegram' })
+  for (const [name, offset] of [['cfg_open', 21], ['cfg_cart', 22], ['cfg_checkout_submit', 23], ['order_placed', 24]]) await visit('tg-test', '/configurator', adDay + offset, { event: name, browser: 'telegram' })
+  await db.prepare("UPDATE orders SET session_id = 'tg-test', created_at = ? WHERE id = 54").bind(adDay + 24).run() // moved here; restored below
+  // Web visitor: no UTM, came from instagram, then UTM on a later page is still the first UTM row.
+  await visit('ig-web', '/', adDay + 30, { referrer: 'https://www.instagram.com/' })
+  await visit('ig-web', '/catalog/', adDay + 31)
+  await visit('ig-web', '/catalog?utm_source=ig&utm_campaign=story1', adDay + 32)
+  // Direct web visitor, internal referrer only.
+  await visit('direct-web', '/', adDay + 40, { referrer: 'https://loomdesign.uz/about' })
+  await visit('direct-web', '/about', adDay + 41)
+  async function get(path, status = 200) {
+    const res = await mf.dispatchFetch(`http://localhost/api/admin/analytics/${path}`, { headers: { Cookie: `admin_token=${token(1)}` } })
+    const data = await res.json()
+    assert.equal(res.status, status, JSON.stringify(data))
+    checks++
+    return data
+  }
+  const adRange = '&from=2026-09-10&to=2026-09-10'
+  const byCampaign = await get(`funnel?groupBy=campaign${adRange}`)
+  assert.equal(byCampaign.truncated, false)
+  assert.deepEqual(byCampaign.campaigns, [
+    { source: 'telegram', medium: 'miniapp', campaign: 'nov_ads', sessions: 3, opens: 3, carts: 2, checkouts: 2, placed: 1, orders: 1 },
+    { source: '(direct)', medium: '(none)', campaign: '(none)', sessions: 1, opens: 0, carts: 0, checkouts: 0, placed: 0, orders: 0 },
+    { source: 'ig', medium: '(none)', campaign: 'story1', sessions: 1, opens: 0, carts: 0, checkouts: 0, placed: 0, orders: 0 },
+  ])
+  assert.deepEqual((await get(`funnel?groupBy=campaign&channel=web${adRange}`)).campaigns.map((r) => r.campaign), ['(none)', 'story1'])
+  assert.deepEqual((await get(`funnel?groupBy=campaign&channel=miniapp&campaign=nov_ads${adRange}`)).campaigns.length, 1)
+  assert.equal((await get(`funnel?groupBy=campaign&channel=app${adRange}`)).campaigns.length, 0)
+  for (const bad of ['funnel?groupBy=day', 'funnel?groupBy=campaign&channel=tv', 'flow?channel=tv', `flow?campaign=${'x'.repeat(65)}`]) {
+    assert.equal((await get(bad, 400)).code, 'funnel_filter')
+  }
+  assert.equal((await get('flow?from=2026-02-30', 400)).code, 'funnel_range')
+  const flow = await get(`flow?channel=miniapp&campaign=nov_ads${adRange}`)
+  assert.equal(flow.sessions, 3)
+  assert.deepEqual(flow.paths, [
+    { steps: ['/configurator'], sessions: 2 },
+    { steps: ['/configurator', '/checkout'], sessions: 1 },
+  ])
+  assert.deepEqual(flow.exits, [{ page: '/configurator', sessions: 2 }, { page: '/checkout', sessions: 1 }])
+  assert.deepEqual((await get(`flow?channel=web${adRange}`)).paths, [
+    { steps: ['/', '/about'], sessions: 1 },
+    { steps: ['/', '/catalog'], sessions: 1 },
+  ])
+  // Unauthenticated flow is refused like the funnel.
+  assert.equal((await mf.dispatchFetch('http://localhost/api/admin/analytics/flow')).status, 401)
+  await db.prepare("UPDATE orders SET session_id = 'known-test', created_at = ? WHERE id = 54").bind(start + 130).run()
+  // The default funnel response is unchanged by the new filters.
+  assert.deepEqual(Object.keys(await request('?from=2026-09-10&to=2026-09-10&channel=web')), ['from', 'to', 'timezone', 'totals', 'daily'])
+
   console.log(`PASS: ${checks} route checks; local D1 matches, default/range boundaries, deduplication, platform attribution, chronology, KR3 exclusions, capability checks, real web/app tracker-to-checkout chains and idempotent retries.`)
   if (serve) {
     console.log('Local funnel fixture ready: http://localhost:8790 (ephemeral D1; qa-admin cookie signed with local-funnel-test-only)')
