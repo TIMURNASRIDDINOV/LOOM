@@ -56,12 +56,30 @@
       if (W.isVersionAtLeast && W.isVersionAtLeast('7.7')) W.disableVerticalSwipes()
     } catch (e) {}
 
+    if (routeStartParam(W)) return
     syncTheme(W)
     try { W.onEvent && W.onEvent('themeChanged', () => syncTheme(W)) } catch (e) {}
     // The configurator's phone shell drives Telegram's own buttons (LOOM-297).
     try { window.dispatchEvent(new Event('loom:tma-ready')) } catch (e) {}
 
     autoLogin(W)
+  }
+
+  // Ads link straight into the Mini App (LOOM-365):
+  //   t.me/looom_design_bot?startapp=<slug>[__<campaign>]
+  // On the launch page only (the #tgWebAppData hash is gone after the first
+  // navigation, so this cannot loop), open that garment in the configurator
+  // with UTM tags so GA4 / Metrika credit the ad. "home" or an unknown value
+  // stays on the launch page untagged. Returns true while leaving the page.
+  function routeStartParam(W) {
+    const sp = W.initDataUnsafe && W.initDataUnsafe.start_param
+    if (!sp || !/tgWebAppData/.test(location.hash) || !/^[A-Za-z0-9_-]{1,64}$/.test(sp)) return false
+    const parts = sp.split('__')
+    const slug = parts[0].toLowerCase()
+    if (!/^[a-z0-9-]+$/.test(slug) || slug === 'home') return false
+    const q = new URLSearchParams({ slug: slug, utm_source: 'telegram', utm_medium: 'miniapp', utm_campaign: parts[1] || slug })
+    location.replace('/configurator?' + q.toString())
+    return true
   }
 
   function syncTheme(W) {
