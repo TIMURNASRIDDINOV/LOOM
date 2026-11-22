@@ -634,7 +634,12 @@
       '<a class="atl-btn atl-btn-g" style="align-self:flex-start" href="login.html?next=' + next + '"></a></span>'
     box.querySelector('span span').textContent = T('og.text', 'Buyurtmangiz qabul qilindi. Holati haqida Telegramda xabar olish uchun raqamingizni tasdiqlang: botda START ni bosing.')
     box.querySelector('a').textContent = T('atl.co.verifyBtn', 'Telegram orqali tasdiqlash')
-    main.prepend(box)
+    // Outside #main: every render replaces main.innerHTML and would wipe it.
+    const wrap = document.createElement('div')
+    wrap.className = 'atl-wrap atl-shop'
+    wrap.style.paddingBottom = '0'
+    wrap.appendChild(box)
+    main.before(wrap)
   }
 
   /* ── boot ────────────────────────────────────────────────────── */
