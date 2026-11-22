@@ -63,5 +63,5 @@ export async function verifyPassword(password: string, stored: string): Promise<
  */
 export function hasUsablePassword(hash: string | null | undefined): boolean {
   if (!hash) return false
-  return hash !== 'telegram_auth' && hash !== 'deleted' && !hash.startsWith('oauth_')
+  return hash !== 'telegram_auth' && hash !== 'deleted' && hash !== 'guest' && !hash.startsWith('oauth_')
 }

@@ -220,7 +220,8 @@
   function paintVerified() {
     var ok = verified();
     show('co-phone-ok', ok);
-    show('co-verify', !ok && !(user && user.phone_verified));
+    // A guest (LOOM-363) orders first; the order page asks them to confirm.
+    show('co-verify', !ok && !(user && (user.phone_verified || user.is_guest)));
   }
 
   /* ── payment tiles ──────────────────────────────────────────── */

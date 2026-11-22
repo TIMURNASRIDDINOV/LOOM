@@ -5,6 +5,7 @@ import {
   updateUserProfile, updateUserPassword, updateUserAvatar,
   getUserOrderStats, anonymizeUser, hasOpenOrders, setDeleteRequested,
 } from '../db/queries'
+import { isGuest } from './guest-auth'
 import { hashPassword, verifyPassword, hasUsablePassword } from '../lib/password'
 import { signToken } from '../lib/jwt'
 import { requireAuth } from '../middleware/requireAuth'
@@ -85,6 +86,8 @@ auth.get('/me', requireAuth, async (c) => {
     total_spent: stats.total_spent,
     // True once the phone number has been verified through Telegram.
     phone_verified: await isPhoneVerified(c.env.DB, user),
+    // Guest checkout account (LOOM-363): ordered without confirming a number.
+    is_guest: isGuest(user),
     telegram_user_id: user.telegram_user_id,
     telegram_username: user.telegram_username,
     // Designer opt-in (migration 0017). The app refreshes from /me after every

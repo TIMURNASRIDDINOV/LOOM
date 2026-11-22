@@ -25,6 +25,7 @@ import { userTokenFrom } from '../middleware/requireAuth'
 import { hashPassword } from '../lib/password'
 import { validateWebAppInitData } from '../lib/telegram-webapp'
 import type { BaseEnv } from '../types'
+import { mergeGuestInto } from './guest-auth'
 
 const USER_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  // 30 days
 
@@ -205,6 +206,8 @@ router.get('/telegram/status', async (c) => {
   }
 
   if (session.status === 'verified' && session.jwt) {
+    // A guest who ordered first and confirmed now: their orders follow them (LOOM-363).
+    if (session.user_id) await mergeGuestInto(c, session.user_id)
     // Set httpOnly cookie and return verified status
     setCookie(c, 'user_token', session.jwt, {
       httpOnly: true,

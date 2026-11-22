@@ -11,6 +11,7 @@ interface OrderNotificationData {
   designJson: string
   productName: string | null
   size?: string
+  unverified?: boolean // guest order (LOOM-363): the number was not confirmed in Telegram
 }
 
 function formatPrice(sums: number): string {
@@ -72,6 +73,7 @@ export function buildOrderMessage(order: OrderNotificationData): string {
     '',
     `👤 Клиент: <b>${escapeHtml(order.customerName)}</b>`,
     `📞 Телефон: <code>${escapeHtml(order.customerPhone)}</code>`,
+    ...(order.unverified ? ['⚠️ Номер не подтверждён через Telegram — позвоните и подтвердите заказ.'] : []),
     `📍 Адрес: ${escapeHtml(order.address) || 'не указан'}`,
   ]
 

@@ -8183,9 +8183,11 @@ async function addToCart(opts) {
     }
     return false;
   }
-  // Account-bound cart → require login first
-  let user = null;
-  try {
+  // Account-bound cart. LOOM-363: no account = a guest account, no sign-in
+  // here; the number is confirmed after the order. The modal is the fallback
+  // for an API without the guest route.
+  let user = window.LOOM_AUTH && window.LOOM_AUTH.ensureSession ? await window.LOOM_AUTH.ensureSession() : null;
+  if (!user) try {
     user = window.LOOM_LOGIN_MODAL
       ? await window.LOOM_LOGIN_MODAL.requireAuth({
           intent: opts.openDrawer === false ? "buy" : "cart",

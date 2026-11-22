@@ -16,6 +16,7 @@ import { upsertPhoneOnlyUser, insertUserActivity } from '../db/queries'
 import { signToken } from '../lib/jwt'
 import { clientIp, isRateLimited, tooManyFailures, recordFailure, TOO_MANY } from '../lib/rateLimit'
 import type { BaseEnv } from '../types'
+import { mergeGuestInto } from './guest-auth'
 
 const GATEWAY = 'https://gatewayapi.telegram.org/'
 const CODE_TTL_SEC = 300
@@ -119,6 +120,7 @@ router.post('/code/check', async (c) => {
 
   await c.env.RATE_LIMIT.delete(`code-ticket:${ticket}`) // one sign-in per code
   const userId = await upsertPhoneOnlyUser(c.env.DB, phone)
+  await mergeGuestInto(c, userId) // LOOM-363: a guest's orders follow them
   const jwt = await signToken({ sub: String(userId), role: 'user' }, c.env.JWT_SECRET, '30d')
   setCookie(c, 'user_token', jwt, {
     httpOnly: true, secure: true, sameSite: 'Lax', maxAge: USER_COOKIE_MAX_AGE, path: '/',

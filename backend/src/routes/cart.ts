@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono'
 import { requireAuth } from '../middleware/requireAuth'
+import { isGuest } from './guest-auth'
 import {
   getCartItems,
   getCartItemById,
@@ -215,7 +216,9 @@ router.post('/checkout', async (c) => {
   const user = await getUserById(c.env.DB, userId)
   if (user?.status === 'banned') return c.json({ error: 'Your account has been blocked' }, 403)
   // Require a Telegram-verified phone number before an order can be placed.
-  if (!user || !(await isPhoneVerified(c.env.DB, user))) {
+  // Guests (LOOM-363) order first and confirm later; staff see the order flagged.
+  const guest = isGuest(user)
+  if (!user || (!guest && !(await isPhoneVerified(c.env.DB, user)))) {
     return c.json({ error: 'Подтвердите номер телефона через Telegram, чтобы оформить заказ.', code: 'phone_not_verified' }, 403)
   }
 
@@ -304,6 +307,7 @@ router.post('/checkout', async (c) => {
         totalPrice: written.order.total_price,
         designJson: `Корзина: ${items.length} позиц., ${totalQty} шт.`,
         productName: `Заказ из корзины (${items.length})`,
+        unverified: guest,
       }),
     )
   }

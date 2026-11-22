@@ -301,7 +301,18 @@
       }
       return;
     }
-    if (!token()) { toLogin(); return; }
+    // LOOM-363: no account = a guest account; sign-in only if the API has no guest route
+    var A = window.LOOM_AUTH;
+    if (!token() && !S.session) {
+      S.busy = true; update();
+      (A && A.ensureSession ? A.ensureSession() : Promise.resolve(null)).then(function (u) {
+        S.busy = false; update();
+        if (!u) { toLogin(); return; }
+        S.session = true;
+        addToCart();
+      });
+      return;
+    }
     var col = colorsOf(p)[S.color];
     var design = p.product_type === 'ready'
       ? { ready: true, size: S.size }
@@ -310,7 +321,7 @@
     update();
     fetch(api() + '/api/cart', {
       method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token() },
+      headers: token() ? { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token() } : { 'Content-Type': 'application/json' },
       body: JSON.stringify({ productId: p.id, designJson: JSON.stringify(design), unitPrice: p.price, quantity: 1 })
     })
       .then(function (r) {
