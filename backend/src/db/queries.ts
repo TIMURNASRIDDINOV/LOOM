@@ -1072,6 +1072,45 @@ export async function upsertPhoneUser(
   })
 }
 
+// Code sign-in (LOOM-362): Telegram Gateway proved the buyer owns this number,
+// but no Telegram user id comes with it, so the account is keyed by phone only.
+export async function upsertPhoneOnlyUser(db: D1Database, phone: string): Promise<number> {
+  return safeQuery('upsertPhoneOnlyUser', async () => {
+    const now = Date.now()
+    const existing = await db.prepare('SELECT id FROM users WHERE phone = ?').bind(phone).first<{ id: number }>()
+    let id: number
+    if (existing) {
+      await db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').bind(now, existing.id).run()
+      id = existing.id
+    } else {
+      const result = await db
+        .prepare(
+          `INSERT INTO users (email, password_hash, phone, role, status, created_at, last_login_at)
+           VALUES (?, 'telegram_auth', ?, 'user', 'active', ?, ?)`,
+        )
+        .bind(`p${phone.replace(/\D/g, '')}@phone.loom`, phone, now, now)
+        .run()
+      id = Number(result.meta.last_row_id)
+    }
+    // The proof that this number was verified, since telegram_user_id stays empty.
+    await db
+      .prepare(`INSERT OR IGNORE INTO user_identities (user_id, provider, provider_user_id, created_at) VALUES (?, 'tg_code', ?, ?)`)
+      .bind(id, phone, now)
+      .run()
+    return id
+  })
+}
+
+/** Phone verified: through the bot (telegram_user_id) or a Telegram Gateway code (LOOM-362). */
+export async function isPhoneVerified(db: D1Database, user: { id: number; telegram_user_id?: number | null }): Promise<boolean> {
+  if (user.telegram_user_id) return true
+  const row = await db
+    .prepare(`SELECT 1 AS ok FROM user_identities WHERE user_id = ? AND provider = 'tg_code'`)
+    .bind(user.id)
+    .first<{ ok: number }>()
+  return !!row
+}
+
 // Mini App onboarding upsert. Unlike upsertPhoneUser this REFUSES to take over
 // an account that already belongs to a different Telegram user.
 //

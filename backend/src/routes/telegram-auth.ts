@@ -315,7 +315,7 @@ webhookRouter.post('/webhook', async (c) => {
     const sessionId = parts[1]?.trim()
 
     if (!sessionId) {
-      await sendTelegramMessage(botToken, msg.chat.id, 'Откройте loomdesign.uz и введите номер телефона для входа.')
+      await sendTelegramMessage(botToken, msg.chat.id, 'Kirish uchun loomdesign.uz saytini oching va telefon raqamingizni kiriting.\nОткройте loomdesign.uz и введите номер телефона для входа.')
       return c.json({ ok: true })
     }
 
@@ -336,7 +336,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '❌ Ссылка устарела или уже использована. Вернитесь на loomdesign.uz и запросите новую.',
+        '❌ Havola eskirgan. Saytga qayting va qaytadan urinib ko‘ring.\n❌ Ссылка устарела. Вернитесь на сайт и попробуйте снова.',
       )
       return c.json({ ok: true })
     }
@@ -348,7 +348,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '❌ Ссылка устарела или уже использована. Вернитесь на loomdesign.uz и запросите новую.',
+        '❌ Havola eskirgan. Saytga qayting va qaytadan urinib ko‘ring.\n❌ Ссылка устарела. Вернитесь на сайт и попробуйте снова.',
       )
       return c.json({ ok: true })
     }
@@ -369,7 +369,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '❌ Пожалуйста, поделитесь своим собственным номером телефона.',
+        '❌ Iltimos, o‘zingizning raqamingizni ulashing.\n❌ Пожалуйста, поделитесь своим номером телефона.',
       )
       return c.json({ ok: true })
     }
@@ -387,7 +387,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '❌ Сессия не найдена или истекла. Вернитесь на loomdesign.uz и попробуйте снова.',
+        '❌ Vaqt tugagan. Saytga qayting va qaytadan urinib ko‘ring.\n❌ Время истекло. Вернитесь на сайт и попробуйте снова.',
       )
       return c.json({ ok: true })
     }
@@ -471,7 +471,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        `❌ Номер телефона не совпадает. Вы ввели ${session.phone}, а поделились ${sharedPhone}. Вернитесь на сайт и введите правильный номер.`,
+        `❌ Raqam mos kelmadi: saytda ${session.phone}, Telegramda ${sharedPhone}. Saytga qayting va Telegramdagi raqamingizni kiriting.\n❌ Номер не совпадает: на сайте ${session.phone}, в Telegram ${sharedPhone}. Вернитесь на сайт и введите номер вашего Telegram.`,
       )
       return c.json({ ok: true })
     }
@@ -521,7 +521,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '✅ Вы успешно вошли в систему! Можете закрыть этот чат и вернуться на loomdesign.uz.',
+        '✅ Tayyor! Instagram yoki brauzerga qayting — dizayningiz saqlangan, sahifa o‘zi davom etadi.\n✅ Готово! Вернитесь в Instagram или браузер — дизайн сохранён, страница продолжит сама.',
         undefined,
         true,  // remove keyboard
       )
@@ -531,7 +531,7 @@ webhookRouter.post('/webhook', async (c) => {
       await sendTelegramMessage(
         botToken,
         msg.chat.id,
-        '❌ Произошла ошибка. Попробуйте снова на loomdesign.uz.',
+        '❌ Xatolik yuz berdi. Saytda qaytadan urinib ko‘ring.\n❌ Произошла ошибка. Попробуйте снова на сайте.',
       )
     }
 
@@ -571,10 +571,11 @@ async function sendContactRequest(botToken: string, chatId: number): Promise<voi
   const payload = {
     chat_id: chatId,
     text:
-      '📱 Нажмите кнопку ниже, чтобы поделиться номером телефона и войти в loomdesign.uz.\n\n' +
-      '⚠️ Если вы не начинали вход сами — не делитесь номером и закройте этот чат.',
+      '📱 Pastdagi «Raqamni ulashish» tugmasini bosing — loomdesign.uz saytiga kirasiz.\n' +
+      '📱 Нажмите «Поделиться номером» ниже, чтобы войти на loomdesign.uz.\n\n' +
+      '⚠️ Kirishni o‘zingiz boshlamagan bo‘lsangiz, raqamni ulashmang. / Если вход начали не вы — не делитесь номером.',
     reply_markup: {
-      keyboard: [[{ text: '📱 Поделиться номером телефона', request_contact: true }]],
+      keyboard: [[{ text: '📱 Raqamni ulashish / Поделиться номером', request_contact: true }]],
       one_time_keyboard: true,
       resize_keyboard: true,
     },

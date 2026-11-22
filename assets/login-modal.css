@@ -292,3 +292,34 @@ body.loom-modal-open { overflow: hidden; }
   .loom-modal__btn:hover, .loom-modal__cancel-btn:hover,
   .loom-modal__btn:active { transform: none; }
 }
+
+/* ── LOOM-362: code step, numbered bot steps, quiet links ─────────────── */
+.loom-modal__code {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line, rgba(19,19,17,0.16));
+  border-radius: var(--radius, 2px);
+  background: transparent;
+  color: var(--ink, #131311);
+  font-family: var(--font-mono, monospace);
+  font-size: 1.5rem; /* ≥16px: no iOS zoom-on-focus */
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+.loom-modal__code:focus { outline: 2px solid var(--accent, #fc5044); outline-offset: 1px; }
+.loom-modal__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; margin-top: 0.5rem; }
+.loom-modal__link {
+  background: none;
+  border: none;
+  padding: 0.4rem 0;
+  min-height: 44px;
+  color: var(--ink-70, rgba(19,19,17,0.7));
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.loom-modal__link:disabled { color: var(--ink-38, rgba(19,19,17,0.38)); text-decoration: none; cursor: default; }
+.loom-modal__steps { margin: 0 0 0.75rem; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.92rem; line-height: 1.4; }
