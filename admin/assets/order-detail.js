@@ -651,7 +651,8 @@ async function drawReconstruction(canvas, vm, logoUrl) {
 
     if (!el.content) continue
     const size = (el.size || 160) * kH, font = el.font || 'Arial'
-    try { await document.fonts.load(`${size}px "${font}"`) } catch { /* fallback face */ }
+    // Pass the text: Latin and Cyrillic are separate font files on Google Fonts.
+    try { await document.fonts.load(`${size}px "${font}"`, el.content) } catch { /* fallback face */ }
     ctx.save()
     const weight = el.bold ? 'bold' : 'normal'
     const style = el.italic ? 'italic' : 'normal'

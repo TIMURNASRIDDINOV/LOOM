@@ -112,14 +112,44 @@ function colorAvailable(hex) {
   return !!def && def.available !== false;
 }
 
-// Font options (system + Google)
+// Font options (system + Google). `gf: true` = a Google Font (OFL) that
+// buildFontOptions() loads lazily; every one has Latin + Cyrillic glyphs.
+// Pacifico is already in configurator.html's <link>. admin/order.html loads the
+// same Google list so the order reconstruction draws the buyer's font.
 const FONT_OPTIONS = [
   { value: "Arial", label: "Arial" },
   { value: "Georgia", label: "Georgia" },
   { value: "Impact", label: "Impact" },
   { value: "Courier New", label: "Courier New" },
   { value: "Pacifico", label: "Pacifico (Script)" },
+  { value: "Unbounded", label: "Unbounded", gf: true },
+  { value: "Dela Gothic One", label: "Dela Gothic One", gf: true },
+  { value: "Russo One", label: "Russo One", gf: true },
+  { value: "Rubik Mono One", label: "Rubik Mono One", gf: true },
+  { value: "Oswald", label: "Oswald", gf: true },
+  { value: "Rubik Glitch", label: "Rubik Glitch", gf: true },
+  { value: "Rubik Spray Paint", label: "Rubik Spray Paint", gf: true },
+  { value: "Rubik Wet Paint", label: "Rubik Wet Paint", gf: true },
+  { value: "Rubik Dirt", label: "Rubik Dirt", gf: true },
+  { value: "Press Start 2P", label: "Press Start 2P", gf: true },
+  { value: "Lobster", label: "Lobster", gf: true },
+  { value: "Caveat", label: "Caveat", gf: true },
+  { value: "Marck Script", label: "Marck Script", gf: true },
+  { value: "Yeseva One", label: "Yeseva One", gf: true },
+  { value: "Comfortaa", label: "Comfortaa", gf: true },
 ];
+
+// Canvas text never triggers a web-font download by itself, so a design that
+// names a font the page has not loaded yet (a reopened bag item, a restored
+// draft) would bake in the fallback face. Load it once, then re-bake the view.
+const _fontLoads = new Set();
+function ensureFont(font, view) {
+  if (!font || _fontLoads.has(font) || !document.fonts) return;
+  _fontLoads.add(font);
+  // The sample text matters: Google serves Latin and Cyrillic as separate
+  // files, and load() fetches only the files whose range covers this text.
+  document.fonts.load(`24px "${font}"`, "AaЯя").then(() => drawTexture(view), () => {});
+}
 
 // API base — resolved via config.js if available
 function getApiBase() {
@@ -1413,6 +1443,7 @@ function drawTexture(view) {
 
   // 2. Elements, bottom-of-list first
   elementsOf(view).forEach((el) => {
+    if (el.type === "text") ensureFont(el.font, view);
     const box = drawElement(ctx, el, view, true);
     if (box) _boxes[view][el.id] = box;
   });
@@ -5532,7 +5563,7 @@ function atlStripHtml() {
         // "Tahrirlash" opens the text bar (LOOM-313).
         `<button type="button" class="atl-chip" data-act="edit">${_ATL_SVG("M5 7V5h14v2M12 5v14M9 19h6", 17)}${span("cfg.edit", "Изменить")}</button>` +
         `<span class="atl-sel"><select id="atl-font" class="atl-chip" ${lab("cfg.font", "Шрифт")}>` +
-          FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}">${_esc(label)}</option>`).join("") +
+          FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}" style="font-family:'${_esc(value)}'">${_esc(label)}</option>`).join("") +
         `</select>${_ATL_SVG("M6 9l6 6 6-6", 15)}</span>` +
         `<input type="color" id="atl-tcolor" class="atl-dot" value="#000000" ${lab("cfg.textColor", "Цвет текста")} />` +
       "</div>" +
@@ -5825,7 +5856,7 @@ function atlKbHtml() {
     '<p class="atl-kb-err" id="atl-kb-err" role="alert" hidden></p>' +
     '<div class="atl-kb-r">' +
       `<span class="atl-sel"><select id="atl-kfont" class="atl-chip" ${lab("cfg.font", "Шрифт")}>` +
-        FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}">${_esc(label)}</option>`).join("") +
+        FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}" style="font-family:'${_esc(value)}'">${_esc(label)}</option>`).join("") +
       `</select>${_ATL_SVG("M6 9l6 6 6-6", 15)}</span>` +
       `<button type="button" class="atl-chip atl-ico atl-kb-b" data-act="bold" aria-pressed="false" ${lab("cfg.bold", "Жирный")}>B</button>` +
       `<button type="button" class="atl-chip atl-ico atl-kb-i" data-act="italic" aria-pressed="false" ${lab("cfg.italic", "Курсив")}>I</button>` +
@@ -8455,6 +8486,19 @@ function bindCenterButtons() {
 function buildFontOptions() {
   const sel = document.getElementById("font-family-select");
   if (!sel) return;
+  // Injected (not in the HTML head) so the font CSS never blocks first paint;
+  // the browser downloads a font file only when text actually uses that face.
+  const families = FONT_OPTIONS.filter((f) => f.gf)
+    .map((f) => "family=" + f.value.replace(/ /g, "+")).join("&");
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?" + families + "&display=swap";
+  // A font load asked for before this CSS arrived found no face: retry them all.
+  link.onload = () => {
+    _fontLoads.clear();
+    try { drawTexture("front"); drawTexture("back"); } catch (e) { /* not ready */ }
+  };
+  document.head.appendChild(link);
   FONT_OPTIONS.forEach(({ value, label }) => {
     const opt = document.createElement("option");
     opt.value = value;
@@ -8638,7 +8682,7 @@ function bindTextControls() {
     if (!t) return;
     t.font = fontSel.value;
     // Pre-load the font in the browser before redrawing
-    document.fonts.load(`24px "${fontSel.value}"`).then(() => redrawActive());
+    document.fonts.load(`24px "${fontSel.value}"`, "AaЯя").then(() => redrawActive());
   });
 
   if (colorPkr) colorPkr.addEventListener("input", () => {
