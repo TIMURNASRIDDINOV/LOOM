@@ -12,6 +12,12 @@
  * Usage:
  *   window.LOOM_LOGIN_MODAL.open()          // resolves with the user
  *   window.LOOM_LOGIN_MODAL.requireAuth()   // resolves at once if signed in
+ *   requireAuth({ intent, onLeave })        // onLeave runs before the bot opens
+ *   pending() / resume()                    // the bot trip survives a reload
+ *
+ * Instagram's browser often closes or reloads the page while the buyer is in
+ * Telegram. The bot session (and the caller's intent) is kept in localStorage,
+ * so the reopened page can call resume() and carry on.
  */
 
 ;(function () {
@@ -104,6 +110,19 @@
   let phone = ''          // 9 digits after +998
   let ticket = null       // code flow
   let botSession = null   // bot fallback
+  let opts = {}           // { intent, onLeave } from the caller
+  const PENDING_KEY = 'loom_login_pending'
+  function savePending(v) {
+    try { v ? localStorage.setItem(PENDING_KEY, JSON.stringify(v)) : localStorage.removeItem(PENDING_KEY) } catch { /* private mode */ }
+  }
+  function pending() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null')
+      if (p && p.sid && p.exp > Date.now()) return p
+    } catch { /* corrupt: treated as none */ }
+    savePending(null)
+    return null
+  }
   let pollTimer = null
   let resendTimer = null
 
@@ -142,14 +161,18 @@
     backdrop = null
     ticket = null
     botSession = null
-    if (reason instanceof Error && rejectLogin) rejectLogin(reason)
+    if (reason instanceof Error) {
+      savePending(null)
+      if (rejectLogin) rejectLogin(reason)
+    }
     resolveLogin = null
     rejectLogin = null
   }
   function onKey(e) { if (e.key === 'Escape') close(new Error('cancelled')) }
 
-  function open() {
+  function open(o) {
     if (backdrop) return new Promise((res, rej) => { resolveLogin = res; rejectLogin = rej })
+    opts = o || {}
 
     backdrop = buildModal()
     document.body.classList.add('loom-modal-open')
@@ -172,7 +195,7 @@
     $('lm-step-code').addEventListener('submit', (e) => { e.preventDefault(); checkCode() })
     $('lm-resend').addEventListener('click', () => sendCode())
     backdrop.querySelectorAll('[data-lm-back]').forEach((el) => el.addEventListener('click', () => {
-      stopTimers(); ticket = null; botSession = null; show('phone')
+      stopTimers(); ticket = null; botSession = null; savePending(null); show('phone')
     }))
 
     show('phone')
@@ -281,9 +304,15 @@
       show('phone')
       return
     }
-    botSession = data.session_id
+    try { if (opts.onLeave) opts.onLeave() } catch { /* saving the design is best effort */ }
+    savePending({ sid: data.session_id, link: data.telegram_deep_link, exp: data.expires_at, intent: opts.intent || null })
+    showBot(data.session_id, data.telegram_deep_link)
+  }
+
+  function showBot(sid, link) {
+    botSession = sid
     // A real link the buyer taps: phone browsers block window.open after an await.
-    $('lm-bot-link').href = data.telegram_deep_link
+    $('lm-bot-link').href = link
     setErr('lm-bot-err')
     show('bot')
     if (pollTimer) clearInterval(pollTimer)
@@ -300,10 +329,10 @@
       if (data.status === 'verified') return finish()
       if (data.status === 'failed') {
         setErr('lm-bot-err', t('lm.errMismatch', 'Telegramdagi raqam boshqa. Telegramingizdagi raqamni kiriting.'))
-        stopTimers(); botSession = null
+        stopTimers(); botSession = null; savePending(null)
       } else if (data.status === 'expired') {
         setErr('lm-bot-err', t('lm.errExpiredBot', 'Vaqt tugadi. Raqamni qayta kiriting.'))
-        stopTimers(); botSession = null
+        stopTimers(); botSession = null; savePending(null)
       }
     } catch { /* transient: next poll */ }
   }
@@ -312,6 +341,7 @@
 
   async function finish() {
     stopTimers()
+    savePending(null)
     ticket = null
     botSession = null
     track('login_done')
@@ -328,13 +358,23 @@
     } catch { return null }
   }
 
-  async function requireAuth() {
+  // The page came back after the bot trip: reopen the bot step and keep polling.
+  function resume() {
+    const p = pending()
+    if (!p) return Promise.reject(new Error('nothing pending'))
+    const promise = open({ intent: p.intent })
+    showBot(p.sid, p.link)
+    pollBot()
+    return promise
+  }
+
+  async function requireAuth(o) {
     if (window.LOOM_AUTH) {
       try { const u = await window.LOOM_AUTH.getCurrentUser(); if (u) return u } catch { /* signed out */ }
     }
     const u = await getCurrentUser()
-    return u || open()
+    return u || open(o)
   }
 
-  window.LOOM_LOGIN_MODAL = { open, close, requireAuth }
+  window.LOOM_LOGIN_MODAL = { open, close, requireAuth, pending, resume }
 })()

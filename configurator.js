@@ -366,10 +366,23 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   if (editItem) applyCartEditDesign(editItem);
+  // Back from the Telegram sign-in after the page was closed or reloaded.
+  else if (window.LOOM_LOGIN_MODAL && window.LOOM_LOGIN_MODAL.pending()) resumeLogin();
   // A design chosen in the marketplace lands last, so it sits on top of a
   // restored cart design rather than being overwritten by it.
   else applyPendingArtwork();
 });
+
+// LOOM-362: Instagram's browser often drops the page while the buyer is in
+// Telegram. The modal kept the bot session; the design was saved before the
+// trip. Restore it, finish the sign-in, then do what the buyer tapped.
+async function resumeLogin() {
+  const intent = window.LOOM_LOGIN_MODAL.pending().intent;
+  await loadLayout(true);
+  try { await window.LOOM_LOGIN_MODAL.resume(); } catch (e) { return; } // closed by the buyer
+  if (intent === "buy") { if (await addToCart({ openDrawer: false })) location.href = "checkout.html"; }
+  else addToCart();
+}
 
 // ── Edit-from-cart (configurator.html?item=ID) ──────────────────
 // Fetches the caller's cart item, points ?slug at its product, and later
@@ -3794,7 +3807,7 @@ function bindLayerControls() {
 // reported rather than failing silently.
 const LAYOUT_KEY = "loom.configurator.layout";
 
-function saveLayout() {
+function saveLayout(silent) { // silent === true: before the Telegram trip (LOOM-362)
   try {
     const payload = {
       design: JSON.parse(_buildDesignJson()),
@@ -3806,8 +3819,9 @@ function saveLayout() {
       if (f && f.base64) payload.files[el.id] = f;
     }));
     localStorage.setItem(LAYOUT_KEY, JSON.stringify(payload));
-    showToast(CT("cfg.layoutSaved", "Макет сохранён"));
+    if (silent !== true) showToast(CT("cfg.layoutSaved", "Макет сохранён"));
   } catch (e) {
+    if (silent === true) return;
     const quota = e && (e.name === "QuotaExceededError" || e.code === 22);
     showToast(quota
       ? CT("cfg.layoutTooBig", "Макет слишком большой для сохранения")
@@ -3815,7 +3829,7 @@ function saveLayout() {
   }
 }
 
-async function loadLayout() {
+async function loadLayout(silent) {
   if (_blankOnly) return;
   let payload = null;
   try { payload = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null"); }
@@ -3863,7 +3877,7 @@ async function loadLayout() {
   drawTexture("back");
   applyActiveTexture();
   redrawActive();
-  showToast(CT("cfg.layoutLoaded", "Макет загружен"));
+  if (silent !== true) showToast(CT("cfg.layoutLoaded", "Макет загружен"));
 }
 
 /**
@@ -8173,7 +8187,10 @@ async function addToCart(opts) {
   let user = null;
   try {
     user = window.LOOM_LOGIN_MODAL
-      ? await window.LOOM_LOGIN_MODAL.requireAuth()
+      ? await window.LOOM_LOGIN_MODAL.requireAuth({
+          intent: opts.openDrawer === false ? "buy" : "cart",
+          onLeave: () => saveLayout(true), // the page may be gone when the buyer is back from Telegram
+        })
       : (window.LOOM_AUTH ? await window.LOOM_AUTH.getCurrentUser() : null);
   } catch { return; } // login modal cancelled
   if (!user) { showToast(CT("cfg.toastLoginCart", "Войдите, чтобы добавить в корзину"), "error"); return; }
