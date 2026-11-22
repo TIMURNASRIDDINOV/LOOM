@@ -511,6 +511,7 @@
     'atl.onb.t3': { uz: "Oldindan to‘laysiz", ru: "Оплата заранее", en: "You pay upfront" },
     'atl.onb.l3': { uz: "Buyurtmani LOOM kartasiga o‘tkazma bilan to‘laysiz. Toshkentda 2–4 ish kunida yetkazamiz, yetkazish 30 000 so‘m.", ru: "Заказ оплачивается переводом на карту LOOM. По Ташкенту доставим за 2–4 рабочих дня, доставка — 30 000 сум.", en: "You pay by transfer to the LOOM card. We deliver in Tashkent in 2–4 working days; delivery is 30 000 UZS." },
     // Login: phone + Telegram only
+    'og.text': { uz: "Buyurtmangiz qabul qilindi. Holati haqida Telegramda xabar olish uchun raqamingizni tasdiqlang: botda START ni bosing.", ru: "Заказ принят. Чтобы получать статус в Telegram, подтвердите номер: нажмите START в боте.", en: "Your order is in. To get status updates in Telegram, confirm your number: tap START in the bot." },
     // LOOM-362: configurator sign-in modal (code via Telegram Gateway, bot fallback)
     'lm.title': { uz: "Raqamingizni kiriting", ru: "Введите номер телефона", en: "Enter your phone number" },
     'lm.why': { uz: "Dizayningiz saqlanadi. Buyurtma holatini Telegram orqali yuboramiz. Parol kerak emas.", ru: "Дизайн сохранится. Статус заказа пришлём в Telegram. Пароль не нужен.", en: "Your design is kept. We send order updates in Telegram. No password." },

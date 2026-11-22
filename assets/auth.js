@@ -46,6 +46,23 @@
     return null
   }
 
+  // Guest checkout (LOOM-363): a buyer with no account gets a new, empty guest
+  // account, so they can add to cart and order before confirming a number.
+  // null = the API has no guest route yet (Worker not deployed): callers fall
+  // back to the sign-in flow.
+  async function ensureSession() {
+    const user = await getCurrentUser()
+    if (user) return user
+    try {
+      const res = await fetch((window.LOOM_CONFIG?.API_BASE ?? 'https://api.loomdesign.uz') + '/api/auth/guest', {
+        method: 'POST', credentials: 'include',
+      })
+      if (!res.ok) return null
+    } catch { return null }
+    sessionStorage.removeItem(USER_KEY)
+    return getCurrentUser(true)
+  }
+
   async function logout() {
     const token = getToken()
     clearToken()
@@ -176,5 +193,5 @@
   // Re-render the auth nav when the language changes
   window.addEventListener('loom:langchange', () => { renderAuthNav() })
 
-  window.LOOM_AUTH = { getToken, setToken, clearToken, getCurrentUser, logout, renderAuthNav }
+  window.LOOM_AUTH = { getToken, setToken, clearToken, getCurrentUser, ensureSession, logout, renderAuthNav }
 })()

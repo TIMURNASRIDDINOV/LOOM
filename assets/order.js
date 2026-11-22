@@ -621,11 +621,28 @@
     if (!document.hidden && S.view === 'pay') paintTimer()
   })
 
+  /* ── guest checkout (LOOM-363): confirm the number after ordering ── */
+  function guestBanner() {
+    const main = document.getElementById('main')
+    if (!main) return
+    const T = (k, f) => { try { const s = window.LOOM_I18N.t(k); return s && s !== k ? s : f } catch (e) { return f } }
+    const box = document.createElement('div')
+    box.className = 'atl-banner atl-banner-info'
+    box.setAttribute('role', 'status')
+    const next = encodeURIComponent('order.html' + location.search)
+    box.innerHTML = '<span class="atl-banner-tx"><span></span>' +
+      '<a class="atl-btn atl-btn-g" style="align-self:flex-start" href="login.html?next=' + next + '"></a></span>'
+    box.querySelector('span span').textContent = T('og.text', 'Buyurtmangiz qabul qilindi. Holati haqida Telegramda xabar olish uchun raqamingizni tasdiqlang: botda START ni bosing.')
+    box.querySelector('a').textContent = T('atl.co.verifyBtn', 'Telegram orqali tasdiqlash')
+    main.prepend(box)
+  }
+
   /* ── boot ────────────────────────────────────────────────────── */
   async function boot() {
     const A = window.LOOM_AUTH
     const user = A ? await A.getCurrentUser().catch(() => null) : null
     if (!user) return toLogin()
+    if (user.is_guest) guestBanner()
     if (orderId) loadOrder()
     else loadList()
   }
