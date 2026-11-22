@@ -112,31 +112,31 @@ function colorAvailable(hex) {
   return !!def && def.available !== false;
 }
 
-// Font options (system + Google). `gf: true` = a Google Font (OFL) that
-// buildFontOptions() loads lazily; every one has Latin + Cyrillic glyphs.
-// Pacifico is already in configurator.html's <link>. admin/order.html loads the
-// same Google list so the order reconstruction draws the buyer's font.
+// Font options, grouped for the font sheet (LOOM-369). `gf: true` = a Google
+// Font (OFL) that buildFontOptions() loads lazily; every one has Latin +
+// Cyrillic glyphs. Pacifico is already in configurator.html's <link>.
+// admin/order.html loads the same Google list so the order reconstruction
+// draws the buyer's font. A saved design stores `value`, so never rename one.
+const FONT_CATS = [
+  ["classic", "cfg.fontCatClassic", "Простые"],
+  ["bold", "cfg.fontCatBold", "Жирные"],
+  ["effect", "cfg.fontCatEffect", "С эффектом"],
+  ["script", "cfg.fontCatScript", "Рукописные"],
+  ["pixel", "cfg.fontCatPixel", "Пиксельные"],
+];
+const _sys = (cat, ...names) => names.map((value) => ({ value, label: value, cat }));
+const _gf = (cat, ...names) => names.map((value) => ({ value, label: value, cat, gf: true }));
 const FONT_OPTIONS = [
-  { value: "Arial", label: "Arial" },
-  { value: "Georgia", label: "Georgia" },
-  { value: "Impact", label: "Impact" },
-  { value: "Courier New", label: "Courier New" },
-  { value: "Pacifico", label: "Pacifico (Script)" },
-  { value: "Unbounded", label: "Unbounded", gf: true },
-  { value: "Dela Gothic One", label: "Dela Gothic One", gf: true },
-  { value: "Russo One", label: "Russo One", gf: true },
-  { value: "Rubik Mono One", label: "Rubik Mono One", gf: true },
-  { value: "Oswald", label: "Oswald", gf: true },
-  { value: "Rubik Glitch", label: "Rubik Glitch", gf: true },
-  { value: "Rubik Spray Paint", label: "Rubik Spray Paint", gf: true },
-  { value: "Rubik Wet Paint", label: "Rubik Wet Paint", gf: true },
-  { value: "Rubik Dirt", label: "Rubik Dirt", gf: true },
-  { value: "Press Start 2P", label: "Press Start 2P", gf: true },
-  { value: "Lobster", label: "Lobster", gf: true },
-  { value: "Caveat", label: "Caveat", gf: true },
-  { value: "Marck Script", label: "Marck Script", gf: true },
-  { value: "Yeseva One", label: "Yeseva One", gf: true },
-  { value: "Comfortaa", label: "Comfortaa", gf: true },
+  ..._sys("classic", "Arial", "Georgia", "Courier New"),
+  ..._gf("classic", "Oswald", "Yeseva One", "Comfortaa", "Tektur"),
+  ..._sys("bold", "Impact"),
+  ..._gf("bold", "Unbounded", "Dela Gothic One", "Russo One", "Rubik Mono One", "Climate Crisis", "Oi"),
+  ..._gf("effect", "Rubik Glitch", "Rubik Spray Paint", "Rubik Wet Paint", "Rubik Dirt", "Rubik Puddles",
+    "Rubik Beastly", "Rubik Microbe", "Rubik Moonrocks", "Rubik Burned", "Rubik Iso", "Rubik Vinyl",
+    "Rubik 80s Fade", "Rubik Bubbles", "Rubik Doodle Shadow", "Kablammo"),
+  ..._sys("script", "Pacifico"),
+  ..._gf("script", "Lobster", "Caveat", "Marck Script", "Amatic SC", "Shantell Sans"),
+  ..._gf("pixel", "Press Start 2P", "Pixelify Sans"),
 ];
 
 // Canvas text never triggers a web-font download by itself, so a design that
@@ -5118,6 +5118,7 @@ function bindAtelye() {
   bindAtelyeMsg(); // LOOM-312
   bindAtelyeRail();
   bindAtelyeSheet();
+  bindFontButtons();
   bindAtelyeKb(); // LOOM-313
   if (!_p3Base) _p3SnapshotBase(); // LOOM-311: p3PickGarment's base (bindPhoneFlow skips it in this mode)
   atlBuildColors();
@@ -5562,9 +5563,7 @@ function atlStripHtml() {
       '<div class="atl-grp" data-strip="text">' +
         // "Tahrirlash" opens the text bar (LOOM-313).
         `<button type="button" class="atl-chip" data-act="edit">${_ATL_SVG("M5 7V5h14v2M12 5v14M9 19h6", 17)}${span("cfg.edit", "Изменить")}</button>` +
-        `<span class="atl-sel"><select id="atl-font" class="atl-chip" ${lab("cfg.font", "Шрифт")}>` +
-          FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}" style="font-family:'${_esc(value)}'">${_esc(label)}</option>`).join("") +
-        `</select>${_ATL_SVG("M6 9l6 6 6-6", 15)}</span>` +
+        `<button type="button" id="atl-font" class="atl-chip atl-fbtn" aria-haspopup="dialog" aria-expanded="false"><span>Arial</span>${_ATL_SVG("M6 9l6 6 6-6", 15)}</button>` +
         `<input type="color" id="atl-tcolor" class="atl-dot" value="#000000" ${lab("cfg.textColor", "Цвет текста")} />` +
       "</div>" +
       `<div class="atl-grp" data-strip="cam" role="group" ${lab("cfg.preview", "Предпросмотр")}>` +
@@ -5606,7 +5605,6 @@ function bindAtelyeStrip() {
     o.value = e.target.value;
     o.dispatchEvent(new Event(type));
   });
-  feed("atl-font", "font-family-select", "change");
   feed("atl-tcolor", "text-color-picker", "input");
   // A tap on the garment drops a refused cart / buy tap.
   ["flat-editor", "three-container"].forEach((id) => {
@@ -5673,7 +5671,7 @@ function atlSyncStrip() {
     });
   } else if (mode === "text") {
     const el = selectedElement();
-    document.getElementById("atl-font").value = el.font;
+    fontBtnsSync(el.font);
     document.getElementById("atl-tcolor").value = el.color;
   } else if (mode === "cam") {
     strip.querySelectorAll("[data-cam]").forEach((b) => {
@@ -5855,9 +5853,7 @@ function atlKbHtml() {
     "</div>" +
     '<p class="atl-kb-err" id="atl-kb-err" role="alert" hidden></p>' +
     '<div class="atl-kb-r">' +
-      `<span class="atl-sel"><select id="atl-kfont" class="atl-chip" ${lab("cfg.font", "Шрифт")}>` +
-        FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}" style="font-family:'${_esc(value)}'">${_esc(label)}</option>`).join("") +
-      `</select>${_ATL_SVG("M6 9l6 6 6-6", 15)}</span>` +
+      `<button type="button" id="atl-kfont" class="atl-chip atl-fbtn" aria-haspopup="dialog" aria-expanded="false"><span>Arial</span>${_ATL_SVG("M6 9l6 6 6-6", 15)}</button>` +
       `<button type="button" class="atl-chip atl-ico atl-kb-b" data-act="bold" aria-pressed="false" ${lab("cfg.bold", "Жирный")}>B</button>` +
       `<button type="button" class="atl-chip atl-ico atl-kb-i" data-act="italic" aria-pressed="false" ${lab("cfg.italic", "Курсив")}>I</button>` +
       `<input type="color" id="atl-kcolor" class="atl-dot" value="#000000" ${lab("cfg.textColor", "Цвет текста")} />` +
@@ -5906,7 +5902,7 @@ function atlKbSync(el) {
   const tin = document.getElementById("atl-tin");
   const v = el.placeholder ? "" : el.content;
   if (tin.value !== v) tin.value = v;
-  document.getElementById("atl-kfont").value = el.font;
+  fontBtnsSync(el.font);
   document.getElementById("atl-kcolor").value = el.color;
   document.querySelector("#atl-kb .atl-kb-b").setAttribute("aria-pressed", String(!!el.bold));
   document.querySelector("#atl-kb .atl-kb-i").setAttribute("aria-pressed", String(!!el.italic));
@@ -5981,7 +5977,6 @@ function bindAtelyeKb() {
     o.value = e.target.value;
     o.dispatchEvent(new Event(type));
   });
-  feed("atl-kfont", "font-family-select", "change");
   feed("atl-kcolor", "text-color-picker", "input");
   // A tap on the garment closes the bar and is used up: the layer stays
   // selected. Window capture runs before the editor's own handlers.
@@ -6045,7 +6040,6 @@ function atdBuild() {
   const tip = (k, fb) => `data-i18n-attr="aria-label:${k};title:${k}" aria-label="${_esc(CT(k, fb))}" title="${_esc(CT(k, fb))}"`;
   const row = (id, k, fb, right, body) =>
     `<section class="atd-row" data-row="${id}"><div class="atd-row-h"><h2 data-i18n="${k}">${CT(k, fb)}</h2>${right}</div>${body}</section>`;
-  const fonts = FONT_OPTIONS.map(({ value, label }) => `<option value="${_esc(value)}">${_esc(label)}</option>`).join("");
   studio.insertAdjacentHTML("beforeend",
     `<aside class="atd-panel" id="atd-panel" ${lab("cfg.settingsPanel", "Панель настройки")}>` +
       `<h1 class="atd-vh" data-i18n="cfg.panelProduct">${CT("cfg.panelProduct", "Создайте свой дизайн")}</h1>` +
@@ -6095,7 +6089,7 @@ function atdBuild() {
       '<div class="atd-g" data-g="text">' +
         '<input type="text" id="atd-tin" name="print-text" class="atd-tin" autocomplete="off" spellcheck="false"' +
           ` data-i18n-attr="aria-label:cfg.layerText;placeholder:cfg.textPlaceholder" aria-label="${_esc(CT("cfg.layerText", "Текст"))}" placeholder="${_esc(CT("cfg.textPlaceholder", "Введите текст…"))}" />` +
-        `<span class="atl-sel"><select id="atd-font" class="atd-tb" ${lab("cfg.font", "Шрифт")}>${fonts}</select>${_ATL_SVG("M6 9l6 6 6-6", 15)}</span>` +
+        `<button type="button" id="atd-font" class="atd-tb atl-fbtn" aria-haspopup="dialog" aria-expanded="false"><span>Arial</span>${_ATL_SVG("M6 9l6 6 6-6", 15)}</button>` +
         '<i class="atd-sep"></i>' +
         `<button type="button" class="atd-tb atd-sq atd-b" data-act="bold" aria-pressed="false" ${lab("cfg.bold", "Жирный")}>B</button>` +
         `<button type="button" class="atd-tb atd-sq atd-i" data-act="italic" aria-pressed="false" ${lab("cfg.italic", "Курсив")}>I</button>` +
@@ -6161,7 +6155,6 @@ function atdBuild() {
     o.dispatchEvent(new Event(type));
   });
   feed("atd-tin", "text-content-input", "input");
-  feed("atd-font", "font-family-select", "change");
   feed("atd-tcolor", "text-color-picker", "input");
   tin.addEventListener("input", () => { if (tin.value.trim()) atdTextErr(false); });
   // Enter or Esc end the typing; the layer stays selected.
@@ -6343,7 +6336,7 @@ function atdBarPlace(el, b, c, cr, safe) {
     const tin = document.getElementById("atd-tin");
     const v = el.placeholder ? "" : el.content;
     if (document.activeElement !== tin && tin.value !== v) tin.value = v;
-    document.getElementById("atd-font").value = el.font;
+    fontBtnsSync(el.font);
     document.getElementById("atd-tcolor").value = el.color;
     bar.querySelector(".atd-b").setAttribute("aria-pressed", String(!!el.bold));
     bar.querySelector(".atd-i").setAttribute("aria-pressed", String(!!el.italic));
@@ -6871,6 +6864,7 @@ const ATL_SH_TITLE = {
   layers: ["cfg.layers", "Слои"],
   size: ["cfg.sizeTable", "Таблица размеров"],
   add: ["cfg.addWhat", "Что добавим?"],
+  font: ["cfg.font", "Шрифт"],
 };
 // Ko'proq: the six tools, icons from the step 3 list (P3_MORE).
 const ATL_SH_MORE = [
@@ -6909,7 +6903,8 @@ function atlSheetOpen(view, trigger) {
     _atlSh = { trigger: trigger || null };
   }
   _atlSh.view = view;
-  sh.dataset.lvl = view === "size" ? "half" : "peek";
+  // The font sheet stays half high: the garment above shows each tap live.
+  sh.dataset.lvl = view === "size" || view === "font" ? "half" : "peek";
   atlSheetRender();
   if (!was) {
     sh.hidden = false;
@@ -7014,6 +7009,8 @@ function atlSheetRender() {
     // Today's size guide, as it reads in the page language now.
     const src = document.getElementById("sizeGuideBody");
     body.innerHTML = src ? src.innerHTML : "";
+  } else if (view === "font") {
+    atlFontSheet(body);
   } else if (view === "add") {
     const row = (act, k, fb, sk, sfb, ic) =>
       `<button type="button" class="atl-lrow big" data-add="${act}">${_atlShIc(_ATL_IC[ic])}` +
@@ -7022,6 +7019,66 @@ function atlSheetRender() {
       row("text", "cfg.addTextOpt", "Написать текст", "cfg.addTextSub", "Имя, надпись или пожелание", "text");
   }
   if (refocus && !sh.contains(document.activeElement)) (body.querySelector("button") || document.getElementById("atl-grab")).focus({ preventScroll: true });
+}
+
+// ----------------------------------------------------------------
+// Font sheet (LOOM-369): every font as a tile that shows the buyer's own
+// text in that face, grouped by style. Replaces the native <select>, which on
+// a phone listed every name in the system font.
+// ----------------------------------------------------------------
+
+/** The font buttons (strip, text bar, desktop toolbar) show the font in its own face. */
+function fontBtnsSync(font) {
+  const label = CT("cfg.font", "Шрифт") + ": " + font;
+  document.querySelectorAll(".atl-fbtn").forEach((b) => {
+    b.firstElementChild.textContent = font;
+    b.firstElementChild.style.fontFamily = `"${font}"`;
+    b.setAttribute("aria-label", label);
+  });
+}
+
+// A tile gets its face only when it scrolls into view, so opening the sheet
+// downloads the fonts on screen, not every one.
+let _fontTileIO = null;
+
+function atlFontSheet(body) {
+  const el = selectedElement();
+  const cur = el && el.type === "text" ? el.font : "";
+  const raw = el && el.type === "text" && !el.placeholder ? el.content.trim() : "";
+  const sample = raw ? (raw.length > 14 ? raw.slice(0, 13) + "…" : raw) : "LOOM Лум";
+  body.innerHTML = FONT_CATS.map(([cat, k, fb]) =>
+    `<h3 class="atl-fcat">${_atlShSpan(k, fb)}</h3><div class="atl-ft">` +
+    FONT_OPTIONS.filter((f) => f.cat === cat).map((f) =>
+      `<button type="button" class="atl-ftile" data-font="${_esc(f.value)}" aria-pressed="${f.value === cur}">` +
+        `<b data-ff="${_esc(f.value)}">${_esc(sample)}</b><i>${_esc(f.label)}</i></button>`).join("") +
+    "</div>").join("");
+  if (_fontTileIO) _fontTileIO.disconnect();
+  const face = (b) => { b.style.fontFamily = `"${b.dataset.ff}"`; };
+  if (!("IntersectionObserver" in window)) { body.querySelectorAll("[data-ff]").forEach(face); return; }
+  _fontTileIO = new IntersectionObserver((es) => es.forEach((e) => {
+    if (!e.isIntersecting) return;
+    face(e.target);
+    _fontTileIO.unobserve(e.target);
+  }), { rootMargin: "120px 0px" });
+  body.querySelectorAll("[data-ff]").forEach((b) => _fontTileIO.observe(b));
+}
+
+function atlPickFont(font) {
+  const sel = document.getElementById("font-family-select");
+  if (!sel) return;
+  sel.value = font;
+  sel.dispatchEvent(new Event("change")); // today's handler sets the font and redraws
+  fontBtnsSync(font);
+  document.querySelectorAll("#atl-sh .atl-ftile").forEach((t) => t.setAttribute("aria-pressed", String(t.dataset.font === font)));
+}
+
+function bindFontButtons() {
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest(".atl-fbtn");
+    if (!b) return;
+    if (_atlKb) atlTextClose(false); // the text bar sits where the sheet slides in
+    atlSheetOpen("font", b);
+  });
 }
 
 /** The height the grabber steps to, or the nearest after a drag. */
@@ -7046,6 +7103,7 @@ function bindAtelyeSheet() {
       return;
     }
     if (b.dataset.hex) return selectShirtColor(b.dataset.hex, null);
+    if (b.dataset.font) return atlPickFont(b.dataset.font); // stays open to try the next one
     if (b.dataset.size) return atlPickSize(b.dataset.size);
     if (b.dataset.item) {
       if (b.dataset.item === "layers") return atlSheetOpen("layers");
