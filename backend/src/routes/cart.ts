@@ -11,6 +11,7 @@ import {
   getUserById,
   getArtworkById,
   firstForeignKey,
+  isPhoneVerified,
 } from '../db/queries'
 import { serveObject } from '../lib/r2'
 import { checkVariant } from '../lib/variant'
@@ -214,7 +215,7 @@ router.post('/checkout', async (c) => {
   const user = await getUserById(c.env.DB, userId)
   if (user?.status === 'banned') return c.json({ error: 'Your account has been blocked' }, 403)
   // Require a Telegram-verified phone number before an order can be placed.
-  if (!user?.telegram_user_id) {
+  if (!user || !(await isPhoneVerified(c.env.DB, user))) {
     return c.json({ error: 'Подтвердите номер телефона через Telegram, чтобы оформить заказ.', code: 'phone_not_verified' }, 403)
   }
 

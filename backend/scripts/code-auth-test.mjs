@@ -72,6 +72,7 @@ try {
   assert.match(res.headers.get('set-cookie') ?? '', /user_token=.+HttpOnly/i)
   const user = await db.prepare('SELECT id, phone, role, status FROM users WHERE phone = ?').bind('+998901234567').first()
   assert.equal(user.role, 'user')
+  assert.ok(await db.prepare("SELECT 1 FROM user_identities WHERE user_id = ? AND provider = 'tg_code'").bind(user.id).first(), 'code sign-in marks the phone verified')
 
   // One sign-in per code; a second sign-in reuses the same account.
   assert.equal((await post(mf, '/api/auth/code/check', { ticket: sent.ticket, code: CODE })).data.status, 'expired')

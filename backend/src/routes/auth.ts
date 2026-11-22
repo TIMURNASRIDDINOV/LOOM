@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
-  getUserByEmail, getUserById,
+  getUserByEmail, getUserById, isPhoneVerified,
   updateUserProfile, updateUserPassword, updateUserAvatar,
   getUserOrderStats, anonymizeUser, hasOpenOrders, setDeleteRequested,
 } from '../db/queries'
@@ -84,7 +84,7 @@ auth.get('/me', requireAuth, async (c) => {
     orders_count: stats.order_count,
     total_spent: stats.total_spent,
     // True once the phone number has been verified through Telegram.
-    phone_verified: !!user.telegram_user_id,
+    phone_verified: await isPhoneVerified(c.env.DB, user),
     telegram_user_id: user.telegram_user_id,
     telegram_username: user.telegram_username,
     // Designer opt-in (migration 0017). The app refreshes from /me after every
