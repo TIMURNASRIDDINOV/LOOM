@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <!-- LOOM-371: Instagram ad landing. Every visitor (people and crawlers)
-       gets this same page; after a short pause it opens the Telegram Mini
-       App on the t-shirt configurator (start_param routing: assets/tma.js). -->
+       gets this same page; the button opens the Telegram Mini App on the
+       t-shirt configurator (start_param routing: assets/tma.js). No automatic
+       redirect: Meta rejects ads whose landing page redirects (LOOM-372). -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="robots" content="noindex" />
   <meta name="theme-color" content="#f5f5f2" />
@@ -38,13 +39,11 @@
       // start_param allows A-Za-z0-9_- up to 64 chars; "tshirt-regular__" uses 16.
       var c = q.get('utm_campaign') || ''
       if (!/^[A-Za-z0-9_-]{1,48}$/.test(c)) c = 'reel_print_nov26_bot'
-      var target = 'https://t.me/looom_design_bot?startapp=tshirt-regular__' + c
-      document.getElementById('go').href = target
+      document.getElementById('go').href = 'https://t.me/looom_design_bot?startapp=tshirt-regular__' + c
       // Keep the ad's UTM tags on the website fallback.
       var w = new URLSearchParams({ slug: 'tshirt-regular' })
       q.forEach(function (v, k) { if (/^utm_/.test(k)) w.set(k, v) })
       document.getElementById('web').href = '/configurator?' + w.toString()
-      setTimeout(function () { location.href = target }, 600)
     })()
   </script>
 </body>
