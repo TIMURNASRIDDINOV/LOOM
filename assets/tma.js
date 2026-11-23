@@ -179,12 +179,12 @@
   // the same on Atelye pages (atelye.css tokens) and on the configurator.
   const SHEET_CSS = `
 .tma-sheet{position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;font-family:var(--f,'Archivo',system-ui,sans-serif)}
-.tma-sheet__scrim{position:absolute;inset:0;background:rgba(10,12,14,.38);opacity:0;transition:opacity .22s cubic-bezier(.2,0,0,1)}
+.tma-sheet__scrim{position:absolute;inset:0;background:rgba(10,12,14,.38);opacity:0;transition:opacity .5s cubic-bezier(.32,.72,0,1);touch-action:none}
 .tma-sheet.is-open .tma-sheet__scrim{opacity:1}
 .tma-sheet__panel{position:relative;width:100%;max-width:34rem;background:var(--surface,#fff);color:var(--ink,#14171a);
   border-radius:14px 14px 0 0;padding:0 16px calc(16px + var(--tma-bottom,env(safe-area-inset-bottom,0px)));
   box-shadow:0 0 0 1px var(--ln,rgba(20,23,26,.16)),0 -14px 30px -12px rgba(14,18,24,.3);
-  transform:translateY(100%);transition:transform .22s cubic-bezier(.2,0,0,1)}
+  transform:translateY(100%);transition:transform .5s cubic-bezier(.32,.72,0,1);touch-action:none}
 .tma-sheet.is-open .tma-sheet__panel{transform:translateY(0)}
 .tma-sheet__grip{height:22px;display:grid;place-items:center}
 .tma-sheet__grip::before{content:"";width:38px;height:4px;border-radius:2px;background:var(--mut,#59616a);opacity:.55}
@@ -255,10 +255,21 @@
     const shareBtn = sheet.querySelector('[data-tma-share]')
 
     function close() {
+      if (!sheet.classList.contains('is-open')) return
       sheet.classList.remove('is-open')
-      setTimeout(() => { sheet.remove(); style.remove() }, 240)
+      document.removeEventListener('keydown', onKey)
+      setTimeout(() => { sheet.remove(); style.remove() }, 520)
     }
+    function onKey(e) { if (e.key === 'Escape') close() }
+    document.addEventListener('keydown', onKey)
     sheet.querySelectorAll('[data-tma-later]').forEach((el) => el.addEventListener('click', close))
+    // LOOM-374: Vaul-style drag-to-dismiss (assets/sheet-drag.js); the scrim fades with the drag.
+    if (window.LOOM_SHEET) {
+      window.LOOM_SHEET.attach(sheet.querySelector('.tma-sheet__panel'), {
+        onClose: close,
+        backdrop: sheet.querySelector('.tma-sheet__scrim'),
+      })
+    }
 
     let watchdog = null
     function fail(msg) {

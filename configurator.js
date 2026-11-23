@@ -6930,8 +6930,9 @@ function atlSheetClose(restore = true) {
   sh.classList.remove("open");
   sh.style.height = "";
   document.getElementById("atl-shade").hidden = true;
-  // Hidden once it has slid out (120 ms), unless it opened again meanwhile.
-  setTimeout(() => { if (!_atlSh) sh.hidden = true; }, 160);
+  // Hidden once it has slid out (phone: 500 ms Vaul curve, LOOM-374; desktop
+  // dialog: 120 ms fade), unless it opened again meanwhile.
+  setTimeout(() => { if (!_atlSh) sh.hidden = true; }, _atlD() ? 160 : 520);
   document.documentElement.classList.remove("atl-sheet");
   renderFlatEditor();
   if (!trigger) return;
@@ -7129,35 +7130,19 @@ function bindAtelyeSheet() {
     e.preventDefault();
     f[e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i + 1) % f.length].focus();
   });
-  // Grabber: a tap steps the height, a drag follows the finger and snaps.
-  let drag = null; // { y, h, moved }
-  grab.addEventListener("pointerdown", (e) => {
-    drag = { y: e.clientY, h: sh.getBoundingClientRect().height, moved: false };
-    grab.setPointerCapture(e.pointerId);
+  // LOOM-374: drag anywhere on the phone sheet (Vaul-style, assets/sheet-drag.js):
+  // the height follows the finger and snaps to peek / half / full. It never
+  // dismisses — a flick down from peek stays at peek. A tap on the grabber steps.
+  if (window.LOOM_SHEET) window.LOOM_SHEET.attach(sh, {
+    enabled: () => !!_atlSh && _atlLayout() === "p",
+    scroller: document.getElementById("atl-sh-body"),
+    snap: {
+      levels: () => ATL_SH_LVLS.map((name) => ({ name, px: _atlShLvlPx(name) })),
+      current: () => sh.dataset.lvl,
+      set: (name) => { sh.dataset.lvl = name; },
+    },
   });
-  grab.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-    const dy = drag.y - e.clientY;
-    if (!drag.moved && Math.abs(dy) < 6) return;
-    drag.moved = true;
-    sh.classList.add("drag");
-    sh.style.height = Math.max(80, Math.min(window.innerHeight * 0.92, drag.h + dy)) + "px";
-  });
-  const end = () => {
-    if (!drag) return;
-    const moved = drag.moved;
-    drag = null;
-    sh.classList.remove("drag");
-    if (!moved) return; // the click that follows steps the height
-    const h = sh.getBoundingClientRect().height;
-    sh.dataset.lvl = ATL_SH_LVLS.reduce((a, l) => (Math.abs(_atlShLvlPx(l) - h) < Math.abs(_atlShLvlPx(a) - h) ? l : a));
-    sh.style.height = "";
-    grab.dataset.dragged = "1";
-  };
-  grab.addEventListener("pointerup", end);
-  grab.addEventListener("pointercancel", () => { end(); delete grab.dataset.dragged; }); // no click follows
   grab.addEventListener("click", () => {
-    if (grab.dataset.dragged) { delete grab.dataset.dragged; return; }
     const i = ATL_SH_LVLS.indexOf(sh.dataset.lvl);
     sh.dataset.lvl = ATL_SH_LVLS[(i + 1) % ATL_SH_LVLS.length];
   });

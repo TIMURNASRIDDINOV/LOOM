@@ -362,12 +362,12 @@
     border-radius: var(--r-sheet) var(--r-sheet) 0 0; box-shadow: var(--e2);
     overflow: hidden; overscroll-behavior: contain;
     transform: translateY(100%);
-    transition: transform 120ms var(--ease-out), height var(--t-sheet) var(--ease);
+    /* LOOM-374: Vaul's iOS-sheet curve for slide and snap; assets/sheet-drag.js drives the drag. */
+    transition: transform 500ms cubic-bezier(.32, .72, 0, 1), height 500ms cubic-bezier(.32, .72, 0, 1);
   }
-  html.cfg-atelye .atl-sh.open { transform: none; transition: transform var(--t-sheet) var(--ease), height var(--t-sheet) var(--ease); }
+  html.cfg-atelye .atl-sh.open { transform: none; }
   html.cfg-atelye .atl-sh[data-lvl="half"] { height: 50%; }
   html.cfg-atelye .atl-sh[data-lvl="full"] { height: 92%; }
-  html.cfg-atelye .atl-sh.drag { transition: none; }
   /* The grabber's bar, centred on the sheet whatever the head holds. */
   html.cfg-atelye .atl-sh::before {
     content: ""; position: absolute; left: 50%; top: 9px; width: 38px; height: 4px; margin-left: -19px;
