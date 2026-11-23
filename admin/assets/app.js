@@ -16,8 +16,20 @@ async function apiFetch(path, options = {}) {
   return res
 }
 
+// Every failure also raises an error toast (LOOM-373), except a 401 (the page
+// redirects to login) and calls made with { quiet: true }. The toast text is
+// apiErrorMessage(err), the same text callers already toast, so ui.js's dedupe
+// shows it once. The error is marked loomToasted so the unhandledrejection
+// hook below does not toast it a second time.
 async function apiJSON(path, options = {}) {
-  const res = await apiFetch(path, options)
+  const { quiet, ...fetchOpts } = options
+  let res
+  try {
+    res = await apiFetch(path, fetchOpts)
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw e
+    throw apiFail(Object.assign(new Error('Нет связи с сервером. Проверьте интернет.'), { status: 0, data: {}, cause: e }), quiet)
+  }
   let data = null
   let parsed = true
   try { data = await res.json() } catch { parsed = false }
@@ -25,9 +37,18 @@ async function apiJSON(path, options = {}) {
     const d = data || {}
     const msg = typeof d.error === 'string' ? d.error
       : (d.error && d.error.message) || (res.ok ? 'Сервер вернул неожиданный ответ.' : 'Ошибка сервера (' + res.status + ').')
-    throw Object.assign(new Error(msg), { status: res.status, data: d })
+    throw apiFail(Object.assign(new Error(msg), { status: res.status, data: d }), quiet)
   }
   return data
+}
+
+function apiFail(err, quiet) {
+  if (!quiet && err.status !== 401) {
+    const ui = window.LOOM_UI
+    ui.toast(ui.apiErrorMessage(err), 'error')
+    err.loomToasted = true
+  }
+  return err
 }
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
@@ -36,7 +57,7 @@ async function apiJSON(path, options = {}) {
 // is not a logout: show it and stay on the page instead of bouncing to login.
 async function checkAuth() {
   try {
-    return await apiJSON('/api/admin/me')
+    return await apiJSON('/api/admin/me', { quiet: true }) // failures show the boot banner instead
   } catch (e) {
     if (e && e.status === 401) return null
     showBootError(e)
@@ -52,7 +73,7 @@ function loginUrl() {
 
 async function logout() {
   try {
-    await apiJSON('/api/admin/logout', { method: 'POST' })
+    await apiJSON('/api/admin/logout', { method: 'POST', quiet: true })
   } catch { /* ignore */ }
   window.location.href = 'login.html'
 }
@@ -320,9 +341,27 @@ window.addEventListener('error', (e) => {
     return
   }
   reportIfStuck(e.error || e.message)
+  if (!isNoise(e.message, e.filename)) runtimeToast()
 }, true)
 
-window.addEventListener('unhandledrejection', (e) => reportIfStuck(e.reason))
+window.addEventListener('unhandledrejection', (e) => {
+  reportIfStuck(e.reason)
+  const r = e.reason
+  if (r && (r.loomToasted || r.name === 'AbortError')) return
+  if (!isNoise(r && (r.message || r), '')) runtimeToast()
+})
+
+// LOOM-373: a real runtime error also gets an error toast. Noise is skipped:
+// ResizeObserver loops, cross-origin "Script error." and extension scripts.
+// Repeats collapse through ui.js's dedupe.
+function isNoise(msg, file) {
+  msg = String(msg || '')
+  if (/ResizeObserver loop/i.test(msg) || msg === 'Script error.' || msg === 'Script error') return true
+  return !!file && (/^[a-z-]+-extension:/.test(file) || (/^https?:/.test(file) && !file.startsWith(location.origin)))
+}
+function runtimeToast() {
+  window.LOOM_UI.toast('Ошибка на странице. Если что-то не работает — обновите её.', 'error')
+}
 
 // ─── LOOM_UI fallback ─────────────────────────────────────────────────────────
 // Every page script opens with `const { esc, toast, … } = window.LOOM_UI`, so if
