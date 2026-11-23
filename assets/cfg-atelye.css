@@ -27,7 +27,7 @@
     --e1: 0 0 0 1px var(--ln), 0 6px 14px -6px rgba(14, 18, 24, .28);
     --e2: 0 0 0 1px var(--ln), 0 -14px 30px -12px rgba(14, 18, 24, .3);
     --t-fast: 100ms; --t-base: 140ms; --t-sheet: 220ms;
-    --ease: cubic-bezier(.2, 0, 0, 1); --ease-out: cubic-bezier(.4, 0, 1, 1);
+    --ease: cubic-bezier(.2, 0, 0, 1); --ease-out: cubic-bezier(.23, 1, .32, 1);
     --f: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
     /* Insets and the action bar's height; Telegram overrides them (LOOM-314). */
     --atl-st: env(safe-area-inset-top, 0px); --atl-sb: env(safe-area-inset-bottom, 0px); --atl-bar: 52px;
@@ -569,10 +569,10 @@
     --e1: 0 0 0 1px var(--ln), 0 6px 14px -6px rgba(14, 18, 24, .28);
     --e2: 0 0 0 1px var(--ln), 0 -14px 30px -12px rgba(14, 18, 24, .3);
     --t-fast: 100ms; --t-base: 140ms; --t-sheet: 220ms;
-    --ease: cubic-bezier(.2, 0, 0, 1); --ease-out: cubic-bezier(.4, 0, 1, 1);
+    --ease: cubic-bezier(.2, 0, 0, 1); --ease-out: cubic-bezier(.23, 1, .32, 1);
     --f: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
     /* Motion of the bar and the dialogs (transitions.dev dropdown / modal). */
-    --atd-open: 250ms; --atd-close: 150ms; --atd-ease: cubic-bezier(.22, 1, .36, 1);
+    --atd-open: 250ms; --atd-close: 150ms; --atd-ease: var(--ease-out);
   }
   html.cfg-atelye-d[data-theme="dark"] .studio,
   html.cfg-atelye-d[data-theme="dark"] .atl-drw,
