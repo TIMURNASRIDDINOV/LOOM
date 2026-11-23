@@ -53,6 +53,7 @@
 
   /* ── tiny toast (pages without configurator.js need one) ────── */
   function toast(msg, type) {
+    if (window.LOOM_TOAST) { window.LOOM_TOAST(msg, type); return; } // LOOM-373: shared stack
     var el = document.getElementById('loom-toast');
     if (el) el.remove();
     el = document.createElement('div');

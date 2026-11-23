@@ -848,27 +848,62 @@ a.stat:hover { border-color: var(--btn-hover-border); }
    Toasts + dialogs (built by ui.js) — replaces alert()/confirm()
    ════════════════════════════════════════════════════════════════════════ */
 
+/* LOOM-373: Sonner-style stack. ui.js sets per item --t-yc (collapsed offset),
+   --t-ye (expanded offset), --t-s (depth scale), --t-sx/--t-sy (swipe), and
+   --t-hc/--t-he (stack height) so hover holds across the expanded column. */
 .toast-stack {
-  position: fixed; right: var(--sp-4); bottom: var(--sp-4);
-  display: flex; flex-direction: column; gap: var(--sp-2);
-  z-index: 200; pointer-events: none; max-width: min(380px, calc(100vw - 2rem));
+  position: fixed; right: var(--sp-5); bottom: calc(var(--sp-5) + env(safe-area-inset-bottom, 0px));
+  z-index: 200; width: 356px; max-width: calc(100vw - 2rem);
+  height: var(--t-hc, 0); margin: 0; padding: 0; list-style: none; pointer-events: none;
 }
+.toast-stack:hover, .toast-stack:focus-within { height: var(--t-he, 0); }
 .toast {
+  position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box;
   display: flex; align-items: flex-start; gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4); border-radius: var(--radius);
+  padding: var(--sp-3) 2.5rem var(--sp-3) var(--sp-3); border-radius: var(--radius);
   background: var(--bg-elevated); border: 1px solid var(--hairline);
   box-shadow: var(--shadow-pop); color: var(--text);
-  font-size: var(--fs-base); line-height: var(--lh-base);
-  pointer-events: auto; animation: toast-in 0.18s ease;
+  font-size: var(--fs-base); line-height: var(--lh-base); overflow-wrap: anywhere;
+  pointer-events: auto; cursor: pointer; touch-action: none; user-select: none;
+  -webkit-tap-highlight-color: transparent; transform-origin: 50% 100%;
+  transform: translate(var(--t-sx, 0px), calc(var(--t-yc, 0px) + var(--t-sy, 0px))) scale(var(--t-s, 1));
+  transition: transform 400ms cubic-bezier(.22, 1, .36, 1), opacity 400ms cubic-bezier(.22, 1, .36, 1);
 }
-.toast--success { border-color: var(--success-border); }
-.toast--error   { border-color: var(--danger-border); }
-.toast .toast-icon { flex-shrink: 0; line-height: 1.35; }
+.toast-stack:hover .toast, .toast-stack:focus-within .toast {
+  transform: translate(var(--t-sx, 0px), calc(var(--t-ye, 0px) + var(--t-sy, 0px)));
+}
+.toast.is-enter { transform: translateY(100%); opacity: 0; transition: none; }
+.toast.is-leaving, .toast-stack:hover .toast.is-leaving {
+  opacity: 0; pointer-events: none;
+  transform: translate(var(--t-sx, 0px), calc(var(--t-yc, 0px) + var(--t-sy, 0px) + 40%)) scale(var(--t-s, 1));
+  transition: transform 250ms cubic-bezier(.22, 1, .36, 1), opacity 250ms cubic-bezier(.22, 1, .36, 1);
+}
+.toast.is-swiping { transition: none; }
+/* Collapsed, the cards behind take the front card's height and hide their
+   text, so only clean edges peek out. */
+.toast-stack:not(:hover):not(:focus-within) .toast:not([data-front]) { height: var(--t-fh); overflow: hidden; }
+.toast > * { transition: opacity 400ms; }
+.toast-stack:not(:hover):not(:focus-within) .toast:not([data-front]) > * { opacity: 0; }
+.toast .toast-icon { flex-shrink: 0; margin-top: 0; }
 .toast--success .toast-icon { color: var(--success); }
 .toast--error .toast-icon   { color: var(--danger); }
-.toast.is-leaving { animation: toast-out 0.16s ease forwards; }
+.toast--warning .toast-icon { color: var(--warning); }
+.toast--info .toast-icon    { color: var(--text-muted); }
+.toast-x {
+  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
+  display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-sm);
+  background: none; color: var(--text-muted); font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
+}
+.toast-x:hover { background: var(--bg-card); color: var(--text); }
+.toast-x:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+@media (max-width: 600px) {
+  .toast-stack { left: var(--sp-4); right: var(--sp-4); width: auto; max-width: none; bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast.is-leaving { transition: opacity 150ms linear !important; }
+  .toast.is-enter { transform: none; }
+}
 @keyframes toast-in  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes toast-out { to { opacity: 0; transform: translateY(6px); } }
 
 .dialog-backdrop {
   position: fixed; inset: 0; z-index: 210;

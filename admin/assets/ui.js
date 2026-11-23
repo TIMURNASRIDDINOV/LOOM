@@ -12,40 +12,131 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
   }
 
-  // ── Toasts ────────────────────────────────────────────────────────────
-  let stack = null
+  // ── Toasts (LOOM-373: Sonner-style stack) ─────────────────────────────
+  // Newest in front, up to 3 more peeking behind (scaled, offset); the stack
+  // fans out on hover/focus and pauses its timers. Click, swipe or × dismiss.
+  // Identical messages within 4 s show once, so a caller's own error toast and
+  // apiJSON's automatic one collapse into one. The customer site has its own
+  // copy in assets/toast.js on purpose: separate design systems.
+  const MAX = 3, GAP = 8, PEEK = 12, DEDUPE_MS = 4000, EXIT_MS = 250
+  const TOAST_ICONS = {
+    success: '<path d="M8 12.5l2.5 2.5L16 9.5"/>',
+    error:   '<path d="M12 7.5v5.5M12 16.5v.01"/>',
+    warning: '<path d="M12 8v5M12 16.5v.01"/>',
+    info:    '<path d="M12 11v5.5M12 7.5v.01"/>',
+  }
+  let stack = null, items = [], paused = false
+  const recent = {}
+
   function getStack() {
-    if (!stack || !stack.isConnected) {
-      stack = document.createElement('div')
+    if (!stack) {
+      stack = document.createElement('ol')
       stack.className = 'toast-stack'
-      // Announced politely: a toast is confirmation, not an interruption.
-      stack.setAttribute('role', 'status')
-      stack.setAttribute('aria-live', 'polite')
-      document.body.appendChild(stack)
+      stack.setAttribute('aria-label', 'Уведомления')
+      const pause = (p) => { paused = p; items.forEach((it) => (p ? it.pause() : it.resume())) }
+      stack.addEventListener('mouseenter', () => pause(true))
+      stack.addEventListener('mouseleave', () => pause(false))
+      stack.addEventListener('focusin', () => pause(true))
+      stack.addEventListener('focusout', (e) => { if (!stack.contains(e.relatedTarget)) pause(false) })
     }
+    if (!stack.isConnected) document.body.appendChild(stack)
     return stack
   }
 
-  const TOAST_ICONS = { success: '✓', error: '!', info: '·' }
+  function layout() {
+    const live = items.filter((it) => !it.leaving)
+    // it.h: natural height, measured on insert (a back card is clamped later).
+    let y = 0
+    if (stack) stack.style.setProperty('--t-fh', (live[0] ? live[0].h : 0) + 'px')
+    live.forEach((it, i) => {
+      const st = it.el.style
+      it.el.toggleAttribute('data-front', i === 0)
+      st.zIndex = String(MAX + 1 - i)
+      st.setProperty('--t-yc', (-PEEK * i) + 'px')
+      st.setProperty('--t-ye', (-y) + 'px')
+      st.setProperty('--t-s', String(1 - 0.05 * i))
+      y += it.h + GAP
+    })
+    if (!stack) return
+    const front = live[0] ? live[0].h : 0
+    stack.style.setProperty('--t-hc', live.length ? (front + PEEK * (live.length - 1)) + 'px' : '0px')
+    stack.style.setProperty('--t-he', Math.max(0, y - GAP) + 'px')
+  }
 
   function toast(message, kind, ms) {
-    const type = kind || 'info'
-    const el = document.createElement('div')
-    el.className = 'toast toast--' + type
-    el.innerHTML =
-      '<span class="toast-icon" aria-hidden="true">' + (TOAST_ICONS[type] || '·') + '</span>' +
-      '<span>' + esc(message) + '</span>'
-    getStack().appendChild(el)
+    const type = TOAST_ICONS[kind] ? kind : 'info'
+    const text = String(message == null ? '' : message)
+    const key = type + '|' + text, now = Date.now()
+    const prev = recent[key]
+    if (prev && now - prev.at < DEDUPE_MS && !prev.item.leaving) return prev.item.dismiss
 
-    const life = ms || (type === 'error' ? 6000 : 3500)
-    const timer = setTimeout(dismiss, life)
+    const el = document.createElement('li')
+    el.className = 'toast toast--' + type + ' is-enter'
+    el.setAttribute('data-front', '') // unclamped, so it.h below is the natural height
+    // Errors interrupt (assertive); confirmations wait their turn.
+    el.setAttribute('role', type === 'error' ? 'alert' : 'status')
+    el.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite')
+    el.setAttribute('aria-atomic', 'true')
+    el.innerHTML =
+      '<svg class="toast-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.25"/>' + TOAST_ICONS[type] + '</svg>' +
+      '<span class="toast-msg">' + esc(text) + '</span>' +
+      '<button type="button" class="toast-x" aria-label="Закрыть">×</button>'
+
+    let left = ms || (type === 'error' ? 6000 : 4000), started = 0, timer = 0
+    const it = {
+      el, leaving: false, dismiss,
+      pause() { if (timer) { clearTimeout(timer); timer = 0; left -= Date.now() - started } },
+      resume() { if (!timer && !it.leaving) { started = Date.now(); timer = setTimeout(dismiss, Math.max(left, 1000)) } },
+    }
     function dismiss() {
+      if (it.leaving) return
+      it.leaving = true
       clearTimeout(timer)
       el.classList.add('is-leaving')
-      setTimeout(() => el.remove(), 180)
+      layout()
+      setTimeout(() => { el.remove(); items = items.filter((x) => x !== it); layout() }, EXIT_MS + 30)
     }
-    el.addEventListener('click', dismiss)
+    el.querySelector('.toast-x').addEventListener('click', (e) => { e.stopPropagation(); dismiss() })
+    bindSwipe(el, dismiss)
+
+    const s = getStack()
+    s.insertBefore(el, s.firstChild)
+    it.h = el.offsetHeight
+    items.unshift(it)
+    recent[key] = { at: now, item: it }
+    items.filter((x) => !x.leaving).slice(MAX).forEach((x) => x.dismiss())
+    layout()
+    void el.offsetHeight // commit the start state so the entrance animates
+    el.classList.remove('is-enter')
+    if (!paused) it.resume()
     return dismiss
+  }
+
+  // A tap dismisses; a drag past 45 px (sideways or down) flings it away.
+  function bindSwipe(el, dismiss) {
+    let x0 = 0, y0 = 0, dx = 0, dy = 0, down = false
+    const reset = () => { el.style.setProperty('--t-sx', '0px'); el.style.setProperty('--t-sy', '0px') }
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button || e.target.closest('.toast-x')) return
+      down = true; x0 = e.clientX; y0 = e.clientY; dx = dy = 0
+      try { el.setPointerCapture(e.pointerId) } catch { /* old browser */ }
+      el.classList.add('is-swiping')
+    })
+    el.addEventListener('pointermove', (e) => {
+      if (!down) return
+      dx = e.clientX - x0; dy = Math.max(0, e.clientY - y0)
+      const horiz = Math.abs(dx) > dy
+      el.style.setProperty('--t-sx', horiz ? dx + 'px' : '0px')
+      el.style.setProperty('--t-sy', horiz ? '0px' : dy + 'px')
+    })
+    el.addEventListener('pointerup', () => {
+      if (!down) return
+      down = false
+      el.classList.remove('is-swiping')
+      const moved = Math.max(Math.abs(dx), dy)
+      if (moved < 6 || moved > 45) dismiss(); else reset()
+    })
+    el.addEventListener('pointercancel', () => { down = false; el.classList.remove('is-swiping'); reset() })
   }
 
   // ── Confirm dialog ────────────────────────────────────────────────────

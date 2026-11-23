@@ -6366,7 +6366,7 @@ function atdTextFocus(err) {
   const tin = document.getElementById("atd-tin");
   if (!tin) return false;
   atdTextErr(!!err);
-  if (err) atlToast(CT("cfg.untouchedTextCart", "Введите текст или удалите этот текстовый слой, чтобы добавить товар в корзину."), "error");
+  if (err) showToast(CT("cfg.untouchedTextCart", "Введите текст или удалите этот текстовый слой, чтобы добавить товар в корзину."), "error");
   tin.focus({ preventScroll: true });
   return true;
 }
@@ -9350,6 +9350,7 @@ function _float32Copy(root) {
 // ================================================================
 
 function showToast(message, type = "success") {
+  if (window.LOOM_TOAST) return window.LOOM_TOAST(message, type); // LOOM-373: the shared stack (assets/toast.js)
   if (_atl()) return atlToast(message, type); // LOOM-312: the Atelye toast
   const existing = document.getElementById("loom-toast");
   if (existing) existing.remove();
